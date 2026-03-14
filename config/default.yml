@@ -1,0 +1,18 @@
+ollama:
+  base_url: "http://localhost:11434"
+  generation_model: "llama3.2"
+  embedding_model: "nomic-embed-text"
+  timeout: 120
+
+qdrant:
+  url: "http://localhost:6333"
+  collection_name: "documents"
+
+neo4j:
+  uri: "bolt://localhost:7687"
+  user: "neo4j"
+  password: "document_assistant_pass"
+
+chunking:
+  max_tokens: 512
+  overlap_tokens: 128

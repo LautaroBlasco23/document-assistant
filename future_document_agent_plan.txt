@@ -1,0 +1,367 @@
+FUTURE ARCHITECTURE — DETAILED IMPLEMENTATION PLAN
+====================================================
+
+GOAL
+----
+Build a local, production-capable document reader agent that:
+- ingests PDFs / EPUBs (text-focused)
+- builds both a vector index and a knowledge graph
+- exposes a hybrid retriever (vector + keyword + metadata)
+- orchestrates agents to summarize, generate questions, and write .md outputs per chapter
+- runs locally with Docker services for vector DB and graph DB, and uses Ollama for LLMs/embeddings
+
+ARCHITECTURE OVERVIEW (ASCII)
+-----------------------------
+Documents (PDF/EPUB)
+    │
+    ├─> Ingestion pipeline (parsers, OCR fallback)
+    │
+    ├─> Preprocessor (clean, normalize)
+    │
+    ├─> Split & Semantic Chunking (tokens / sentences / paragraphs)
+    │
+    ├─> Embeddings (local/embed model)
+    │
+    ├─> Vector store (Qdrant)
+    │
+    ├─> Entity extraction & relation extraction
+    │         └─> Knowledge Graph (Neo4j)
+    │
+Hybrid Retriever: vector search + BM25/keyword + metadata filters
+    │
+Retriever -> Context Assembler (hierarchical selection + reranker)
+    │
+Agent Pipeline (LLM via Ollama):
+    - Summarizer agent
+    - QA agent (RAG)
+    - Question-generator agent
+    - Formatter / markdown writer
+    │
+Outputs: chapter1-summary.md, chapter1-questions.md, chapter1-flashcards.md
+
+
+MAIN COMPONENTS & WHY
+---------------------
+- Local LLM runtime: use Ollama for model serving locally (generation + embeddings).
+- Vector DB: Qdrant for fast ANN search with payload metadata and filtering.
+- Knowledge Graph DB: Neo4j for entities/relations and graph traversals.
+- Keyword search / BM25: lightweight local search (Whoosh or SQLite FTS) to complement vectors.
+- Ingestion: PyMuPDF (fitz) for PDFs, ebooklib for EPUBs, Tesseract OCR fallback for scanned pages.
+- NLP tools: spaCy for NER + relation extraction heuristics; optionally a small relation-extraction model.
+- RAG framework/orchestration: LlamaIndex or LangChain as glue (LlamaIndex recommended for doc-first workflows).
+- Retriever reranker: small cross-encoder reranker (if available) or use a lightweight LLM re-ranking step.
+
+
+PROJECT LAYOUT (recommended)
+----------------------------
+doc-agent/
+├─ docker/
+│  ├─ docker-compose.yml        # qdrant, neo4j, optional redis
+│  └─ qdrant-config.yml
+├─ data/
+│  ├─ raw/                      # uploaded PDFs/EPUBs
+│  ├─ text/                     # parsed text files
+│  └─ chunks/                   # chunk json / metadata
+├─ embeddings/                  # caching & embedder wrappers
+├─ graph/                       # graph extraction outputs (json/neo4j loader)
+├─ outputs/                     # markdown outputs
+├─ src/
+│  ├─ ingest/
+│  │  ├─ pdf_loader.py
+│  │  ├─ epub_loader.py
+│  │  └─ ocr.py
+│  ├─ preprocess/
+│  │  ├─ normalizer.py
+│  │  └─ splitter.py
+│  ├─ embeddings/
+│  │  └─ ollama_embedder.py
+│  ├─ vectorstore/
+│  │  └─ qdrant_client.py
+│  ├─ graph/
+│  │  ├─ entity_extractor.py
+│  │  └─ neo4j_loader.py
+│  ├─ retriever/
+│  │  ├─ hybrid_retriever.py
+│  │  └─ reranker.py
+│  ├─ agents/
+│  │  ├─ summarizer.py
+│  │  ├─ qa_agent.py
+│  │  ├─ question_generator.py
+│  │  └─ markdown_writer.py
+│  └─ cli.py
+└─ requirements.txt
+
+
+IMPLEMENTATION DETAILS (step-by-step)
+-------------------------------------
+
+PHASE A — INFRA & ENVIRONMENT
+1) Docker compose for infra (Qdrant + Neo4j). Example:
+   version: "3.8"
+   services:
+     qdrant:
+       image: qdrant/qdrant:latest
+       ports: ["6333:6333"]
+       volumes: ["./qdrant_data:/qdrant/storage"]
+     neo4j:
+       image: neo4j:5
+       ports: ["7474:7474","7687:7687"]
+       environment:
+         NEO4J_AUTH: "neo4j/replace_password"
+       volumes: ["./neo4j_data:/data"]
+
+2) Ollama is expected to be installed on the host and reachable at http://localhost:11434.
+   - Use Ollama for model generation and as an embeddings provider (pull embedding-capable model).
+
+3) Python venv:
+   - requirements.txt should include: requests, qdrant-client, neo4j, spacy, pymupdf, ebooklib, python-multipart, tiktoken (or token counter), sentencepiece, transformers (if needed), llama-index (or langchain), whoosh (or sqlite-utils).
+
+PHASE B — INGESTION & PREPROCESSING
+1) Parsing PDFs / EPUBs
+   - PDF: PyMuPDF (fitz) for text extraction (fast + preserves order).
+   - EPUB: ebooklib to extract chapter boundaries + HTML -> soup.get_text().
+   - OCR fallback: detect pages with very low extracted text and run Tesseract OCR.
+
+2) Normalization
+   - Normalize whitespace, unify newlines, strip headers/footers heuristics, detect page breaks.
+   - Extract or infer metadata: title, author, publication, chapters (if epub metadata available).
+
+3) Structural Segmentation (hierarchical)
+   - Try to detect chapters & sections using headings (epub HTML tags or regexes for "Chapter X").
+   - If detection fails, create synthetic chapter boundaries: every N pages or by detecting large heading-like lines.
+   - For each chapter/section, keep a "section_id" and "chapter_id". Store mapping to source file/page ranges.
+
+PHASE C — CHUNKING STRATEGY
+1) Two-layer chunking (recommended):
+   - Logical chunk: paragraph / section-level (200–600 tokens).
+   - Micro chunk: sliding-window token chunks (e.g., 512 tokens with 128 overlap) for embedding and vector store.
+2) Store for each chunk:
+   - id (uuid), text, start_char, end_char, chapter_id, section_id, page_no, source_file, checksum, length_tokens.
+3) Keep a serialized "chapter summary" produced by a summarizer agent and also embed those summaries.
+
+PHASE D — EMBEDDINGS
+1) Use Ollama embeddings endpoint (or a local GGUF embed model if you prefer).
+   - Batch embedding requests to reduce overhead.
+2) Cache embeddings: store in local filesystem / db to avoid re-embedding unchanged chunks.
+3) Embedding schema example (for each chunk):
+   {
+     "id": uuid,
+     "vector": [...],
+     "payload": {
+       "text": "...",
+       "book": "...",
+       "chapter": n,
+       "section": m,
+       "page": p,
+       "summary": "...",        # optional short summary
+       "source": "book.pdf"
+     }
+   }
+
+PHASE E — VECTORSTORE (Qdrant)
+1) Collection schema in Qdrant:
+   - name: documents
+   - vector_size: <embedding_dim>
+   - distance: Cosine (or Dot)
+   - payload_schema: book (keyword), chapter (int), section (int), page (int), text (string), checksum (string)
+2) Upsert in batches (e.g., 256–1024 points per upsert).
+3) Use Qdrant filters for metadata constrained retrieval (chapter == 3 AND book == 'x').
+
+PHASE F — KNOWLEDGE GRAPH (Neo4j)
+1) Entity extraction:
+   - Run spaCy NER + rule-based extractions; for books, also detect characters, places, organizations, events.
+   - For each chunk run relation heuristics: subject-verb-object patterns, co-reference simplification (simple pronoun resolution by last mention).
+2) Graph schema:
+   - Node types: Entity (label=Character/Person/Place/Event/Concept), Document, Chapter, Section
+   - Relationship types: MENTIONS, APPEARS_IN, RELATES_TO, CAUSES, LOCATED_IN
+3) Load to Neo4j via bolt driver (neo4j python driver) in batches.
+4) Keep provenance: every edge/node has payload {source_file, chapter, page, chunk_id, sentence_index}
+5) Build indexes on node.label and node.name for fast lookup.
+
+PHASE G — HYBRID RETRIEVER & RERANKER
+1) Retrieval steps for a query:
+   a) Embed query
+   b) Vector top-K search (Qdrant) — k=20
+   c) Keyword/BM25 search within chapter scope (Whoosh or SQLite FTS) — top-M results
+   d) Merge result sets (preserve metadata)
+   e) Rerank using either:
+      - a cross-encoder reranker (if you have a model), or
+      - an LLM-based re-ranker: craft a prompt that takes candidate passages and sorts them by relevance
+2) Context assembly:
+   - Prefer higher-level units (chapter summary) first, then include top micro-chunks.
+   - Respect token budget: keep total tokens under model context size (e.g., 6k/8k tokens). Use most relevant items first.
+3) Use metadata filters when user specifies (chapter=n, book=..., page range).
+
+PHASE H — AGENT LAYER (Orchestration)
+1) Agents:
+   - Ingest Agent: monitors data/raw and processes new files.
+   - Summarizer Agent: creates chapter/section summaries and stores them as both text and embeddings.
+   - QA Agent: answers user queries by calling hybrid retriever + LLM to produce final answer.
+   - Question Generator Agent: given chapter summary + context, generate study questions and answers.
+   - Markdown Writer: takes generated content and writes structured .md files to outputs/
+2) Agent implementation options:
+   - LlamaIndex's ServiceContext + Indexes (document indexes + graph index)
+   - LangChain Agents with tool functions: `search_vector`, `search_graph`, `generate_md`
+3) Prompting patterns:
+   - System prompt: “You are a document reading assistant. Use only the provided context. If context is insufficient say so.”
+   - Explicit output format enforcement: JSON or fenced Markdown to enable reliable parsing by the caller.
+
+PHASE I — MARKDOWN OUTPUT & NAMING CONVENTIONS
+1) Output templates:
+   - chapter{n}-summary.md
+   - chapter{n}-questions.md
+   - chapter{n}-flashcards.md
+2) Markdown content layout (example for chapter1-questions.md):
+   # Chapter 1 — Title
+   **Source:** book.pdf (pages 1-14)
+   ## Summary
+   <short summary (3–6 bullet points)>
+   ## Questions
+   1. Q - A (short answer)
+   2. ...
+   ## Further reading / references
+3) Embed provenance: each question or summary bullet should include `(page X, chunk id: ...)` in HTML comment or YAML frontmatter for traceability.
+
+PHASE J — API / CLI
+1) CLI surface (simple):
+   - ingest [file|dir]
+   - summarize chapter <book> <chapter>
+   - ask --query "..." [--book ...] [--chapter ...]
+   - generate-md chapter <book> <chapter>
+2) Minimal HTTP API:
+   - /ingest (POST multipart)
+   - /ask (POST {query, book?, chapter?, k?})
+   - /generate-md (POST {book, chapter, template})
+
+PHASE K — TESTING & EVALUATION
+1) Unit test ingestion & chunking on multiple sample files.
+2) Evaluate retrieval recall: for a sample set of QA pairs, measure whether top-K contains the ground-truth passage.
+3) Human-in-the-loop correctness checks for generated Q&A and summaries; store feedback to improve reranker.
+
+PHASE L — MONITORING & MAINTENANCE
+1) Logging: ingestion logs, upsert statuses, API calls, errors.
+2) Metrics: queries per minute, average retrieval time, average rerank time, model latency.
+3) Reindexing: strategy to refresh embeddings when embedding model changes.
+
+PERFORMANCE & SCALING NOTES
+---------------------------
+- Batch embeddings and Qdrant upserts to improve throughput.
+- Use quantized local LLM models (GGUF / 4-bit) to reduce RAM and GPU needs.
+- Partition Qdrant collections by book or shard large collections.
+- Neo4j can be run in single instance for dev; consider clustering for heavy usage.
+- Cache frequent queries & precompute chapter embeddings.
+
+EXAMPLE CODE SNIPPETS
+---------------------
+1) simple PDF loader (PyMuPDF):
+```python
+import fitz
+def load_pdf(path):
+    doc = fitz.open(path)
+    pages = []
+    for i, page in enumerate(doc):
+        text = page.get_text().strip()
+        pages.append({'page_no': i+1, 'text': text})
+    return pages
+```
+
+2) chunker (token-based naive):
+```python
+def chunk_text(text, max_chars=3000, overlap_chars=500):
+    chunks = []
+    i = 0
+    while i < len(text):
+        chunk = text[i:i+max_chars]
+        chunks.append(chunk)
+        i += max_chars - overlap_chars
+    return chunks
+```
+
+3) embedding via Ollama (HTTP):
+```python
+import requests
+def embed_batch(texts, model="nomic-embed-text"):
+    r = requests.post("http://localhost:11434/api/embeddings", json={
+        "model": model,
+        "input": texts
+    })
+    return r.json()   # inspect for embedding formats
+```
+
+4) upsert to Qdrant (qdrant-client):
+```python
+from qdrant_client import QdrantClient
+from uuid import uuid4
+
+client = QdrantClient(url="http://localhost:6333")
+
+def upsert_chunks(collection, chunks_with_vectors):
+    points = []
+    for chunk, vec in chunks_with_vectors:
+        points.append({
+            "id": str(uuid4()),
+            "vector": vec,
+            "payload": {
+                "text": chunk,
+                # add metadata fields...
+            }
+        })
+    client.upsert(collection_name=collection, points=points)
+```
+
+5) retrieve + assemble context:
+```python
+def retrieve(query_vec, top_k=20):
+    hits = client.search(collection_name="documents", query_vector=query_vec, limit=top_k)
+    # map to (score, payload['text'], metadata)
+    return hits
+```
+
+6) LLM prompt assembly & call (Ollama generate):
+```python
+import requests
+def ask_with_context(model, question, context_blocks):
+    prompt = "CONTEXT:\n"
+    for i, c in enumerate(context_blocks):
+        prompt += f"==== block {i} (meta: {c['meta']})\n{c['text']}\n"
+    prompt += "\nTASK: Answer the question using only the context, then produce 8 study questions in markdown.\nQUESTION:\n" + question
+    r = requests.post("http://localhost:11434/api/generate", json={
+        "model": model,
+        "prompt": prompt,
+        "max_tokens": 800
+    })
+    return r.json()
+```
+
+OPERATIONAL CONSIDERATIONS
+--------------------------
+- Reproducibility: store a manifest for each ingestion run: model versions used, embedding model, Qdrant collection settings, ingest timestamp.
+- Security: if documents are sensitive, keep all services on local network and protect Neo4j with strong password. Back up Qdrant storage.
+- GDPR/privacy: log minimal PII in payloads; remove or hash sensitive identifiers if storing third-party content.
+
+FUTURE EXTENSIONS (roadmap ideas)
+---------------------------------
+- Add a cross-document summarizer to produce book-level TL;DRs.
+- Add multi-document comparators (e.g., compare chapter 1 across books).
+- Use the knowledge graph to answer relation-style queries and produce interactive visualizations.
+- Add a lightweight web UI (OpenWebUI or custom) for browsing retrieved passages, graph views, and editing provenance.
+- Integrate active learning: surface low-confidence QA items for human review and incorporate feedback to reranker or chunker.
+
+CHECKLIST (implementation milestones)
+------------------------------------
+- [ ] infra compose up (qdrant + neo4j)
+- [ ] local Ollama reachable
+- [ ] basic ingestion (pdf -> text)
+- [ ] chunking & local storage of chunks
+- [ ] embeddings upsert to Qdrant
+- [ ] simple vector retrieval + LLM answer
+- [ ] chapter summarizer + markdown writer
+- [ ] entity extraction + load to Neo4j
+- [ ] hybrid retriever + reranker
+- [ ] CLI/API + documentation
+
+NOTES
+-----
+This plan focuses on engineering pragmatism: start with a working minimal RAG + markdown writer, then add graph and reranker in iterative steps. Keep modules small and testable. Prefer Python for rapid prototyping; components (Qdrant & Neo4j) run in Docker for portability.
+
+---- END OF PLAN ----
