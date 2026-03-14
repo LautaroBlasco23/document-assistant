@@ -4,15 +4,19 @@ A local document reader agent that ingests PDFs and EPUBs, builds a vector index
 
 Runs entirely locally using Docker services and Ollama for LLM inference.
 
-## Features (planned)
+## Features
 
 - PDF and EPUB ingestion with structural segmentation (chapters, sections, pages)
-- Semantic chunking with configurable token windows
-- Vector search via Qdrant with metadata filtering
-- Knowledge graph via Neo4j for entity/relation queries
-- Hybrid retrieval (vector + keyword + graph)
-- LLM-powered agents: summarizer, QA, question generator, Markdown writer
-- CLI interface for all operations
+- Text normalization: whitespace cleanup, repeated header/footer stripping
+- Chapter-aware chunking with configurable token windows and overlap
+- Vector search via Qdrant (cosine similarity + full-text BM25)
+- Knowledge graph via Neo4j: LLM-extracted entities with regex fallback
+- Hybrid retrieval: vector + keyword + graph traversal + LLM reranker
+- LLM agents: summarizer, QA, question generator
+- Markdown output: per-chapter summary, study questions, flashcards
+- Idempotent ingestion by SHA-256 file hash
+- SQLite embedding cache to avoid re-embedding unchanged text
+- Ingestion manifest (JSON) per book with model/collection/timestamp metadata
 
 ## Prerequisites
 
@@ -61,6 +65,50 @@ Service health checks:
   Neo4j  (bolt://localhost:7687): OK
 ```
 
+## Usage
+
+### Ingest a document
+
+```bash
+uv run python -m cli.main ingest data/raw/book.pdf
+# or a whole directory
+uv run python -m cli.main ingest data/raw/
+```
+
+This will:
+1. Hash the file and skip if already ingested
+2. Parse and normalize pages
+3. Split into chapters and chunks
+4. Embed chunks (with SQLite cache)
+5. Upsert vectors into Qdrant
+6. Extract entities and store in Neo4j
+7. Write `data/output/<book>/manifest.json`
+
+### Generate Markdown outputs
+
+```bash
+uv run python -m cli.main generate-md "book" 1
+```
+
+Produces in `data/output/<book>/`:
+- `chapter1-summary.md`
+- `chapter1-questions.md`
+- `chapter1-flashcards.md`
+
+### Ask a question
+
+```bash
+uv run python -m cli.main ask "What is the main argument?"
+uv run python -m cli.main ask "Who is the protagonist?" --book "book"
+uv run python -m cli.main ask "Explain the key concept" --book "book" --chapter 3
+```
+
+### Generate chapter summary only
+
+```bash
+uv run python -m cli.main summarize "book" 1
+```
+
 ## Project structure
 
 ```
@@ -74,36 +122,68 @@ document-assistant/
 │   └── ports/
 │       ├── embedder.py          # Embedder ABC
 │       └── llm.py               # LLM ABC
-├── application/                 # Use cases (coming soon)
+├── application/
+│   ├── agents/
+│   │   ├── base.py              # BaseAgent
+│   │   ├── summarizer.py        # SummarizerAgent
+│   │   ├── qa_agent.py          # QAAgent
+│   │   └── question_generator.py # QuestionGeneratorAgent
+│   ├── ingest.py                # ingest_file() use case
+│   └── retriever.py             # HybridRetriever
 ├── infrastructure/
 │   ├── config.py                # Pydantic-settings config loader
-│   └── llm/
-│       └── ollama.py            # Ollama client (health check, model listing)
+│   ├── ingest/
+│   │   ├── pdf_loader.py        # PyMuPDF-based PDF parser
+│   │   ├── epub_loader.py       # ebooklib + lxml EPUB parser
+│   │   └── normalizer.py        # Whitespace + header/footer normalization
+│   ├── chunking/
+│   │   └── splitter.py          # ChapterAwareSplitter (sliding window)
+│   ├── llm/
+│   │   ├── ollama.py            # OllamaClient, OllamaEmbedder, OllamaLLM
+│   │   └── embedding_cache.py   # SQLite embedding cache
+│   ├── vectorstore/
+│   │   └── qdrant_store.py      # QdrantStore (upsert, vector/text search)
+│   ├── graph/
+│   │   ├── neo4j_store.py       # Neo4jStore (entity upsert, graph queries)
+│   │   └── entity_extractor.py  # LLM entity extraction + regex fallback
+│   └── output/
+│       ├── markdown_writer.py   # write_summary / write_questions / write_flashcards
+│       └── manifest.py          # write_manifest (JSON ingestion record)
 ├── cli/
-│   └── main.py                  # CLI entry point
+│   └── main.py                  # CLI: check, ingest, summarize, ask, generate-md
 ├── docker/
 │   └── docker-compose.yml       # Qdrant + Neo4j
 ├── tests/
-├── data/
-│   ├── raw/                     # Place PDFs/EPUBs here
-│   └── output/                  # Generated Markdown outputs
-└── pyproject.toml
+│   ├── ingest/                  # Normalizer + PDF loader unit tests
+│   ├── chunking/                # Splitter unit tests
+│   ├── embeddings/              # OllamaEmbedder + cache unit tests
+│   ├── integration/             # Qdrant + Neo4j integration tests (skipped if down)
+│   └── eval/
+│       └── sample_qa.json       # Retrieval evaluation pairs
+└── data/
+    ├── raw/                     # Place PDFs/EPUBs here
+    ├── output/                  # Generated Markdown + manifests
+    └── .cache/                  # SQLite embedding cache
 ```
 
 ## Configuration
 
-All settings live in `config/default.yml` and can be overridden with environment variables using the prefix `DOCASSIST_` and double-underscore nesting:
+All settings live in `config/default.yml` and can be overridden with environment variables:
 
 ```bash
 export DOCASSIST_OLLAMA__BASE_URL=http://other-host:11434
 export DOCASSIST_OLLAMA__GENERATION_MODEL=mistral
+export DOCASSIST_QDRANT__COLLECTION_NAME=my_docs
 ```
 
 ## Development
 
 ```bash
-# Run tests
+# Run unit tests (no services required)
 uv run pytest
+
+# Run integration tests (requires running Docker services)
+uv run pytest -m integration
 
 # Lint
 uv run ruff check .

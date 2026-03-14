@@ -1,0 +1,22 @@
+[
+  {
+    "question": "What is machine learning?",
+    "relevant_keywords": ["machine learning", "algorithm", "model", "training", "data"]
+  },
+  {
+    "question": "How does gradient descent work?",
+    "relevant_keywords": ["gradient", "descent", "optimization", "loss", "learning rate"]
+  },
+  {
+    "question": "What is a neural network?",
+    "relevant_keywords": ["neural", "network", "neuron", "layer", "activation"]
+  },
+  {
+    "question": "What is overfitting?",
+    "relevant_keywords": ["overfitting", "generalization", "training", "validation", "regularization"]
+  },
+  {
+    "question": "What is cross-validation?",
+    "relevant_keywords": ["cross-validation", "fold", "training", "test", "evaluation"]
+  }
+]
