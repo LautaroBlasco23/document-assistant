@@ -34,3 +34,14 @@ Thumbs.db
 # Docker volumes
 neo4j_data/
 qdrant_data/
+
+# Testing
+.pytest_cache/
+.ruff_cache/
+
+# Claude Code
+.claude/
+
+# Documentation (generated during development)
+.docs/
+plan.md
