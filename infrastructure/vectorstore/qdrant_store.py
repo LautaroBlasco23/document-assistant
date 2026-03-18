@@ -75,14 +75,14 @@ class QdrantStore:
         self, query_vec: list[float], k: int = 20, filters: dict | None = None
     ) -> list[Chunk]:
         query_filter = _build_filter(filters) if filters else None
-        results = self._client.search(
+        response = self._client.query_points(
             collection_name=self._collection,
-            query_vector=query_vec,
+            query=query_vec,
             limit=k,
             query_filter=query_filter,
             with_payload=True,
         )
-        return [_point_to_chunk(r) for r in results]
+        return [_point_to_chunk(r) for r in response.points]
 
     def search_text(
         self, query_str: str, k: int = 20, filters: dict | None = None
