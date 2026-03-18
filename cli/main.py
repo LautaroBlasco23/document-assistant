@@ -48,17 +48,35 @@ def run_check() -> int:
     config = load_config()
     all_ok = True
 
-    ok = check_ollama(config.ollama.base_url)
-    print(f"  Ollama ({config.ollama.base_url}): {'OK' if ok else 'FAIL'}")
-    all_ok = all_ok and ok
+    # ANSI color codes
+    GREEN = "\033[92m"
+    RED = "\033[91m"
+    RESET = "\033[0m"
+    BOLD = "\033[1m"
 
-    ok = check_qdrant(config.qdrant.url)
-    print(f"  Qdrant ({config.qdrant.url}): {'OK' if ok else 'FAIL'}")
-    all_ok = all_ok and ok
+    checks = [
+        ("Ollama", config.ollama.base_url, check_ollama(config.ollama.base_url)),
+        ("Qdrant", config.qdrant.url, check_qdrant(config.qdrant.url)),
+        ("Neo4j", config.neo4j.uri, check_neo4j(config.neo4j.uri, config.neo4j.user, config.neo4j.password)),
+    ]
 
-    ok = check_neo4j(config.neo4j.uri, config.neo4j.user, config.neo4j.password)
-    print(f"  Neo4j  ({config.neo4j.uri}): {'OK' if ok else 'FAIL'}")
-    all_ok = all_ok and ok
+    # Calculate column widths for alignment
+    service_width = max(len(c[0]) for c in checks)
+    url_width = max(len(c[1]) for c in checks)
+
+    # Print header
+    print(f"\n{BOLD}┌─ Service Health Status ─────────────────────────────────────┐{RESET}")
+    print(f"{BOLD}│{RESET}")
+
+    # Print each service
+    for service, url, ok in checks:
+        status_text = f"{GREEN}✓ OK{RESET}" if ok else f"{RED}✗ FAIL{RESET}"
+        print(f"{BOLD}│{RESET}  {service.ljust(service_width)}  {url.ljust(url_width)}  {status_text}")
+        all_ok = all_ok and ok
+
+    # Print footer
+    print(f"{BOLD}│{RESET}")
+    print(f"{BOLD}└────────────────────────────────────────────────────────────┘{RESET}\n")
 
     return 0 if all_ok else 1
 
