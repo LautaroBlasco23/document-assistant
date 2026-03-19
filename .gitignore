@@ -39,6 +39,38 @@ qdrant_data/
 .pytest_cache/
 .ruff_cache/
 
+# Node.js / Electron
+node_modules/
+npm-debug.log*
+yarn-error.log*
+.npm
+.eslintcache
+package-lock.json
+
+# Electron build outputs
+out/
+dist/
+*.asar
+release/
+
+# Build artifacts & caches
+.cache/
+.parcel-cache/
+*.tsbuildinfo
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# Logs
+*.log
+lerna-debug.log*
+
+# OS-specific temp files
+*.swp
+*.swo
+*~
+
 # Claude Code
 .claude/
 
