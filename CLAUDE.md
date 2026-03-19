@@ -32,10 +32,13 @@ api/            # FastAPI backend (wraps application layer, no duplication)
   tasks.py      # In-memory task registry + ThreadPoolExecutor
   streaming.py  # SSE event helper
 cli/            # CLI entry point (check, ingest, summarize, ask, generate-md)
-electron/       # Electron desktop app
-  src/main/     # Main process: spawn FastAPI, create BrowserWindow
-  src/preload/  # contextBridge
-  src/renderer/ # React + TypeScript + Tailwind UI (6 screens)
+frontend/       # React + TypeScript + Tailwind SPA (Vite)
+  src/          # React source (6 screens)
+    api/        # Axios client with /api base URL
+    components/ # Layout, shared components
+    hooks/      # useHealth, useTask, useSSE
+    pages/      # Dashboard, Documents, Search, AskQuestion, ChapterAnalysis, Settings
+    stores/     # Zustand app store
 ```
 
 ## Key decisions
@@ -51,7 +54,7 @@ electron/       # Electron desktop app
 - **FastAPI wraps, not duplicates** — `api/` calls `application/` use cases directly; no logic is reimplemented.
 - **In-memory task registry** — `ThreadPoolExecutor(max_workers=2)` for background ingestion/analysis tasks; no Celery/Redis needed for single-user local use.
 - **SSE for streaming** — `StreamingResponse` in FastAPI + `fetch + ReadableStream` in renderer (not `EventSource`, which is GET-only).
-- **Electron spawns uvicorn** — Main process starts `uv run uvicorn api.main:app --port 8000` and polls `/api/health` before showing the window.
+- **Standalone SPA** — Vite dev server proxies `/api` to FastAPI in development; production build outputs static files to `frontend/dist/`.
 
 ## Configuration
 
@@ -105,15 +108,18 @@ uv run uvicorn api.main:app --port 8000
 # Verify health
 curl http://localhost:8000/api/health
 
-# --- Electron desktop app ---
+# --- Frontend web app ---
 
-# Install Electron dependencies (first time only)
-cd electron && npm install
+# Install frontend dependencies (first time only)
+cd frontend && npm install
 
-# Run desktop app in dev mode (starts FastAPI + Vite + Electron)
+# Start FastAPI backend (must be running before opening the web app)
+uv run uvicorn api.main:app --port 8000
+
+# Run frontend dev server (proxies /api to localhost:8000)
 npm run dev
 
-# Build for production
+# Build for production (outputs to frontend/dist/)
 npm run build
 ```
 
@@ -145,4 +151,4 @@ npm run build
 - `api/` routers must use `ServicesDep` for dependency injection; never instantiate services directly inside routers.
 - Chapter numbers: API accepts 1-based; routers convert to 0-based before calling application layer (same as CLI convention).
 - Background tasks receive a `Task` object as first argument and write to `task.progress` for live status updates.
-- Electron: the main process is responsible for the full subprocess lifecycle — spawn on app ready, kill on before-quit.
+- Frontend dev server runs on port 5173; the FastAPI backend must be running independently on port 8000.
