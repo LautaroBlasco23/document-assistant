@@ -136,50 +136,48 @@ document-assistant/
 ├── config/
 │   └── default.yml              # Service URLs, model names, chunking params
 ├── core/
-│   ├── model/
-│   │   ├── document.py          # Document, Chapter, Page
-│   │   └── chunk.py             # Chunk, ChunkMetadata
-│   └── ports/
-│       ├── embedder.py          # Embedder ABC
-│       └── llm.py               # LLM ABC
+│   ├── model/                   # Document, Chapter, Page, Chunk dataclasses
+│   └── ports/                   # Embedder, LLM ABCs
 ├── application/
-│   ├── agents/
-│   │   ├── base.py              # BaseAgent
-│   │   ├── summarizer.py        # SummarizerAgent
-│   │   ├── qa_agent.py          # QAAgent
-│   │   └── question_generator.py # QuestionGeneratorAgent
+│   ├── agents/                  # SummarizerAgent, QAAgent, QuestionGeneratorAgent
 │   ├── ingest.py                # ingest_file() use case
 │   └── retriever.py             # HybridRetriever
 ├── infrastructure/
-│   ├── config.py                # Pydantic-settings config loader
-│   ├── ingest/
-│   │   ├── pdf_loader.py        # PyMuPDF-based PDF parser
-│   │   ├── epub_loader.py       # ebooklib + lxml EPUB parser
-│   │   └── normalizer.py        # Whitespace + header/footer normalization
-│   ├── chunking/
-│   │   └── splitter.py          # ChapterAwareSplitter (sliding window)
-│   ├── llm/
-│   │   ├── ollama.py            # OllamaClient, OllamaEmbedder, OllamaLLM
-│   │   └── embedding_cache.py   # SQLite embedding cache
-│   ├── vectorstore/
-│   │   └── qdrant_store.py      # QdrantStore (upsert, vector/text search)
-│   ├── graph/
-│   │   ├── neo4j_store.py       # Neo4jStore (entity upsert, graph queries)
-│   │   └── entity_extractor.py  # LLM entity extraction + regex fallback
-│   └── output/
-│       ├── markdown_writer.py   # write_summary / write_questions / write_flashcards
-│       └── manifest.py          # write_manifest (JSON ingestion record)
+│   ├── config.py                # Pydantic-settings config loader + save_config()
+│   ├── ingest/                  # pdf_loader, epub_loader, normalizer
+│   ├── chunking/                # ChapterAwareSplitter
+│   ├── llm/                     # OllamaClient, OllamaEmbedder, OllamaLLM
+│   ├── vectorstore/             # QdrantStore (upsert, search, delete)
+│   ├── graph/                   # Neo4jStore (entity upsert, graph queries, delete)
+│   └── output/                  # markdown_writer, manifest
+├── api/                         # FastAPI backend
+│   ├── main.py                  # App factory, lifespan, CORS
+│   ├── services.py              # Singleton service container
+│   ├── deps.py                  # FastAPI dependency injection
+│   ├── tasks.py                 # In-memory task registry + ThreadPoolExecutor
+│   ├── streaming.py             # make_sse_event() helper
+│   ├── routers/                 # health, documents, search, ask, chapters, config, tasks
+│   └── schemas/                 # Pydantic request/response models
+├── electron/                    # Electron desktop app
+│   ├── src/main/                # Main process: FastAPI subprocess + BrowserWindow
+│   ├── src/preload/             # contextBridge
+│   └── src/renderer/src/        # React + TypeScript + Tailwind
+│       ├── api/                 # Axios client + per-domain fetch wrappers
+│       ├── stores/              # Zustand: currentBook, serviceHealth
+│       ├── hooks/               # useSSE, useHealth, useTask
+│       ├── components/          # Layout, shared UI
+│       └── pages/               # Dashboard, Documents, Search, AskQuestion,
+│                                #   ChapterAnalysis, Settings
 ├── cli/
 │   └── main.py                  # CLI: check, ingest, summarize, ask, generate-md
 ├── docker/
 │   └── docker-compose.yml       # Qdrant + Neo4j
 ├── tests/
-│   ├── ingest/                  # Normalizer + PDF loader unit tests
-│   ├── chunking/                # Splitter unit tests
-│   ├── embeddings/              # OllamaEmbedder + cache unit tests
-│   ├── integration/             # Qdrant + Neo4j integration tests (skipped if down)
+│   ├── ingest/
+│   ├── chunking/
+│   ├── embeddings/
+│   ├── integration/
 │   └── eval/
-│       └── sample_qa.json       # Retrieval evaluation pairs
 └── data/
     ├── raw/                     # Place PDFs/EPUBs here
     ├── output/                  # Generated Markdown + manifests
@@ -205,11 +203,14 @@ uv run pytest
 # Run integration tests (requires running Docker services)
 uv run pytest -m integration
 
-# Lint
+# Lint Python
 uv run ruff check .
 
 # Auto-fix lint issues
 uv run ruff check --fix .
+
+# Lint TypeScript (from electron/)
+cd electron && npm run build
 ```
 
 ## License
