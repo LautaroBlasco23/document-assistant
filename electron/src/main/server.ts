@@ -41,6 +41,7 @@ export async function startServer(): Promise<void> {
       : join(process.resourcesPath, 'app')
 
     // Spawn uvicorn as a child process (attached so Electron can terminate it)
+    // On Windows, use shell: true so cmd.exe resolves uv from the user's PATH
     serverProcess = spawn(uvPath, [
       'run',
       'uvicorn',
@@ -52,7 +53,7 @@ export async function startServer(): Promise<void> {
     ], {
       stdio: 'ignore',
       cwd,
-      shell: false
+      shell: process.platform === 'win32'
     })
 
     // Poll for server readiness
@@ -84,7 +85,7 @@ export async function stopServer(): Promise<void> {
       // Send SIGTERM to process group
       if (process.platform === 'win32') {
         // On Windows, use taskkill
-        spawn('taskkill', ['/PID', String(serverProcess.pid), '/F'], {
+        spawn('taskkill', ['/PID', String(serverProcess.pid), '/F', '/T'], {
           stdio: 'ignore'
         })
       } else {
