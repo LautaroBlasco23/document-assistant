@@ -31,6 +31,43 @@ function resolveUvPath(): string {
   return 'uv.exe' // last resort: hope it's on PATH
 }
 
+async function freePort(port: number): Promise<void> {
+  // Check if our own API is already up on this port — reuse it if so
+  try {
+    const response = await axios.get(`http://localhost:${port}/api/health`, { timeout: 1000 })
+    if (response.status === 200) {
+      console.log(`Port ${port} already serving our API — reusing existing process`)
+      return // will be detected as ready in the poll loop
+    }
+  } catch {
+    // Not our server; fall through to kill whatever is there
+  }
+
+  if (process.platform === 'win32') {
+    // netstat -ano gives "  TCP  127.0.0.1:8000  ...  <PID>"
+    const result = spawnSync('netstat', ['-ano'], { encoding: 'utf8', shell: true })
+    const lines = result.stdout?.split('\n') ?? []
+    for (const line of lines) {
+      const match = line.match(/:(\d+)\s+.*LISTENING\s+(\d+)/)
+      if (match && Number(match[1]) === port) {
+        const pid = match[2]
+        console.log(`Killing process ${pid} holding port ${port}`)
+        spawnSync('taskkill', ['/PID', pid, '/F'], { shell: true })
+        await new Promise(resolve => setTimeout(resolve, 500))
+        break
+      }
+    }
+  } else {
+    const result = spawnSync('lsof', ['-ti', `:${port}`], { encoding: 'utf8' })
+    const pid = result.stdout?.trim()
+    if (pid) {
+      console.log(`Killing process ${pid} holding port ${port}`)
+      spawnSync('kill', ['-9', pid])
+      await new Promise(resolve => setTimeout(resolve, 500))
+    }
+  }
+}
+
 export async function startServer(): Promise<void> {
   const uvPath = resolveUvPath()
 
@@ -39,6 +76,9 @@ export async function startServer(): Promise<void> {
     const cwd = is.dev
       ? join(app.getAppPath(), '..')
       : join(process.resourcesPath, 'app')
+
+    // Free port 8000 if occupied by a stale process
+    await freePort(8000)
 
     // Spawn uvicorn as a child process (attached so Electron can terminate it)
     // On Windows, use shell: true so cmd.exe resolves uv from the user's PATH
