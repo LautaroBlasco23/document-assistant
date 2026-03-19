@@ -1,4 +1,4 @@
-import { spawn, ChildProcess } from 'child_process'
+import { spawn, spawnSync, ChildProcess } from 'child_process'
 import { existsSync } from 'fs'
 import { join } from 'path'
 import { app } from 'electron'
@@ -7,9 +7,32 @@ import axios from 'axios'
 
 let serverProcess: ChildProcess | null = null
 
+function resolveUvPath(): string {
+  if (process.platform !== 'win32') return 'uv'
+
+  // Try `where uv` to find the binary in the user's PATH
+  const result = spawnSync('where', ['uv'], { encoding: 'utf8', shell: true })
+  if (result.status === 0 && result.stdout) {
+    const first = result.stdout.trim().split('\n')[0].trim()
+    if (first) return first
+  }
+
+  // Common Windows install locations for uv
+  const candidates = [
+    join(process.env.USERPROFILE ?? '', '.local', 'bin', 'uv.exe'),
+    join(process.env.APPDATA ?? '', 'uv', 'bin', 'uv.exe'),
+    join(process.env.LOCALAPPDATA ?? '', 'uv', 'bin', 'uv.exe'),
+    join(process.env.USERPROFILE ?? '', '.cargo', 'bin', 'uv.exe'),
+  ]
+  for (const candidate of candidates) {
+    if (existsSync(candidate)) return candidate
+  }
+
+  return 'uv.exe' // last resort: hope it's on PATH
+}
+
 export async function startServer(): Promise<void> {
-  // Try to find uv executable
-  const uvPath = process.platform === 'win32' ? 'uv.exe' : 'uv'
+  const uvPath = resolveUvPath()
 
   try {
     // Resolve project root: in dev electron/ parent, in prod next to the .exe
@@ -28,7 +51,8 @@ export async function startServer(): Promise<void> {
       '127.0.0.1'
     ], {
       stdio: 'ignore',
-      cwd
+      cwd,
+      shell: false
     })
 
     // Poll for server readiness
