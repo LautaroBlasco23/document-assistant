@@ -1,6 +1,8 @@
 import { spawn, ChildProcess } from 'child_process'
 import { existsSync } from 'fs'
 import { join } from 'path'
+import { app } from 'electron'
+import { is } from '@electron-toolkit/utils'
 import axios from 'axios'
 
 let serverProcess: ChildProcess | null = null
@@ -10,7 +12,12 @@ export async function startServer(): Promise<void> {
   const uvPath = process.platform === 'win32' ? 'uv.exe' : 'uv'
 
   try {
-    // Spawn uvicorn in background
+    // Resolve project root: in dev electron/ parent, in prod next to the .exe
+    const cwd = is.dev
+      ? join(app.getAppPath(), '..')
+      : join(process.resourcesPath, 'app')
+
+    // Spawn uvicorn as a child process (attached so Electron can terminate it)
     serverProcess = spawn(uvPath, [
       'run',
       'uvicorn',
@@ -21,13 +28,8 @@ export async function startServer(): Promise<void> {
       '127.0.0.1'
     ], {
       stdio: 'ignore',
-      detached: true
+      cwd
     })
-
-    // Detach from parent process so it doesn't block
-    if (serverProcess.unref) {
-      serverProcess.unref()
-    }
 
     // Poll for server readiness
     for (let i = 0; i < 40; i++) {
