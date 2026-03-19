@@ -14,6 +14,11 @@ class Neo4jStore:
             config.uri, auth=(config.user, config.password)
         )
 
+    @property
+    def driver(self):
+        """Access to the Neo4j driver."""
+        return self._driver
+
     def close(self) -> None:
         self._driver.close()
 
@@ -90,3 +95,22 @@ class Neo4jStore:
                 names=entity_names,
             )
             return [row["chunk_id"] for row in result if row["chunk_id"]]
+
+    def delete_document(self, file_hash: str) -> None:
+        """Delete all entities and relationships associated with a document."""
+        with self._driver.session() as session:
+            # Delete relationships where the source_file matches
+            session.run(
+                """
+                MATCH (e:Entity)-[r:MENTIONS]->()
+                WHERE r.source_file = $file_hash
+                DELETE r
+                """,
+                file_hash=file_hash,
+            )
+            # Delete the document node itself
+            session.run(
+                "MATCH (d:Document {file_hash: $hash}) DELETE d",
+                hash=file_hash,
+            )
+        logger.info("Deleted document %s from Neo4j", file_hash)

@@ -1,8 +1,8 @@
 # Document Assistant
 
-A local document reader agent that ingests PDFs and EPUBs, builds a vector index and knowledge graph, and uses LLM agents to summarize, generate questions, and produce structured Markdown outputs per chapter.
+A local document reader with a desktop UI. Ingests PDFs and EPUBs, builds a vector index and knowledge graph, and uses LLM agents to summarize chapters, generate study questions, and answer questions with hybrid retrieval.
 
-Runs entirely locally using Docker services and Ollama for LLM inference.
+Runs entirely locally: Docker (Qdrant + Neo4j), Ollama for LLM inference, and an Electron desktop app backed by a FastAPI server.
 
 ## Features
 
@@ -17,6 +17,8 @@ Runs entirely locally using Docker services and Ollama for LLM inference.
 - Idempotent ingestion by SHA-256 file hash
 - SQLite embedding cache to avoid re-embedding unchanged text
 - Ingestion manifest (JSON) per book with model/collection/timestamp metadata
+- **FastAPI backend** — REST API with SSE streaming for Q&A and background task polling
+- **Electron desktop UI** — 6 screens: Dashboard, Documents, Search, Ask, Chapter Analysis, Settings
 
 ## Prerequisites
 
@@ -24,6 +26,7 @@ Runs entirely locally using Docker services and Ollama for LLM inference.
 - [Docker](https://docs.docker.com/get-docker/) and Docker Compose
 - [uv](https://docs.astral.sh/uv/) (Python package manager)
 - Python 3.12+
+- Node.js 18+ (for Electron UI)
 
 ## Quick start
 
@@ -63,6 +66,23 @@ Service health checks:
   Ollama (http://localhost:11434): OK
   Qdrant (http://localhost:6333): OK
   Neo4j  (bolt://localhost:7687): OK
+```
+
+### 5. Run the desktop app
+
+```bash
+cd electron
+npm install
+npm run dev
+```
+
+Electron will start, spawn the FastAPI server on port 8000, and open the UI once the backend is healthy.
+
+### Alternative: API only (no Electron)
+
+```bash
+uv run uvicorn api.main:app --port 8000
+# then open http://localhost:8000/docs for interactive API docs
 ```
 
 ## Usage

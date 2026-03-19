@@ -37,10 +37,15 @@ class OllamaEmbedder(Embedder):
     """Implements the Embedder port using Ollama's /api/embed endpoint."""
 
     def __init__(self, config: OllamaConfig, cache: EmbeddingCache | None = None):
-        self.base_url = config.base_url.rstrip("/")
+        self._base_url = config.base_url.rstrip("/")
         self.model = config.embedding_model
         self.timeout = config.timeout
         self._cache = cache or EmbeddingCache()
+
+    @property
+    def base_url(self) -> str:
+        """Access to base URL."""
+        return self._base_url
 
     def embed(self, texts: list[str]) -> list[list[float]]:
         """Embed texts in batches of 32, using cache when available."""
@@ -81,9 +86,14 @@ class OllamaLLM(LLM):
     """Implements the LLM port using Ollama's /api/generate endpoint."""
 
     def __init__(self, config: OllamaConfig):
-        self.base_url = config.base_url.rstrip("/")
+        self._base_url = config.base_url.rstrip("/")
         self.model = config.generation_model
         self.timeout = config.timeout
+
+    @property
+    def base_url(self) -> str:
+        """Access to base URL."""
+        return self._base_url
 
     def generate(self, prompt: str) -> str:
         resp = requests.post(

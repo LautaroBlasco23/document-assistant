@@ -48,3 +48,36 @@ def load_config(config_path: Path | None = None) -> AppConfig:
         return AppConfig(**data)
 
     return AppConfig()
+
+
+def save_config(config: AppConfig, config_path: Path | None = None) -> None:
+    """Save config to YAML file."""
+    if config_path is None:
+        config_path = Path(__file__).parent.parent / "config" / "default.yml"
+
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+
+    data = {
+        "ollama": {
+            "base_url": config.ollama.base_url,
+            "generation_model": config.ollama.generation_model,
+            "embedding_model": config.ollama.embedding_model,
+            "timeout": config.ollama.timeout,
+        },
+        "qdrant": {
+            "url": config.qdrant.url,
+            "collection_name": config.qdrant.collection_name,
+        },
+        "neo4j": {
+            "uri": config.neo4j.uri,
+            "user": config.neo4j.user,
+            "password": config.neo4j.password,
+        },
+        "chunking": {
+            "max_tokens": config.chunking.max_tokens,
+            "overlap_tokens": config.chunking.overlap_tokens,
+        },
+    }
+
+    with open(config_path, "w") as f:
+        yaml.dump(data, f, default_flow_style=False)

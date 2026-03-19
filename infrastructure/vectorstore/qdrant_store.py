@@ -16,6 +16,16 @@ class QdrantStore:
         self._client = QdrantClient(url=config.url)
         self._collection = config.collection_name
 
+    @property
+    def client(self) -> QdrantClient:
+        """Access to the Qdrant client."""
+        return self._client
+
+    @property
+    def collection_name(self) -> str:
+        """Access to the collection name."""
+        return self._collection
+
     def ensure_collection(self, vector_size: int) -> None:
         """Create collection if it doesn't exist; add payload indexes."""
         existing = {c.name for c in self._client.get_collections().collections}
@@ -137,6 +147,41 @@ class QdrantStore:
             with_payload=True,
         )
         return [_point_to_chunk(r) for r in results]
+
+    def search_by_file(self, file_hash: str, limit: int = 10000) -> list[Chunk]:
+        """Get all chunks for a specific file."""
+        results = self._client.scroll(
+            collection_name=self._collection,
+            scroll_filter=qmodels.Filter(
+                must=[
+                    qmodels.FieldCondition(
+                        key="file_hash",
+                        match=qmodels.MatchValue(value=file_hash),
+                    )
+                ]
+            ),
+            limit=limit,
+            with_payload=True,
+            with_vectors=False,
+        )
+        return [_point_to_chunk(r) for r in results[0]]
+
+    def delete_by_source_file(self, file_hash: str) -> None:
+        """Delete all chunks with a specific file_hash."""
+        self._client.delete(
+            collection_name=self._collection,
+            points_selector=qmodels.FilterSelector(
+                filter=qmodels.Filter(
+                    must=[
+                        qmodels.FieldCondition(
+                            key="file_hash",
+                            match=qmodels.MatchValue(value=file_hash),
+                        )
+                    ]
+                )
+            ),
+        )
+        logger.info("Deleted all points with file_hash %s", file_hash)
 
 
 def _meta_attr(meta: ChunkMetadata | None, attr: str, default):
