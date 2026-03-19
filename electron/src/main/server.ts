@@ -51,13 +51,35 @@ export async function startServer(): Promise<void> {
       '--host',
       '127.0.0.1'
     ], {
-      stdio: 'ignore',
+      stdio: ['ignore', 'pipe', 'pipe'],
       cwd,
       shell: process.platform === 'win32'
     })
 
+    let stderrOutput = ''
+    serverProcess.stderr?.on('data', (data: Buffer) => {
+      const text = data.toString()
+      stderrOutput += text
+      console.error('[uvicorn stderr]', text)
+    })
+    serverProcess.stdout?.on('data', (data: Buffer) => {
+      console.log('[uvicorn stdout]', data.toString())
+    })
+
+    // Detect immediate process exit (e.g. uv not found, import error)
+    let exitCode: number | null = null
+    serverProcess.on('exit', (code) => {
+      exitCode = code ?? -1
+      console.error(`[uvicorn] process exited with code ${exitCode}`)
+    })
+
     // Poll for server readiness
     for (let i = 0; i < 40; i++) {
+      if (exitCode !== null) {
+        throw new Error(
+          `uvicorn exited with code ${exitCode}.\nstderr: ${stderrOutput.slice(-2000)}`
+        )
+      }
       try {
         const response = await axios.get('http://localhost:8000/api/health', {
           timeout: 1000
@@ -72,7 +94,7 @@ export async function startServer(): Promise<void> {
       }
     }
 
-    throw new Error('Server failed to start within 20 seconds')
+    throw new Error(`Server failed to start within 20 seconds.\nstderr: ${stderrOutput.slice(-2000)}`)
   } catch (error) {
     console.error('Failed to start server:', error)
     throw error
