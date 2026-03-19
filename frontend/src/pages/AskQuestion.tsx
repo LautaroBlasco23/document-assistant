@@ -25,7 +25,7 @@ export default function AskQuestion() {
       let fullAnswer = ''
 
       await stream(
-        'http://localhost:8000/api/ask',
+        '/api/ask',
         'POST',
         { query },
         (event: SSEEvent) => {

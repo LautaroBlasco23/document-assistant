@@ -15,7 +15,7 @@ function App(): JSX.Element {
     // Check if API is available
     const checkHealth = async () => {
       try {
-        const response = await fetch('http://localhost:8000/api/health')
+        const response = await fetch('/api/health')
         if (response.ok) {
           setIsReady(true)
         }
@@ -33,7 +33,7 @@ function App(): JSX.Element {
       <div className="flex items-center justify-center h-screen bg-gray-100">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-gray-800 mb-4">Document Assistant</h1>
-          <p className="text-gray-600">Waiting for backend... Start uvicorn in WSL if not running.</p>
+          <p className="text-gray-600">Waiting for backend on localhost:8000...</p>
         </div>
       </div>
     )

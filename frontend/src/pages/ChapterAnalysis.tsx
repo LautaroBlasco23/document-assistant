@@ -25,11 +25,11 @@ export default function ChapterAnalysis() {
 
   const { task } = useTask(taskId, (res) => {
     if (res.summary) {
-      setResult({ chapter: res.chapter, summary: String(res.summary) })
+      setResult({ chapter: res.chapter as number, summary: String(res.summary) })
     } else if (res.qa_pairs) {
-      setResult({ chapter: res.chapter, qa_pairs: res.qa_pairs as any })
+      setResult({ chapter: res.chapter as number, qa_pairs: res.qa_pairs as any })
     } else if (res.flashcards) {
-      setResult({ chapter: res.chapter, flashcards: res.flashcards as any })
+      setResult({ chapter: res.chapter as number, flashcards: res.flashcards as any })
     }
   })
 
