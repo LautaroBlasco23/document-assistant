@@ -172,7 +172,7 @@ def _ingest_background(task: Task, file_content: bytes, filename: str, services:
 
 
 @router.post("/documents/ingest", response_model=IngestTaskOut)
-async def ingest_document(file: UploadFile = File(...), services: ServicesDep) -> IngestTaskOut:
+async def ingest_document(services: ServicesDep, file: UploadFile = File(...)) -> IngestTaskOut:
     """Upload and ingest a document."""
     # Read file content
     content = await file.read()
