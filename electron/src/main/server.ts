@@ -34,7 +34,7 @@ function resolveUvPath(): string {
 async function freePort(port: number): Promise<void> {
   // Check if our own API is already up on this port — reuse it if so
   try {
-    const response = await axios.get(`http://localhost:${port}/api/health`, { timeout: 1000 })
+    const response = await axios.get(`http://127.0.0.1:${port}/api/health`, { timeout: 1000 })
     if (response.status === 200) {
       console.log(`Port ${port} already serving our API — reusing existing process`)
       return // will be detected as ready in the poll loop
@@ -121,7 +121,7 @@ export async function startServer(): Promise<void> {
         )
       }
       try {
-        const response = await axios.get('http://localhost:8000/api/health', {
+        const response = await axios.get('http://127.0.0.1:8000/api/health', {
           timeout: 1000
         })
         if (response.status === 200) {
