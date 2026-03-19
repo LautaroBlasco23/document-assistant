@@ -9,11 +9,13 @@
     "build": "electron-vite build",
     "preview": "electron-vite preview",
     "pack": "electron-builder --publish never",
-    "dist": "electron-builder"
+    "dist": "electron-builder",
+    "dist:win": "cross-env DOCASSIST_EXTERNAL_BACKEND=1 WINEARCH=win32 WINEPREFIX=/home/lautaroblasco23/.wine32 CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --win"
   },
   "devDependencies": {
     "electron": "^30.0.0",
     "electron-builder": "^25.0.0",
+    "cross-env": "^7.0.3",
     "electron-vite": "^2.0.0",
     "@electron-toolkit/preload": "^3.0.0",
     "@electron-toolkit/utils": "^3.0.0",
@@ -40,6 +42,14 @@
     ],
     "directories": {
       "buildResources": "resources"
+    },
+    "win": {
+      "target": [{ "target": "nsis", "arch": ["x64"] }]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "createDesktopShortcut": true
     }
   }
 }

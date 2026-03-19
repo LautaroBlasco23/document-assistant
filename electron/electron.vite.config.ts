@@ -5,6 +5,11 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   main: {
     plugins: [externalizeDepsPlugin()],
+    define: {
+      'process.env.DOCASSIST_EXTERNAL_BACKEND': JSON.stringify(
+        process.env.DOCASSIST_EXTERNAL_BACKEND ?? ''
+      )
+    },
     build: {
       rollupOptions: {
         input: {
@@ -15,6 +20,11 @@ export default defineConfig({
   },
   preload: {
     plugins: [externalizeDepsPlugin()],
+    define: {
+      'process.env.DOCASSIST_EXTERNAL_BACKEND': JSON.stringify(
+        process.env.DOCASSIST_EXTERNAL_BACKEND ?? ''
+      )
+    },
     build: {
       rollupOptions: {
         input: {

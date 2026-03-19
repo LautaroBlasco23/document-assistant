@@ -69,6 +69,11 @@ async function freePort(port: number): Promise<void> {
 }
 
 export async function startServer(): Promise<void> {
+  if (process.env.DOCASSIST_EXTERNAL_BACKEND === '1') {
+    console.log('External backend mode — skipping uvicorn spawn')
+    return
+  }
+
   const uvPath = resolveUvPath()
 
   try {
