@@ -32,7 +32,7 @@ async def get_health(services: ServicesDep) -> HealthOut:
 
     # Check Qdrant
     try:
-        health = services.qdrant.client.get_collection_info(services.qdrant.collection_name)
+        services.qdrant.client.get_collection(services.qdrant.collection_name)
         statuses.append(ServiceStatus(name="qdrant", healthy=True))
     except Exception as e:
         statuses.append(ServiceStatus(name="qdrant", healthy=False, error=str(e)))
