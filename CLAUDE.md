@@ -32,13 +32,16 @@ api/            # FastAPI backend (wraps application layer, no duplication)
   tasks.py      # In-memory task registry + ThreadPoolExecutor
   streaming.py  # SSE event helper
 cli/            # CLI entry point (check, ingest, summarize, ask, generate-md)
-frontend/       # React + TypeScript + Tailwind SPA (Vite)
-  src/          # React source (6 screens)
-    api/        # Axios client with /api base URL
-    components/ # Layout, shared components
-    hooks/      # useHealth, useTask, useSSE
-    pages/      # Dashboard, Documents, Search, AskQuestion, ChapterAnalysis, Settings
-    stores/     # Zustand app store
+frontend/       # React + TypeScript + Tailwind SPA (Vite, port 5173)
+  src/
+    pages/      # Library, Document (chat/qa/flashcards/summary tabs), Search, Settings
+    components/ # Layout (Sidebar, Header, HealthBanner) + Shadcn-style UI primitives
+    hooks/      # useHealth, useTask, useSSE, useDocuments, useDocumentStructure
+    stores/     # Zustand: AppStore, DocumentStore, ChatStore, TaskStore, FlashcardStore
+    services/   # API client abstraction (real/mock clients via VITE_MOCK env var)
+    types/      # TypeScript domain and API types
+    lib/        # cn (classname helper), sse (ReadableStream SSE parser)
+    mocks/      # Mock data for development/testing
 ```
 
 ## Key decisions

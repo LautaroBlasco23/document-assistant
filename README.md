@@ -1,8 +1,8 @@
 # Document Assistant
 
-A local document reader with a desktop UI. Ingests PDFs and EPUBs, builds a vector index and knowledge graph, and uses LLM agents to summarize chapters, generate study questions, and answer questions with hybrid retrieval.
+A local document reader with a web UI. Ingests PDFs and EPUBs, builds a vector index and knowledge graph, and uses LLM agents to summarize chapters, generate study questions, and answer questions with hybrid retrieval.
 
-Runs entirely locally: Docker (Qdrant + Neo4j), Ollama for LLM inference, and an Electron desktop app backed by a FastAPI server.
+Runs entirely locally: Docker (Qdrant + Neo4j), Ollama for LLM inference, and a Vite web SPA backed by a FastAPI server.
 
 ## Features
 
@@ -18,7 +18,7 @@ Runs entirely locally: Docker (Qdrant + Neo4j), Ollama for LLM inference, and an
 - SQLite embedding cache to avoid re-embedding unchanged text
 - Ingestion manifest (JSON) per book with model/collection/timestamp metadata
 - **FastAPI backend** — REST API with SSE streaming for Q&A and background task polling
-- **Electron desktop UI** — 6 screens: Dashboard, Documents, Search, Ask, Chapter Analysis, Settings
+- **Vite web SPA** — 4 pages: Library, Document detail (chat / Q&A / flashcards / summary tabs), Search, Settings
 
 ## Prerequisites
 
@@ -26,7 +26,7 @@ Runs entirely locally: Docker (Qdrant + Neo4j), Ollama for LLM inference, and an
 - [Docker](https://docs.docker.com/get-docker/) and Docker Compose
 - [uv](https://docs.astral.sh/uv/) (Python package manager)
 - Python 3.12+
-- Node.js 18+ (for Electron UI)
+- Node.js 18+ (for web frontend)
 
 ## Quick start
 
@@ -68,17 +68,21 @@ Service health checks:
   Neo4j  (bolt://localhost:7687): OK
 ```
 
-### 5. Run the desktop app
+### 5. Run the web app
 
 ```bash
-cd electron
-npm install
+# Terminal 1 — start the FastAPI backend
+uv run uvicorn api.main:app --port 8000
+
+# Terminal 2 — start the frontend dev server
+cd frontend
+npm install   # first time only
 npm run dev
 ```
 
-Electron will start, spawn the FastAPI server on port 8000, and open the UI once the backend is healthy.
+The Vite dev server starts on port 5173 and proxies `/api` requests to the FastAPI backend on port 8000. Open `http://localhost:5173` in a browser.
 
-### Alternative: API only (no Electron)
+### Alternative: API only
 
 ```bash
 uv run uvicorn api.main:app --port 8000
@@ -158,16 +162,16 @@ document-assistant/
 │   ├── streaming.py             # make_sse_event() helper
 │   ├── routers/                 # health, documents, search, ask, chapters, config, tasks
 │   └── schemas/                 # Pydantic request/response models
-├── electron/                    # Electron desktop app
-│   ├── src/main/                # Main process: FastAPI subprocess + BrowserWindow
-│   ├── src/preload/             # contextBridge
-│   └── src/renderer/src/        # React + TypeScript + Tailwind
-│       ├── api/                 # Axios client + per-domain fetch wrappers
-│       ├── stores/              # Zustand: currentBook, serviceHealth
-│       ├── hooks/               # useSSE, useHealth, useTask
-│       ├── components/          # Layout, shared UI
-│       └── pages/               # Dashboard, Documents, Search, AskQuestion,
-│                                #   ChapterAnalysis, Settings
+├── frontend/                    # Vite web SPA (React + TypeScript + Tailwind)
+│   └── src/
+│       ├── pages/               # Library, Document (chat/qa/flashcards/summary), Search, Settings
+│       ├── components/          # Layout (Sidebar, Header, HealthBanner) + Shadcn-style UI
+│       ├── hooks/               # useHealth, useTask, useSSE, useDocuments, useDocumentStructure
+│       ├── stores/              # Zustand: AppStore, DocumentStore, ChatStore, TaskStore, FlashcardStore
+│       ├── services/            # API client abstraction (real / mock clients)
+│       ├── types/               # TypeScript domain and API types
+│       ├── lib/                 # Utilities: cn (classname), sse (streaming event handler)
+│       └── mocks/               # Mock data for development/testing
 ├── cli/
 │   └── main.py                  # CLI: check, ingest, summarize, ask, generate-md
 ├── docker/
@@ -209,8 +213,8 @@ uv run ruff check .
 # Auto-fix lint issues
 uv run ruff check --fix .
 
-# Lint TypeScript (from electron/)
-cd electron && npm run build
+# Build TypeScript frontend (from frontend/)
+cd frontend && npm run build
 ```
 
 ## License
