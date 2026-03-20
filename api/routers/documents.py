@@ -17,6 +17,7 @@ from application.ingest import ingest_file, _hash_file
 from infrastructure.chunking.splitter import ChapterAwareSplitter
 from infrastructure.graph.entity_extractor import extract_entities
 from infrastructure.output.manifest import write_manifest
+from infrastructure.output.markdown_writer import _safe_name
 
 logger = logging.getLogger(__name__)
 
@@ -196,22 +197,40 @@ async def delete_document(file_hash: str, services: ServicesDep) -> JSONResponse
     if not doc_manifest:
         raise HTTPException(status_code=404, detail="Document not found")
 
+    errors: list[str] = []
+
+    # Delete from Qdrant — attempt regardless of other failures
     try:
-        # Delete from Qdrant
         services.qdrant.delete_by_source_file(file_hash)
+    except Exception as e:
+        logger.error(f"Failed to delete {file_hash} from Qdrant: {e}")
+        errors.append(f"Qdrant: {e}")
 
-        # Delete from Neo4j
+    # Delete from Neo4j — attempt regardless of other failures
+    try:
         services.neo4j.delete_document(file_hash)
+    except Exception as e:
+        logger.error(f"Failed to delete {file_hash} from Neo4j: {e}")
+        errors.append(f"Neo4j: {e}")
 
-        # Delete manifest directory
-        doc_dir = OUTPUT_DIR / Path(doc_manifest["source_path"]).stem
+    # Delete manifest directory — use the same naming as write_manifest
+    try:
+        doc_dir = OUTPUT_DIR / _safe_name(doc_manifest["title"])
         if doc_dir.exists():
             shutil.rmtree(doc_dir)
-
-        return JSONResponse(
-            {"message": f"Deleted document {file_hash[:12]}"},
-            status_code=200,
-        )
+        else:
+            logger.warning(f"Manifest directory not found for {file_hash}: {doc_dir}")
     except Exception as e:
-        logger.error(f"Failed to delete document {file_hash}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Failed to delete manifest directory for {file_hash}: {e}")
+        errors.append(f"Manifest: {e}")
+
+    if errors:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Partial deletion failure for {file_hash[:12]}: {'; '.join(errors)}",
+        )
+
+    return JSONResponse(
+        {"message": f"Deleted document {file_hash[:12]}"},
+        status_code=200,
+    )
