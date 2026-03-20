@@ -11,11 +11,12 @@ from infrastructure.ingest.normalizer import normalize
 logger = logging.getLogger(__name__)
 
 
-def load_epub(path: Path, file_hash: str) -> Document:
+def load_epub(path: Path, file_hash: str, original_filename: str = "") -> Document:
     """Extract a Document from an EPUB file."""
     book = epub.read_epub(str(path), options={"ignore_ncx": True})
 
-    title = _get_metadata(book, "title") or path.stem
+    display_name = original_filename or path.name
+    title = _get_metadata(book, "title") or Path(display_name).stem
     author = _get_metadata(book, "creator") or ""
 
     chapters: list[Chapter] = []
@@ -38,11 +39,12 @@ def load_epub(path: Path, file_hash: str) -> Document:
     for i, ch in enumerate(chapters):
         ch.index = i
 
-    logger.info("Loaded EPUB %s: %d chapters", path.name, len(chapters))
+    logger.info("Loaded EPUB %s: %d chapters", display_name, len(chapters))
     return Document(
         source_path=str(path),
         title=title,
         file_hash=file_hash,
+        original_filename=original_filename or path.name,
         chapters=chapters,
         metadata={"author": author},
     )

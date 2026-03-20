@@ -34,14 +34,18 @@ class Neo4jStore:
                 session.run(q)
         logger.info("Neo4j indexes ensured")
 
-    def upsert_document(self, file_hash: str, title: str, source_path: str) -> None:
+    def upsert_document(
+        self, file_hash: str, title: str, source_path: str, original_filename: str = ""
+    ) -> None:
         with self._driver.session() as session:
             session.run(
                 "MERGE (d:Document {file_hash: $hash}) "
-                "SET d.title = $title, d.source_path = $source_path",
+                "SET d.title = $title, d.source_path = $source_path, "
+                "d.original_filename = $original_filename",
                 hash=file_hash,
                 title=title,
                 source_path=source_path,
+                original_filename=original_filename,
             )
 
     def upsert_entities(self, entities: list[dict], chunk: Chunk) -> None:

@@ -19,10 +19,11 @@ _CHAPTER_PATTERNS = [
 SYNTHETIC_CHAPTER_SIZE = 20  # pages per synthetic chapter when no headings found
 
 
-def load_pdf(path: Path, file_hash: str) -> Document:
+def load_pdf(path: Path, file_hash: str, original_filename: str = "") -> Document:
     """Extract a Document from a PDF file using PyMuPDF."""
     doc = fitz.open(str(path))
-    title = doc.metadata.get("title") or path.stem
+    display_name = original_filename or path.name
+    title = doc.metadata.get("title") or Path(display_name).stem
 
     raw_pages: list[str] = []
     for page in doc:
@@ -37,12 +38,13 @@ def load_pdf(path: Path, file_hash: str) -> Document:
     ]
 
     chapters = _detect_chapters(pages) or _synthetic_chapters(pages)
-    logger.info("Loaded PDF %s: %d pages, %d chapters", path.name, len(pages), len(chapters))
+    logger.info("Loaded PDF %s: %d pages, %d chapters", display_name, len(pages), len(chapters))
 
     return Document(
         source_path=str(path),
         title=title,
         file_hash=file_hash,
+        original_filename=original_filename or path.name,
         chapters=chapters,
         metadata={"author": doc.metadata.get("author", "") if not doc.is_closed else ""},
     )

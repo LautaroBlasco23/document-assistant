@@ -126,7 +126,7 @@ def run_ingest(path: str) -> int:
         print(f"Ingesting {file_path.name} ...")
         t0 = time.perf_counter()
 
-        doc = ingest_file(file_path, config)
+        doc = ingest_file(file_path, config, original_filename=file_path.name)
         if doc is None:
             print("  Skipped (already ingested or unsupported)")
             continue
@@ -151,7 +151,7 @@ def run_ingest(path: str) -> int:
 
         # Extract entities and store in graph
         print("  Extracting entities ...")
-        neo4j.upsert_document(doc.file_hash, doc.title, doc.source_path)
+        neo4j.upsert_document(doc.file_hash, doc.title, doc.source_path, doc.original_filename)
         for chunk in chunks:
             entities = extract_entities(chunk.text, llm)
             neo4j.upsert_entities(entities, chunk)

@@ -19,5 +19,6 @@ class Document:
     source_path: str
     title: str
     file_hash: str
+    original_filename: str = ""
     chapters: list[Chapter] = field(default_factory=list)
     metadata: dict = field(default_factory=dict)

@@ -27,6 +27,7 @@ def write_manifest(
         "file_hash": doc.file_hash,
         "title": doc.title,
         "source_path": doc.source_path,
+        "original_filename": doc.original_filename,
         "model": model,
         "collection": collection,
         "timestamp": datetime.now(timezone.utc).isoformat(),

@@ -16,11 +16,13 @@ def _hash_file(path: Path) -> str:
     return h.hexdigest()
 
 
-def ingest_file(path: Path, config: AppConfig) -> Document | None:
+def ingest_file(path: Path, config: AppConfig, original_filename: str = "") -> Document | None:
     """
     Ingest a single PDF or EPUB file.
 
     Returns None if the file was already ingested (same hash already in Qdrant).
+    original_filename, if provided, is stored on the Document so the UI can
+    display the user-facing name instead of a temp path.
     """
     path = Path(path)
     if not path.exists():
@@ -42,10 +44,10 @@ def ingest_file(path: Path, config: AppConfig) -> Document | None:
 
     if suffix == ".pdf":
         from infrastructure.ingest.pdf_loader import load_pdf
-        return load_pdf(path, file_hash)
+        return load_pdf(path, file_hash, original_filename=original_filename)
     else:
         from infrastructure.ingest.epub_loader import load_epub
-        return load_epub(path, file_hash)
+        return load_epub(path, file_hash, original_filename=original_filename)
 
 
 def _already_ingested(file_hash: str, config: AppConfig) -> bool:
