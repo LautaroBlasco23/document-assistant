@@ -27,6 +27,7 @@ export interface DocumentOut {
 export interface DocumentStructureOut {
   file_hash: string
   filename: string
+  num_chapters: number
   chapters: ChapterOut[]
 }
 

@@ -39,7 +39,7 @@ export function DocumentLayout({
 }: DocumentLayoutProps) {
   const navigate = useNavigate()
 
-  const chapterCount = structure?.chapters.length ?? document.num_chapters
+  const chapterCount = structure?.num_chapters ?? document.num_chapters
 
   return (
     <div className={cn('flex flex-col gap-4', className)}>

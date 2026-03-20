@@ -52,7 +52,7 @@ def _get_document_chapters(file_hash: str, services: ServicesDep) -> list[Chapte
     try:
         # Retrieve all chunks for this file_hash to determine chapter count
         # and chunks per chapter
-        results = services.qdrant.search_by_file(file_hash, limit=10000)
+        results = services.qdrant.search_by_file(file_hash)
 
         chapters_data: dict[int, int] = {}
         for chunk in results:
@@ -76,7 +76,7 @@ async def list_documents(services: ServicesDep) -> list[DocumentOut]:
     return [
         DocumentOut(
             file_hash=doc["file_hash"],
-            filename=Path(doc["source_path"]).name,
+            filename=doc.get("original_filename") or Path(doc["source_path"]).name,
             num_chapters=doc.get("num_chapters", 0),
         )
         for doc in documents
@@ -96,7 +96,8 @@ async def get_document_structure(file_hash: str, services: ServicesDep) -> Docum
 
     return DocumentStructureOut(
         file_hash=file_hash,
-        filename=Path(doc_manifest["source_path"]).name,
+        filename=doc_manifest.get("original_filename") or Path(doc_manifest["source_path"]).name,
+        num_chapters=doc_manifest.get("num_chapters", 0),
         chapters=chapters,
     )
 
@@ -120,7 +121,7 @@ def _ingest_background(task: Task, file_content: bytes, filename: str, services:
 
         # Ingest the file (loads chapters and returns Document)
         task.progress = f"Loading {filename}"
-        doc = ingest_file(tmp_path, services.config)
+        doc = ingest_file(tmp_path, services.config, original_filename=filename)
         if doc is None:
             raise ValueError("Failed to load document")
 
@@ -147,7 +148,9 @@ def _ingest_background(task: Task, file_content: bytes, filename: str, services:
 
         # Extract entities and store in Neo4j
         task.progress = "Extracting entities..."
-        services.neo4j.upsert_document(doc.file_hash, doc.title, doc.source_path)
+        services.neo4j.upsert_document(
+            doc.file_hash, doc.title, doc.source_path, doc.original_filename
+        )
         for i, chunk in enumerate(chunks):
             if i % 10 == 0:
                 task.progress = f"Extracting entities... {i}/{len(chunks)}"

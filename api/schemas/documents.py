@@ -25,6 +25,7 @@ class DocumentStructureOut(BaseModel):
 
     file_hash: str
     filename: str
+    num_chapters: int
     chapters: list[ChapterOut]
 
 
