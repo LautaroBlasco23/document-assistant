@@ -6,21 +6,23 @@ help:
 	@echo "Document Assistant - Infrastructure Management"
 	@echo ""
 	@echo "Available commands:"
-	@echo "  make start   - Start infrastructure, backend, and frontend"
+	@echo "  make start   - Start infrastructure, backend, and frontend (Ctrl+C to stop all)"
 	@echo "  make stop    - Stop all services"
 	@echo "  make check   - Health check all services (requires Ollama running)"
 	@echo "  make help    - Show this help message"
 
 start: infra-deps dev-deps
+	@for port in 5173 5174 5175 5176 5177; do \
+		if lsof -Pi :$$port -sTCP:LISTEN -t >/dev/null 2>&1; then \
+			echo "Killing process on port $$port..."; \
+			lsof -ti:$$port | xargs kill -9 2>/dev/null || true; \
+		fi; \
+	done
 	@echo "Starting backend (http://localhost:8000)..."
 	@nohup uv run uvicorn api.main:app --port 8000 > .backend.log 2>&1 &
 	@sleep 1
 	@echo "Starting frontend dev server (http://localhost:5173)..."
-	@cd frontend && npm run dev &
-	@echo "✓ Infrastructure, backend, and frontend started"
-	@echo "  Backend:  http://localhost:8000/api/health"
-	@echo "  Frontend: http://localhost:5173"
-	@echo "  Logs: tail -f .backend.log"
+	@trap "make stop" EXIT INT; cd frontend && VITE_MOCK=false npm run dev
 
 infra-deps:
 	@echo "Starting infrastructure services (Qdrant, Neo4j)..."
