@@ -149,22 +149,34 @@ class QdrantStore:
         return [_point_to_chunk(r) for r in results]
 
     def search_by_file(self, file_hash: str, limit: int = 10000) -> list[Chunk]:
-        """Get all chunks for a specific file."""
-        results = self._client.scroll(
-            collection_name=self._collection,
-            scroll_filter=qmodels.Filter(
-                must=[
-                    qmodels.FieldCondition(
-                        key="file_hash",
-                        match=qmodels.MatchValue(value=file_hash),
-                    )
-                ]
-            ),
-            limit=limit,
-            with_payload=True,
-            with_vectors=False,
+        """Get all chunks for a specific file, paginated."""
+        all_chunks: list[Chunk] = []
+        offset = None
+        scroll_filter = qmodels.Filter(
+            must=[
+                qmodels.FieldCondition(
+                    key="file_hash",
+                    match=qmodels.MatchValue(value=file_hash),
+                )
+            ]
         )
-        return [_point_to_chunk(r) for r in results[0]]
+
+        while True:
+            points, next_offset = self._client.scroll(
+                collection_name=self._collection,
+                scroll_filter=scroll_filter,
+                limit=limit,
+                offset=offset,
+                with_payload=True,
+                with_vectors=False,
+            )
+            all_chunks.extend(_point_to_chunk(p) for p in points)
+
+            if next_offset is None or not points:
+                break
+            offset = next_offset
+
+        return all_chunks
 
     def delete_by_source_file(self, file_hash: str) -> None:
         """Delete all chunks with a specific file_hash."""
