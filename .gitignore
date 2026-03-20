@@ -50,6 +50,7 @@ frontend/dist/
 
 # Build artifacts & caches
 .cache/
+data/.cache/
 .parcel-cache/
 *.tsbuildinfo
 
@@ -72,3 +73,8 @@ lerna-debug.log*
 # Documentation (generated during development)
 .docs/
 plan.md
+idea.md
+
+# Local env overrides
+frontend/.env.development.local
+frontend/.env.local
