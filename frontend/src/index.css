@@ -2,19 +2,25 @@
 @tailwind components;
 @tailwind utilities;
 
-* {
+html, body, #root {
+  height: 100%;
   margin: 0;
   padding: 0;
-  box-sizing: border-box;
 }
 
-html,
-body,
-#root {
-  width: 100%;
-  height: 100%;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell,
-    'Helvetica Neue', sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+/* 3D card flip support */
+.perspective-1000 {
+  perspective: 1000px;
+}
+
+.transform-style-preserve-3d {
+  transform-style: preserve-3d;
+}
+
+.backface-hidden {
+  backface-visibility: hidden;
+}
+
+.rotate-y-180 {
+  transform: rotateY(180deg);
 }
