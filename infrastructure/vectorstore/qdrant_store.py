@@ -92,7 +92,7 @@ class QdrantStore:
             query_filter=query_filter,
             with_payload=True,
         )
-        return [_point_to_chunk(r) for r in response.points]
+        return [_point_to_chunk(r, score=getattr(r, "score", None)) for r in response.points]
 
     def search_text(
         self, query_str: str, k: int = 20, filters: dict | None = None
@@ -198,7 +198,7 @@ def _build_filter(filters: dict) -> qmodels.Filter:
     return qmodels.Filter(must=conditions)
 
 
-def _point_to_chunk(point) -> Chunk:
+def _point_to_chunk(point, score: float | None = None) -> Chunk:
     payload = point.payload or {}
     meta = ChunkMetadata(
         source_file=payload.get("source_file", ""),
@@ -212,4 +212,5 @@ def _point_to_chunk(point) -> Chunk:
         text=payload.get("text", ""),
         token_count=len(payload.get("text", "").split()),
         metadata=meta,
+        score=score,
     )

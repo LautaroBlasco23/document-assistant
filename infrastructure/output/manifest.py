@@ -15,6 +15,7 @@ def write_manifest(
     collection: str,
     model: str,
     output_dir: Path,
+    num_chapters: int = 0,
 ) -> Path:
     safe_title = _safe_name(doc.title)
     d = output_dir / safe_title
@@ -29,6 +30,7 @@ def write_manifest(
         "collection": collection,
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "chunk_count": chunk_count,
+        "num_chapters": num_chapters,
     }
     with open(out, "w") as f:
         json.dump(manifest, f, indent=2)

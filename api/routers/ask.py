@@ -4,13 +4,12 @@ import asyncio
 import logging
 from typing import AsyncGenerator
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
 
 from api.deps import ServicesDep
 from api.schemas.ask import AskRequest
 from api.streaming import make_sse_event
-from application.agents.qa_agent import QAAgent
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +19,7 @@ router = APIRouter()
 async def _stream_answer(
     query: str, filters: dict | None, services: ServicesDep
 ) -> AsyncGenerator[str, None]:
-    """Stream Q&A answer tokens."""
+    """Stream Q&A answer tokens, then emit sources."""
     try:
         # Run retrieval in thread pool (sync operation)
         chunks = await asyncio.to_thread(
@@ -29,11 +28,14 @@ async def _stream_answer(
 
         if not chunks:
             yield make_sse_event("error", {"message": "No relevant context found"})
-            yield make_sse_event("done", {"full_answer": ""})
+            yield make_sse_event("done", {"sources": []})
             return
 
-        # Prepare context
-        context = "\n\n".join(f"[{c.chapter}:{c.chunk_id}] {c.text}" for c in chunks)
+        # Prepare context using metadata fields
+        context = "\n\n".join(
+            f"[{c.metadata.chapter_index if c.metadata else 0}:{c.id}] {c.text}"
+            for c in chunks
+        )
 
         # Build system and user prompts
         system_prompt = (
@@ -42,13 +44,43 @@ async def _stream_answer(
         )
         user_prompt = f"Context:\n{context}\n\nQuestion: {query}"
 
-        # For now, use the regular chat (not streaming) since ollama.chat_stream doesn't exist yet
-        # TODO: Add chat_stream to OllamaLLM for token-by-token streaming
-        full_answer = services.llm.chat(system_prompt, user_prompt)
+        # Stream tokens via chat_stream (sync generator run in thread pool)
+        token_queue: asyncio.Queue[str | None] = asyncio.Queue()
+        loop = asyncio.get_event_loop()
 
-        # Emit the full answer as a single event (fallback)
-        yield make_sse_event("token", {"token": full_answer})
-        yield make_sse_event("done", {"full_answer": full_answer})
+        def _produce():
+            try:
+                for token in services.llm.chat_stream(system_prompt, user_prompt):
+                    loop.call_soon_threadsafe(token_queue.put_nowait, token)
+            finally:
+                loop.call_soon_threadsafe(token_queue.put_nowait, None)
+
+        import concurrent.futures
+        executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+        loop.run_in_executor(executor, _produce)
+
+        while True:
+            token = await token_queue.get()
+            if token is None:
+                break
+            yield make_sse_event("token", {"token": token})
+
+        # Format sources
+        sources = []
+        for c in chunks:
+            src = c.metadata.source_file if c.metadata else ""
+            ch = c.metadata.chapter_index if c.metadata else 0
+            pg = c.metadata.page_number if c.metadata else None
+            sources.append(
+                {
+                    "id": f"{src[:12]}:{ch}:{c.id}",
+                    "text": c.text[:500],
+                    "chapter": ch + 1,  # Convert to 1-based
+                    "page": pg,
+                    "score": c.score,
+                }
+            )
+        yield make_sse_event("done", {"sources": sources})
 
     except Exception as e:
         logger.error(f"Q&A failed: {e}")

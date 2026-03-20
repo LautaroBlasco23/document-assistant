@@ -15,24 +15,32 @@ router = APIRouter()
 @router.post("/search", response_model=SearchResultsOut)
 async def search(req: SearchRequest, services: ServicesDep) -> SearchResultsOut:
     """Hybrid search across documents."""
-    filters = None
+    filters: dict | None = None
     if req.chapter is not None:
         # Convert 1-based to 0-based
         filters = {"chapter": req.chapter - 1}
 
+    if req.book:
+        filters = filters or {}
+        filters["file_hash"] = req.book
+
     try:
         chunks = services.retriever.retrieve(req.query, k=req.k, filters=filters)
 
-        results = [
-            ChunkOut(
-                id=f"{c.file_hash[:12]}:{c.chapter}:{c.chunk_id}",
-                text=c.text[:500],  # Truncate for display
-                chapter=c.chapter + 1,  # Convert back to 1-based
-                page=c.page,
-                score=None,  # Score not available from hybrid retriever
+        results = []
+        for c in chunks:
+            src = c.metadata.source_file if c.metadata else ""
+            ch = c.metadata.chapter_index if c.metadata else 0
+            pg = c.metadata.page_number if c.metadata else None
+            results.append(
+                ChunkOut(
+                    id=f"{src[:12]}:{ch}:{c.id}",
+                    text=c.text[:500],
+                    chapter=ch + 1,  # Convert to 1-based
+                    page=pg,
+                    score=c.score,
+                )
             )
-            for c in chunks
-        ]
 
         return SearchResultsOut(query=req.query, chunks=results, count=len(results))
     except Exception as e:

@@ -55,7 +55,7 @@ def _get_document_chapters(file_hash: str, services: ServicesDep) -> list[Chapte
 
         chapters_data: dict[int, int] = {}
         for chunk in results:
-            chapter = chunk.metadata.get("chapter", 0)
+            chapter = chunk.metadata.chapter_index if chunk.metadata else 0
             chapters_data[chapter] = chapters_data.get(chapter, 0) + 1
 
         # Convert to list of ChapterOut
@@ -76,7 +76,7 @@ async def list_documents(services: ServicesDep) -> list[DocumentOut]:
         DocumentOut(
             file_hash=doc["file_hash"],
             filename=Path(doc["source_path"]).name,
-            num_chapters=doc.get("chunk_count", 0),  # placeholder
+            num_chapters=doc.get("num_chapters", 0),
         )
         for doc in documents
     ]
@@ -155,12 +155,14 @@ def _ingest_background(task: Task, file_content: bytes, filename: str, services:
 
         # Write manifest
         task.progress = "Writing manifest..."
+        num_chapters = len(set(c.metadata.chapter_index for c in chunks if c.metadata))
         write_manifest(
             doc,
             chunk_count=len(chunks),
             collection=services.config.qdrant.collection_name,
             model=services.config.ollama.embedding_model,
             output_dir=OUTPUT_DIR,
+            num_chapters=num_chapters,
         )
 
         task.progress = "Complete"

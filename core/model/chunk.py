@@ -17,3 +17,4 @@ class Chunk:
     text: str = ""
     token_count: int = 0
     metadata: ChunkMetadata | None = None
+    score: float | None = None
