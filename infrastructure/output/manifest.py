@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -34,6 +35,8 @@ def write_manifest(
     }
     with open(out, "w") as f:
         json.dump(manifest, f, indent=2)
+        f.flush()
+        os.fsync(f.fileno())
 
     logger.info("Wrote manifest: %s", out)
     return out
