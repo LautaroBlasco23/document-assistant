@@ -1,7 +1,5 @@
 import { create } from 'zustand'
-import { client } from '../services'
 import type { FlashcardDeck, ReviewSession } from '../types/domain'
-import type { FlashcardOut } from '../types/api'
 
 // TODO: Upgrade to SM-2 spaced repetition scheduling.
 // SM-2 requires: nextReviewAt (Date), interval (days), easeFactor (float, 2.5 default).
@@ -13,7 +11,7 @@ interface FlashcardState {
   /** Keyed by `${docHash}-${chapter}` */
   decks: Record<string, FlashcardDeck[]>
   activeReview: ReviewSession | null
-  generateDeck: (docHash: string, chapter: number, bookTitle: string) => Promise<void>
+  addDeck: (docHash: string, chapter: number, deck: FlashcardDeck) => void
   startReview: (docHash: string, chapter: number) => void
   scoreCard: (score: 'easy' | 'medium' | 'hard') => void
   nextCard: () => void
@@ -28,51 +26,14 @@ export const useFlashcardStore = create<FlashcardState>((set, get) => ({
   decks: {},
   activeReview: null,
 
-  generateDeck: async (docHash: string, chapter: number, bookTitle: string) => {
-    const response = await client.generateFlashcards(chapter, bookTitle)
-    const taskId = response.task_id
-
-    await new Promise<void>((resolve, reject) => {
-      const interval = setInterval(async () => {
-        try {
-          const status = await client.getTaskStatus(taskId)
-
-          if (status.status === 'completed') {
-            clearInterval(interval)
-
-            // Extract flashcards from task result.
-            // Real backend returns { flashcards: FlashcardOut[] }; mock returns { message: 'Done' }.
-            // Fall back to an empty array if the result doesn't include flashcards.
-            const flashcards = (
-              (status.result?.flashcards as FlashcardOut[] | undefined) ?? []
-            )
-
-            const deck: FlashcardDeck = {
-              documentHash: docHash,
-              chapter,
-              cards: flashcards,
-              generatedAt: new Date().toISOString(),
-            }
-
-            const key = deckKey(docHash, chapter)
-            set((state) => ({
-              decks: {
-                ...state.decks,
-                [key]: [...(state.decks[key] ?? []), deck],
-              },
-            }))
-
-            resolve()
-          } else if (status.status === 'failed') {
-            clearInterval(interval)
-            reject(new Error(status.error ?? 'Flashcard generation failed'))
-          }
-        } catch (err) {
-          clearInterval(interval)
-          reject(err)
-        }
-      }, 1500)
-    })
+  addDeck: (docHash: string, chapter: number, deck: FlashcardDeck) => {
+    const key = deckKey(docHash, chapter)
+    set((state) => ({
+      decks: {
+        ...state.decks,
+        [key]: [...(state.decks[key] ?? []), deck],
+      },
+    }))
   },
 
   startReview: (docHash: string, chapter: number) => {

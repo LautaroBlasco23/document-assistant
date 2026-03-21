@@ -1,6 +1,8 @@
-import { useState } from 'react'
+import { useEffect } from 'react'
 import { Layers } from 'lucide-react'
+import { client } from '../../services'
 import { useFlashcardStore } from '../../stores/flashcard-store'
+import { useTaskStore } from '../../stores/task-store'
 import { useDocumentStore } from '../../stores/document-store'
 import { Button } from '../../components/ui/button'
 import { Progress } from '../../components/ui/progress'
@@ -9,7 +11,8 @@ import { Tooltip } from '../../components/ui/tooltip'
 import { FlashcardCard } from './flashcard-card'
 import { FlashcardReview } from './flashcard-review'
 import { mockFlashcards } from '../../mocks/flashcards'
-import type { DocumentStructureOut } from '../../types/api'
+import type { DocumentStructureOut, FlashcardOut } from '../../types/api'
+import type { FlashcardDeck } from '../../types/domain'
 
 interface FlashcardTabProps {
   docHash: string
@@ -20,15 +23,38 @@ interface FlashcardTabProps {
 export function FlashcardTab({ docHash, chapter, structure: _structure }: FlashcardTabProps) {
   const decks = useFlashcardStore((state) => state.decks)
   const activeReview = useFlashcardStore((state) => state.activeReview)
-  const generateDeck = useFlashcardStore((state) => state.generateDeck)
+  const addDeck = useFlashcardStore((state) => state.addDeck)
   const startReview = useFlashcardStore((state) => state.startReview)
 
   const documents = useDocumentStore((state) => state.documents)
   const doc = documents.find((d) => d.file_hash === docHash)
   const bookTitle = doc ? doc.filename.replace(/\.[^/.]+$/, '') : docHash
 
-  const [generating, setGenerating] = useState(false)
-  const [generateError, setGenerateError] = useState<string | null>(null)
+  // Subscribe to the task for this specific (docHash, chapter, type) context
+  const task = useTaskStore((state) =>
+    Object.values(state.tasks).find(
+      (t) => t.docHash === docHash && t.chapter === chapter && t.type === 'flashcards'
+    )
+  )
+
+  const isLoading = task !== undefined && (task.status === 'pending' || task.status === 'running')
+  const generateError = task?.status === 'failed' ? (task.error ?? 'Generation failed') : null
+
+  // When the task completes, build the deck and clear the task from the store
+  useEffect(() => {
+    if (!task || task.status !== 'completed' || chapter === undefined) return
+
+    const flashcards = (task.result?.flashcards as FlashcardOut[] | undefined) ?? []
+    const deck: FlashcardDeck = {
+      documentHash: docHash,
+      chapter,
+      cards: flashcards.length > 0 ? flashcards : (mockFlashcards[docHash] ?? []),
+      generatedAt: new Date().toISOString(),
+    }
+
+    addDeck(docHash, chapter, deck)
+    useTaskStore.getState().clearTask(task.taskId)
+  }, [task?.status, task?.taskId, docHash, chapter, addDeck])
 
   const deckKey = chapter !== undefined ? `${docHash}-${chapter}` : null
   const currentDeck = deckKey ? (decks[deckKey] ?? [])[0] : undefined
@@ -45,32 +71,17 @@ export function FlashcardTab({ docHash, chapter, structure: _structure }: Flashc
 
   const handleGenerate = async () => {
     if (chapter === undefined) return
-    setGenerating(true)
-    setGenerateError(null)
-
     try {
-      // generateDeck handles polling and stores the result in the store.
-      // After the task completes it checks result.flashcards; if empty, falls
-      // back to an empty array. We patch in mock data here for demo mode.
-      await generateDeck(docHash, chapter, bookTitle)
-
-      // If the deck ended up empty (mock client returns no flashcards in result),
-      // inject the mock flashcards directly into the store.
-      const key = `${docHash}-${chapter}`
-      const storedDeck = useFlashcardStore.getState().decks[key]?.[0]
-      if (storedDeck && storedDeck.cards.length === 0) {
-        const fallback = mockFlashcards[docHash] ?? []
-        useFlashcardStore.setState((state) => ({
-          decks: {
-            ...state.decks,
-            [key]: [{ ...storedDeck, cards: fallback }],
-          },
-        }))
-      }
-    } catch (err) {
-      setGenerateError(err instanceof Error ? err.message : 'Generation failed')
-    } finally {
-      setGenerating(false)
+      const response = await client.generateFlashcards(chapter, bookTitle)
+      useTaskStore.getState().submitTask({
+        taskId: response.task_id,
+        type: 'flashcards',
+        docHash,
+        chapter,
+        bookTitle,
+      })
+    } catch {
+      // API call failed before task was submitted -- no cleanup needed
     }
   }
 
@@ -81,8 +92,8 @@ export function FlashcardTab({ docHash, chapter, structure: _structure }: Flashc
       variant="primary"
       size="sm"
       onClick={() => void handleGenerate()}
-      disabled={isDisabled || generating}
-      loading={generating}
+      disabled={isDisabled || isLoading}
+      loading={isLoading}
     >
       Generate Flashcards
     </Button>
@@ -100,7 +111,7 @@ export function FlashcardTab({ docHash, chapter, structure: _structure }: Flashc
           generateButton
         )}
 
-        {currentDeck && currentDeck.cards.length > 0 && !generating && (
+        {currentDeck && currentDeck.cards.length > 0 && !isLoading && (
           <Button
             variant="secondary"
             size="sm"
@@ -117,15 +128,15 @@ export function FlashcardTab({ docHash, chapter, structure: _structure }: Flashc
       )}
 
       {/* Loading */}
-      {generating && (
+      {isLoading && (
         <div className="flex flex-col gap-2">
           <Progress indeterminate />
-          <p className="text-xs text-gray-400">Generating flashcards...</p>
+          <p className="text-xs text-gray-400">{task?.progress ?? 'Generating flashcards...'}</p>
         </div>
       )}
 
       {/* Card grid */}
-      {!generating && currentDeck && currentDeck.cards.length > 0 && (
+      {!isLoading && currentDeck && currentDeck.cards.length > 0 && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {currentDeck.cards.map((card, index) => (
             <FlashcardCard key={index} card={card} />
@@ -134,7 +145,7 @@ export function FlashcardTab({ docHash, chapter, structure: _structure }: Flashc
       )}
 
       {/* Empty states */}
-      {!generating && !currentDeck && (
+      {!isLoading && !currentDeck && (
         <EmptyState
           icon={Layers}
           title={isDisabled ? 'Select a chapter' : 'No flashcards yet'}
@@ -146,7 +157,7 @@ export function FlashcardTab({ docHash, chapter, structure: _structure }: Flashc
         />
       )}
 
-      {!generating && currentDeck && currentDeck.cards.length === 0 && (
+      {!isLoading && currentDeck && currentDeck.cards.length === 0 && (
         <EmptyState
           icon={Layers}
           title="No cards generated"

@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { HelpCircle } from 'lucide-react'
 import { client } from '../../services'
-import { useTask } from '../../hooks/use-task'
+import { useTaskStore } from '../../stores/task-store'
 import { useDocumentStore } from '../../stores/document-store'
 import { Button } from '../../components/ui/button'
 import { Card } from '../../components/ui/card'
@@ -18,17 +18,23 @@ interface QATabProps {
 }
 
 export function QATab({ docHash, chapter, structure: _structure }: QATabProps) {
-  const [taskId, setTaskId] = useState<string | null>(null)
   const [pairs, setPairs] = useState<QAPairOut[] | null>(null)
-  const [generating, setGenerating] = useState(false)
 
   const documents = useDocumentStore((state) => state.documents)
   const doc = documents.find((d) => d.file_hash === docHash)
   const bookTitle = doc ? doc.filename.replace(/\.[^/.]+$/, '') : docHash
 
-  const { task } = useTask(taskId, (result) => {
-    // After task completes, extract pairs from result or fall back to mock data
-    const resultPairs = (result as Record<string, unknown> | null)?.qa_pairs as QAPairOut[] | undefined
+  // Subscribe to the task for this specific (docHash, chapter, type) context
+  const task = useTaskStore((state) =>
+    Object.values(state.tasks).find(
+      (t) => t.docHash === docHash && t.chapter === chapter && t.type === 'qa'
+    )
+  )
+
+  // When the task completes, extract the result and clear it from the store
+  useEffect(() => {
+    if (!task || task.status !== 'completed') return
+    const resultPairs = (task.result as Record<string, unknown> | null)?.qa_pairs as QAPairOut[] | undefined
     if (resultPairs && resultPairs.length > 0) {
       setPairs(resultPairs)
     } else {
@@ -36,23 +42,27 @@ export function QATab({ docHash, chapter, structure: _structure }: QATabProps) {
       const mockData = mockQAPairs[docHash]
       setPairs(mockData ?? [])
     }
-    setTaskId(null)
-    setGenerating(false)
-  })
+    useTaskStore.getState().clearTask(task.taskId)
+  }, [task?.status, task?.taskId, docHash])
 
   const handleGenerate = async () => {
     if (chapter === undefined) return
-    setGenerating(true)
     setPairs(null)
     try {
       const response = await client.generateQA(chapter, bookTitle)
-      setTaskId(response.task_id)
+      useTaskStore.getState().submitTask({
+        taskId: response.task_id,
+        type: 'qa',
+        docHash,
+        chapter,
+        bookTitle,
+      })
     } catch {
-      setGenerating(false)
+      // API call failed before task was submitted -- no cleanup needed
     }
   }
 
-  const isLoading = generating || (taskId !== null && task?.status !== 'completed')
+  const isLoading = task !== undefined && (task.status === 'pending' || task.status === 'running')
   const isDisabled = chapter === undefined
 
   const generateButton = (

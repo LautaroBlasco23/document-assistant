@@ -1,8 +1,8 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { FileText } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import { client } from '../../services'
-import { useTask } from '../../hooks/use-task'
+import { useTaskStore } from '../../stores/task-store'
 import { useDocumentStore } from '../../stores/document-store'
 import { Button } from '../../components/ui/button'
 import { Progress } from '../../components/ui/progress'
@@ -25,17 +25,23 @@ interface SummaryTabProps {
 
 export function SummaryTab({ docHash, chapter, structure: _structure }: SummaryTabProps) {
   const [style, setStyle] = useState<SummaryStyle>('short')
-  const [taskId, setTaskId] = useState<string | null>(null)
   const [summaryText, setSummaryText] = useState<string | null>(null)
-  const [generating, setGenerating] = useState(false)
 
   const documents = useDocumentStore((state) => state.documents)
   const doc = documents.find((d) => d.file_hash === docHash)
   const bookTitle = doc ? doc.filename.replace(/\.[^/.]+$/, '') : docHash
 
-  const { task } = useTask(taskId, (result) => {
-    // After task completes, extract summary from result or fall back to mock data
-    const resultSummary = (result as Record<string, unknown> | null)?.summary as string | undefined
+  // Subscribe to the task for this specific (docHash, chapter, type) context
+  const task = useTaskStore((state) =>
+    Object.values(state.tasks).find(
+      (t) => t.docHash === docHash && t.chapter === chapter && t.type === 'summary'
+    )
+  )
+
+  // When the task completes, extract the result and clear it from the store
+  useEffect(() => {
+    if (!task || task.status !== 'completed') return
+    const resultSummary = (task.result as Record<string, unknown> | null)?.summary as string | undefined
     if (resultSummary) {
       setSummaryText(resultSummary)
     } else {
@@ -45,23 +51,27 @@ export function SummaryTab({ docHash, chapter, structure: _structure }: SummaryT
         : mockSummaries[docHash]
       setSummaryText(mockData?.summary ?? 'Summary not available.')
     }
-    setTaskId(null)
-    setGenerating(false)
-  })
+    useTaskStore.getState().clearTask(task.taskId)
+  }, [task?.status, task?.taskId, docHash, style])
 
   const handleGenerate = async () => {
     if (chapter === undefined) return
-    setGenerating(true)
     setSummaryText(null)
     try {
       const response = await client.summarizeChapter(chapter, bookTitle)
-      setTaskId(response.task_id)
+      useTaskStore.getState().submitTask({
+        taskId: response.task_id,
+        type: 'summary',
+        docHash,
+        chapter,
+        bookTitle,
+      })
     } catch {
-      setGenerating(false)
+      // API call failed before task was submitted -- no cleanup needed
     }
   }
 
-  const isLoading = generating || (taskId !== null && task?.status !== 'completed')
+  const isLoading = task !== undefined && (task.status === 'pending' || task.status === 'running')
   const isDisabled = chapter === undefined
 
   const generateButton = (
