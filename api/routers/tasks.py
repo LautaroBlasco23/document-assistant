@@ -15,6 +15,7 @@ router = APIRouter()
 @router.get("/tasks/{task_id}", response_model=TaskStatusOut)
 async def get_task_status(task_id: str, services: ServicesDep) -> TaskStatusOut:
     """Get status of a background task."""
+    logger.debug("Task status poll: %s", task_id)
     task = services.task_registry.get(task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")

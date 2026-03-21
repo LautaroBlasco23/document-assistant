@@ -16,6 +16,7 @@ router = APIRouter()
 @router.get("/health", response_model=HealthOut)
 async def get_health(services: ServicesDep) -> HealthOut:
     """Check health of all external services."""
+    logger.debug("Health check requested")
     statuses: list[ServiceStatus] = []
 
     # Check Ollama

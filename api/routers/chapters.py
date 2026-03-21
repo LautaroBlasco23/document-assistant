@@ -1,6 +1,7 @@
 """Chapter analysis endpoints."""
 
 import logging
+import time
 
 from fastapi import APIRouter, HTTPException
 
@@ -18,6 +19,8 @@ router = APIRouter()
 
 def _summarize_background(task: Task, chapter_num: int, services: ServicesDep) -> str:
     """Background task to summarize a chapter."""
+    t0 = time.perf_counter()
+    logger.info("Starting summarize for chapter %d", chapter_num)
     try:
         chapter_index = chapter_num - 1
         task.progress = f"Retrieving context for chapter {chapter_num}..."
@@ -31,9 +34,10 @@ def _summarize_background(task: Task, chapter_num: int, services: ServicesDep) -
 
         task.progress = "Generating summary..."
         chapter_obj = Chapter(index=chapter_index, title=f"Chapter {chapter_num}", pages=[])
-        summary = SummarizerAgent(services.llm).summarize(chapter_obj, chunks)
+        summary = SummarizerAgent(services.fast_llm).summarize(chapter_obj, chunks)
 
         task.result = {"chapter": chapter_num, "summary": summary}
+        logger.info("Completed summarize for chapter %d in %.1fs", chapter_num, time.perf_counter() - t0)
         return summary
     except Exception as e:
         logger.error(f"Summarization failed: {e}")
@@ -42,6 +46,8 @@ def _summarize_background(task: Task, chapter_num: int, services: ServicesDep) -
 
 def _generate_qa_background(task: Task, chapter_num: int, services: ServicesDep) -> list[dict]:
     """Background task to generate Q&A for a chapter."""
+    t0 = time.perf_counter()
+    logger.info("Starting questions for chapter %d", chapter_num)
     try:
         chapter_index = chapter_num - 1
         task.progress = f"Retrieving context for chapter {chapter_num}..."
@@ -54,9 +60,10 @@ def _generate_qa_background(task: Task, chapter_num: int, services: ServicesDep)
             raise ValueError(f"No chunks found for chapter {chapter_num}")
 
         task.progress = "Generating Q&A..."
-        qas = QuestionGeneratorAgent(services.llm).generate(chunks)
+        qas = QuestionGeneratorAgent(services.fast_llm).generate(chunks)
 
         task.result = {"chapter": chapter_num, "qa_pairs": qas}
+        logger.info("Completed questions for chapter %d in %.1fs", chapter_num, time.perf_counter() - t0)
         return qas
     except Exception as e:
         logger.error(f"Q&A generation failed: {e}")
@@ -67,6 +74,8 @@ def _generate_flashcards_background(
     task: Task, chapter_num: int, services: ServicesDep
 ) -> list[dict]:
     """Background task to generate flashcards for a chapter."""
+    t0 = time.perf_counter()
+    logger.info("Starting flashcards for chapter %d", chapter_num)
     try:
         chapter_index = chapter_num - 1
         task.progress = f"Retrieving context for chapter {chapter_num}..."
@@ -80,9 +89,10 @@ def _generate_flashcards_background(
 
         task.progress = "Generating flashcards..."
         # Flashcards are similar to Q&A, so reuse the generator
-        qas = QuestionGeneratorAgent(services.llm).generate(chunks)
+        qas = QuestionGeneratorAgent(services.fast_llm).generate(chunks)
 
         task.result = {"chapter": chapter_num, "flashcards": qas}
+        logger.info("Completed flashcards for chapter %d in %.1fs", chapter_num, time.perf_counter() - t0)
         return qas
     except Exception as e:
         logger.error(f"Flashcard generation failed: {e}")
@@ -95,6 +105,7 @@ async def summarize_chapter(req: ChapterRequest, services: ServicesDep) -> TaskR
     task_id = services.task_registry.submit(
         _summarize_background, req.chapter, services
     )
+    logger.info("Chapter summarize task submitted: task_id=%s, chapter=%d", task_id, req.chapter)
     return TaskResponseOut(task_id=task_id, task_type="summarize")
 
 
@@ -104,6 +115,7 @@ async def generate_qa(req: ChapterRequest, services: ServicesDep) -> TaskRespons
     task_id = services.task_registry.submit(
         _generate_qa_background, req.chapter, services
     )
+    logger.info("Chapter questions task submitted: task_id=%s, chapter=%d", task_id, req.chapter)
     return TaskResponseOut(task_id=task_id, task_type="questions")
 
 
@@ -113,4 +125,5 @@ async def generate_flashcards(req: ChapterRequest, services: ServicesDep) -> Tas
     task_id = services.task_registry.submit(
         _generate_flashcards_background, req.chapter, services
     )
+    logger.info("Chapter flashcards task submitted: task_id=%s, chapter=%d", task_id, req.chapter)
     return TaskResponseOut(task_id=task_id, task_type="flashcards")

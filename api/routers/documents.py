@@ -73,7 +73,7 @@ def _get_document_chapters(file_hash: str, services: ServicesDep) -> list[Chapte
 async def list_documents(services: ServicesDep) -> list[DocumentOut]:
     """List all ingested documents."""
     documents = _list_documents()
-    return [
+    result = [
         DocumentOut(
             file_hash=doc["file_hash"],
             filename=doc.get("original_filename") or Path(doc["source_path"]).name,
@@ -81,6 +81,8 @@ async def list_documents(services: ServicesDep) -> list[DocumentOut]:
         )
         for doc in documents
     ]
+    logger.info("Listed %d documents", len(result))
+    return result
 
 
 @router.get("/documents/{file_hash}/structure", response_model=DocumentStructureOut)
@@ -93,6 +95,7 @@ async def get_document_structure(file_hash: str, services: ServicesDep) -> Docum
         raise HTTPException(status_code=404, detail="Document not found")
 
     chapters = _get_document_chapters(file_hash, services)
+    logger.info("Document structure %s: %d chapters", file_hash[:12], len(chapters))
 
     return DocumentStructureOut(
         file_hash=file_hash,
@@ -104,6 +107,7 @@ async def get_document_structure(file_hash: str, services: ServicesDep) -> Docum
 
 def _ingest_background(task: Task, file_content: bytes, filename: str, services: ServicesDep) -> str:
     """Background task to ingest an uploaded file."""
+    t0 = time.perf_counter()
     try:
         # Write to temp file
         with tempfile.NamedTemporaryFile(suffix=Path(filename).suffix, delete=False) as tmp:
@@ -111,30 +115,36 @@ def _ingest_background(task: Task, file_content: bytes, filename: str, services:
             tmp_path = Path(tmp.name)
 
         task.progress = f"Hashing {filename}"
+        logger.info("Ingest: hashing %s", filename)
         file_hash = _hash_file(tmp_path)
 
         # Check if already ingested
         if services.qdrant.has_file(file_hash):
             task.progress = "File already ingested"
+            logger.info("Ingest: %s already ingested (hash %s)", filename, file_hash[:12])
             tmp_path.unlink()
             return f"File already ingested (hash {file_hash[:12]})"
 
         # Ingest the file (loads chapters and returns Document)
         task.progress = f"Loading {filename}"
+        logger.info("Ingest: loading %s", filename)
         doc = ingest_file(tmp_path, services.config, original_filename=filename)
         if doc is None:
             raise ValueError("Failed to load document")
 
         # Chunk
         task.progress = "Chunking..."
+        logger.info("Ingest: chunking document")
         splitter = ChapterAwareSplitter(
             max_tokens=services.config.chunking.max_tokens,
             overlap_tokens=services.config.chunking.overlap_tokens,
         )
         chunks = splitter.split(doc)
+        logger.info("Ingest: %d chunks produced", len(chunks))
 
         # Embed
         task.progress = f"Embedding {len(chunks)} chunks..."
+        logger.info("Ingest: embedding %d chunks", len(chunks))
         texts = [c.text for c in chunks]
         vectors = services.embedder.embed(texts)
 
@@ -144,10 +154,12 @@ def _ingest_background(task: Task, file_content: bytes, filename: str, services:
 
         # Upsert vectors
         task.progress = "Upserting to Qdrant..."
+        logger.info("Ingest: upserting %d vectors to Qdrant", len(vectors))
         services.qdrant.upsert(chunks, vectors)
 
         # Extract entities and store in Neo4j
         task.progress = "Extracting entities..."
+        logger.info("Ingest: extracting entities from %d chunks", len(chunks))
         services.neo4j.upsert_document(
             doc.file_hash, doc.title, doc.source_path, doc.original_filename
         )
@@ -159,6 +171,7 @@ def _ingest_background(task: Task, file_content: bytes, filename: str, services:
 
         # Write manifest
         task.progress = "Writing manifest..."
+        logger.info("Ingest: writing manifest")
         num_chapters = len(set(c.metadata.chapter_index for c in chunks if c.metadata))
         write_manifest(
             doc,
@@ -169,7 +182,9 @@ def _ingest_background(task: Task, file_content: bytes, filename: str, services:
             num_chapters=num_chapters,
         )
 
+        elapsed = time.perf_counter() - t0
         task.progress = "Complete"
+        logger.info("Ingest complete: %s, %d chunks in %.1fs", filename, len(chunks), elapsed)
         tmp_path.unlink()
         return f"Ingested {len(chunks)} chunks from {filename}"
     except Exception as e:
@@ -187,6 +202,7 @@ async def ingest_document(services: ServicesDep, file: UploadFile = File(...)) -
     task_id = services.task_registry.submit(
         _ingest_background, content, file.filename, services
     )
+    logger.info("Ingest submitted: %s -> task %s", file.filename, task_id)
 
     return IngestTaskOut(task_id=task_id, filename=file.filename)
 
@@ -200,6 +216,7 @@ async def delete_document(file_hash: str, services: ServicesDep) -> JSONResponse
     if not doc_manifest:
         raise HTTPException(status_code=404, detail="Document not found")
 
+    logger.info("Deleting document %s", file_hash[:12])
     errors: list[str] = []
 
     # Delete from Qdrant — attempt regardless of other failures

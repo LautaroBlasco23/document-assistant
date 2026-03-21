@@ -15,11 +15,13 @@ router = APIRouter()
 @router.get("/config", response_model=ConfigOut)
 async def get_config(services: ServicesDep) -> ConfigOut:
     """Get current configuration."""
+    logger.info("Config read")
     config = services.config
     return ConfigOut(
         ollama=OllamaConfigOut(
             base_url=config.ollama.base_url,
             generation_model=config.ollama.generation_model,
+            fast_model=config.ollama.fast_model,
             embedding_model=config.ollama.embedding_model,
             timeout=config.ollama.timeout,
         ),

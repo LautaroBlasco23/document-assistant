@@ -18,18 +18,22 @@ start: infra-deps dev-deps
 			lsof -ti:$$port | xargs kill -9 2>/dev/null || true; \
 		fi; \
 	done
-	@echo "Starting backend (http://localhost:8000)..."
-	@nohup uv run python -m uvicorn api.main:app --port 8000 > .backend.log 2>&1 &
-	@echo "Waiting for backend to be ready..."
-	@for i in $$(seq 1 15); do \
+	@echo "Starting backend (http://localhost:8000) and frontend (http://localhost:5173)..."
+	@trap "make stop" EXIT; \
+	uv run python -m uvicorn api.main:app --port 8000 --log-level warning --no-access-log & \
+	BACKEND_PID=$$!; \
+	echo "Waiting for backend to be ready..."; \
+	for i in $$(seq 1 15); do \
 		if curl -sf http://localhost:8000/api/health > /dev/null 2>&1; then \
 			echo "Backend is ready."; \
 			break; \
 		fi; \
+		echo "Waiting... ($$i/15)"; \
 		sleep 1; \
-	done
-	@echo "Starting frontend dev server (http://localhost:5173)..."
-	@trap "make stop" EXIT INT; cd frontend && VITE_MOCK=false npm run dev
+	done; \
+	curl -sf http://localhost:8000/api/health > /dev/null 2>&1 || { echo "Backend failed to start."; kill $$BACKEND_PID 2>/dev/null; exit 1; }; \
+	cd frontend && VITE_MOCK=false npm run dev 2>&1 | sed 's/^/[web] /'; \
+	wait $$BACKEND_PID
 
 infra-deps:
 	@echo "Starting infrastructure services (Qdrant, Neo4j)..."

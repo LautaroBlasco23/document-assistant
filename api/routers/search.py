@@ -42,6 +42,7 @@ async def search(req: SearchRequest, services: ServicesDep) -> SearchResultsOut:
                 )
             )
 
+        logger.info("Search: query=%s, k=%d, filters=%s -> %d results", req.query[:80], req.k, filters, len(results))
         return SearchResultsOut(query=req.query, chunks=results, count=len(results))
     except Exception as e:
         logger.error(f"Search failed: {e}")

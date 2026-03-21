@@ -1,6 +1,7 @@
 """In-memory task registry with ThreadPoolExecutor for background operations."""
 
 import logging
+import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
@@ -36,17 +37,23 @@ class TaskRegistry:
         task_id = str(uuid.uuid4())
         task = Task(task_id=task_id, status="pending")
         self._tasks[task_id] = task
+        logger.info("Task submitted: %s (%s)", task_id, fn.__name__)
 
         def _wrapper() -> None:
+            t0 = time.perf_counter()
             try:
                 task.status = "running"
+                logger.info("Task started: %s", task_id)
                 result = fn(task, *args, **kwargs)
+                elapsed = time.perf_counter() - t0
                 task.result = result
                 task.status = "completed"
+                logger.info("Task completed: %s (%.1fs)", task_id, elapsed)
             except Exception as e:
+                elapsed = time.perf_counter() - t0
                 task.error = str(e)
                 task.status = "failed"
-                logger.exception(f"Task {task_id} failed: {e}")
+                logger.exception("Task %s failed after %.1fs: %s", task_id, elapsed, e)
 
         self._executor.submit(_wrapper)
         return task_id

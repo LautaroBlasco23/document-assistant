@@ -25,6 +25,7 @@ async def _stream_answer(
         chunks = await asyncio.to_thread(
             services.retriever.retrieve, query, 20, filters
         )
+        logger.info("Retrieved %d chunks for Q&A", len(chunks))
 
         if not chunks:
             yield make_sse_event("error", {"message": "No relevant context found"})
@@ -81,6 +82,7 @@ async def _stream_answer(
                 }
             )
         yield make_sse_event("done", {"sources": sources})
+        logger.info("Q&A streaming complete")
 
     except Exception as e:
         logger.error(f"Q&A failed: {e}")
@@ -90,6 +92,7 @@ async def _stream_answer(
 @router.post("/ask")
 async def ask_question(req: AskRequest, services: ServicesDep) -> StreamingResponse:
     """Ask a question with SSE streaming response."""
+    logger.info("Q&A request: %s (chapter=%s)", req.query[:80], req.chapter)
     filters = None
     if req.chapter is not None:
         # Convert 1-based to 0-based

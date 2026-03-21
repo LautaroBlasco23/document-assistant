@@ -21,6 +21,7 @@ class Services:
     config: AppConfig
     embedder: OllamaEmbedder
     llm: OllamaLLM
+    fast_llm: OllamaLLM
     qdrant: QdrantStore
     neo4j: Neo4jStore
     retriever: HybridRetriever
@@ -41,6 +42,15 @@ def init_services(config: AppConfig | None = None) -> Services:
     cache = EmbeddingCache()
     embedder = OllamaEmbedder(config.ollama, cache=cache)
     llm = OllamaLLM(config.ollama)
+
+    if config.ollama.fast_model:
+        fast_config = config.ollama.model_copy(
+            update={"generation_model": config.ollama.fast_model}
+        )
+        fast_llm = OllamaLLM(fast_config)
+    else:
+        fast_llm = llm  # Fallback: reuse the same instance
+
     qdrant = QdrantStore(config.qdrant)
     neo4j = Neo4jStore(config.neo4j)
     retriever = HybridRetriever(qdrant, neo4j, embedder, llm, config)
@@ -50,12 +60,21 @@ def init_services(config: AppConfig | None = None) -> Services:
         config=config,
         embedder=embedder,
         llm=llm,
+        fast_llm=fast_llm,
         qdrant=qdrant,
         neo4j=neo4j,
         retriever=retriever,
         task_registry=task_registry,
     )
 
+    logger.info(
+        "Config: ollama=%s model=%s embed=%s qdrant=%s neo4j=%s",
+        config.ollama.base_url,
+        config.ollama.generation_model,
+        config.ollama.embedding_model,
+        config.qdrant.url,
+        config.neo4j.uri,
+    )
     logger.info("Services initialized")
     return _services
 
