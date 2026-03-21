@@ -9,7 +9,7 @@ import fitz
 import pytest
 
 from core.model.document import Page
-from infrastructure.ingest.pdf_loader import _synthetic_chapters, load_pdf
+from infrastructure.ingest.pdf_loader import _is_chapter_heading, _synthetic_chapters, load_pdf
 
 
 @pytest.fixture()
@@ -73,3 +73,42 @@ def test_synthetic_chapters():
     # Each chapter has at most 20 pages
     for ch in chapters:
         assert len(ch.pages) <= 20
+
+
+@pytest.fixture()
+def word_chapter_pdf(tmp_path: Path) -> Path:
+    """Create a PDF with written-out chapter headings."""
+    pdf_path = tmp_path / "word_chapters.pdf"
+    doc = fitz.open()
+
+    headings = ["CHAPTER ONE", "CHAPTER TWO", "CHAPTER THREE"]
+    for heading in headings:
+        page = doc.new_page()
+        page.insert_text((72, 72), f"{heading}\n\n" + "Some content here. " * 30)
+        page2 = doc.new_page()
+        page2.insert_text((72, 72), "More body content. " * 40)
+
+    doc.save(str(pdf_path))
+    doc.close()
+    return pdf_path
+
+
+def test_chapter_detection_word_ordinals(word_chapter_pdf):
+    """Written-out ordinals like CHAPTER ONE should be detected."""
+    doc = load_pdf(word_chapter_pdf, _hash(word_chapter_pdf))
+    assert len(doc.chapters) >= 2
+
+
+def test_chapter_heading_word_ordinal_variants():
+    """Verify _is_chapter_heading matches various written-out formats."""
+    assert _is_chapter_heading("CHAPTER ONE\nSome text")
+    assert _is_chapter_heading("Chapter Two\nSome text")
+    assert _is_chapter_heading("chapter three\nSome text")
+    assert _is_chapter_heading("CHAPTER TWENTY-ONE\nSome text")
+    assert _is_chapter_heading("Chapter Twenty One\nSome text")
+    # Existing numeric patterns still work
+    assert _is_chapter_heading("Chapter 1\nSome text")
+    assert _is_chapter_heading("Chapter 42\nSome text")
+    # Non-chapter text should not match
+    assert not _is_chapter_heading("The one chapter\nSome text")
+    assert not _is_chapter_heading("Once upon a time\nSome text")

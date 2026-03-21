@@ -9,9 +9,22 @@ from infrastructure.ingest.normalizer import normalize
 
 logger = logging.getLogger(__name__)
 
+# Written-out ordinals for chapter headings (ONE through FIFTY, with compound forms)
+_ORDINAL_WORDS = (
+    "ONE|TWO|THREE|FOUR|FIVE|SIX|SEVEN|EIGHT|NINE|TEN|"
+    "ELEVEN|TWELVE|THIRTEEN|FOURTEEN|FIFTEEN|SIXTEEN|SEVENTEEN|EIGHTEEN|NINETEEN|TWENTY|"
+    "TWENTY[- ]ONE|TWENTY[- ]TWO|TWENTY[- ]THREE|TWENTY[- ]FOUR|TWENTY[- ]FIVE|"
+    "TWENTY[- ]SIX|TWENTY[- ]SEVEN|TWENTY[- ]EIGHT|TWENTY[- ]NINE|THIRTY|"
+    "THIRTY[- ]ONE|THIRTY[- ]TWO|THIRTY[- ]THREE|THIRTY[- ]FOUR|THIRTY[- ]FIVE|"
+    "THIRTY[- ]SIX|THIRTY[- ]SEVEN|THIRTY[- ]EIGHT|THIRTY[- ]NINE|FORTY|"
+    "FORTY[- ]ONE|FORTY[- ]TWO|FORTY[- ]THREE|FORTY[- ]FOUR|FORTY[- ]FIVE|"
+    "FORTY[- ]SIX|FORTY[- ]SEVEN|FORTY[- ]EIGHT|FORTY[- ]NINE|FIFTY"
+)
+
 # Patterns that signal a chapter heading
 _CHAPTER_PATTERNS = [
     re.compile(r"^chapter\s+\d+", re.IGNORECASE),
+    re.compile(r"^chapter\s+(?:" + _ORDINAL_WORDS + r")\b", re.IGNORECASE),
     re.compile(r"^\d+\.\s+[A-Z]"),
     re.compile(r"^part\s+[IVX\d]+", re.IGNORECASE),
 ]
