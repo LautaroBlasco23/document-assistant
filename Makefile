@@ -19,8 +19,15 @@ start: infra-deps dev-deps
 		fi; \
 	done
 	@echo "Starting backend (http://localhost:8000)..."
-	@nohup uv run uvicorn api.main:app --port 8000 > .backend.log 2>&1 &
-	@sleep 1
+	@nohup uv run python -m uvicorn api.main:app --port 8000 > .backend.log 2>&1 &
+	@echo "Waiting for backend to be ready..."
+	@for i in $$(seq 1 15); do \
+		if curl -sf http://localhost:8000/api/health > /dev/null 2>&1; then \
+			echo "Backend is ready."; \
+			break; \
+		fi; \
+		sleep 1; \
+	done
 	@echo "Starting frontend dev server (http://localhost:5173)..."
 	@trap "make stop" EXIT INT; cd frontend && VITE_MOCK=false npm run dev
 
