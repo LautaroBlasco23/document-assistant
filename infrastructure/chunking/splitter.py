@@ -58,7 +58,7 @@ class ChapterAwareSplitter:
             page_number = chapter.pages[0].number if chapter.pages else 0
 
             metadata = ChunkMetadata(
-                source_file=document.source_path,
+                source_file=document.file_hash,
                 chapter_index=chapter.index,
                 page_number=page_number,
                 start_char=start_char,
