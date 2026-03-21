@@ -8,7 +8,6 @@ import { Card } from '../../components/ui/card'
 import { Progress } from '../../components/ui/progress'
 import { EmptyState } from '../../components/ui/empty-state'
 import { Tooltip } from '../../components/ui/tooltip'
-import { mockQAPairs } from '../../mocks/qa-pairs'
 import type { DocumentStructureOut, QAPairOut } from '../../types/api'
 
 interface QATabProps {
@@ -35,13 +34,7 @@ export function QATab({ docHash, chapter, structure: _structure }: QATabProps) {
   useEffect(() => {
     if (!task || task.status !== 'completed') return
     const resultPairs = (task.result as Record<string, unknown> | null)?.qa_pairs as QAPairOut[] | undefined
-    if (resultPairs && resultPairs.length > 0) {
-      setPairs(resultPairs)
-    } else {
-      // Fall back to mock data keyed by docHash
-      const mockData = mockQAPairs[docHash]
-      setPairs(mockData ?? [])
-    }
+    setPairs(resultPairs ?? [])
     useTaskStore.getState().clearTask(task.taskId)
   }, [task?.status, task?.taskId, docHash])
 
@@ -63,6 +56,7 @@ export function QATab({ docHash, chapter, structure: _structure }: QATabProps) {
   }
 
   const isLoading = task !== undefined && (task.status === 'pending' || task.status === 'running')
+  const generateError = task?.status === 'failed' ? (task.error ?? 'Generation failed') : null
   const isDisabled = chapter === undefined
 
   const generateButton = (
@@ -98,6 +92,11 @@ export function QATab({ docHash, chapter, structure: _structure }: QATabProps) {
             <p className="text-xs text-gray-400">{task.progress}</p>
           )}
         </div>
+      )}
+
+      {/* Error state */}
+      {generateError && (
+        <p className="text-sm text-red-500">{generateError}</p>
       )}
 
       {/* Q&A pairs list */}
