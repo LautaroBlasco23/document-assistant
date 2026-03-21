@@ -1,54 +1,18 @@
 import * as React from 'react'
 import { Upload } from 'lucide-react'
 import { cn } from '../../lib/cn'
-import { Progress } from '../../components/ui/progress'
-import { client } from '../../services'
-import { useDocumentStore } from '../../stores/document-store'
-import { useTask } from '../../hooks/use-task'
+import { useUploadStore } from '../../stores/upload-store'
 
 const ACCEPTED_TYPES = '.pdf,.epub,.txt,.md'
 
 export function UploadZone() {
-  const fetchDocuments = useDocumentStore((state) => state.fetchDocuments)
+  const startUpload = useUploadStore((state) => state.startUpload)
   const [isDragOver, setIsDragOver] = React.useState(false)
-  const [taskId, setTaskId] = React.useState<string | null>(null)
-  const [statusMessage, setStatusMessage] = React.useState<string | null>(null)
-  const [errorMessage, setErrorMessage] = React.useState<string | null>(null)
   const inputRef = React.useRef<HTMLInputElement>(null)
 
-  const { task } = useTask(taskId, async () => {
-    setStatusMessage('Done!')
-    await fetchDocuments()
-    setTimeout(() => {
-      setTaskId(null)
-      setStatusMessage(null)
-    }, 2000)
-  })
-
-  React.useEffect(() => {
-    if (task?.status === 'failed') {
-      setErrorMessage(task.error ?? 'Upload failed')
-      setTaskId(null)
-    } else if (task?.progress) {
-      setStatusMessage(task.progress)
-    }
-  }, [task])
-
-  async function handleFiles(files: FileList | null) {
+  function handleFiles(files: FileList | null) {
     if (!files || files.length === 0) return
-    const file = files[0]
-    setErrorMessage(null)
-    setStatusMessage('Uploading...')
-
-    try {
-      const formData = new FormData()
-      formData.append('file', file)
-      const result = await client.ingestDocument(formData)
-      setTaskId(result.task_id)
-    } catch (err) {
-      setErrorMessage(err instanceof Error ? err.message : 'Upload failed')
-      setStatusMessage(null)
-    }
+    void startUpload(files[0])
   }
 
   function onDragOver(e: React.DragEvent) {
@@ -63,7 +27,7 @@ export function UploadZone() {
   function onDrop(e: React.DragEvent) {
     e.preventDefault()
     setIsDragOver(false)
-    void handleFiles(e.dataTransfer.files)
+    handleFiles(e.dataTransfer.files)
   }
 
   function onClick() {
@@ -71,17 +35,13 @@ export function UploadZone() {
   }
 
   function onInputChange(e: React.ChangeEvent<HTMLInputElement>) {
-    void handleFiles(e.target.files)
+    handleFiles(e.target.files)
     // Reset input so the same file can be re-uploaded
     e.target.value = ''
   }
 
-  const isUploading = taskId !== null && task?.status !== 'completed' && task?.status !== 'failed'
-  const progressValue = task?.status === 'completed' ? 100 : isUploading ? 60 : 0
-
   return (
     <div className="mb-6">
-      {/* Drop zone */}
       <div
         role="button"
         tabIndex={0}
@@ -115,24 +75,6 @@ export function UploadZone() {
           onChange={onInputChange}
         />
       </div>
-
-      {/* Progress feedback */}
-      {(isUploading || statusMessage) && !errorMessage && (
-        <div className="mt-3 space-y-1.5">
-          <Progress
-            value={progressValue}
-            indeterminate={isUploading && progressValue === 60}
-          />
-          {statusMessage && (
-            <p className="text-xs text-gray-500 text-center">{statusMessage}</p>
-          )}
-        </div>
-      )}
-
-      {/* Error message */}
-      {errorMessage && (
-        <p className="mt-2 text-sm text-red-600 text-center">{errorMessage}</p>
-      )}
     </div>
   )
 }
