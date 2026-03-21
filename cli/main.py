@@ -13,6 +13,17 @@ from infrastructure.config import load_config
 logger = logging.getLogger(__name__)
 
 
+def _make_fast_llm(config, llm):
+    """Create a fast LLM instance for bulk tasks, falling back to the main LLM."""
+    from infrastructure.llm.ollama import OllamaLLM
+    if config.ollama.fast_model:
+        fast_config = config.ollama.model_copy(
+            update={"generation_model": config.ollama.fast_model}
+        )
+        return OllamaLLM(fast_config)
+    return llm
+
+
 # ---------------------------------------------------------------------------
 # Service health check
 # ---------------------------------------------------------------------------
@@ -192,6 +203,7 @@ def run_summarize(book_title: str, chapter_num: int) -> int:
 
     embedder = OllamaEmbedder(config.ollama, EmbeddingCache())
     llm = OllamaLLM(config.ollama)
+    fast_llm = _make_fast_llm(config, llm)
     qdrant = QdrantStore(config.qdrant)
     neo4j = Neo4jStore(config.neo4j)
     retriever = HybridRetriever(qdrant, neo4j, embedder, llm, config)
@@ -215,7 +227,7 @@ def run_summarize(book_title: str, chapter_num: int) -> int:
         chapters=[chapter_obj],
     )
 
-    agent = SummarizerAgent(llm)
+    agent = SummarizerAgent(fast_llm)
     summary = agent.summarize(chapter_obj, chunks)
 
     output_dir = Path("data/output")
@@ -286,6 +298,7 @@ def run_generate_md(book_title: str, chapter_num: int) -> int:
 
     embedder = OllamaEmbedder(config.ollama, EmbeddingCache())
     llm = OllamaLLM(config.ollama)
+    fast_llm = _make_fast_llm(config, llm)
     qdrant = QdrantStore(config.qdrant)
     neo4j = Neo4jStore(config.neo4j)
     retriever = HybridRetriever(qdrant, neo4j, embedder, llm, config)
@@ -310,12 +323,12 @@ def run_generate_md(book_title: str, chapter_num: int) -> int:
     output_dir = Path("data/output")
 
     print("Generating summary ...")
-    summary = SummarizerAgent(llm).summarize(chapter_obj, chunks)
+    summary = SummarizerAgent(fast_llm).summarize(chapter_obj, chunks)
     p1 = write_summary(doc, chapter_index, summary, chunks, output_dir)
     print(f"  -> {p1}")
 
     print("Generating questions ...")
-    qas = QuestionGeneratorAgent(llm).generate(chunks)
+    qas = QuestionGeneratorAgent(fast_llm).generate(chunks)
     p2 = write_questions(doc, chapter_index, qas, output_dir)
     print(f"  -> {p2}")
 

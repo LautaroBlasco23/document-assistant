@@ -1,6 +1,7 @@
 ollama:
   base_url: "http://localhost:11434"
   generation_model: "llama3.2"
+  # fast_model: "orca-mini:3b"  # Optional: smaller model for bulk generation tasks
   embedding_model: "nomic-embed-text"
   timeout: 120
 

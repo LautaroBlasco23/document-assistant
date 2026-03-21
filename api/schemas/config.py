@@ -8,6 +8,7 @@ class OllamaConfigOut(BaseModel):
 
     base_url: str
     generation_model: str
+    fast_model: str | None = None
     embedding_model: str
     timeout: int
 

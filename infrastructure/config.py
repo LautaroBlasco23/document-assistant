@@ -8,6 +8,7 @@ from pydantic_settings import BaseSettings
 class OllamaConfig(BaseModel):
     base_url: str = "http://localhost:11434"
     generation_model: str = "llama3.2"
+    fast_model: str | None = None
     embedding_model: str = "nomic-embed-text"
     timeout: int = 120
 
@@ -57,13 +58,17 @@ def save_config(config: AppConfig, config_path: Path | None = None) -> None:
 
     config_path.parent.mkdir(parents=True, exist_ok=True)
 
+    ollama_data: dict = {
+        "base_url": config.ollama.base_url,
+        "generation_model": config.ollama.generation_model,
+        "embedding_model": config.ollama.embedding_model,
+        "timeout": config.ollama.timeout,
+    }
+    if config.ollama.fast_model:
+        ollama_data["fast_model"] = config.ollama.fast_model
+
     data = {
-        "ollama": {
-            "base_url": config.ollama.base_url,
-            "generation_model": config.ollama.generation_model,
-            "embedding_model": config.ollama.embedding_model,
-            "timeout": config.ollama.timeout,
-        },
+        "ollama": ollama_data,
         "qdrant": {
             "url": config.qdrant.url,
             "collection_name": config.qdrant.collection_name,
