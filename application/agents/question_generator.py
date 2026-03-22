@@ -6,36 +6,65 @@ from core.model.chunk import Chunk
 
 logger = logging.getLogger(__name__)
 
+_BATCH_SIZE = 4
+
 _SYSTEM = (
-    "You are a study-aid generator. Given text excerpts, produce 5–10 question-answer pairs "
-    "that test comprehension. Return ONLY a JSON array of objects with 'question' and 'answer' "
-    "keys. Example: [{\"question\": \"What is X?\", \"answer\": \"X is...\"}]"
+    "You are a study-aid generator. Given text excerpts, produce 3-5 question-answer pairs "
+    "that test comprehension. You MUST respond with a JSON object containing a single key "
+    "'pairs' whose value is an array of objects with 'question' and 'answer' keys.\n"
+    'Example: {"pairs": [{"question": "What is X?", "answer": "X is..."}]}'
 )
 
 
 class QuestionGeneratorAgent(BaseAgent):
     def generate(self, chunks: list[Chunk]) -> list[dict]:
-        context = "\n\n".join(c.text for c in chunks)
-        user = f"Text:\n{context}"
-        raw = self._call(_SYSTEM, user)
-
-        pairs = self._parse(raw)
-        logger.info("Generated %d Q&A pairs from %d chunks", len(pairs), len(chunks))
-        return pairs
+        all_pairs = []
+        total_batches = (len(chunks) + _BATCH_SIZE - 1) // _BATCH_SIZE
+        for batch_idx in range(0, len(chunks), _BATCH_SIZE):
+            batch = chunks[batch_idx : batch_idx + _BATCH_SIZE]
+            context = "\n\n".join(c.text for c in batch)
+            user = f"Text:\n{context}"
+            raw = self._call_json(_SYSTEM, user)
+            logger.debug(
+                "Batch %d/%d: LLM returned %d chars",
+                batch_idx // _BATCH_SIZE + 1,
+                total_batches,
+                len(raw),
+            )
+            pairs = self._parse(raw)
+            all_pairs.extend(pairs)
+        logger.info(
+            "Generated %d Q&A pairs from %d chunks (%d batches)",
+            len(all_pairs),
+            len(chunks),
+            total_batches,
+        )
+        return all_pairs
 
     @staticmethod
     def _parse(raw: str) -> list[dict]:
-        start = raw.find("[")
-        end = raw.rfind("]")
-        if start == -1 or end == -1:
-            return []
         try:
-            data = json.loads(raw[start : end + 1])
-            return [
-                {"question": d.get("question", ""), "answer": d.get("answer", "")}
-                for d in data
-                if isinstance(d, dict) and "question" in d
-            ]
+            data = json.loads(raw)
         except json.JSONDecodeError:
-            logger.warning("Failed to parse Q&A JSON")
+            logger.warning(
+                "Failed to parse Q&A JSON. Raw response (first 500 chars): %s",
+                raw[:500],
+            )
             return []
+
+        # Handle {"pairs": [...]} wrapper or bare array
+        if isinstance(data, dict):
+            data = data.get("pairs", data.get("questions", []))
+        if not isinstance(data, list):
+            logger.warning(
+                "Q&A response is not a list. Type: %s, raw (first 500 chars): %s",
+                type(data).__name__,
+                raw[:500],
+            )
+            return []
+
+        return [
+            {"question": d.get("question", ""), "answer": d.get("answer", "")}
+            for d in data
+            if isinstance(d, dict) and "question" in d
+        ]

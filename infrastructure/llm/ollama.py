@@ -106,18 +106,27 @@ class OllamaLLM(LLM):
         resp.raise_for_status()
         return resp.json()["response"]
 
-    def chat(self, system: str, user: str) -> str:
-        """Convenience method for system+user prompt pattern."""
+    def chat(self, system: str, user: str, format: str | None = None) -> str:
+        """Convenience method for system+user prompt pattern.
+
+        Args:
+            system: System prompt.
+            user: User message.
+            format: Optional Ollama format constraint (e.g. "json").
+        """
+        payload: dict = {
+            "model": self.model,
+            "messages": [
+                {"role": "system", "content": system},
+                {"role": "user", "content": user},
+            ],
+            "stream": False,
+        }
+        if format is not None:
+            payload["format"] = format
         resp = requests.post(
             f"{self.base_url}/api/chat",
-            json={
-                "model": self.model,
-                "messages": [
-                    {"role": "system", "content": system},
-                    {"role": "user", "content": user},
-                ],
-                "stream": False,
-            },
+            json=payload,
             timeout=self.timeout,
         )
         resp.raise_for_status()

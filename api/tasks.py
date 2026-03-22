@@ -46,7 +46,8 @@ class TaskRegistry:
                 logger.info("Task started: %s", task_id)
                 result = fn(task, *args, **kwargs)
                 elapsed = time.perf_counter() - t0
-                task.result = result
+                if task.result is None:
+                    task.result = result
                 task.status = "completed"
                 logger.info("Task completed: %s (%.1fs)", task_id, elapsed)
             except Exception as e:
