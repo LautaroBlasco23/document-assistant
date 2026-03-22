@@ -2,17 +2,19 @@ import * as React from 'react'
 import { Upload } from 'lucide-react'
 import { cn } from '../../lib/cn'
 import { useUploadStore } from '../../stores/upload-store'
+import { UploadMetadataDialog } from '../../components/dialogs/upload-metadata-dialog'
 
 const ACCEPTED_TYPES = '.pdf,.epub,.txt,.md'
 
 export function UploadZone() {
   const startUpload = useUploadStore((state) => state.startUpload)
   const [isDragOver, setIsDragOver] = React.useState(false)
+  const [pendingFile, setPendingFile] = React.useState<File | null>(null)
   const inputRef = React.useRef<HTMLInputElement>(null)
 
   function handleFiles(files: FileList | null) {
     if (!files || files.length === 0) return
-    void startUpload(files[0])
+    setPendingFile(files[0])
   }
 
   function onDragOver(e: React.DragEvent) {
@@ -38,6 +40,17 @@ export function UploadZone() {
     handleFiles(e.target.files)
     // Reset input so the same file can be re-uploaded
     e.target.value = ''
+  }
+
+  function handleDialogSubmit(documentType: string, description: string) {
+    if (pendingFile) {
+      void startUpload(pendingFile, documentType, description)
+    }
+    setPendingFile(null)
+  }
+
+  function handleDialogCancel() {
+    setPendingFile(null)
   }
 
   return (
@@ -75,6 +88,13 @@ export function UploadZone() {
           onChange={onInputChange}
         />
       </div>
+
+      <UploadMetadataDialog
+        open={pendingFile !== null}
+        fileName={pendingFile?.name ?? ''}
+        onSubmit={handleDialogSubmit}
+        onCancel={handleDialogCancel}
+      />
     </div>
   )
 }

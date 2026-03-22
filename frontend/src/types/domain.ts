@@ -1,13 +1,6 @@
 // Frontend-only types (not mirroring backend schemas)
 
-import type { ChunkOut, FlashcardOut } from './api'
-
-export interface ChatMessage {
-  role: 'user' | 'assistant'
-  content: string
-  sources?: ChunkOut[]
-  timestamp: number
-}
+import type { FlashcardOut } from './api'
 
 export interface FlashcardDeck {
   documentHash: string
@@ -23,9 +16,4 @@ export interface ReviewSession {
   isComplete: boolean
 }
 
-export type Tab = 'chat' | 'qa' | 'flashcards' | 'summary'
-
-export interface SSEEvent {
-  type: string
-  data: Record<string, unknown>
-}
+export type Tab = 'flashcards' | 'summary'

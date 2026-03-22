@@ -8,10 +8,18 @@ class Page:
 
 
 @dataclass
+class Section:
+    title: str
+    page_start: int  # 1-based page number
+    page_end: int    # 1-based page number
+
+
+@dataclass
 class Chapter:
     index: int
     title: str
     pages: list[Page] = field(default_factory=list)
+    sections: list[Section] = field(default_factory=list)
 
 
 @dataclass

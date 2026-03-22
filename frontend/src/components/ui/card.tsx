@@ -6,17 +6,22 @@ export interface CardProps {
   actions?: React.ReactNode
   className?: string
   children?: React.ReactNode
+  onClick?: () => void
 }
 
-export function Card({ title, actions, className, children }: CardProps) {
+export function Card({ title, actions, className, children, onClick }: CardProps) {
   const hasHeader = title !== undefined || actions !== undefined
 
   return (
     <div
       className={cn(
         'bg-white rounded-card shadow-sm border border-gray-100 p-5',
+        onClick && 'cursor-pointer',
         className,
       )}
+      onClick={onClick}
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
     >
       {hasHeader && (
         <>

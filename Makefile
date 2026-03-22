@@ -19,7 +19,8 @@ start: infra-deps dev-deps
 		fi; \
 	done
 	@echo "Starting backend (http://localhost:8000) and frontend (http://localhost:5173)..."
-	@trap "make stop" EXIT; \
+	@set -a; [ -f .env ] && . ./.env; set +a; \
+	trap "make stop" EXIT; \
 	uv run python -m uvicorn api.main:app --port 8000 --log-level warning --no-access-log & \
 	BACKEND_PID=$$!; \
 	echo "Waiting for backend to be ready..."; \

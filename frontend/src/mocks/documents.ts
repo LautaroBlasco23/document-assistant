@@ -22,6 +22,7 @@ export const mockDocumentStructures: Record<string, DocumentStructureOut> = {
   'a1b2c3d4e5f6': {
     file_hash: 'a1b2c3d4e5f6',
     filename: 'Introduction to Machine Learning.pdf',
+    num_chapters: 8,
     chapters: [
       { number: 1, title: 'What is Machine Learning?', num_chunks: 12 },
       { number: 2, title: 'Supervised Learning', num_chunks: 18 },
@@ -36,6 +37,7 @@ export const mockDocumentStructures: Record<string, DocumentStructureOut> = {
   'd4e5f67890ab': {
     file_hash: 'd4e5f67890ab',
     filename: 'Clean Architecture.epub',
+    num_chapters: 12,
     chapters: [
       { number: 1, title: 'What is Design and Architecture?', num_chunks: 9 },
       { number: 2, title: 'A Tale of Two Values', num_chunks: 7 },
@@ -54,6 +56,7 @@ export const mockDocumentStructures: Record<string, DocumentStructureOut> = {
   'g7h8i9j0k1l2': {
     file_hash: 'g7h8i9j0k1l2',
     filename: 'The Art of War.pdf',
+    num_chapters: 13,
     chapters: [
       { number: 1, title: 'Laying Plans', num_chunks: 8 },
       { number: 2, title: 'Waging War', num_chunks: 6 },

@@ -2,6 +2,7 @@
 PDF loader tests use a minimal in-memory PDF created with PyMuPDF.
 No external fixture file needed.
 """
+
 import hashlib
 from pathlib import Path
 
@@ -101,14 +102,14 @@ def test_chapter_detection_word_ordinals(word_chapter_pdf):
 
 def test_chapter_heading_word_ordinal_variants():
     """Verify _is_chapter_heading matches various written-out formats."""
-    assert _is_chapter_heading("CHAPTER ONE\nSome text")
-    assert _is_chapter_heading("Chapter Two\nSome text")
-    assert _is_chapter_heading("chapter three\nSome text")
-    assert _is_chapter_heading("CHAPTER TWENTY-ONE\nSome text")
-    assert _is_chapter_heading("Chapter Twenty One\nSome text")
+    assert _is_chapter_heading("CHAPTER ONE\nSome text")[0]
+    assert _is_chapter_heading("Chapter Two\nSome text")[0]
+    assert _is_chapter_heading("chapter three\nSome text")[0]
+    assert _is_chapter_heading("CHAPTER TWENTY-ONE\nSome text")[0]
+    assert _is_chapter_heading("Chapter Twenty One\nSome text")[0]
     # Existing numeric patterns still work
-    assert _is_chapter_heading("Chapter 1\nSome text")
-    assert _is_chapter_heading("Chapter 42\nSome text")
+    assert _is_chapter_heading("Chapter 1\nSome text")[0]
+    assert _is_chapter_heading("Chapter 42\nSome text")[0]
     # Non-chapter text should not match
-    assert not _is_chapter_heading("The one chapter\nSome text")
-    assert not _is_chapter_heading("Once upon a time\nSome text")
+    assert not _is_chapter_heading("The one chapter\nSome text")[0]
+    assert not _is_chapter_heading("Once upon a time\nSome text")[0]

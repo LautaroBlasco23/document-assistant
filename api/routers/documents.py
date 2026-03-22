@@ -7,13 +7,21 @@ import tempfile
 import time
 from pathlib import Path
 
-from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 
 from api.deps import ServicesDep
-from api.schemas.documents import DocumentOut, IngestTaskOut, DocumentStructureOut, ChapterOut
+from api.schemas.documents import (
+    ChapterOut,
+    DocumentOut,
+    DocumentStructureOut,
+    IngestTaskOut,
+    MetadataRequest,
+    MetadataResponse,
+)
 from api.tasks import Task
-from application.ingest import ingest_file, _hash_file
+from application.ingest import _hash_file, ingest_file
+from core.model.document_metadata import DocumentMetadata
 from infrastructure.chunking.splitter import ChapterAwareSplitter
 from infrastructure.graph.entity_extractor import extract_entities
 from infrastructure.output.manifest import write_manifest
@@ -105,7 +113,41 @@ async def get_document_structure(file_hash: str, services: ServicesDep) -> Docum
     )
 
 
-def _ingest_background(task: Task, file_content: bytes, filename: str, services: ServicesDep) -> str:
+@router.get("/documents/{file_hash}/metadata", response_model=MetadataResponse)
+async def get_metadata(file_hash: str, services: ServicesDep) -> MetadataResponse:
+    """Get the user-provided metadata for a document."""
+    meta = services.content_store.get_metadata(file_hash)
+    if meta is None:
+        return MetadataResponse(document_hash=file_hash, description="", document_type="")
+    return MetadataResponse(
+        document_hash=file_hash,
+        description=meta.description,
+        document_type=meta.document_type,
+    )
+
+
+@router.put("/documents/{file_hash}/metadata", response_model=MetadataResponse)
+async def save_metadata(
+    file_hash: str, req: MetadataRequest, services: ServicesDep
+) -> MetadataResponse:
+    """Save or update the user-provided metadata for a document."""
+    metadata = DocumentMetadata(description=req.description, document_type=req.document_type)
+    services.content_store.save_metadata(file_hash, metadata)
+    return MetadataResponse(
+        document_hash=file_hash,
+        description=req.description,
+        document_type=req.document_type,
+    )
+
+
+def _ingest_background(
+    task: Task,
+    file_content: bytes,
+    filename: str,
+    services: ServicesDep,
+    document_type: str = "",
+    description: str = "",
+) -> str:
     """Background task to ingest an uploaded file."""
     t0 = time.perf_counter()
     try:
@@ -166,7 +208,7 @@ def _ingest_background(task: Task, file_content: bytes, filename: str, services:
         for i, chunk in enumerate(chunks):
             if i % 10 == 0:
                 task.progress = f"Extracting entities... {i}/{len(chunks)}"
-            entities = extract_entities(chunk.text, services.llm)
+            entities = extract_entities(chunk.text, services.fast_llm)
             services.neo4j.upsert_entities(entities, chunk)
 
         # Write manifest
@@ -182,6 +224,15 @@ def _ingest_background(task: Task, file_content: bytes, filename: str, services:
             num_chapters=num_chapters,
         )
 
+        # Persist metadata if provided at upload time
+        if description or document_type:
+            file_hash = doc.file_hash
+            services.content_store.save_metadata(
+                file_hash,
+                DocumentMetadata(description=description, document_type=document_type),
+            )
+            logger.info("Ingest: saved metadata for doc=%s", file_hash[:12])
+
         elapsed = time.perf_counter() - t0
         task.progress = "Complete"
         logger.info("Ingest complete: %s, %d chunks in %.1fs", filename, len(chunks), elapsed)
@@ -193,14 +244,19 @@ def _ingest_background(task: Task, file_content: bytes, filename: str, services:
 
 
 @router.post("/documents/ingest", response_model=IngestTaskOut)
-async def ingest_document(services: ServicesDep, file: UploadFile = File(...)) -> IngestTaskOut:
+async def ingest_document(
+    services: ServicesDep,
+    file: UploadFile = File(...),
+    document_type: str = Form(""),
+    description: str = Form(""),
+) -> IngestTaskOut:
     """Upload and ingest a document."""
     # Read file content
     content = await file.read()
 
     # Submit background task
     task_id = services.task_registry.submit(
-        _ingest_background, content, file.filename, services
+        _ingest_background, content, file.filename, services, document_type, description
     )
     logger.info("Ingest submitted: %s -> task %s", file.filename, task_id)
 

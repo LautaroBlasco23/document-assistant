@@ -10,7 +10,7 @@ ollama:
 groq:
   # api_key: set via DOCASSIST_GROQ__API_KEY env var (never commit keys here)
   base_url: "https://api.groq.com/openai/v1"
-  model: "mixtral-8x7b-32768"
+  model: "llama-3.3-70b-versatile"
   fast_model: "llama-3.1-8b-instant"
   timeout: 60
   max_retries: 3

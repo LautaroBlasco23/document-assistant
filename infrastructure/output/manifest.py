@@ -23,6 +23,20 @@ def write_manifest(
     d.mkdir(parents=True, exist_ok=True)
     out = d / "manifest.json"
 
+    chapters_data = []
+    for ch in doc.chapters:
+        sections_data = [
+            {"title": s.title, "page_start": s.page_start, "page_end": s.page_end}
+            for s in ch.sections
+        ]
+        chapters_data.append(
+            {
+                "index": ch.index,
+                "title": ch.title,
+                "sections": sections_data,
+            }
+        )
+
     manifest = {
         "file_hash": doc.file_hash,
         "title": doc.title,
@@ -33,6 +47,7 @@ def write_manifest(
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "chunk_count": chunk_count,
         "num_chapters": num_chapters,
+        "chapters": chapters_data,
     }
     with open(out, "w") as f:
         json.dump(manifest, f, indent=2)

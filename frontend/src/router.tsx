@@ -9,9 +9,6 @@ const LibraryPage = React.lazy(() =>
 const DocumentPage = React.lazy(() =>
   import('./pages/document/document-page').then((m) => ({ default: m.DocumentPage }))
 )
-const SearchPage = React.lazy(() =>
-  import('./pages/search/search-page').then((m) => ({ default: m.SearchPage }))
-)
 const SettingsPage = React.lazy(() =>
   import('./pages/settings/settings-page').then((m) => ({ default: m.SettingsPage }))
 )
@@ -46,14 +43,6 @@ export const router = createBrowserRouter([
         element: (
           <Suspense fallback={<PageFallback />}>
             <DocumentPage />
-          </Suspense>
-        ),
-      },
-      {
-        path: 'search',
-        element: (
-          <Suspense fallback={<PageFallback />}>
-            <SearchPage />
           </Suspense>
         ),
       },

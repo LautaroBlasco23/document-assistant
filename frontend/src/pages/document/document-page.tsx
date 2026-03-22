@@ -5,14 +5,12 @@ import { useDocumentStructure } from '../../hooks/use-document-structure'
 import { DocumentLayout } from '../../components/layout/document-layout'
 import { SkeletonLine, SkeletonBlock } from '../../components/ui/skeleton'
 import { Button } from '../../components/ui/button'
-import { ChatTab } from './chat-tab'
-import { QATab } from './qa-tab'
 import { FlashcardTab } from './flashcard-tab'
 import { SummaryTab } from './summary-tab'
 import type { Tab } from '../../types/domain'
 import { useState } from 'react'
 
-const VALID_TABS: Tab[] = ['chat', 'qa', 'flashcards', 'summary']
+const VALID_TABS: Tab[] = ['flashcards', 'summary']
 
 function isValidTab(value: string | null): value is Tab {
   return VALID_TABS.includes(value as Tab)
@@ -26,7 +24,7 @@ export function DocumentPage() {
   const [selectedChapter, setSelectedChapter] = useState<number | undefined>(undefined)
 
   const rawTab = searchParams.get('tab')
-  const activeTab: Tab = isValidTab(rawTab) ? rawTab : 'chat'
+  const activeTab: Tab = isValidTab(rawTab) ? rawTab : 'summary'
 
   const handleTabChange = (tab: Tab) => {
     setSearchParams({ tab }, { replace: true })
@@ -79,10 +77,6 @@ export function DocumentPage() {
 
   const renderTabContent = () => {
     switch (activeTab) {
-      case 'chat':
-        return <ChatTab docHash={hash} chapter={selectedChapter} />
-      case 'qa':
-        return <QATab docHash={hash} chapter={selectedChapter} structure={structure} />
       case 'flashcards':
         return <FlashcardTab docHash={hash} chapter={selectedChapter} structure={structure} />
       case 'summary':

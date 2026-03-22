@@ -235,51 +235,11 @@ def run_summarize(book_title: str, chapter_num: int, provider: str | None = None
 
 
 # ---------------------------------------------------------------------------
-# Ask
-# ---------------------------------------------------------------------------
-
-def run_ask(query: str, book: str | None, chapter: int | None, provider: str | None = None) -> int:
-    from application.agents.qa_agent import QAAgent
-    from application.retriever import HybridRetriever
-    from infrastructure.graph.neo4j_store import Neo4jStore
-    from infrastructure.llm.embedding_cache import EmbeddingCache
-    from infrastructure.llm.factory import create_llm
-    from infrastructure.llm.ollama import OllamaEmbedder
-    from infrastructure.vectorstore.qdrant_store import QdrantStore
-
-    config = load_config()
-    if provider is not None:
-        config = config.model_copy(update={"llm_provider": provider})
-
-    filters: dict = {}
-    if chapter is not None:
-        filters["chapter"] = chapter - 1
-
-    embedder = OllamaEmbedder(config.ollama, EmbeddingCache())
-    llm = create_llm(config)
-    qdrant = QdrantStore(config.qdrant)
-    neo4j = Neo4jStore(config.neo4j)
-    retriever = HybridRetriever(qdrant, neo4j, embedder, llm, config)
-
-    chunks = retriever.retrieve(query, k=20, filters=filters or None)
-    if not chunks:
-        print("No relevant context found.", file=sys.stderr)
-        neo4j.close()
-        return 1
-
-    agent = QAAgent(llm)
-    answer = agent.answer(query, chunks)
-    print(answer)
-    neo4j.close()
-    return 0
-
-
-# ---------------------------------------------------------------------------
 # Generate Markdown (all three outputs)
 # ---------------------------------------------------------------------------
 
 def run_generate_md(book_title: str, chapter_num: int, provider: str | None = None) -> int:
-    from application.agents.question_generator import QuestionGeneratorAgent
+    from application.agents.flashcard_generator import FlashcardGeneratorAgent
     from application.agents.summarizer import SummarizerAgent
     from application.retriever import HybridRetriever
     from core.model.document import Chapter, Document
@@ -289,7 +249,6 @@ def run_generate_md(book_title: str, chapter_num: int, provider: str | None = No
     from infrastructure.llm.ollama import OllamaEmbedder
     from infrastructure.output.markdown_writer import (
         write_flashcards,
-        write_questions,
         write_summary,
     )
     from infrastructure.vectorstore.qdrant_store import QdrantStore
@@ -331,14 +290,10 @@ def run_generate_md(book_title: str, chapter_num: int, provider: str | None = No
     p1 = write_summary(doc, chapter_index, summary, chunks, output_dir)
     print(f"  -> {p1}")
 
-    print("Generating questions ...")
-    qas = QuestionGeneratorAgent(fast_llm).generate(chunks)
-    p2 = write_questions(doc, chapter_index, qas, output_dir)
-    print(f"  -> {p2}")
-
     print("Generating flashcards ...")
-    p3 = write_flashcards(doc, chapter_index, qas, output_dir)
-    print(f"  -> {p3}")
+    cards = FlashcardGeneratorAgent(fast_llm).generate(chunks)
+    p2 = write_flashcards(doc, chapter_index, cards, output_dir)
+    print(f"  -> {p2}")
 
     neo4j.close()
     return 0
@@ -385,16 +340,6 @@ def main() -> None:
         help="LLM provider override (default: from config)",
     )
 
-    p_ask = sub.add_parser("ask", help="Ask a question using RAG")
-    p_ask.add_argument("query", help="Question to ask")
-    p_ask.add_argument("--book", help="Restrict to a specific book")
-    p_ask.add_argument("--chapter", type=int, help="Restrict to a specific chapter")
-    p_ask.add_argument(
-        "--provider",
-        choices=["groq", "ollama"],
-        help="LLM provider override (default: from config)",
-    )
-
     p_gen = sub.add_parser("generate-md", help="Generate all markdown outputs for a chapter")
     p_gen.add_argument("book", help="Book title")
     p_gen.add_argument("chapter", type=int, help="Chapter number (1-based)")
@@ -416,10 +361,6 @@ def main() -> None:
 
     elif args.command == "summarize":
         sys.exit(run_summarize(args.book, args.chapter, provider=getattr(args, "provider", None)))
-
-    elif args.command == "ask":
-        provider = getattr(args, "provider", None)
-        sys.exit(run_ask(args.query, args.book, args.chapter, provider=provider))
 
     elif args.command == "generate-md":
         sys.exit(run_generate_md(args.book, args.chapter, provider=getattr(args, "provider", None)))

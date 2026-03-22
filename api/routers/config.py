@@ -5,7 +5,13 @@ import logging
 from fastapi import APIRouter
 
 from api.deps import ServicesDep
-from api.schemas.config import ConfigOut, OllamaConfigOut, QdrantConfigOut, Neo4jConfigOut, ChunkingConfigOut
+from api.schemas.config import (
+    ChunkingConfigOut,
+    ConfigOut,
+    Neo4jConfigOut,
+    OllamaConfigOut,
+    QdrantConfigOut,
+)
 
 logger = logging.getLogger(__name__)
 

@@ -16,7 +16,7 @@ export interface UploadEntry {
 
 interface UploadState {
   uploads: UploadEntry[]
-  startUpload: (file: File) => Promise<void>
+  startUpload: (file: File, documentType?: string, description?: string) => Promise<void>
   dismissUpload: (id: string) => void
 }
 
@@ -35,7 +35,7 @@ function updateEntry(
 export const useUploadStore = create<UploadState>((set, get) => ({
   uploads: [],
 
-  startUpload: async (file: File) => {
+  startUpload: async (file: File, documentType = '', description = '') => {
     const id = crypto.randomUUID()
 
     // Push new entry immediately so the card appears right away
@@ -57,6 +57,8 @@ export const useUploadStore = create<UploadState>((set, get) => ({
     try {
       const formData = new FormData()
       formData.append('file', file)
+      formData.append('document_type', documentType)
+      formData.append('description', description)
       const result = await client.ingestDocument(formData)
       taskId = result.task_id
     } catch (err) {

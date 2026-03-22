@@ -53,6 +53,8 @@ class FlashcardGeneratorAgent(BaseAgent):
         on_progress: Callable[[int, int, int], None] | None = None,
         chapter_title: str = "",
         document_title: str = "",
+        document_description: str = "",
+        document_type: str = "",
     ) -> list[dict]:
         """Generate categorized flashcards from chunks.
 
@@ -62,6 +64,8 @@ class FlashcardGeneratorAgent(BaseAgent):
                 (batch_number, total_batches, cards_so_far).
             chapter_title: Title of the chapter for context.
             document_title: Title of the document for context.
+            document_description: User-provided description of the document for context.
+            document_type: Type of document (book, paper, documentation, etc.) for context.
         """
         all_cards = []
         total_batches = (len(chunks) + _BATCH_SIZE - 1) // _BATCH_SIZE
@@ -72,6 +76,10 @@ class FlashcardGeneratorAgent(BaseAgent):
             header_parts.append(f"Document: {document_title}")
         if chapter_title:
             header_parts.append(f"Chapter: {chapter_title}")
+        if document_type:
+            header_parts.append(f"Document type: {document_type}")
+        if document_description:
+            header_parts.append(f"Document context: {document_description}")
         header = "\n".join(header_parts)
 
         for batch_idx in range(0, len(chunks), _BATCH_SIZE):

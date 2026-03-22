@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react'
 import { FileText } from 'lucide-react'
-import ReactMarkdown from 'react-markdown'
 import { client } from '../../services'
 import { useTaskStore } from '../../stores/task-store'
 import { useDocumentStore } from '../../stores/document-store'
@@ -17,12 +16,41 @@ interface SummaryTabProps {
   structure: DocumentStructureOut | null
 }
 
+interface SummaryData {
+  description: string
+  bullets: string[]
+}
+
 export function SummaryTab({ docHash, chapter, structure: _structure }: SummaryTabProps) {
-  const [summaryText, setSummaryText] = useState<string | null>(null)
+  const [summaryData, setSummaryData] = useState<SummaryData | null>(null)
+  const [isLoadingStored, setIsLoadingStored] = useState(false)
 
   const documents = useDocumentStore((state) => state.documents)
   const doc = documents.find((d) => d.file_hash === docHash)
   const bookTitle = doc ? doc.filename.replace(/\.[^/.]+$/, '') : docHash
+
+  // Load stored summary when chapter changes
+  useEffect(() => {
+    if (chapter === undefined) return
+    let cancelled = false
+    setIsLoadingStored(true)
+    setSummaryData(null)
+    void client.getStoredSummary(docHash, chapter).then((stored) => {
+      if (cancelled) return
+      setIsLoadingStored(false)
+      if (stored) {
+        if (stored.description) {
+          setSummaryData({ description: stored.description, bullets: stored.bullets })
+        } else {
+          // Backward compat: old cached data only has content
+          setSummaryData({ description: stored.content, bullets: [] })
+        }
+      }
+    }).catch(() => {
+      if (!cancelled) setIsLoadingStored(false)
+    })
+    return () => { cancelled = true }
+  }, [docHash, chapter])
 
   // Subscribe to the task for this specific (docHash, chapter, type) context
   const task = useTaskStore((state) =>
@@ -34,19 +62,24 @@ export function SummaryTab({ docHash, chapter, structure: _structure }: SummaryT
   // When the task completes, extract the result and clear it from the store
   useEffect(() => {
     if (!task || task.status !== 'completed') return
-    const resultSummary = (task.result as Record<string, unknown> | null)?.summary as string | undefined
-    if (resultSummary) {
-      setSummaryText(resultSummary)
+    const resultDesc = (task.result as Record<string, unknown> | null)?.description as string | undefined
+    const resultBullets = (task.result as Record<string, unknown> | null)?.bullets as string[] | undefined
+
+    if (resultDesc) {
+      setSummaryData({ description: resultDesc, bullets: resultBullets ?? [] })
     } else {
       // Fall back to mock data keyed by docHash
-      setSummaryText(mockSummaries[docHash]?.summary ?? 'Summary not available.')
+      const mock = mockSummaries[docHash]
+      if (mock) {
+        setSummaryData({ description: mock.description, bullets: mock.bullets })
+      }
     }
     useTaskStore.getState().clearTask(task.taskId)
   }, [task?.status, task?.taskId, docHash])
 
   const handleGenerate = async () => {
     if (chapter === undefined) return
-    setSummaryText(null)
+    setSummaryData(null)
     try {
       const response = await client.summarizeChapter(chapter, bookTitle, docHash)
       useTaskStore.getState().submitTask({
@@ -61,7 +94,8 @@ export function SummaryTab({ docHash, chapter, structure: _structure }: SummaryT
     }
   }
 
-  const isLoading = task !== undefined && (task.status === 'pending' || task.status === 'running')
+  const isGenerating = task !== undefined && (task.status === 'pending' || task.status === 'running')
+  const isLoading = isLoadingStored || isGenerating
   const isDisabled = chapter === undefined
 
   const generateButton = (
@@ -70,9 +104,9 @@ export function SummaryTab({ docHash, chapter, structure: _structure }: SummaryT
       size="sm"
       onClick={() => void handleGenerate()}
       disabled={isDisabled || isLoading}
-      loading={isLoading}
+      loading={isGenerating}
     >
-      Generate
+      {summaryData ? 'Regenerate' : 'Generate'}
     </Button>
   )
 
@@ -90,7 +124,7 @@ export function SummaryTab({ docHash, chapter, structure: _structure }: SummaryT
       </div>
 
       {/* Loading state */}
-      {isLoading && (
+      {isGenerating && (
         <TaskProgress
           progressPct={task?.progressPct ?? null}
           message={task?.progress ?? null}
@@ -99,16 +133,24 @@ export function SummaryTab({ docHash, chapter, structure: _structure }: SummaryT
       )}
 
       {/* Summary content */}
-      {!isLoading && summaryText && (
-        <div className="bg-white border border-gray-100 rounded-lg p-5 shadow-sm">
-          <ReactMarkdown className="prose prose-sm max-w-none text-gray-700">
-            {summaryText}
-          </ReactMarkdown>
+      {!isLoading && summaryData && (
+        <div className="prose prose-gray max-w-none">
+          <p className="text-gray-700 leading-relaxed">{summaryData.description}</p>
+          {summaryData.bullets.length > 0 && (
+            <ul className="mt-4 space-y-1.5 list-none pl-0">
+              {summaryData.bullets.map((bullet, i) => (
+                <li key={i} className="flex items-start gap-2 text-gray-700">
+                  <span className="text-blue-500 font-bold mt-0.5 shrink-0">•</span>
+                  <span>{bullet}</span>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       )}
 
       {/* Empty state */}
-      {!isLoading && !summaryText && (
+      {!isLoading && !summaryData && (
         <EmptyState
           icon={FileText}
           title="No summary yet"

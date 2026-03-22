@@ -1,16 +1,17 @@
 import axios, { type AxiosInstance } from 'axios'
-import { streamSSE } from '../lib/sse'
+import { useAppStore } from '../stores/app-store'
 import type {
   HealthOut,
   DocumentOut,
   DocumentStructureOut,
   IngestTaskOut,
-  SearchResultsOut,
   ConfigOut,
   TaskStatusOut,
   TaskResponseOut,
+  SummaryResponse,
+  FlashcardResponse,
+  MetadataResponse,
 } from '../types/api'
-import type { SSEEvent } from '../types/domain'
 import type { ServiceClient } from './client.interface'
 
 const httpClient: AxiosInstance = axios.create({
@@ -20,6 +21,16 @@ const httpClient: AxiosInstance = axios.create({
     'Content-Type': 'application/json',
   },
 })
+
+httpClient.interceptors.response.use(
+  (res) => res,
+  (error) => {
+    const message =
+      error.response?.data?.detail ?? error.response?.data?.message ?? error.message ?? 'Server error'
+    useAppStore.getState().addError(String(message))
+    return Promise.reject(error)
+  }
+)
 
 export class RealClient implements ServiceClient {
   async health(): Promise<HealthOut> {
@@ -50,23 +61,6 @@ export class RealClient implements ServiceClient {
     return res.data
   }
 
-  async search(query: string, k: number = 5, chapter?: number, book?: string): Promise<SearchResultsOut> {
-    const res = await httpClient.post<SearchResultsOut>('/search', { query, k, chapter, book })
-    return res.data
-  }
-
-  async streamAsk(
-    query: string,
-    chapter: number | undefined,
-    onEvent: (event: SSEEvent) => void
-  ): Promise<void> {
-    const body: Record<string, unknown> = { query }
-    if (chapter !== undefined) {
-      body.chapter = chapter
-    }
-    await streamSSE('/api/ask', 'POST', body, onEvent)
-  }
-
   async getConfig(): Promise<ConfigOut> {
     const res = await httpClient.get<ConfigOut>('/config')
     return res.data
@@ -86,8 +80,8 @@ export class RealClient implements ServiceClient {
     return res.data
   }
 
-  async generateQA(chapter: number, bookTitle: string, documentHash: string): Promise<TaskResponseOut> {
-    const res = await httpClient.post<TaskResponseOut>('/chapters/questions', {
+  async generateFlashcards(chapter: number, bookTitle: string, documentHash: string): Promise<TaskResponseOut> {
+    const res = await httpClient.post<TaskResponseOut>('/chapters/flashcards', {
       chapter,
       book_title: bookTitle,
       document_hash: documentHash,
@@ -95,11 +89,29 @@ export class RealClient implements ServiceClient {
     return res.data
   }
 
-  async generateFlashcards(chapter: number, bookTitle: string, documentHash: string): Promise<TaskResponseOut> {
-    const res = await httpClient.post<TaskResponseOut>('/chapters/flashcards', {
-      chapter,
-      book_title: bookTitle,
-      document_hash: documentHash,
+  async getStoredSummary(docHash: string, chapter: number): Promise<SummaryResponse | null> {
+    const res = await httpClient.get<SummaryResponse>(`/documents/${docHash}/summaries/${chapter}`, {
+      validateStatus: (s) => s === 200 || s === 404,
+    })
+    return res.status === 404 ? null : res.data
+  }
+
+  async getStoredFlashcards(docHash: string, chapter: number): Promise<FlashcardResponse[]> {
+    const res = await httpClient.get<FlashcardResponse[]>(`/documents/${docHash}/flashcards`, {
+      params: { chapter },
+    })
+    return res.data
+  }
+
+  async getMetadata(docHash: string): Promise<MetadataResponse> {
+    const res = await httpClient.get<MetadataResponse>(`/documents/${docHash}/metadata`)
+    return res.data
+  }
+
+  async saveMetadata(docHash: string, description: string, documentType = ''): Promise<MetadataResponse> {
+    const res = await httpClient.put<MetadataResponse>(`/documents/${docHash}/metadata`, {
+      description,
+      document_type: documentType,
     })
     return res.data
   }

@@ -4,7 +4,7 @@ import logging
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Callable
 
 logger = logging.getLogger(__name__)

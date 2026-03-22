@@ -3,12 +3,13 @@ import type {
   DocumentOut,
   DocumentStructureOut,
   IngestTaskOut,
-  SearchResultsOut,
   ConfigOut,
   TaskStatusOut,
   TaskResponseOut,
+  SummaryResponse,
+  FlashcardResponse,
+  MetadataResponse,
 } from '../types/api'
-import type { SSEEvent } from '../types/domain'
 
 export interface ServiceClient {
   health(): Promise<HealthOut>
@@ -16,17 +17,14 @@ export interface ServiceClient {
   documentStructure(hash: string): Promise<DocumentStructureOut>
   deleteDocument(hash: string): Promise<void>
   ingestDocument(formData: FormData): Promise<IngestTaskOut>
-  search(query: string, k?: number, chapter?: number, book?: string): Promise<SearchResultsOut>
-  streamAsk(
-    query: string,
-    chapter: number | undefined,
-    onEvent: (event: SSEEvent) => void
-  ): Promise<void>
   getConfig(): Promise<ConfigOut>
   getTaskStatus(taskId: string): Promise<TaskStatusOut>
   summarizeChapter(chapter: number, bookTitle: string, documentHash: string): Promise<TaskResponseOut>
-  generateQA(chapter: number, bookTitle: string, documentHash: string): Promise<TaskResponseOut>
   generateFlashcards(chapter: number, bookTitle: string, documentHash: string): Promise<TaskResponseOut>
+  getStoredSummary(docHash: string, chapter: number): Promise<SummaryResponse | null>
+  getStoredFlashcards(docHash: string, chapter: number): Promise<FlashcardResponse[]>
+  getMetadata(docHash: string): Promise<MetadataResponse>
+  saveMetadata(docHash: string, description: string, documentType?: string): Promise<MetadataResponse>
 }
 
 export type { ServiceClient as ServiceClientType }

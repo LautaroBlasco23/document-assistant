@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 
-from core.model.generated_content import Flashcard, QAPair, Summary
+from core.model.document_metadata import DocumentMetadata
+from core.model.generated_content import Flashcard, Summary
 
 
 class ContentStore(ABC):
@@ -20,18 +21,6 @@ class ContentStore(ABC):
     def save_summary(self, summary: Summary) -> None:
         """Upsert a summary (replace if exists for same document_hash + chapter_index)."""
 
-    # --- QA Pairs ---
-
-    @abstractmethod
-    def get_qa_pairs(
-        self, document_hash: str, chapter_index: int | None = None
-    ) -> list[QAPair]:
-        """Get Q&A pairs. If chapter_index is None, return all for the document."""
-
-    @abstractmethod
-    def save_qa_pairs(self, pairs: list[QAPair]) -> None:
-        """Save Q&A pairs. Deletes existing for the same (document_hash, chapter_index) first."""
-
     # --- Flashcards ---
 
     @abstractmethod
@@ -43,6 +32,16 @@ class ContentStore(ABC):
     @abstractmethod
     def save_flashcards(self, flashcards: list[Flashcard]) -> None:
         """Save flashcards. Deletes existing for the same (document_hash, chapter_index) first."""
+
+    # --- Metadata ---
+
+    @abstractmethod
+    def get_metadata(self, document_hash: str) -> DocumentMetadata | None:
+        """Get the user-provided metadata for a document. Returns None if not set."""
+
+    @abstractmethod
+    def save_metadata(self, document_hash: str, metadata: DocumentMetadata) -> None:
+        """Upsert the user-provided metadata for a document."""
 
     # --- Cleanup ---
 

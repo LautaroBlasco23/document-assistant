@@ -4,7 +4,7 @@ from typing import Annotated
 
 from fastapi import Depends
 
-from api.services import get_services, Services
+from api.services import Services, get_services
 
 
 async def get_services_dep() -> Services:

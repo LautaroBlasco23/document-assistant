@@ -5,7 +5,7 @@ import logging
 from fastapi import APIRouter, HTTPException
 
 from api.deps import ServicesDep
-from api.schemas.content import FlashcardResponse, QAPairResponse, SummaryResponse
+from api.schemas.content import FlashcardResponse, SummaryResponse
 
 logger = logging.getLogger(__name__)
 
@@ -20,6 +20,8 @@ async def get_summaries(file_hash: str, services: ServicesDep) -> list[SummaryRe
         SummaryResponse(
             chapter=s.chapter_index + 1,
             content=s.content,
+            description=s.description,
+            bullets=s.bullets,
             created_at=s.created_at.isoformat(),
         )
         for s in summaries
@@ -35,27 +37,10 @@ async def get_summary(file_hash: str, chapter: int, services: ServicesDep) -> Su
     return SummaryResponse(
         chapter=chapter,
         content=summary.content,
+        description=summary.description,
+        bullets=summary.bullets,
         created_at=summary.created_at.isoformat(),
     )
-
-
-@router.get("/documents/{file_hash}/qa", response_model=list[QAPairResponse])
-async def get_qa_pairs(
-    file_hash: str, services: ServicesDep, chapter: int | None = None
-) -> list[QAPairResponse]:
-    """Get Q&A pairs. Optional chapter filter (1-based)."""
-    chapter_index = (chapter - 1) if chapter is not None else None
-    pairs = services.content_store.get_qa_pairs(file_hash, chapter_index)
-    return [
-        QAPairResponse(
-            id=p.id,
-            chapter=p.chapter_index + 1,
-            question=p.question,
-            answer=p.answer,
-            created_at=p.created_at.isoformat(),
-        )
-        for p in pairs
-    ]
 
 
 @router.get("/documents/{file_hash}/flashcards", response_model=list[FlashcardResponse])

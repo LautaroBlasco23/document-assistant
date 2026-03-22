@@ -11,10 +11,17 @@ export interface HealthOut {
   services: ServiceStatus[]
 }
 
+export interface SectionOut {
+  title: string
+  page_start: number
+  page_end: number
+}
+
 export interface ChapterOut {
   number: number
   title?: string
   num_chunks: number
+  sections?: SectionOut[]
 }
 
 export interface DocumentOut {
@@ -34,33 +41,6 @@ export interface DocumentStructureOut {
 export interface IngestTaskOut {
   task_id: string
   filename: string
-}
-
-export interface SearchRequest {
-  query: string
-  book?: string
-  chapter?: number
-  k: number
-}
-
-export interface ChunkOut {
-  id: string
-  text: string
-  chapter: number
-  page?: number
-  score?: number
-}
-
-export interface SearchResultsOut {
-  query: string
-  chunks: ChunkOut[]
-  count: number
-}
-
-export interface AskRequest {
-  query: string
-  book?: string
-  chapter?: number
 }
 
 export interface ChapterRequest {
@@ -84,13 +64,8 @@ export interface TaskStatusOut {
 
 export interface SummaryOut {
   chapter: number
-  summary: string
-}
-
-export interface QAPairOut {
-  question: string
-  answer: string
-  level?: 'remember' | 'understand' | 'apply_analyze'
+  description: string
+  bullets: string[]
 }
 
 export interface FlashcardOut {
@@ -103,14 +78,8 @@ export interface FlashcardOut {
 export interface SummaryResponse {
   chapter: number  // 1-based
   content: string
-  created_at: string
-}
-
-export interface QAPairResponse {
-  id: string
-  chapter: number  // 1-based
-  question: string
-  answer: string
+  description: string
+  bullets: string[]
   created_at: string
 }
 
@@ -149,4 +118,10 @@ export interface ConfigOut {
   qdrant: QdrantConfig
   neo4j: Neo4jConfig
   chunking: ChunkingConfig
+}
+
+export interface MetadataResponse {
+  document_hash: string
+  description: string
+  document_type: string
 }

@@ -2,7 +2,6 @@ import * as React from 'react'
 import { NavLink } from 'react-router-dom'
 import {
   Home,
-  Search,
   Settings,
   ChevronLeft,
   ChevronRight,
@@ -20,7 +19,6 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { label: 'Library', to: '/', icon: Home },
-  { label: 'Search', to: '/search', icon: Search },
   { label: 'Settings', to: '/settings', icon: Settings },
 ]
 

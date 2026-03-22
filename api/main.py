@@ -115,12 +115,10 @@ def create_app() -> FastAPI:
         return response
 
     # Import and register routers
-    from api.routers import health, documents, search, ask, chapters, config, tasks, content
+    from api.routers import chapters, config, content, documents, health, tasks
 
     app.include_router(health.router, prefix="/api", tags=["health"])
     app.include_router(documents.router, prefix="/api", tags=["documents"])
-    app.include_router(search.router, prefix="/api", tags=["search"])
-    app.include_router(ask.router, prefix="/api", tags=["ask"])
     app.include_router(chapters.router, prefix="/api", tags=["chapters"])
     app.include_router(config.router, prefix="/api", tags=["config"])
     app.include_router(tasks.router, prefix="/api", tags=["tasks"])
