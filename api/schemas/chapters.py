@@ -8,6 +8,8 @@ class ChapterRequest(BaseModel):
 
     book_title: str  # Used for context only
     chapter: int  # 1-based
+    document_hash: str  # SHA-256 file hash for persistence
+    force: bool = False  # Force regeneration even if cached
 
 
 class TaskResponseOut(BaseModel):

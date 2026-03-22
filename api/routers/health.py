@@ -46,6 +46,14 @@ async def get_health(services: ServicesDep) -> HealthOut:
     except Exception as e:
         statuses.append(ServiceStatus(name="neo4j", healthy=False, error=str(e)))
 
+    # Check PostgreSQL
+    try:
+        with services._pg_pool.connection().cursor() as cur:
+            cur.execute("SELECT 1")
+        statuses.append(ServiceStatus(name="postgres", healthy=True))
+    except Exception as e:
+        statuses.append(ServiceStatus(name="postgres", healthy=False, error=str(e)))
+
     all_healthy = all(s.healthy for s in statuses)
     status = "healthy" if all_healthy else "degraded"
 

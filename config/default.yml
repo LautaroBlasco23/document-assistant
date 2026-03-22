@@ -17,3 +17,10 @@ neo4j:
 chunking:
   max_tokens: 512
   overlap_tokens: 128
+
+postgres:
+  host: "localhost"
+  port: 5432
+  database: "docassist"
+  user: "docassist"
+  password: "docassist_pass"

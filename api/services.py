@@ -3,13 +3,16 @@
 import logging
 from dataclasses import dataclass
 
+from api.tasks import TaskRegistry
 from application.retriever import HybridRetriever
+from core.ports.content_store import ContentStore
 from infrastructure.config import AppConfig, load_config
+from infrastructure.db.content_repository import PostgresContentStore
+from infrastructure.db.postgres import PostgresPool
 from infrastructure.graph.neo4j_store import Neo4jStore
 from infrastructure.llm.embedding_cache import EmbeddingCache
 from infrastructure.llm.ollama import OllamaEmbedder, OllamaLLM
 from infrastructure.vectorstore.qdrant_store import QdrantStore
-from api.tasks import TaskRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +29,8 @@ class Services:
     neo4j: Neo4jStore
     retriever: HybridRetriever
     task_registry: TaskRegistry
+    content_store: ContentStore
+    _pg_pool: PostgresPool
 
 
 # Global services instance
@@ -56,6 +61,10 @@ def init_services(config: AppConfig | None = None) -> Services:
     retriever = HybridRetriever(qdrant, neo4j, embedder, llm, config)
     task_registry = TaskRegistry(max_workers=2)
 
+    pg_pool = PostgresPool(config.postgres)
+    pg_pool.connect()
+    content_store = PostgresContentStore(pg_pool)
+
     _services = Services(
         config=config,
         embedder=embedder,
@@ -65,15 +74,19 @@ def init_services(config: AppConfig | None = None) -> Services:
         neo4j=neo4j,
         retriever=retriever,
         task_registry=task_registry,
+        content_store=content_store,
+        _pg_pool=pg_pool,
     )
 
     logger.info(
-        "Config: ollama=%s model=%s embed=%s qdrant=%s neo4j=%s",
+        "Config: ollama=%s model=%s embed=%s qdrant=%s neo4j=%s postgres=%s:%d",
         config.ollama.base_url,
         config.ollama.generation_model,
         config.ollama.embedding_model,
         config.qdrant.url,
         config.neo4j.uri,
+        config.postgres.host,
+        config.postgres.port,
     )
     logger.info("Services initialized")
     return _services
@@ -91,5 +104,6 @@ def shutdown_services() -> None:
     global _services
     if _services:
         _services.task_registry.shutdown()
+        _services._pg_pool.close()
         _services = None
         logger.info("Services shut down")

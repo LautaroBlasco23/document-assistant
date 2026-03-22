@@ -29,11 +29,20 @@ class ChunkingConfig(BaseModel):
     overlap_tokens: int = 128
 
 
+class PostgresConfig(BaseModel):
+    host: str = "localhost"
+    port: int = 5432
+    database: str = "docassist"
+    user: str = "docassist"
+    password: str = "docassist_pass"
+
+
 class AppConfig(BaseSettings):
     ollama: OllamaConfig = OllamaConfig()
     qdrant: QdrantConfig = QdrantConfig()
     neo4j: Neo4jConfig = Neo4jConfig()
     chunking: ChunkingConfig = ChunkingConfig()
+    postgres: PostgresConfig = PostgresConfig()
 
     model_config = {"env_prefix": "DOCASSIST_", "env_nested_delimiter": "__"}
 
@@ -81,6 +90,13 @@ def save_config(config: AppConfig, config_path: Path | None = None) -> None:
         "chunking": {
             "max_tokens": config.chunking.max_tokens,
             "overlap_tokens": config.chunking.overlap_tokens,
+        },
+        "postgres": {
+            "host": config.postgres.host,
+            "port": config.postgres.port,
+            "database": config.postgres.database,
+            "user": config.postgres.user,
+            "password": config.postgres.password,
         },
     }
 

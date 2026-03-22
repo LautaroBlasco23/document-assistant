@@ -233,6 +233,13 @@ async def delete_document(file_hash: str, services: ServicesDep) -> JSONResponse
         logger.error(f"Failed to delete {file_hash} from Neo4j: {e}")
         errors.append(f"Neo4j: {e}")
 
+    # Delete generated content from PostgreSQL
+    try:
+        services.content_store.delete_by_document(file_hash)
+    except Exception as e:
+        logger.error(f"Failed to delete content for {file_hash} from PostgreSQL: {e}")
+        errors.append(f"PostgreSQL: {e}")
+
     # Delete manifest directory — use the same naming as write_manifest
     try:
         doc_dir = OUTPUT_DIR / _safe_name(doc_manifest["title"])
