@@ -1,13 +1,16 @@
 """Chapter analysis endpoints."""
 
+import json
 import logging
 import time
+from pathlib import Path
 
 from fastapi import APIRouter
 
 from api.deps import ServicesDep
 from api.schemas.chapters import ChapterRequest, TaskResponseOut
 from api.tasks import Task
+from application.agents.flashcard_generator import FlashcardGeneratorAgent
 from application.agents.question_generator import QuestionGeneratorAgent
 from application.agents.summarizer import SummarizerAgent
 from core.model.document import Chapter
@@ -17,12 +20,34 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+_OUTPUT_DIR = Path("data/output")
+
 
 def _set_progress(task: Task, pct: int, message: str) -> None:
     """Set both numeric and text progress on a task."""
     task.progress_pct = max(0, min(100, pct))
     task.progress = message
     logger.debug("Progress [%d%%]: %s", task.progress_pct, message)
+
+
+def _get_document_title(document_hash: str) -> str:
+    """Look up document title from its manifest file."""
+    if not _OUTPUT_DIR.exists():
+        return ""
+    for doc_dir in _OUTPUT_DIR.iterdir():
+        if not doc_dir.is_dir():
+            continue
+        manifest_file = doc_dir / "manifest.json"
+        if not manifest_file.exists():
+            continue
+        try:
+            with open(manifest_file) as f:
+                manifest = json.load(f)
+            if manifest.get("file_hash") == document_hash:
+                return manifest.get("title", "")
+        except Exception:
+            continue
+    return ""
 
 
 def _summarize_background(
@@ -43,6 +68,8 @@ def _summarize_background(
                 logger.info("Returning cached summary for chapter %d", chapter_num)
                 return cached.content
 
+        document_title = _get_document_title(document_hash)
+
         _set_progress(task, 10, f"Retrieving context for chapter {chapter_num}...")
         chunks = services.retriever.retrieve(
             f"chapter {chapter_num} summary", k=20, filters={"chapter": chapter_index}
@@ -58,14 +85,15 @@ def _summarize_background(
             document_hash[:12],
         )
         _set_progress(task, 25, f"Retrieved {len(chunks)} chunks, generating summary...")
-        chapter_obj = Chapter(index=chapter_index, title=f"Chapter {chapter_num}", pages=[])
+        chapter_title = f"Chapter {chapter_num}"
+        chapter_obj = Chapter(index=chapter_index, title=chapter_title, pages=[])
 
         def sum_progress(phase: str) -> None:
             if phase == "calling_llm":
                 _set_progress(task, 40, "LLM is generating summary...")
 
         summary = SummarizerAgent(services.fast_llm).summarize(
-            chapter_obj, chunks, on_progress=sum_progress
+            chapter_obj, chunks, on_progress=sum_progress, document_title=document_title
         )
 
         _set_progress(task, 85, "Saving summary...")
@@ -103,6 +131,9 @@ def _generate_qa_background(
                 logger.info("Returning cached Q&A for chapter %d", chapter_num)
                 return qas
 
+        document_title = _get_document_title(document_hash)
+        chapter_title = f"Chapter {chapter_num}"
+
         _set_progress(task, 5, f"Retrieving context for chapter {chapter_num}...")
         chunks = services.retriever.retrieve(
             f"chapter {chapter_num}", k=20, filters={"chapter": chapter_index}
@@ -120,12 +151,17 @@ def _generate_qa_background(
         _set_progress(task, 20, f"Retrieved {len(chunks)} chunks, generating Q&A...")
 
         def qa_progress(batch: int, total: int, pairs_so_far: int) -> None:
-            pct = 20 + int((batch / total) * 60)  # scale batches to 20%-80% range
+            pct = 20 + int((batch / total) * 60)
             _set_progress(
                 task, pct, f"Analyzing batch {batch}/{total} ({pairs_so_far} pairs generated)"
             )
 
-        qas = QuestionGeneratorAgent(services.fast_llm).generate(chunks, on_progress=qa_progress)
+        qas = QuestionGeneratorAgent(services.fast_llm).generate(
+            chunks,
+            on_progress=qa_progress,
+            chapter_title=chapter_title,
+            document_title=document_title,
+        )
 
         _set_progress(task, 85, f"Saving {len(qas)} Q&A pairs...")
         pairs = [
@@ -168,11 +204,17 @@ def _generate_flashcards_background(
         if not force:
             cached = services.content_store.get_flashcards(document_hash, chapter_index)
             if cached:
-                flashcards = [{"question": c.front, "answer": c.back} for c in cached]
+                flashcards = [
+                    {"front": c.front, "back": c.back, "category": "key_facts"}
+                    for c in cached
+                ]
                 _set_progress(task, 100, "Loaded from cache")
                 task.result = {"chapter": chapter_num, "flashcards": flashcards, "cached": True}
                 logger.info("Returning cached flashcards for chapter %d", chapter_num)
                 return flashcards
+
+        document_title = _get_document_title(document_hash)
+        chapter_title = f"Chapter {chapter_num}"
 
         _set_progress(task, 5, f"Retrieving context for chapter {chapter_num}...")
         chunks = services.retriever.retrieve(
@@ -196,33 +238,36 @@ def _generate_flashcards_background(
                 task, pct, f"Building flashcards... batch {batch}/{total} ({cards_so_far} cards)"
             )
 
-        # Flashcards are similar to Q&A, so reuse the generator
-        qas = QuestionGeneratorAgent(services.fast_llm).generate(chunks, on_progress=fc_progress)
+        cards = FlashcardGeneratorAgent(services.fast_llm).generate(
+            chunks,
+            on_progress=fc_progress,
+            chapter_title=chapter_title,
+            document_title=document_title,
+        )
 
         _set_progress(task, 85, "Saving flashcards...")
-        # Map question->front, answer->back for flashcard semantics
-        cards = [
+        flashcard_models = [
             Flashcard(
                 document_hash=document_hash,
                 chapter_index=chapter_index,
-                front=p["question"],
-                back=p["answer"],
+                front=p["front"],
+                back=p["back"],
             )
-            for p in qas
+            for p in cards
         ]
-        services.content_store.save_flashcards(cards)
+        services.content_store.save_flashcards(flashcard_models)
         logger.debug(
             "Persisted %d flashcards for doc=%s chapter=%d",
-            len(cards),
+            len(flashcard_models),
             document_hash[:12],
             chapter_index,
         )
 
         _set_progress(task, 95, "Finalizing...")
-        task.result = {"chapter": chapter_num, "flashcards": qas, "cached": False}
+        task.result = {"chapter": chapter_num, "flashcards": cards, "cached": False}
         elapsed = time.perf_counter() - t0
         logger.info("Completed flashcards for chapter %d in %.1fs", chapter_num, elapsed)
-        return qas
+        return cards
     except Exception as e:
         logger.error(f"Flashcard generation failed: {e}")
         raise

@@ -123,7 +123,7 @@ export function FlashcardReview({ docHash, chapter }: FlashcardReviewProps) {
           >
             <div className="text-xs font-medium text-gray-400 uppercase tracking-wide">Question</div>
             <p className="text-lg text-gray-800 font-medium text-center flex-1 flex items-center justify-center py-4">
-              {currentCard.question}
+              {currentCard.front}
             </p>
             <p className="text-sm text-gray-400 text-center">Click to reveal answer</p>
           </div>
@@ -138,7 +138,7 @@ export function FlashcardReview({ docHash, chapter }: FlashcardReviewProps) {
           >
             <div className="text-xs font-medium text-accent uppercase tracking-wide">Answer</div>
             <p className="text-base text-gray-700 text-center flex-1 flex items-center justify-center py-4">
-              {currentCard.answer}
+              {currentCard.back}
             </p>
             <div className="flex justify-center gap-3">
               <Button

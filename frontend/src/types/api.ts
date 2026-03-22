@@ -90,11 +90,36 @@ export interface SummaryOut {
 export interface QAPairOut {
   question: string
   answer: string
+  level?: 'remember' | 'understand' | 'apply_analyze'
 }
 
 export interface FlashcardOut {
+  front: string
+  back: string
+  category?: 'terminology' | 'key_facts' | 'concepts'
+}
+
+// Stored content responses (from PostgreSQL via GET endpoints)
+export interface SummaryResponse {
+  chapter: number  // 1-based
+  content: string
+  created_at: string
+}
+
+export interface QAPairResponse {
+  id: string
+  chapter: number  // 1-based
   question: string
   answer: string
+  created_at: string
+}
+
+export interface FlashcardResponse {
+  id: string
+  chapter: number  // 1-based
+  front: string
+  back: string
+  created_at: string
 }
 
 export interface OllamaConfig {

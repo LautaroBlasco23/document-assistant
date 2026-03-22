@@ -18,10 +18,27 @@ interface QATabProps {
 
 export function QATab({ docHash, chapter, structure: _structure }: QATabProps) {
   const [pairs, setPairs] = useState<QAPairOut[] | null>(null)
+  const [isLoadingStored, setIsLoadingStored] = useState(false)
 
   const documents = useDocumentStore((state) => state.documents)
   const doc = documents.find((d) => d.file_hash === docHash)
   const bookTitle = doc ? doc.filename.replace(/\.[^/.]+$/, '') : docHash
+
+  // Load stored Q&A when chapter changes
+  useEffect(() => {
+    if (chapter === undefined) return
+    let cancelled = false
+    setIsLoadingStored(true)
+    setPairs(null)
+    void client.getStoredQAPairs(docHash, chapter).then((stored) => {
+      if (cancelled) return
+      setIsLoadingStored(false)
+      if (stored.length > 0) setPairs(stored)
+    }).catch(() => {
+      if (!cancelled) setIsLoadingStored(false)
+    })
+    return () => { cancelled = true }
+  }, [docHash, chapter])
 
   // Subscribe to the task for this specific (docHash, chapter, type) context
   const task = useTaskStore((state) =>
@@ -55,7 +72,7 @@ export function QATab({ docHash, chapter, structure: _structure }: QATabProps) {
     }
   }
 
-  const isLoading = task !== undefined && (task.status === 'pending' || task.status === 'running')
+  const isGenerating = task !== undefined && (task.status === 'pending' || task.status === 'running')
   const generateError = task?.status === 'failed' ? (task.error ?? 'Generation failed') : null
   const isDisabled = chapter === undefined
 
@@ -64,10 +81,10 @@ export function QATab({ docHash, chapter, structure: _structure }: QATabProps) {
       variant="primary"
       size="sm"
       onClick={() => void handleGenerate()}
-      disabled={isDisabled || isLoading}
-      loading={isLoading}
+      disabled={isDisabled || isGenerating || isLoadingStored}
+      loading={isGenerating}
     >
-      Generate Q&amp;A
+      {pairs && pairs.length > 0 ? 'Regenerate Q&A' : 'Generate Q&A'}
     </Button>
   )
 
@@ -85,7 +102,7 @@ export function QATab({ docHash, chapter, structure: _structure }: QATabProps) {
       </div>
 
       {/* Loading state */}
-      {isLoading && (
+      {isGenerating && (
         <TaskProgress
           progressPct={task?.progressPct ?? null}
           message={task?.progress ?? null}
@@ -99,19 +116,40 @@ export function QATab({ docHash, chapter, structure: _structure }: QATabProps) {
       )}
 
       {/* Q&A pairs list */}
-      {!isLoading && pairs && pairs.length > 0 && (
+      {!isGenerating && pairs && pairs.length > 0 && (
         <div className="flex flex-col gap-3">
-          {pairs.map((pair, index) => (
-            <Card key={index}>
-              <p className="font-semibold text-gray-800">{pair.question}</p>
-              <p className="text-gray-600 text-sm mt-1">{pair.answer}</p>
-            </Card>
-          ))}
+          {pairs.map((pair, index) => {
+            const levelLabel =
+              pair.level === 'remember' ? 'Remember' :
+              pair.level === 'understand' ? 'Understand' :
+              pair.level === 'apply_analyze' ? 'Apply / Analyze' :
+              null
+            const levelColor =
+              pair.level === 'remember' ? 'bg-blue-100 text-blue-700' :
+              pair.level === 'understand' ? 'bg-amber-100 text-amber-700' :
+              pair.level === 'apply_analyze' ? 'bg-purple-100 text-purple-700' :
+              ''
+            return (
+              <Card key={index}>
+                <div className="flex items-start gap-2">
+                  <div className="flex-1">
+                    <p className="font-semibold text-gray-800">{pair.question}</p>
+                    <p className="text-gray-600 text-sm mt-1">{pair.answer}</p>
+                  </div>
+                  {levelLabel && (
+                    <span className={`shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full ${levelColor}`}>
+                      {levelLabel}
+                    </span>
+                  )}
+                </div>
+              </Card>
+            )
+          })}
         </div>
       )}
 
       {/* Empty pairs result */}
-      {!isLoading && pairs !== null && pairs.length === 0 && (
+      {!isGenerating && pairs !== null && pairs.length === 0 && (
         <EmptyState
           icon={HelpCircle}
           title="No Q&A pairs generated"
@@ -120,7 +158,7 @@ export function QATab({ docHash, chapter, structure: _structure }: QATabProps) {
       )}
 
       {/* Initial empty state */}
-      {!isLoading && pairs === null && (
+      {!isGenerating && !isLoadingStored && pairs === null && (
         <EmptyState
           icon={HelpCircle}
           title="No Q&A pairs yet"
