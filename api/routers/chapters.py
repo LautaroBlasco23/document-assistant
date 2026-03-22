@@ -18,6 +18,13 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+def _set_progress(task: Task, pct: int, message: str) -> None:
+    """Set both numeric and text progress on a task."""
+    task.progress_pct = max(0, min(100, pct))
+    task.progress = message
+    logger.debug("Progress [%d%%]: %s", task.progress_pct, message)
+
+
 def _summarize_background(
     task: Task, chapter_num: int, services: ServicesDep, document_hash: str, force: bool
 ) -> str:
@@ -31,11 +38,12 @@ def _summarize_background(
         if not force:
             cached = services.content_store.get_summary(document_hash, chapter_index)
             if cached:
+                _set_progress(task, 100, "Loaded from cache")
                 task.result = {"chapter": chapter_num, "summary": cached.content, "cached": True}
                 logger.info("Returning cached summary for chapter %d", chapter_num)
                 return cached.content
 
-        task.progress = f"Retrieving context for chapter {chapter_num}..."
+        _set_progress(task, 10, f"Retrieving context for chapter {chapter_num}...")
         chunks = services.retriever.retrieve(
             f"chapter {chapter_num} summary", k=20, filters={"chapter": chapter_index}
         )
@@ -43,14 +51,30 @@ def _summarize_background(
         if not chunks:
             raise ValueError(f"No chunks found for chapter {chapter_num}")
 
-        task.progress = "Generating summary..."
+        logger.info(
+            "Retrieved %d chunks for chapter %d (doc=%s)",
+            len(chunks),
+            chapter_num,
+            document_hash[:12],
+        )
+        _set_progress(task, 25, f"Retrieved {len(chunks)} chunks, generating summary...")
         chapter_obj = Chapter(index=chapter_index, title=f"Chapter {chapter_num}", pages=[])
-        summary = SummarizerAgent(services.fast_llm).summarize(chapter_obj, chunks)
 
+        def sum_progress(phase: str) -> None:
+            if phase == "calling_llm":
+                _set_progress(task, 40, "LLM is generating summary...")
+
+        summary = SummarizerAgent(services.fast_llm).summarize(
+            chapter_obj, chunks, on_progress=sum_progress
+        )
+
+        _set_progress(task, 85, "Saving summary...")
         services.content_store.save_summary(
             Summary(document_hash=document_hash, chapter_index=chapter_index, content=summary)
         )
+        logger.debug("Persisted summary for doc=%s chapter=%d", document_hash[:12], chapter_index)
 
+        _set_progress(task, 95, "Finalizing...")
         task.result = {"chapter": chapter_num, "summary": summary, "cached": False}
         elapsed = time.perf_counter() - t0
         logger.info("Completed summarize for chapter %d in %.1fs", chapter_num, elapsed)
@@ -74,11 +98,12 @@ def _generate_qa_background(
             cached = services.content_store.get_qa_pairs(document_hash, chapter_index)
             if cached:
                 qas = [{"question": p.question, "answer": p.answer} for p in cached]
+                _set_progress(task, 100, "Loaded from cache")
                 task.result = {"chapter": chapter_num, "qa_pairs": qas, "cached": True}
                 logger.info("Returning cached Q&A for chapter %d", chapter_num)
                 return qas
 
-        task.progress = f"Retrieving context for chapter {chapter_num}..."
+        _set_progress(task, 5, f"Retrieving context for chapter {chapter_num}...")
         chunks = services.retriever.retrieve(
             f"chapter {chapter_num}", k=20, filters={"chapter": chapter_index}
         )
@@ -86,9 +111,23 @@ def _generate_qa_background(
         if not chunks:
             raise ValueError(f"No chunks found for chapter {chapter_num}")
 
-        task.progress = "Generating Q&A..."
-        qas = QuestionGeneratorAgent(services.fast_llm).generate(chunks)
+        logger.info(
+            "Retrieved %d chunks for chapter %d (doc=%s)",
+            len(chunks),
+            chapter_num,
+            document_hash[:12],
+        )
+        _set_progress(task, 20, f"Retrieved {len(chunks)} chunks, generating Q&A...")
 
+        def qa_progress(batch: int, total: int, pairs_so_far: int) -> None:
+            pct = 20 + int((batch / total) * 60)  # scale batches to 20%-80% range
+            _set_progress(
+                task, pct, f"Analyzing batch {batch}/{total} ({pairs_so_far} pairs generated)"
+            )
+
+        qas = QuestionGeneratorAgent(services.fast_llm).generate(chunks, on_progress=qa_progress)
+
+        _set_progress(task, 85, f"Saving {len(qas)} Q&A pairs...")
         pairs = [
             QAPair(
                 document_hash=document_hash,
@@ -99,7 +138,14 @@ def _generate_qa_background(
             for p in qas
         ]
         services.content_store.save_qa_pairs(pairs)
+        logger.debug(
+            "Persisted %d Q&A pairs for doc=%s chapter=%d",
+            len(pairs),
+            document_hash[:12],
+            chapter_index,
+        )
 
+        _set_progress(task, 95, "Finalizing...")
         task.result = {"chapter": chapter_num, "qa_pairs": qas, "cached": False}
         elapsed = time.perf_counter() - t0
         logger.info("Completed questions for chapter %d in %.1fs", chapter_num, elapsed)
@@ -123,11 +169,12 @@ def _generate_flashcards_background(
             cached = services.content_store.get_flashcards(document_hash, chapter_index)
             if cached:
                 flashcards = [{"question": c.front, "answer": c.back} for c in cached]
+                _set_progress(task, 100, "Loaded from cache")
                 task.result = {"chapter": chapter_num, "flashcards": flashcards, "cached": True}
                 logger.info("Returning cached flashcards for chapter %d", chapter_num)
                 return flashcards
 
-        task.progress = f"Retrieving context for chapter {chapter_num}..."
+        _set_progress(task, 5, f"Retrieving context for chapter {chapter_num}...")
         chunks = services.retriever.retrieve(
             f"chapter {chapter_num}", k=20, filters={"chapter": chapter_index}
         )
@@ -135,10 +182,24 @@ def _generate_flashcards_background(
         if not chunks:
             raise ValueError(f"No chunks found for chapter {chapter_num}")
 
-        task.progress = "Generating flashcards..."
-        # Flashcards are similar to Q&A, so reuse the generator
-        qas = QuestionGeneratorAgent(services.fast_llm).generate(chunks)
+        logger.info(
+            "Retrieved %d chunks for chapter %d (doc=%s)",
+            len(chunks),
+            chapter_num,
+            document_hash[:12],
+        )
+        _set_progress(task, 20, f"Retrieved {len(chunks)} chunks, generating flashcards...")
 
+        def fc_progress(batch: int, total: int, cards_so_far: int) -> None:
+            pct = 20 + int((batch / total) * 60)
+            _set_progress(
+                task, pct, f"Building flashcards... batch {batch}/{total} ({cards_so_far} cards)"
+            )
+
+        # Flashcards are similar to Q&A, so reuse the generator
+        qas = QuestionGeneratorAgent(services.fast_llm).generate(chunks, on_progress=fc_progress)
+
+        _set_progress(task, 85, "Saving flashcards...")
         # Map question->front, answer->back for flashcard semantics
         cards = [
             Flashcard(
@@ -150,7 +211,14 @@ def _generate_flashcards_background(
             for p in qas
         ]
         services.content_store.save_flashcards(cards)
+        logger.debug(
+            "Persisted %d flashcards for doc=%s chapter=%d",
+            len(cards),
+            document_hash[:12],
+            chapter_index,
+        )
 
+        _set_progress(task, 95, "Finalizing...")
         task.result = {"chapter": chapter_num, "flashcards": qas, "cached": False}
         elapsed = time.perf_counter() - t0
         logger.info("Completed flashcards for chapter %d in %.1fs", chapter_num, elapsed)

@@ -10,7 +10,16 @@ class OllamaConfig(BaseModel):
     generation_model: str = "llama3.2"
     fast_model: str | None = None
     embedding_model: str = "nomic-embed-text"
-    timeout: int = 120
+    timeout: int = 300
+
+
+class GroqConfig(BaseModel):
+    api_key: str = ""                               # set via DOCASSIST_GROQ__API_KEY
+    base_url: str = "https://api.groq.com/openai/v1"
+    model: str = "mixtral-8x7b-32768"
+    fast_model: str | None = None                   # e.g. "llama-3.1-8b-instant"
+    timeout: int = 60
+    max_retries: int = 3                            # for 429 backoff
 
 
 class QdrantConfig(BaseModel):
@@ -39,10 +48,12 @@ class PostgresConfig(BaseModel):
 
 class AppConfig(BaseSettings):
     ollama: OllamaConfig = OllamaConfig()
+    groq: GroqConfig = GroqConfig()
     qdrant: QdrantConfig = QdrantConfig()
     neo4j: Neo4jConfig = Neo4jConfig()
     chunking: ChunkingConfig = ChunkingConfig()
     postgres: PostgresConfig = PostgresConfig()
+    llm_provider: str = "groq"  # "ollama" | "groq"
 
     model_config = {"env_prefix": "DOCASSIST_", "env_nested_delimiter": "__"}
 
@@ -76,8 +87,20 @@ def save_config(config: AppConfig, config_path: Path | None = None) -> None:
     if config.ollama.fast_model:
         ollama_data["fast_model"] = config.ollama.fast_model
 
+    groq_data: dict = {
+        "base_url": config.groq.base_url,
+        "model": config.groq.model,
+        "timeout": config.groq.timeout,
+        "max_retries": config.groq.max_retries,
+    }
+    if config.groq.fast_model:
+        groq_data["fast_model"] = config.groq.fast_model
+    # api_key is never written to YAML -- set via env var
+
     data = {
+        "llm_provider": config.llm_provider,
         "ollama": ollama_data,
+        "groq": groq_data,
         "qdrant": {
             "url": config.qdrant.url,
             "collection_name": config.qdrant.collection_name,

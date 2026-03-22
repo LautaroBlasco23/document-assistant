@@ -1,5 +1,6 @@
 import json
 import logging
+from typing import Callable
 
 from application.agents.base import BaseAgent
 from core.model.chunk import Chunk
@@ -17,22 +18,42 @@ _SYSTEM = (
 
 
 class QuestionGeneratorAgent(BaseAgent):
-    def generate(self, chunks: list[Chunk]) -> list[dict]:
+    def generate(
+        self,
+        chunks: list[Chunk],
+        on_progress: Callable[[int, int, int], None] | None = None,
+    ) -> list[dict]:
+        """Generate Q&A pairs from chunks.
+
+        Args:
+            chunks: List of text chunks to process.
+            on_progress: Optional callback called after each batch with
+                (batch_number, total_batches, pairs_so_far).
+        """
         all_pairs = []
         total_batches = (len(chunks) + _BATCH_SIZE - 1) // _BATCH_SIZE
         for batch_idx in range(0, len(chunks), _BATCH_SIZE):
             batch = chunks[batch_idx : batch_idx + _BATCH_SIZE]
             context = "\n\n".join(c.text for c in batch)
             user = f"Text:\n{context}"
+            batch_number = batch_idx // _BATCH_SIZE + 1
+            logger.info(
+                "Processing batch %d/%d (%d chunks)",
+                batch_number,
+                total_batches,
+                len(batch),
+            )
             raw = self._call_json(_SYSTEM, user)
             logger.debug(
                 "Batch %d/%d: LLM returned %d chars",
-                batch_idx // _BATCH_SIZE + 1,
+                batch_number,
                 total_batches,
                 len(raw),
             )
             pairs = self._parse(raw)
             all_pairs.extend(pairs)
+            if on_progress:
+                on_progress(batch_number, total_batches, len(all_pairs))
         logger.info(
             "Generated %d Q&A pairs from %d chunks (%d batches)",
             len(all_pairs),

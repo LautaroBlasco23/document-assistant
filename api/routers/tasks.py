@@ -24,6 +24,7 @@ async def get_task_status(task_id: str, services: ServicesDep) -> TaskStatusOut:
         task_id=task.task_id,
         status=task.status,
         progress=task.progress,
+        progress_pct=task.progress_pct,
         result=task.result if isinstance(task.result, dict) else None,
         error=task.error,
     )

@@ -11,13 +11,8 @@ class BaseAgent:
 
     def _call(self, system: str, user: str) -> str:
         """Call the LLM with a system + user prompt."""
-        if hasattr(self._llm, "chat"):
-            return self._llm.chat(system, user)
-        # Fallback: concatenate into a single prompt
-        return self._llm.generate(f"{system}\n\n{user}")
+        return self._llm.chat(system, user)
 
     def _call_json(self, system: str, user: str) -> str:
         """Call the LLM with format='json' enforced."""
-        if hasattr(self._llm, "chat"):
-            return self._llm.chat(system, user, format="json")
-        return self._llm.generate(f"{system}\n\n{user}")
+        return self._llm.chat(system, user, format="json")

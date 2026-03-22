@@ -77,6 +77,7 @@ export interface TaskStatusOut {
   task_id: string
   status: 'pending' | 'running' | 'completed' | 'failed'
   progress: string
+  progress_pct?: number
   result?: Record<string, unknown>
   error?: string
 }

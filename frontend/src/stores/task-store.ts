@@ -14,6 +14,7 @@ export interface GenerationTask {
   bookTitle: string
   status: 'pending' | 'running' | 'completed' | 'failed'
   progress: string | null
+  progressPct: number | null
   result: Record<string, unknown> | null
   error: string | null
 }
@@ -91,6 +92,7 @@ export const useTaskStore = create<TaskState>((set) => ({
           bookTitle,
           status: 'pending',
           progress: null,
+          progressPct: null,
           result: null,
           error: null,
         },
@@ -114,6 +116,7 @@ export const useTaskStore = create<TaskState>((set) => ({
                 ...existing,
                 status: status.status as GenerationTask['status'],
                 progress: status.progress ?? null,
+                progressPct: status.progress_pct ?? null,
                 result: (status.result as Record<string, unknown> | null) ?? null,
                 error: status.error ?? null,
               },

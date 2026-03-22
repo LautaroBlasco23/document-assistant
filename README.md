@@ -2,7 +2,7 @@
 
 A local document reader with a web UI. Ingests PDFs and EPUBs, builds a vector index and knowledge graph, and uses LLM agents to summarize chapters, generate study questions, and answer questions with hybrid retrieval.
 
-Runs entirely locally: Docker (Qdrant + Neo4j), Ollama for LLM inference, and a Vite web SPA backed by a FastAPI server.
+Uses Docker (Qdrant + Neo4j), Ollama for embeddings, Groq API for LLM inference, and a Vite web SPA backed by a FastAPI server.
 
 ## Features
 
@@ -22,7 +22,8 @@ Runs entirely locally: Docker (Qdrant + Neo4j), Ollama for LLM inference, and a 
 
 ## Prerequisites
 
-- [Ollama](https://ollama.ai) installed on host
+- [Groq API key](https://console.groq.com) — free, no credit card required
+- [Ollama](https://ollama.ai) installed on host (for embeddings only)
 - [Docker](https://docs.docker.com/get-docker/) and Docker Compose
 - [uv](https://docs.astral.sh/uv/) (Python package manager)
 - Python 3.12+
@@ -41,20 +42,29 @@ This starts:
 - **Neo4j** 5 on ports 7474 (browser) / 7687 (bolt)
   - Default credentials: `neo4j` / `document_assistant_pass`
 
-### 2. Pull Ollama models
+### 2. Set your Groq API key
 
 ```bash
-ollama pull llama3.2
+export DOCASSIST_GROQ__API_KEY=gsk_your_key_here
+```
+
+Get a free key at [console.groq.com](https://console.groq.com). No credit card required.
+
+### 3. Pull the Ollama embedding model
+
+```bash
 ollama pull nomic-embed-text
 ```
 
-### 3. Install dependencies
+Ollama is used for embeddings only. LLM inference runs via Groq.
+
+### 4. Install dependencies
 
 ```bash
 uv sync
 ```
 
-### 4. Verify everything works
+### 5. Verify everything works
 
 ```bash
 uv run python -m cli.main check
@@ -68,7 +78,7 @@ Service health checks:
   Neo4j  (bolt://localhost:7687): OK
 ```
 
-### 5. Run the web app
+### 6. Run the web app
 
 ```bash
 # Terminal 1 — start the FastAPI backend
@@ -150,7 +160,7 @@ document-assistant/
 │   ├── config.py                # Pydantic-settings config loader + save_config()
 │   ├── ingest/                  # pdf_loader, epub_loader, normalizer
 │   ├── chunking/                # ChapterAwareSplitter
-│   ├── llm/                     # OllamaClient, OllamaEmbedder, OllamaLLM
+│   ├── llm/                     # OllamaEmbedder, OllamaLLM, GroqLLM, factory
 │   ├── vectorstore/             # QdrantStore (upsert, search, delete)
 │   ├── graph/                   # Neo4jStore (entity upsert, graph queries, delete)
 │   └── output/                  # markdown_writer, manifest
@@ -193,9 +203,22 @@ document-assistant/
 All settings live in `config/default.yml` and can be overridden with environment variables:
 
 ```bash
+# Groq API key (required — default LLM provider)
+export DOCASSIST_GROQ__API_KEY=gsk_your_key_here
+
+# Switch to local Ollama for LLM inference (optional)
+export DOCASSIST_LLM_PROVIDER=ollama
+
+# Override Ollama URL (used for embeddings)
 export DOCASSIST_OLLAMA__BASE_URL=http://other-host:11434
-export DOCASSIST_OLLAMA__GENERATION_MODEL=mistral
+
 export DOCASSIST_QDRANT__COLLECTION_NAME=my_docs
+```
+
+To use Ollama for LLM inference instead of Groq (e.g. fully offline):
+
+```bash
+uv run python -m cli.main ask "What is the main argument?" --book "book" --provider ollama
 ```
 
 ## Development

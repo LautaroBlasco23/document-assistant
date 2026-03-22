@@ -5,17 +5,11 @@ import { client } from '../../services'
 import { useTaskStore } from '../../stores/task-store'
 import { useDocumentStore } from '../../stores/document-store'
 import { Button } from '../../components/ui/button'
-import { Progress } from '../../components/ui/progress'
 import { EmptyState } from '../../components/ui/empty-state'
+import { TaskProgress } from './task-progress'
 import { Tooltip } from '../../components/ui/tooltip'
-import { cn } from '../../lib/cn'
-import { mockSummaries, mockBulletSummaries } from '../../mocks/summaries'
+import { mockSummaries } from '../../mocks/summaries'
 import type { DocumentStructureOut } from '../../types/api'
-
-// TODO: Pass `style` parameter to backend when API supports it.
-// The backend would accept: 'short' | 'bullet_points' as a style field.
-
-type SummaryStyle = 'short' | 'bullet_points'
 
 interface SummaryTabProps {
   docHash: string
@@ -24,7 +18,6 @@ interface SummaryTabProps {
 }
 
 export function SummaryTab({ docHash, chapter, structure: _structure }: SummaryTabProps) {
-  const [style, setStyle] = useState<SummaryStyle>('short')
   const [summaryText, setSummaryText] = useState<string | null>(null)
 
   const documents = useDocumentStore((state) => state.documents)
@@ -46,13 +39,10 @@ export function SummaryTab({ docHash, chapter, structure: _structure }: SummaryT
       setSummaryText(resultSummary)
     } else {
       // Fall back to mock data keyed by docHash
-      const mockData = style === 'bullet_points'
-        ? mockBulletSummaries[docHash]
-        : mockSummaries[docHash]
-      setSummaryText(mockData?.summary ?? 'Summary not available.')
+      setSummaryText(mockSummaries[docHash]?.summary ?? 'Summary not available.')
     }
     useTaskStore.getState().clearTask(task.taskId)
-  }, [task?.status, task?.taskId, docHash, style])
+  }, [task?.status, task?.taskId, docHash])
 
   const handleGenerate = async () => {
     if (chapter === undefined) return
@@ -90,32 +80,6 @@ export function SummaryTab({ docHash, chapter, structure: _structure }: SummaryT
     <div className="flex flex-col gap-4">
       {/* Toolbar */}
       <div className="flex items-center gap-3 flex-wrap">
-        {/* Style toggle */}
-        <div className="flex items-center rounded-lg border border-gray-200 bg-white overflow-hidden">
-          <button
-            onClick={() => setStyle('short')}
-            className={cn(
-              'px-3 py-1.5 text-sm transition-colors',
-              style === 'short'
-                ? 'bg-surface-100 font-medium text-gray-800'
-                : 'text-gray-500 hover:text-gray-700',
-            )}
-          >
-            Short
-          </button>
-          <button
-            onClick={() => setStyle('bullet_points')}
-            className={cn(
-              'px-3 py-1.5 text-sm transition-colors border-l border-gray-200',
-              style === 'bullet_points'
-                ? 'bg-surface-100 font-medium text-gray-800'
-                : 'text-gray-500 hover:text-gray-700',
-            )}
-          >
-            Bullet Points
-          </button>
-        </div>
-
         {isDisabled ? (
           <Tooltip content="Select a chapter first">
             <span>{generateButton}</span>
@@ -127,12 +91,11 @@ export function SummaryTab({ docHash, chapter, structure: _structure }: SummaryT
 
       {/* Loading state */}
       {isLoading && (
-        <div className="flex flex-col gap-2">
-          <Progress indeterminate />
-          {task?.progress && (
-            <p className="text-xs text-gray-400">{task.progress}</p>
-          )}
-        </div>
+        <TaskProgress
+          progressPct={task?.progressPct ?? null}
+          message={task?.progress ?? null}
+          fallbackMessage="Generating summary..."
+        />
       )}
 
       {/* Summary content */}

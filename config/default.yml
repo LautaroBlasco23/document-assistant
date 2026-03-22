@@ -1,9 +1,19 @@
+llm_provider: "groq"  # "ollama" or "groq"
+
 ollama:
   base_url: "http://localhost:11434"
-  generation_model: "llama3.2"
-  # fast_model: "orca-mini:3b"  # Optional: smaller model for bulk generation tasks
+  generation_model: "qwen2.5:14b-instruct"
+  fast_model: "qwen2.5:3b-instruct"  # Smaller model for bulk generation tasks
   embedding_model: "nomic-embed-text"
-  timeout: 120
+  timeout: 300
+
+groq:
+  # api_key: set via DOCASSIST_GROQ__API_KEY env var (never commit keys here)
+  base_url: "https://api.groq.com/openai/v1"
+  model: "mixtral-8x7b-32768"
+  fast_model: "llama-3.1-8b-instant"
+  timeout: 60
+  max_retries: 3
 
 qdrant:
   url: "http://localhost:6333"

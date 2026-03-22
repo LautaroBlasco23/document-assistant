@@ -5,9 +5,9 @@ import { useFlashcardStore } from '../../stores/flashcard-store'
 import { useTaskStore } from '../../stores/task-store'
 import { useDocumentStore } from '../../stores/document-store'
 import { Button } from '../../components/ui/button'
-import { Progress } from '../../components/ui/progress'
 import { EmptyState } from '../../components/ui/empty-state'
 import { Tooltip } from '../../components/ui/tooltip'
+import { TaskProgress } from './task-progress'
 import { FlashcardCard } from './flashcard-card'
 import { FlashcardReview } from './flashcard-review'
 import { mockFlashcards } from '../../mocks/flashcards'
@@ -129,10 +129,11 @@ export function FlashcardTab({ docHash, chapter, structure: _structure }: Flashc
 
       {/* Loading */}
       {isLoading && (
-        <div className="flex flex-col gap-2">
-          <Progress indeterminate />
-          <p className="text-xs text-gray-400">{task?.progress ?? 'Generating flashcards...'}</p>
-        </div>
+        <TaskProgress
+          progressPct={task?.progressPct ?? null}
+          message={task?.progress ?? null}
+          fallbackMessage="Generating flashcards..."
+        />
       )}
 
       {/* Card grid */}

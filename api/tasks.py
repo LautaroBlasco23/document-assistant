@@ -17,6 +17,7 @@ class Task:
     task_id: str
     status: str  # pending | running | completed | failed
     progress: str = ""
+    progress_pct: int = 0  # 0-100 numeric progress percentage
     result: Any = None
     error: str | None = None
 

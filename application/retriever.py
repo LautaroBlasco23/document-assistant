@@ -106,10 +106,7 @@ class HybridRetriever:
         user_msg = f"Query: {query}\n\nSnippets:\n{snippets}"
 
         try:
-            if hasattr(self._llm, "chat"):
-                raw = self._llm.chat(_RERANK_SYSTEM, user_msg)
-            else:
-                raw = self._llm.generate(f"{_RERANK_SYSTEM}\n\n{user_msg}")
+            raw = self._llm.chat(_RERANK_SYSTEM, user_msg)
 
             start = raw.find("[")
             end = raw.rfind("]")

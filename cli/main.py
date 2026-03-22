@@ -13,17 +13,6 @@ from infrastructure.config import load_config
 logger = logging.getLogger(__name__)
 
 
-def _make_fast_llm(config, llm):
-    """Create a fast LLM instance for bulk tasks, falling back to the main LLM."""
-    from infrastructure.llm.ollama import OllamaLLM
-    if config.ollama.fast_model:
-        fast_config = config.ollama.model_copy(
-            update={"generation_model": config.ollama.fast_model}
-        )
-        return OllamaLLM(fast_config)
-    return llm
-
-
 # ---------------------------------------------------------------------------
 # Service health check
 # ---------------------------------------------------------------------------
@@ -96,17 +85,21 @@ def run_check() -> int:
 # Ingest
 # ---------------------------------------------------------------------------
 
-def run_ingest(path: str) -> int:
+def run_ingest(path: str, provider: str | None = None) -> int:
     from application.ingest import ingest_file
     from infrastructure.chunking.splitter import ChapterAwareSplitter
     from infrastructure.graph.entity_extractor import extract_entities
     from infrastructure.graph.neo4j_store import Neo4jStore
     from infrastructure.llm.embedding_cache import EmbeddingCache
-    from infrastructure.llm.ollama import OllamaEmbedder, OllamaLLM
+    from infrastructure.llm.factory import create_llm
+    from infrastructure.llm.ollama import OllamaEmbedder
     from infrastructure.output.manifest import write_manifest
     from infrastructure.vectorstore.qdrant_store import QdrantStore
 
     config = load_config()
+    if provider is not None:
+        config = config.model_copy(update={"llm_provider": provider})
+
     target = Path(path)
 
     files: list[Path] = []
@@ -120,7 +113,7 @@ def run_ingest(path: str) -> int:
         return 1
 
     embedder = OllamaEmbedder(config.ollama, EmbeddingCache())
-    llm = OllamaLLM(config.ollama)
+    llm = create_llm(config)
     qdrant = QdrantStore(config.qdrant)
     neo4j = Neo4jStore(config.neo4j)
     neo4j.ensure_indexes()
@@ -189,21 +182,25 @@ def run_ingest(path: str) -> int:
 # Summarize
 # ---------------------------------------------------------------------------
 
-def run_summarize(book_title: str, chapter_num: int) -> int:
+def run_summarize(book_title: str, chapter_num: int, provider: str | None = None) -> int:
     from application.agents.summarizer import SummarizerAgent
     from application.retriever import HybridRetriever
     from infrastructure.graph.neo4j_store import Neo4jStore
     from infrastructure.llm.embedding_cache import EmbeddingCache
-    from infrastructure.llm.ollama import OllamaEmbedder, OllamaLLM
+    from infrastructure.llm.factory import create_fast_llm, create_llm
+    from infrastructure.llm.ollama import OllamaEmbedder
     from infrastructure.output.markdown_writer import write_summary
     from infrastructure.vectorstore.qdrant_store import QdrantStore
 
     config = load_config()
+    if provider is not None:
+        config = config.model_copy(update={"llm_provider": provider})
+
     chapter_index = chapter_num - 1
 
     embedder = OllamaEmbedder(config.ollama, EmbeddingCache())
-    llm = OllamaLLM(config.ollama)
-    fast_llm = _make_fast_llm(config, llm)
+    llm = create_llm(config)
+    fast_llm = create_fast_llm(config, llm)
     qdrant = QdrantStore(config.qdrant)
     neo4j = Neo4jStore(config.neo4j)
     retriever = HybridRetriever(qdrant, neo4j, embedder, llm, config)
@@ -241,22 +238,25 @@ def run_summarize(book_title: str, chapter_num: int) -> int:
 # Ask
 # ---------------------------------------------------------------------------
 
-def run_ask(query: str, book: str | None, chapter: int | None) -> int:
+def run_ask(query: str, book: str | None, chapter: int | None, provider: str | None = None) -> int:
     from application.agents.qa_agent import QAAgent
     from application.retriever import HybridRetriever
     from infrastructure.graph.neo4j_store import Neo4jStore
     from infrastructure.llm.embedding_cache import EmbeddingCache
-    from infrastructure.llm.ollama import OllamaEmbedder, OllamaLLM
+    from infrastructure.llm.factory import create_llm
+    from infrastructure.llm.ollama import OllamaEmbedder
     from infrastructure.vectorstore.qdrant_store import QdrantStore
 
     config = load_config()
+    if provider is not None:
+        config = config.model_copy(update={"llm_provider": provider})
 
     filters: dict = {}
     if chapter is not None:
         filters["chapter"] = chapter - 1
 
     embedder = OllamaEmbedder(config.ollama, EmbeddingCache())
-    llm = OllamaLLM(config.ollama)
+    llm = create_llm(config)
     qdrant = QdrantStore(config.qdrant)
     neo4j = Neo4jStore(config.neo4j)
     retriever = HybridRetriever(qdrant, neo4j, embedder, llm, config)
@@ -278,14 +278,15 @@ def run_ask(query: str, book: str | None, chapter: int | None) -> int:
 # Generate Markdown (all three outputs)
 # ---------------------------------------------------------------------------
 
-def run_generate_md(book_title: str, chapter_num: int) -> int:
+def run_generate_md(book_title: str, chapter_num: int, provider: str | None = None) -> int:
     from application.agents.question_generator import QuestionGeneratorAgent
     from application.agents.summarizer import SummarizerAgent
     from application.retriever import HybridRetriever
     from core.model.document import Chapter, Document
     from infrastructure.graph.neo4j_store import Neo4jStore
     from infrastructure.llm.embedding_cache import EmbeddingCache
-    from infrastructure.llm.ollama import OllamaEmbedder, OllamaLLM
+    from infrastructure.llm.factory import create_fast_llm, create_llm
+    from infrastructure.llm.ollama import OllamaEmbedder
     from infrastructure.output.markdown_writer import (
         write_flashcards,
         write_questions,
@@ -294,11 +295,14 @@ def run_generate_md(book_title: str, chapter_num: int) -> int:
     from infrastructure.vectorstore.qdrant_store import QdrantStore
 
     config = load_config()
+    if provider is not None:
+        config = config.model_copy(update={"llm_provider": provider})
+
     chapter_index = chapter_num - 1
 
     embedder = OllamaEmbedder(config.ollama, EmbeddingCache())
-    llm = OllamaLLM(config.ollama)
-    fast_llm = _make_fast_llm(config, llm)
+    llm = create_llm(config)
+    fast_llm = create_fast_llm(config, llm)
     qdrant = QdrantStore(config.qdrant)
     neo4j = Neo4jStore(config.neo4j)
     retriever = HybridRetriever(qdrant, neo4j, embedder, llm, config)
@@ -366,19 +370,39 @@ def main() -> None:
 
     p_ingest = sub.add_parser("ingest", help="Ingest a PDF or EPUB file (or directory)")
     p_ingest.add_argument("path", help="Path to file or directory")
+    p_ingest.add_argument(
+        "--provider",
+        choices=["groq", "ollama"],
+        help="LLM provider override (default: from config)",
+    )
 
     p_summarize = sub.add_parser("summarize", help="Generate chapter summary")
     p_summarize.add_argument("book", help="Book title (used as folder name)")
     p_summarize.add_argument("chapter", type=int, help="Chapter number (1-based)")
+    p_summarize.add_argument(
+        "--provider",
+        choices=["groq", "ollama"],
+        help="LLM provider override (default: from config)",
+    )
 
     p_ask = sub.add_parser("ask", help="Ask a question using RAG")
     p_ask.add_argument("query", help="Question to ask")
     p_ask.add_argument("--book", help="Restrict to a specific book")
     p_ask.add_argument("--chapter", type=int, help="Restrict to a specific chapter")
+    p_ask.add_argument(
+        "--provider",
+        choices=["groq", "ollama"],
+        help="LLM provider override (default: from config)",
+    )
 
     p_gen = sub.add_parser("generate-md", help="Generate all markdown outputs for a chapter")
     p_gen.add_argument("book", help="Book title")
     p_gen.add_argument("chapter", type=int, help="Chapter number (1-based)")
+    p_gen.add_argument(
+        "--provider",
+        choices=["groq", "ollama"],
+        help="LLM provider override (default: from config)",
+    )
 
     args = parser.parse_args()
     _setup_logging(args.log_format)
@@ -388,16 +412,17 @@ def main() -> None:
         sys.exit(run_check())
 
     elif args.command == "ingest":
-        sys.exit(run_ingest(args.path))
+        sys.exit(run_ingest(args.path, provider=getattr(args, "provider", None)))
 
     elif args.command == "summarize":
-        sys.exit(run_summarize(args.book, args.chapter))
+        sys.exit(run_summarize(args.book, args.chapter, provider=getattr(args, "provider", None)))
 
     elif args.command == "ask":
-        sys.exit(run_ask(args.query, args.book, args.chapter))
+        provider = getattr(args, "provider", None)
+        sys.exit(run_ask(args.query, args.book, args.chapter, provider=provider))
 
     elif args.command == "generate-md":
-        sys.exit(run_generate_md(args.book, args.chapter))
+        sys.exit(run_generate_md(args.book, args.chapter, provider=getattr(args, "provider", None)))
 
     else:
         parser.print_help()

@@ -5,9 +5,9 @@ import { useTaskStore } from '../../stores/task-store'
 import { useDocumentStore } from '../../stores/document-store'
 import { Button } from '../../components/ui/button'
 import { Card } from '../../components/ui/card'
-import { Progress } from '../../components/ui/progress'
 import { EmptyState } from '../../components/ui/empty-state'
 import { Tooltip } from '../../components/ui/tooltip'
+import { TaskProgress } from './task-progress'
 import type { DocumentStructureOut, QAPairOut } from '../../types/api'
 
 interface QATabProps {
@@ -86,12 +86,11 @@ export function QATab({ docHash, chapter, structure: _structure }: QATabProps) {
 
       {/* Loading state */}
       {isLoading && (
-        <div className="flex flex-col gap-2">
-          <Progress indeterminate />
-          {task?.progress && (
-            <p className="text-xs text-gray-400">{task.progress}</p>
-          )}
-        </div>
+        <TaskProgress
+          progressPct={task?.progressPct ?? null}
+          message={task?.progress ?? null}
+          fallbackMessage="Generating Q&A pairs..."
+        />
       )}
 
       {/* Error state */}

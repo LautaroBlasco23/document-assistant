@@ -21,7 +21,7 @@ application/    # Use cases (orchestration logic)
 infrastructure/ # Adapters: config loader, Ollama client, Qdrant, Neo4j
   ingest/       # pdf_loader, epub_loader, normalizer
   chunking/     # ChapterAwareSplitter
-  llm/          # OllamaClient, OllamaEmbedder, OllamaLLM, EmbeddingCache
+  llm/          # OllamaEmbedder, OllamaLLM, GroqLLM, EmbeddingCache, factory
   vectorstore/  # QdrantStore
   graph/        # Neo4jStore, entity_extractor
   output/       # markdown_writer, manifest
@@ -46,7 +46,9 @@ frontend/       # React + TypeScript + Tailwind SPA (Vite, port 5173)
 
 ## Key decisions
 
-- **No LlamaIndex/LangChain** — Direct `requests` to Ollama + `qdrant-client` + `neo4j` driver. Simpler, fewer deps, more debuggable.
+- **No LlamaIndex/LangChain** — Direct `requests` to Groq/Ollama + `qdrant-client` + `neo4j` driver. Simpler, fewer deps, more debuggable.
+- **LLM provider abstraction** — `core/ports/llm.py` defines the `LLM` ABC. `infrastructure/llm/factory.py` selects the implementation based on `config.llm_provider` (`"groq"` | `"ollama"`). Default is Groq. Switch via `DOCASSIST_LLM_PROVIDER=ollama` or CLI `--provider ollama`.
+- **Groq rate limiter** — `GroqRateLimiter` (sliding window, 25/30 req/min threshold) is a module-level singleton in `groq_llm.py`. Proactively throttles before hitting the free-tier limit; also retries on 429 with exponential backoff.
 - **No Whoosh** — Qdrant v1.7+ has built-in full-text search for BM25-style keyword search.
 - **No spaCy (deferred)** — LLM-based entity extraction via Ollama with regex fallback. Add spaCy only if extraction quality or speed demands it.
 - **No Tesseract OCR (deferred)** — Most text PDFs/EPUBs won't need it. Add when encountering scanned docs.
@@ -63,15 +65,19 @@ frontend/       # React + TypeScript + Tailwind SPA (Vite, port 5173)
 
 - YAML config at `config/default.yml`
 - Loaded via pydantic-settings with env var overrides (prefix: `DOCASSIST_`, nested delimiter: `__`)
-- Example override: `DOCASSIST_OLLAMA__BASE_URL=http://other-host:11434`
+- Example overrides:
+  - `DOCASSIST_GROQ__API_KEY=gsk_...` — Groq API key (required when `llm_provider=groq`)
+  - `DOCASSIST_LLM_PROVIDER=ollama` — switch to local Ollama for LLM inference
+  - `DOCASSIST_OLLAMA__BASE_URL=http://other-host:11434` — remote Ollama for embeddings
 
 ## External services
 
-| Service | Default URL | Docker |
-|---------|-------------|--------|
-| Ollama  | localhost:11434 | Host-installed |
-| Qdrant  | localhost:6333  | `docker/docker-compose.yml` |
-| Neo4j   | localhost:7687  | `docker/docker-compose.yml` |
+| Service | Default URL | Docker | Role |
+|---------|-------------|--------|------|
+| Groq API | `https://api.groq.com` | — | LLM inference (default; requires `DOCASSIST_GROQ__API_KEY`) |
+| Ollama  | localhost:11434 | Host-installed | Embeddings only (`nomic-embed-text`) |
+| Qdrant  | localhost:6333  | `docker/docker-compose.yml` | Vector store |
+| Neo4j   | localhost:7687  | `docker/docker-compose.yml` | Knowledge graph |
 
 ## Commands
 

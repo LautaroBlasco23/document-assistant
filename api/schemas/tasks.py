@@ -9,5 +9,6 @@ class TaskStatusOut(BaseModel):
     task_id: str
     status: str  # pending | running | completed | failed
     progress: str = ""
+    progress_pct: int = 0
     result: dict | None = None
     error: str | None = None

@@ -6,12 +6,14 @@ from dataclasses import dataclass
 from api.tasks import TaskRegistry
 from application.retriever import HybridRetriever
 from core.ports.content_store import ContentStore
+from core.ports.llm import LLM
 from infrastructure.config import AppConfig, load_config
 from infrastructure.db.content_repository import PostgresContentStore
 from infrastructure.db.postgres import PostgresPool
 from infrastructure.graph.neo4j_store import Neo4jStore
 from infrastructure.llm.embedding_cache import EmbeddingCache
-from infrastructure.llm.ollama import OllamaEmbedder, OllamaLLM
+from infrastructure.llm.factory import create_fast_llm, create_llm
+from infrastructure.llm.ollama import OllamaEmbedder
 from infrastructure.vectorstore.qdrant_store import QdrantStore
 
 logger = logging.getLogger(__name__)
@@ -23,8 +25,8 @@ class Services:
 
     config: AppConfig
     embedder: OllamaEmbedder
-    llm: OllamaLLM
-    fast_llm: OllamaLLM
+    llm: LLM
+    fast_llm: LLM
     qdrant: QdrantStore
     neo4j: Neo4jStore
     retriever: HybridRetriever
@@ -46,15 +48,9 @@ def init_services(config: AppConfig | None = None) -> Services:
 
     cache = EmbeddingCache()
     embedder = OllamaEmbedder(config.ollama, cache=cache)
-    llm = OllamaLLM(config.ollama)
 
-    if config.ollama.fast_model:
-        fast_config = config.ollama.model_copy(
-            update={"generation_model": config.ollama.fast_model}
-        )
-        fast_llm = OllamaLLM(fast_config)
-    else:
-        fast_llm = llm  # Fallback: reuse the same instance
+    llm = create_llm(config)
+    fast_llm = create_fast_llm(config, llm)
 
     qdrant = QdrantStore(config.qdrant)
     neo4j = Neo4jStore(config.neo4j)
@@ -79,9 +75,8 @@ def init_services(config: AppConfig | None = None) -> Services:
     )
 
     logger.info(
-        "Config: ollama=%s model=%s embed=%s qdrant=%s neo4j=%s postgres=%s:%d",
-        config.ollama.base_url,
-        config.ollama.generation_model,
+        "Config: provider=%s embed=%s qdrant=%s neo4j=%s postgres=%s:%d",
+        config.llm_provider,
         config.ollama.embedding_model,
         config.qdrant.url,
         config.neo4j.uri,
