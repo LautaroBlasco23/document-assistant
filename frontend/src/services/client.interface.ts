@@ -24,9 +24,9 @@ export interface ServiceClient {
   ): Promise<void>
   getConfig(): Promise<ConfigOut>
   getTaskStatus(taskId: string): Promise<TaskStatusOut>
-  summarizeChapter(chapter: number, bookTitle: string): Promise<TaskResponseOut>
-  generateQA(chapter: number, bookTitle: string): Promise<TaskResponseOut>
-  generateFlashcards(chapter: number, bookTitle: string): Promise<TaskResponseOut>
+  summarizeChapter(chapter: number, bookTitle: string, documentHash: string): Promise<TaskResponseOut>
+  generateQA(chapter: number, bookTitle: string, documentHash: string): Promise<TaskResponseOut>
+  generateFlashcards(chapter: number, bookTitle: string, documentHash: string): Promise<TaskResponseOut>
 }
 
 export type { ServiceClient as ServiceClientType }

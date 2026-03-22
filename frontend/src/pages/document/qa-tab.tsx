@@ -42,7 +42,7 @@ export function QATab({ docHash, chapter, structure: _structure }: QATabProps) {
     if (chapter === undefined) return
     setPairs(null)
     try {
-      const response = await client.generateQA(chapter, bookTitle)
+      const response = await client.generateQA(chapter, bookTitle, docHash)
       useTaskStore.getState().submitTask({
         taskId: response.task_id,
         type: 'qa',

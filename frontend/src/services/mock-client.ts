@@ -157,7 +157,7 @@ export class MockClient implements ServiceClient {
     }
   }
 
-  async summarizeChapter(_chapter: number, _bookTitle: string): Promise<TaskResponseOut> {
+  async summarizeChapter(_chapter: number, _bookTitle: string, _documentHash: string): Promise<TaskResponseOut> {
     await delay(200)
     return {
       task_id: `sum-task-${Math.random().toString(36).slice(2, 10)}`,
@@ -165,7 +165,7 @@ export class MockClient implements ServiceClient {
     }
   }
 
-  async generateQA(_chapter: number, _bookTitle: string): Promise<TaskResponseOut> {
+  async generateQA(_chapter: number, _bookTitle: string, _documentHash: string): Promise<TaskResponseOut> {
     await delay(200)
     return {
       task_id: `qa-task-${Math.random().toString(36).slice(2, 10)}`,
@@ -173,7 +173,7 @@ export class MockClient implements ServiceClient {
     }
   }
 
-  async generateFlashcards(_chapter: number, _bookTitle: string): Promise<TaskResponseOut> {
+  async generateFlashcards(_chapter: number, _bookTitle: string, _documentHash: string): Promise<TaskResponseOut> {
     await delay(200)
     return {
       task_id: `fc-task-${Math.random().toString(36).slice(2, 10)}`,

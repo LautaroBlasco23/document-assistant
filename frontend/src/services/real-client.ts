@@ -77,26 +77,29 @@ export class RealClient implements ServiceClient {
     return res.data
   }
 
-  async summarizeChapter(chapter: number, bookTitle: string): Promise<TaskResponseOut> {
+  async summarizeChapter(chapter: number, bookTitle: string, documentHash: string): Promise<TaskResponseOut> {
     const res = await httpClient.post<TaskResponseOut>('/chapters/summarize', {
       chapter,
       book_title: bookTitle,
+      document_hash: documentHash,
     })
     return res.data
   }
 
-  async generateQA(chapter: number, bookTitle: string): Promise<TaskResponseOut> {
+  async generateQA(chapter: number, bookTitle: string, documentHash: string): Promise<TaskResponseOut> {
     const res = await httpClient.post<TaskResponseOut>('/chapters/questions', {
       chapter,
       book_title: bookTitle,
+      document_hash: documentHash,
     })
     return res.data
   }
 
-  async generateFlashcards(chapter: number, bookTitle: string): Promise<TaskResponseOut> {
+  async generateFlashcards(chapter: number, bookTitle: string, documentHash: string): Promise<TaskResponseOut> {
     const res = await httpClient.post<TaskResponseOut>('/chapters/flashcards', {
       chapter,
       book_title: bookTitle,
+      document_hash: documentHash,
     })
     return res.data
   }

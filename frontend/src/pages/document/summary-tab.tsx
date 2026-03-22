@@ -58,7 +58,7 @@ export function SummaryTab({ docHash, chapter, structure: _structure }: SummaryT
     if (chapter === undefined) return
     setSummaryText(null)
     try {
-      const response = await client.summarizeChapter(chapter, bookTitle)
+      const response = await client.summarizeChapter(chapter, bookTitle, docHash)
       useTaskStore.getState().submitTask({
         taskId: response.task_id,
         type: 'summary',

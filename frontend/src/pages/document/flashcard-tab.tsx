@@ -72,7 +72,7 @@ export function FlashcardTab({ docHash, chapter, structure: _structure }: Flashc
   const handleGenerate = async () => {
     if (chapter === undefined) return
     try {
-      const response = await client.generateFlashcards(chapter, bookTitle)
+      const response = await client.generateFlashcards(chapter, bookTitle, docHash)
       useTaskStore.getState().submitTask({
         taskId: response.task_id,
         type: 'flashcards',
