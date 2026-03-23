@@ -31,9 +31,9 @@ async def get_health(services: ServicesDep) -> HealthOut:
     except Exception as e:
         statuses.append(ServiceStatus(name="ollama", healthy=False, error=str(e)))
 
-    # Check Qdrant
+    # Check Qdrant (connectivity only — collection may not exist before first ingest)
     try:
-        services.qdrant.client.get_collection(services.qdrant.collection_name)
+        services.qdrant.client.get_collections()
         statuses.append(ServiceStatus(name="qdrant", healthy=True))
     except Exception as e:
         statuses.append(ServiceStatus(name="qdrant", healthy=False, error=str(e)))
