@@ -85,8 +85,7 @@ class FlashcardGeneratorAgent(BaseAgent):
         for batch_idx in range(0, len(chunks), _BATCH_SIZE):
             batch = chunks[batch_idx : batch_idx + _BATCH_SIZE]
             context = "\n\n".join(
-                f"[p.{c.metadata.page_number if c.metadata else '?'}] {c.text}"
-                for c in batch
+                f"[p.{c.metadata.page_number if c.metadata else '?'}] {c.text}" for c in batch
             )
             user = f"{header}\n\nText:\n{context}" if header else f"Text:\n{context}"
             batch_number = batch_idx // _BATCH_SIZE + 1
@@ -107,6 +106,16 @@ class FlashcardGeneratorAgent(BaseAgent):
             all_cards.extend(cards)
             if on_progress:
                 on_progress(batch_number, total_batches, len(all_cards))
+
+        seen = set()
+        unique_cards = []
+        for card in all_cards:
+            front_normalized = card["front"].strip().lower()
+            if front_normalized not in seen:
+                seen.add(front_normalized)
+                unique_cards.append(card)
+        all_cards = unique_cards
+
         logger.info(
             "Generated %d flashcards from %d chunks (%d batches)",
             len(all_cards),
