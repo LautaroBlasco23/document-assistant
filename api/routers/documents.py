@@ -56,10 +56,16 @@ def _list_documents() -> list[dict]:
 
 
 def _get_document_chapters(file_hash: str, services: ServicesDep) -> list[ChapterOut]:
-    """Get chapter info for a document by querying Qdrant."""
+    """Get chapter info for a document by querying Qdrant + manifest."""
+    documents = _list_documents()
+    doc_manifest = next((d for d in documents if d["file_hash"] == file_hash), None)
+
+    chapters_from_manifest: dict[int, str] = {}
+    if doc_manifest and "chapters" in doc_manifest:
+        for ch in doc_manifest["chapters"]:
+            chapters_from_manifest[ch.get("index", 0)] = ch.get("title", "")
+
     try:
-        # Retrieve all chunks for this file_hash to determine chapter count
-        # and chunks per chapter
         results = services.qdrant.search_by_file(file_hash)
 
         chapters_data: dict[int, int] = {}
@@ -67,9 +73,12 @@ def _get_document_chapters(file_hash: str, services: ServicesDep) -> list[Chapte
             chapter = chunk.metadata.chapter_index if chunk.metadata else 0
             chapters_data[chapter] = chapters_data.get(chapter, 0) + 1
 
-        # Convert to list of ChapterOut
         return [
-            ChapterOut(number=ch + 1, title=f"Chapter {ch + 1}", num_chunks=count)
+            ChapterOut(
+                number=ch + 1,
+                title=chapters_from_manifest.get(ch, f"Chapter {ch + 1}"),
+                num_chunks=count,
+            )
             for ch, count in sorted(chapters_data.items())
         ]
     except Exception as e:
