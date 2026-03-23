@@ -14,14 +14,17 @@ from api.deps import ServicesDep
 from api.schemas.documents import (
     ChapterDeleteResponse,
     ChapterOut,
+    ChapterPreviewOut,
     DocumentOut,
+    DocumentPreviewOut,
     DocumentStructureOut,
+    IngestChaptersRequest,
     IngestTaskOut,
     MetadataRequest,
     MetadataResponse,
 )
 from api.tasks import Task
-from application.ingest import _hash_file, ingest_file
+from application.ingest import _hash_file, ingest_file, preview_file
 from core.model.document_metadata import DocumentMetadata
 from infrastructure.chunking.splitter import ChapterAwareSplitter
 from infrastructure.graph.entity_extractor import extract_entities
@@ -101,6 +104,204 @@ async def list_documents(services: ServicesDep) -> list[DocumentOut]:
     ]
     logger.info("Listed %d documents", len(result))
     return result
+
+
+@router.post("/documents/preview", response_model=DocumentPreviewOut)
+async def preview_document(
+    services: ServicesDep,
+    file: UploadFile = File(...),
+) -> DocumentPreviewOut:
+    """Preview a document's chapter structure without storing it.
+
+    Returns chapter metadata (titles, page ranges) so the user can select
+    which chapters to process.
+    """
+    content = await file.read()
+
+    with tempfile.NamedTemporaryFile(suffix=Path(file.filename).suffix, delete=False) as tmp:
+        tmp.write(content)
+        tmp_path = Path(tmp.name)
+
+    try:
+        preview = preview_file(tmp_path, services.config)
+        if preview is None:
+            raise HTTPException(
+                status_code=400,
+                detail="Unsupported file type or failed to parse document",
+            )
+
+        return DocumentPreviewOut(
+            file_hash=preview.file_hash,
+            filename=preview.filename,
+            num_chapters=len(preview.chapters),
+            chapters=[
+                ChapterPreviewOut(
+                    index=c.index,
+                    title=c.title,
+                    page_start=c.page_start,
+                    page_end=c.page_end,
+                )
+                for c in preview.chapters
+            ],
+        )
+    finally:
+        tmp_path.unlink()
+
+
+@router.post("/documents/{file_hash}/ingest", response_model=IngestTaskOut)
+async def ingest_document_chapters(
+    file_hash: str,
+    services: ServicesDep,
+    file: UploadFile = File(...),
+    chapter_indices: str = Form(...),
+    document_type: str = Form(""),
+    description: str = Form(""),
+) -> IngestTaskOut:
+    """Ingest a document with only the selected chapters.
+
+    This is the second step of the two-phase upload:
+    1. POST /documents/preview - get chapter structure
+    2. POST /documents/{hash}/ingest - ingest selected chapters
+    """
+    import json
+
+    content = await file.read()
+    chapter_indices_list = json.loads(chapter_indices)
+
+    task_id = services.task_registry.submit(
+        _ingest_selected_chapters,
+        content,
+        file.filename,
+        services,
+        file_hash,
+        set(chapter_indices_list),
+        document_type,
+        description,
+        task_type="ingest",
+        filename=file.filename,
+    )
+    logger.info(
+        "Ingest selected chapters submitted: %s -> task %s (chapters=%s)",
+        file.filename,
+        task_id,
+        chapter_indices_list,
+    )
+
+    return IngestTaskOut(task_id=task_id, filename=file.filename)
+
+
+def _ingest_selected_chapters(
+    task: Task,
+    file_content: bytes,
+    filename: str,
+    services: ServicesDep,
+    expected_hash: str,
+    chapter_indices: set[int],
+    document_type: str = "",
+    description: str = "",
+) -> str:
+    """Background task to ingest only selected chapters from an uploaded file."""
+    t0 = time.perf_counter()
+    try:
+        with tempfile.NamedTemporaryFile(suffix=Path(filename).suffix, delete=False) as tmp:
+            tmp.write(file_content)
+            tmp_path = Path(tmp.name)
+
+        task.progress = f"Hashing {filename}"
+        logger.info("Ingest selected: hashing %s", filename)
+        file_hash = _hash_file(tmp_path)
+
+        if file_hash != expected_hash:
+            raise ValueError(
+                f"File hash mismatch. Expected {expected_hash[:12]}, got {file_hash[:12]}. "
+                "The uploaded file may have changed."
+            )
+
+        if services.qdrant.has_file(file_hash):
+            task.progress = "File already ingested"
+            logger.info("Ingest selected: %s already ingested", filename)
+            tmp_path.unlink()
+            return f"File already ingested (hash {file_hash[:12]})"
+
+        task.progress = f"Loading {filename}"
+        logger.info("Ingest selected: loading %s", filename)
+        doc = ingest_file(tmp_path, services.config, original_filename=filename)
+        if doc is None:
+            raise ValueError("Failed to load document")
+
+        task.progress = "Chunking selected chapters..."
+        logger.info("Ingest selected: chunking with %d chapter indices", len(chapter_indices))
+        splitter = ChapterAwareSplitter(
+            max_tokens=services.config.chunking.max_tokens,
+            overlap_tokens=services.config.chunking.overlap_tokens,
+        )
+        chunks = splitter.split(doc, chapter_indices=chapter_indices)
+        logger.info(
+            "Ingest selected: %d chunks produced from %d chapters",
+            len(chunks),
+            len(chapter_indices),
+        )
+
+        if not chunks:
+            raise ValueError("No chunks produced - check chapter indices")
+
+        task.progress = f"Embedding {len(chunks)} chunks..."
+        logger.info("Ingest selected: embedding %d chunks", len(chunks))
+        texts = [c.text for c in chunks]
+        vectors = services.embedder.embed(texts)
+
+        if vectors:
+            services.qdrant.ensure_collection(vector_size=len(vectors[0]))
+
+        task.progress = "Upserting to Qdrant..."
+        logger.info("Ingest selected: upserting %d vectors to Qdrant", len(vectors))
+        services.qdrant.upsert(chunks, vectors)
+
+        task.progress = "Extracting entities..."
+        logger.info("Ingest selected: extracting entities from %d chunks", len(chunks))
+        services.neo4j.upsert_document(
+            doc.file_hash, doc.title, doc.source_path, doc.original_filename
+        )
+        for i, chunk in enumerate(chunks):
+            if i % 10 == 0:
+                task.progress = f"Extracting entities... {i}/{len(chunks)}"
+            entities = extract_entities(chunk.text, services.fast_llm)
+            services.neo4j.upsert_entities(entities, chunk)
+
+        task.progress = "Writing manifest..."
+        logger.info("Ingest selected: writing manifest")
+        num_stored_chapters = len(set(c.metadata.chapter_index for c in chunks if c.metadata))
+        write_manifest(
+            doc,
+            chunk_count=len(chunks),
+            collection=services.config.qdrant.collection_name,
+            model=services.config.ollama.embedding_model,
+            output_dir=OUTPUT_DIR,
+            num_chapters=num_stored_chapters,
+            stored_chapter_indices=list(chapter_indices),
+        )
+
+        if description or document_type:
+            services.content_store.save_metadata(
+                file_hash,
+                DocumentMetadata(description=description, document_type=document_type),
+            )
+            logger.info("Ingest selected: saved metadata for doc=%s", file_hash[:12])
+
+        elapsed = time.perf_counter() - t0
+        task.progress = "Complete"
+        logger.info(
+            "Ingest selected complete: %s, %d chunks from %d chapters in %.1fs",
+            filename,
+            len(chunks),
+            num_stored_chapters,
+            elapsed,
+        )
+        tmp_path.unlink()
+        return f"Ingested {len(chunks)} chunks from {num_stored_chapters} chapters of {filename}"
+    except Exception as e:
+        task.progress = f"Error: {str(e)}"
+        raise
 
 
 @router.get("/documents/{file_hash}/structure", response_model=DocumentStructureOut)
@@ -266,7 +467,14 @@ async def ingest_document(
 
     # Submit background task
     task_id = services.task_registry.submit(
-        _ingest_background, content, file.filename, services, document_type, description
+        _ingest_background,
+        content,
+        file.filename,
+        services,
+        document_type,
+        description,
+        task_type="ingest",
+        filename=file.filename,
     )
     logger.info("Ingest submitted: %s -> task %s", file.filename, task_id)
 
@@ -352,9 +560,7 @@ async def delete_chapter(
 
     # Validate chapter exists in manifest
     manifest_chapters = doc_manifest.get("chapters", [])
-    chapter_entry = next(
-        (ch for ch in manifest_chapters if ch.get("index") == chapter_index), None
-    )
+    chapter_entry = next((ch for ch in manifest_chapters if ch.get("index") == chapter_index), None)
     if chapter_entry is None:
         raise HTTPException(
             status_code=404,
@@ -365,10 +571,7 @@ async def delete_chapter(
     if len(manifest_chapters) <= 1:
         raise HTTPException(
             status_code=400,
-            detail=(
-                "Cannot remove the only chapter. "
-                "Delete the entire document instead."
-            ),
+            detail=("Cannot remove the only chapter. Delete the entire document instead."),
         )
 
     logger.info(

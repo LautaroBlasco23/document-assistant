@@ -12,6 +12,8 @@ import type {
   FlashcardResponse,
   MetadataResponse,
   ChapterDeleteResponse,
+  ActiveTasksOut,
+  DocumentPreviewOut,
 } from '../types/api'
 import type { ServiceClient } from './client.interface'
 
@@ -26,9 +28,14 @@ const httpClient: AxiosInstance = axios.create({
 httpClient.interceptors.response.use(
   (res) => res,
   (error) => {
-    const message =
-      error.response?.data?.detail ?? error.response?.data?.message ?? error.message ?? 'Server error'
-    useAppStore.getState().addError(String(message))
+    const data = error.response?.data
+    let message: string
+    if (Array.isArray(data?.detail)) {
+      message = data.detail.map((e: { msg: string }) => e.msg).join(', ')
+    } else {
+      message = data?.detail ?? data?.message ?? error.message ?? 'Server error'
+    }
+    useAppStore.getState().addError(message)
     return Promise.reject(error)
   }
 )
@@ -63,9 +70,44 @@ export class RealClient implements ServiceClient {
   async ingestDocument(formData: FormData): Promise<IngestTaskOut> {
     const res = await httpClient.post<IngestTaskOut>('/documents/ingest', formData, {
       headers: {
-        'Content-Type': 'multipart/form-data',
+        'Content-Type': undefined,
       },
     })
+    return res.data
+  }
+
+  async previewDocument(file: File): Promise<DocumentPreviewOut> {
+    const formData = new FormData()
+    formData.append('file', file)
+    const res = await httpClient.post<DocumentPreviewOut>('/documents/preview', formData, {
+      headers: {
+        'Content-Type': undefined,
+      },
+    })
+    return res.data
+  }
+
+  async ingestDocumentChapters(
+    fileHash: string,
+    file: File,
+    chapterIndices: number[],
+    documentType = '',
+    description = ''
+  ): Promise<IngestTaskOut> {
+    const formData = new FormData()
+    formData.append('file', file)
+    formData.append('chapter_indices', JSON.stringify(chapterIndices))
+    formData.append('document_type', documentType)
+    formData.append('description', description)
+    const res = await httpClient.post<IngestTaskOut>(
+      `/documents/${fileHash}/ingest`,
+      formData,
+      {
+        headers: {
+          'Content-Type': undefined,
+        },
+      }
+    )
     return res.data
   }
 
@@ -76,6 +118,11 @@ export class RealClient implements ServiceClient {
 
   async getTaskStatus(taskId: string): Promise<TaskStatusOut> {
     const res = await httpClient.get<TaskStatusOut>(`/tasks/${taskId}`)
+    return res.data
+  }
+
+  async listActiveTasks(): Promise<ActiveTasksOut> {
+    const res = await httpClient.get<ActiveTasksOut>('/tasks/active')
     return res.data
   }
 
