@@ -12,43 +12,46 @@ Layered / DDD-inspired:
 
 ```
 core/           # Domain models and port interfaces (no external deps)
-  model/        # Document, Chapter, Page, Chunk dataclasses
-  ports/        # ABCs: Embedder, LLM
+  model/        # Document, Chapter, Page, Chunk, Summary, Flashcard, DocumentMetadata
+  ports/        # ABCs: Embedder, LLM, ContentStore
 application/    # Use cases (orchestration logic)
-  agents/       # Summarizer, QA, QuestionGenerator agents
+  agents/       # SummarizerAgent, FlashcardGeneratorAgent
   ingest.py     # Ingestion use case (hash + load + idempotency check)
   retriever.py  # HybridRetriever (vector + keyword + graph + rerank)
-infrastructure/ # Adapters: config loader, Ollama client, Qdrant, Neo4j
+infrastructure/ # Adapters: config loader, Ollama client, Qdrant, Neo4j, PostgreSQL
   ingest/       # pdf_loader, epub_loader, normalizer
   chunking/     # ChapterAwareSplitter
   llm/          # OllamaEmbedder, OllamaLLM, GroqLLM, EmbeddingCache, factory
   vectorstore/  # QdrantStore
   graph/        # Neo4jStore, entity_extractor
+  db/           # PostgresPool, ContentRepository, schema + migrations
   output/       # markdown_writer, manifest
 api/            # FastAPI backend (wraps application layer, no duplication)
-  routers/      # health, documents, search, ask, chapters, config, tasks
+  routers/      # health, documents, chapters, content, config, tasks
   schemas/      # Pydantic request/response models
   services.py   # Singleton service container (lifespan-managed)
   tasks.py      # In-memory task registry + ThreadPoolExecutor
-  streaming.py  # SSE event helper
-cli/            # CLI entry point (check, ingest, summarize, ask, generate-md)
+cli/            # CLI entry point (check, ingest, summarize, generate-md, config)
 frontend/       # React + TypeScript + Tailwind SPA (Vite, port 5173)
   src/
-    pages/      # Library, Document (chat/qa/flashcards/summary tabs), Search, Settings
+    pages/      # Library, Document (summary/flashcards tabs), Settings
     components/ # Layout (Sidebar, Header, HealthBanner) + Shadcn-style UI primitives
-    hooks/      # useHealth, useTask, useSSE, useDocuments, useDocumentStructure
-    stores/     # Zustand: AppStore, DocumentStore, ChatStore, TaskStore, FlashcardStore
+    hooks/      # useHealth, useTask, useDocuments, useDocumentStructure
+    stores/     # Zustand: AppStore, DocumentStore, TaskStore, FlashcardStore, UploadStore
     services/   # API client abstraction (real/mock clients via VITE_MOCK env var)
     types/      # TypeScript domain and API types
-    lib/        # cn (classname helper), sse (ReadableStream SSE parser)
+    lib/        # cn (classname helper)
     mocks/      # Mock data for development/testing
 ```
 
 ## Key decisions
 
 - **No LlamaIndex/LangChain** — Direct `requests` to Groq/Ollama + `qdrant-client` + `neo4j` driver. Simpler, fewer deps, more debuggable.
-- **LLM provider abstraction** — `core/ports/llm.py` defines the `LLM` ABC. `infrastructure/llm/factory.py` selects the implementation based on `config.llm_provider` (`"groq"` | `"ollama"`). Default is Groq. Switch via `DOCASSIST_LLM_PROVIDER=ollama` or CLI `--provider ollama`.
+- **Groq as default LLM** — `GroqLLM` via `requests` to Groq's OpenAI-compatible API. Switch to Ollama with `DOCASSIST_LLM_PROVIDER=ollama` or CLI `--provider ollama`.
 - **Groq rate limiter** — `GroqRateLimiter` (sliding window, 25/30 req/min threshold) is a module-level singleton in `groq_llm.py`. Proactively throttles before hitting the free-tier limit; also retries on 429 with exponential backoff.
+- **Fast model for bulk tasks** — `create_fast_llm()` factory selects a smaller model (e.g. `llama-3.1-8b-instant` on Groq, `qwen2.5:3b-instruct` on Ollama) for flashcard/summary generation. Falls back to main model if not configured.
+- **PostgreSQL for content persistence** — AI-generated summaries, flashcards, and user-provided document metadata stored in PostgreSQL (`summaries`, `flashcards`, `document_metadata` tables). Schema auto-applied on startup; idempotent SQL migrations in `infrastructure/db/migrations/`.
+- **Task polling, not SSE** — Background tasks (summarize, flashcards) return a `task_id`; frontend polls `GET /api/tasks/{task_id}` for progress. No streaming endpoints.
 - **No Whoosh** — Qdrant v1.7+ has built-in full-text search for BM25-style keyword search.
 - **No spaCy (deferred)** — LLM-based entity extraction via Ollama with regex fallback. Add spaCy only if extraction quality or speed demands it.
 - **No Tesseract OCR (deferred)** — Most text PDFs/EPUBs won't need it. Add when encountering scanned docs.
@@ -58,8 +61,8 @@ frontend/       # React + TypeScript + Tailwind SPA (Vite, port 5173)
 - **Token counting** — Whitespace split (`len(text.split())`). No tiktoken dependency; upgrade if precision is needed.
 - **FastAPI wraps, not duplicates** — `api/` calls `application/` use cases directly; no logic is reimplemented.
 - **In-memory task registry** — `ThreadPoolExecutor(max_workers=2)` for background ingestion/analysis tasks; no Celery/Redis needed for single-user local use.
-- **SSE for streaming** — `StreamingResponse` in FastAPI + `fetch + ReadableStream` in renderer (not `EventSource`, which is GET-only).
 - **Standalone SPA** — Vite dev server proxies `/api` to FastAPI in development; production build outputs static files to `frontend/dist/`.
+- **Structured logging** — ANSI-colored terminal output with timestamps, log levels, and module names.
 
 ## Configuration
 
@@ -69,20 +72,28 @@ frontend/       # React + TypeScript + Tailwind SPA (Vite, port 5173)
   - `DOCASSIST_GROQ__API_KEY=gsk_...` — Groq API key (required when `llm_provider=groq`)
   - `DOCASSIST_LLM_PROVIDER=ollama` — switch to local Ollama for LLM inference
   - `DOCASSIST_OLLAMA__BASE_URL=http://other-host:11434` — remote Ollama for embeddings
+  - `DOCASSIST_POSTGRES__HOST=db-host` — remote PostgreSQL host
 
 ## External services
 
-| Service | Default URL | Docker | Role |
-|---------|-------------|--------|------|
-| Groq API | `https://api.groq.com` | — | LLM inference (default; requires `DOCASSIST_GROQ__API_KEY`) |
-| Ollama  | localhost:11434 | Host-installed | Embeddings only (`nomic-embed-text`) |
-| Qdrant  | localhost:6333  | `docker/docker-compose.yml` | Vector store |
-| Neo4j   | localhost:7687  | `docker/docker-compose.yml` | Knowledge graph |
+| Service    | Default URL | Docker | Role |
+|------------|-------------|--------|------|
+| Groq API   | `https://api.groq.com` | — | LLM inference (default; requires `DOCASSIST_GROQ__API_KEY`) |
+| Ollama     | localhost:11434 | Host-installed | Embeddings (`nomic-embed-text`); optional LLM fallback |
+| Qdrant     | localhost:6333  | `docker/docker-compose.yml` | Vector store |
+| Neo4j      | localhost:7687  | `docker/docker-compose.yml` | Knowledge graph |
+| PostgreSQL | localhost:5432  | `docker/docker-compose.yml` | Content persistence (summaries, flashcards, metadata) |
 
 ## Commands
 
 ```bash
-# Start infrastructure
+# Start all infrastructure + backend + frontend (recommended)
+make start
+
+# Stop all services
+make stop
+
+# Start infrastructure only
 docker compose -f docker/docker-compose.yml up -d
 
 # Install dependencies
@@ -90,6 +101,8 @@ uv sync
 
 # Health check all services
 uv run python -m cli.main check
+# or
+make check
 
 # Ingest a file or directory
 uv run python -m cli.main ingest data/raw/book.pdf
@@ -97,8 +110,8 @@ uv run python -m cli.main ingest data/raw/book.pdf
 # Generate all markdown outputs for chapter 1
 uv run python -m cli.main generate-md "book" 1
 
-# Ask a question
-uv run python -m cli.main ask "What is the main argument?" --book "book"
+# Summarize a chapter
+uv run python -m cli.main summarize "book" 1
 
 # Run tests (unit only)
 uv run pytest
@@ -111,7 +124,7 @@ uv run ruff check .
 
 # --- API backend ---
 
-# Start FastAPI (standalone, no Electron)
+# Start FastAPI (standalone)
 uv run uvicorn api.main:app --port 8000
 
 # Verify health
@@ -121,9 +134,6 @@ curl http://localhost:8000/api/health
 
 # Install frontend dependencies (first time only)
 cd frontend && npm install
-
-# Start FastAPI backend (must be running before opening the web app)
-uv run uvicorn api.main:app --port 8000
 
 # Run frontend dev server (proxies /api to localhost:8000)
 npm run dev
@@ -136,18 +146,19 @@ npm run build
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/api/health` | Check Ollama, Qdrant, Neo4j |
+| GET | `/api/health` | Check Ollama, Qdrant, Neo4j, PostgreSQL |
 | GET | `/api/documents` | List all ingested documents |
 | POST | `/api/documents/ingest` | Upload file → `{task_id}` |
 | GET | `/api/documents/{hash}/structure` | List chapters |
 | DELETE | `/api/documents/{hash}` | Remove from all stores |
-| POST | `/api/search` | Hybrid retrieval `{query, chapter?, k?}` |
-| POST | `/api/ask` | SSE: stream Q&A answer |
 | POST | `/api/chapters/summarize` | Background task → `{task_id}` |
-| POST | `/api/chapters/questions` | Background task → `{task_id}` |
 | POST | `/api/chapters/flashcards` | Background task → `{task_id}` |
+| GET | `/api/documents/{hash}/summaries` | Get all stored summaries |
+| GET | `/api/documents/{hash}/summaries/{chapter}` | Get summary for chapter (1-based) |
+| GET | `/api/documents/{hash}/flashcards` | Get stored flashcards (optional `?chapter=` filter) |
 | GET | `/api/config` | Read current config |
-| GET | `/api/tasks/{task_id}` | Poll task status |
+| PATCH | `/api/config` | Update config |
+| GET | `/api/tasks/{task_id}` | Poll task status + progress |
 
 ## Development rules
 
@@ -161,3 +172,4 @@ npm run build
 - Chapter numbers: API accepts 1-based; routers convert to 0-based before calling application layer (same as CLI convention).
 - Background tasks receive a `Task` object as first argument and write to `task.progress` for live status updates.
 - Frontend dev server runs on port 5173; the FastAPI backend must be running independently on port 8000.
+- Generated content (summaries, flashcards) is persisted in PostgreSQL and served from the `content` router; agents write results, `content` router reads them.

@@ -1,8 +1,8 @@
 # Document Assistant
 
-A local document reader with a web UI. Ingests PDFs and EPUBs, builds a vector index and knowledge graph, and uses LLM agents to summarize chapters, generate study questions, and answer questions with hybrid retrieval.
+A local document reader with a web UI. Ingests PDFs and EPUBs, builds a vector index and knowledge graph, and uses LLM agents to summarize chapters and generate flashcards with hybrid retrieval.
 
-Uses Docker (Qdrant + Neo4j), Ollama for embeddings, Groq API for LLM inference, and a Vite web SPA backed by a FastAPI server.
+Uses Docker (Qdrant + Neo4j + PostgreSQL), Ollama for embeddings, Groq API for LLM inference, and a Vite web SPA backed by a FastAPI server.
 
 ## Features
 
@@ -12,13 +12,16 @@ Uses Docker (Qdrant + Neo4j), Ollama for embeddings, Groq API for LLM inference,
 - Vector search via Qdrant (cosine similarity + full-text BM25)
 - Knowledge graph via Neo4j: LLM-extracted entities with regex fallback
 - Hybrid retrieval: vector + keyword + graph traversal + LLM reranker
-- LLM agents: summarizer, QA, question generator
-- Markdown output: per-chapter summary, study questions, flashcards
+- LLM agents: summarizer, flashcard generator
+- Markdown output: per-chapter summary, flashcards
 - Idempotent ingestion by SHA-256 file hash
 - SQLite embedding cache to avoid re-embedding unchanged text
 - Ingestion manifest (JSON) per book with model/collection/timestamp metadata
-- **FastAPI backend** — REST API with SSE streaming for Q&A and background task polling
-- **Vite web SPA** — 4 pages: Library, Document detail (chat / Q&A / flashcards / summary tabs), Search, Settings
+- **PostgreSQL persistence** — AI-generated summaries, flashcards, and document metadata stored in PostgreSQL with idempotent schema migrations
+- **Task polling** — Background tasks return a `task_id`; frontend polls for progress (no SSE)
+- **FastAPI backend** — REST API with background task polling
+- **Vite web SPA** — 3 pages: Library, Document detail (summary / flashcards tabs), Settings
+- **Groq as default LLM** — Fast inference via Groq API with built-in rate limiter; optional fast model for bulk generation tasks
 
 ## Prerequisites
 
@@ -41,6 +44,8 @@ This starts:
 - **Qdrant** (v1.13.2) on ports 6333/6334
 - **Neo4j** 5 on ports 7474 (browser) / 7687 (bolt)
   - Default credentials: `neo4j` / `document_assistant_pass`
+- **PostgreSQL** 17.4 on port 5432
+  - Database: `docassist`, user: `docassist`, password: `docassist_pass`
 
 ### 2. Set your Groq API key
 
@@ -56,7 +61,7 @@ Get a free key at [console.groq.com](https://console.groq.com). No credit card r
 ollama pull nomic-embed-text
 ```
 
-Ollama is used for embeddings only. LLM inference runs via Groq.
+Ollama is used for embeddings only. LLM inference runs via Groq by default.
 
 ### 4. Install dependencies
 
@@ -81,6 +86,10 @@ Service health checks:
 ### 6. Run the web app
 
 ```bash
+# Recommended: start everything with make
+make start
+
+# Or manually:
 # Terminal 1 — start the FastAPI backend
 uv run uvicorn api.main:app --port 8000
 
@@ -126,16 +135,7 @@ uv run python -m cli.main generate-md "book" 1
 
 Produces in `data/output/<book>/`:
 - `chapter1-summary.md`
-- `chapter1-questions.md`
 - `chapter1-flashcards.md`
-
-### Ask a question
-
-```bash
-uv run python -m cli.main ask "What is the main argument?"
-uv run python -m cli.main ask "Who is the protagonist?" --book "book"
-uv run python -m cli.main ask "Explain the key concept" --book "book" --chapter 3
-```
 
 ### Generate chapter summary only
 
@@ -150,42 +150,42 @@ document-assistant/
 ├── config/
 │   └── default.yml              # Service URLs, model names, chunking params
 ├── core/
-│   ├── model/                   # Document, Chapter, Page, Chunk dataclasses
-│   └── ports/                   # Embedder, LLM ABCs
+│   ├── model/                   # Document, Chapter, Page, Chunk, Summary, Flashcard, DocumentMetadata
+│   └── ports/                   # Embedder, LLM, ContentStore ABCs
 ├── application/
-│   ├── agents/                  # SummarizerAgent, QAAgent, QuestionGeneratorAgent
+│   ├── agents/                  # SummarizerAgent, FlashcardGeneratorAgent
 │   ├── ingest.py                # ingest_file() use case
 │   └── retriever.py             # HybridRetriever
 ├── infrastructure/
 │   ├── config.py                # Pydantic-settings config loader + save_config()
 │   ├── ingest/                  # pdf_loader, epub_loader, normalizer
 │   ├── chunking/                # ChapterAwareSplitter
-│   ├── llm/                     # OllamaEmbedder, OllamaLLM, GroqLLM, factory
+│   ├── llm/                     # OllamaEmbedder, OllamaLLM, GroqLLM, EmbeddingCache, factory
 │   ├── vectorstore/             # QdrantStore (upsert, search, delete)
 │   ├── graph/                   # Neo4jStore (entity upsert, graph queries, delete)
+│   ├── db/                      # PostgresPool, ContentRepository, schema + migrations
 │   └── output/                  # markdown_writer, manifest
 ├── api/                         # FastAPI backend
 │   ├── main.py                  # App factory, lifespan, CORS
 │   ├── services.py              # Singleton service container
 │   ├── deps.py                  # FastAPI dependency injection
 │   ├── tasks.py                 # In-memory task registry + ThreadPoolExecutor
-│   ├── streaming.py             # make_sse_event() helper
-│   ├── routers/                 # health, documents, search, ask, chapters, config, tasks
+│   ├── routers/                 # health, documents, chapters, content, config, tasks
 │   └── schemas/                 # Pydantic request/response models
 ├── frontend/                    # Vite web SPA (React + TypeScript + Tailwind)
 │   └── src/
-│       ├── pages/               # Library, Document (chat/qa/flashcards/summary), Search, Settings
+│       ├── pages/               # Library, Document (summary/flashcards), Settings
 │       ├── components/          # Layout (Sidebar, Header, HealthBanner) + Shadcn-style UI
-│       ├── hooks/               # useHealth, useTask, useSSE, useDocuments, useDocumentStructure
-│       ├── stores/              # Zustand: AppStore, DocumentStore, ChatStore, TaskStore, FlashcardStore
+│       ├── hooks/               # useHealth, useTask, useDocuments, useDocumentStructure
+│       ├── stores/              # Zustand: AppStore, DocumentStore, TaskStore, FlashcardStore, UploadStore
 │       ├── services/            # API client abstraction (real / mock clients)
 │       ├── types/               # TypeScript domain and API types
-│       ├── lib/                 # Utilities: cn (classname), sse (streaming event handler)
+│       ├── lib/                 # Utilities: cn (classname)
 │       └── mocks/               # Mock data for development/testing
 ├── cli/
-│   └── main.py                  # CLI: check, ingest, summarize, ask, generate-md
+│   └── main.py                  # CLI: check, ingest, summarize, generate-md
 ├── docker/
-│   └── docker-compose.yml       # Qdrant + Neo4j
+│   └── docker-compose.yml       # Qdrant + Neo4j + PostgreSQL
 ├── tests/
 │   ├── ingest/
 │   ├── chunking/
@@ -212,18 +212,27 @@ export DOCASSIST_LLM_PROVIDER=ollama
 # Override Ollama URL (used for embeddings)
 export DOCASSIST_OLLAMA__BASE_URL=http://other-host:11434
 
+# Override PostgreSQL connection
+export DOCASSIST_POSTGRES__HOST=db-host
+
 export DOCASSIST_QDRANT__COLLECTION_NAME=my_docs
 ```
 
 To use Ollama for LLM inference instead of Groq (e.g. fully offline):
 
 ```bash
-uv run python -m cli.main ask "What is the main argument?" --book "book" --provider ollama
+uv run python -m cli.main summarize "book" 1 --provider ollama
 ```
 
 ## Development
 
 ```bash
+# Start all services (infrastructure + backend + frontend)
+make start
+
+# Stop all services
+make stop
+
 # Run unit tests (no services required)
 uv run pytest
 
