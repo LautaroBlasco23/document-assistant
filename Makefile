@@ -1,6 +1,6 @@
-.PHONY: start stop check help dev-deps infra-deps
+.PHONY: start stop check clean help dev-deps infra-deps
 
-DOCKER_COMPOSE := docker compose -f docker/docker-compose.yml
+DOCKER_COMPOSE := docker compose
 
 help:
 	@echo "Document Assistant - Infrastructure Management"
@@ -9,6 +9,7 @@ help:
 	@echo "  make start   - Start infrastructure, backend, and frontend (Ctrl+C to stop all)"
 	@echo "  make stop    - Stop all services"
 	@echo "  make check   - Health check all services (requires Ollama running)"
+	@echo "  make clean   - Remove all stored data (Docker volumes, cache, generated output)"
 	@echo "  make help    - Show this help message"
 
 start: infra-deps dev-deps
@@ -61,3 +62,12 @@ stop:
 check:
 	@echo "Checking service health..."
 	uv run python -m cli.main check
+
+clean:
+	@echo "Stopping services and removing Docker volumes..."
+	$(DOCKER_COMPOSE) down -v
+	@echo "Clearing embedding cache..."
+	rm -rf data/.cache
+	@echo "Clearing generated output..."
+	rm -rf data/output/*
+	@echo "Clean complete. Source files in data/raw/ are untouched."
