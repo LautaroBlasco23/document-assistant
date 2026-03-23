@@ -11,6 +11,7 @@ import type {
   SummaryResponse,
   FlashcardResponse,
   MetadataResponse,
+  ChapterDeleteResponse,
 } from '../types/api'
 import type { ServiceClient } from './client.interface'
 
@@ -50,6 +51,13 @@ export class RealClient implements ServiceClient {
 
   async deleteDocument(hash: string): Promise<void> {
     await httpClient.delete(`/documents/${hash}`)
+  }
+
+  async deleteChapter(docHash: string, chapterNumber: number): Promise<ChapterDeleteResponse> {
+    const res = await httpClient.delete<ChapterDeleteResponse>(
+      `/documents/${docHash}/chapters/${chapterNumber}`
+    )
+    return res.data
   }
 
   async ingestDocument(formData: FormData): Promise<IngestTaskOut> {

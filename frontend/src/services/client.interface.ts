@@ -9,6 +9,7 @@ import type {
   SummaryResponse,
   FlashcardResponse,
   MetadataResponse,
+  ChapterDeleteResponse,
 } from '../types/api'
 
 export interface ServiceClient {
@@ -16,6 +17,7 @@ export interface ServiceClient {
   listDocuments(): Promise<DocumentOut[]>
   documentStructure(hash: string): Promise<DocumentStructureOut>
   deleteDocument(hash: string): Promise<void>
+  deleteChapter(docHash: string, chapterNumber: number): Promise<ChapterDeleteResponse>
   ingestDocument(formData: FormData): Promise<IngestTaskOut>
   getConfig(): Promise<ConfigOut>
   getTaskStatus(taskId: string): Promise<TaskStatusOut>

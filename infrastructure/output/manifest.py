@@ -56,3 +56,74 @@ def write_manifest(
 
     logger.info("Wrote manifest: %s", out)
     return out
+
+
+def remove_chapter_from_manifest(
+    file_hash: str, chapter_index: int, output_dir: Path
+) -> int:
+    """Remove a chapter entry from the manifest JSON. Returns count of remaining chapters.
+
+    Idempotent: if the chapter is already absent or the manifest is missing, logs a warning
+    and returns gracefully.
+    """
+    # Find the manifest file for this document
+    manifest_path: Path | None = None
+    if output_dir.exists():
+        for doc_dir in output_dir.iterdir():
+            if not doc_dir.is_dir():
+                continue
+            candidate = doc_dir / "manifest.json"
+            if candidate.exists():
+                try:
+                    with open(candidate) as f:
+                        data = json.load(f)
+                    if data.get("file_hash") == file_hash:
+                        manifest_path = candidate
+                        break
+                except Exception as e:
+                    logger.warning("Failed to read manifest %s: %s", candidate, e)
+
+    if manifest_path is None:
+        logger.warning(
+            "Manifest not found for file_hash=%s, skipping manifest update", file_hash
+        )
+        return 0
+
+    try:
+        with open(manifest_path) as f:
+            manifest = json.load(f)
+    except Exception as e:
+        logger.warning("Failed to load manifest %s: %s", manifest_path, e)
+        return 0
+
+    chapters = manifest.get("chapters", [])
+    original_count = len(chapters)
+    chapters_remaining = [ch for ch in chapters if ch.get("index") != chapter_index]
+
+    if len(chapters_remaining) == original_count:
+        logger.warning(
+            "Chapter index=%d not found in manifest for file_hash=%s, nothing to remove",
+            chapter_index,
+            file_hash,
+        )
+        return original_count
+
+    manifest["chapters"] = chapters_remaining
+    manifest["num_chapters"] = len(chapters_remaining)
+
+    try:
+        with open(manifest_path, "w") as f:
+            json.dump(manifest, f, indent=2)
+            f.flush()
+            os.fsync(f.fileno())
+    except Exception as e:
+        logger.error("Failed to write updated manifest %s: %s", manifest_path, e)
+        raise
+
+    logger.info(
+        "Removed chapter index=%d from manifest %s (%d chapters remaining)",
+        chapter_index,
+        manifest_path,
+        len(chapters_remaining),
+    )
+    return len(chapters_remaining)

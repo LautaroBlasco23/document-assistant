@@ -118,3 +118,21 @@ class Neo4jStore:
                 hash=file_hash,
             )
         logger.info("Deleted document %s from Neo4j", file_hash)
+
+    def delete_chapter(self, file_hash: str, chapter_index: int) -> None:
+        """Delete all MENTIONS relationships for a specific chapter."""
+        with self._driver.session() as session:
+            session.run(
+                """
+                MATCH (e:Entity)-[r:MENTIONS]->()
+                WHERE r.source_file = $file_hash AND r.chapter = $chapter_index
+                DELETE r
+                """,
+                file_hash=file_hash,
+                chapter_index=chapter_index,
+            )
+        logger.info(
+            "Deleted chapter %d relationships for file_hash=%s from Neo4j",
+            chapter_index,
+            file_hash,
+        )

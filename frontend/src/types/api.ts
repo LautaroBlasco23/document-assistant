@@ -125,3 +125,10 @@ export interface MetadataResponse {
   description: string
   document_type: string
 }
+
+export interface ChapterDeleteResponse {
+  message: string
+  vectors_deleted: number
+  summaries_deleted: number
+  flashcards_deleted: number
+}

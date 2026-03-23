@@ -231,6 +231,24 @@ class PostgresContentStore(ContentStore):
                     )
         logger.debug("Deleted all content for doc=%s", document_hash[:12])
 
+    def delete_chapter(self, document_hash: str, chapter_index: int) -> None:
+        with self._lock:
+            conn = self._conn()
+            self._rollback_if_failed(conn)
+            with conn.transaction():
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "DELETE FROM summaries WHERE document_hash = %s AND chapter_index = %s",
+                        (document_hash, chapter_index),
+                    )
+                    cur.execute(
+                        "DELETE FROM flashcards WHERE document_hash = %s AND chapter_index = %s",
+                        (document_hash, chapter_index),
+                    )
+        logger.debug(
+            "Deleted chapter %d content for doc=%s", chapter_index, document_hash[:12]
+        )
+
 
 def _ensure_naive(dt: datetime) -> datetime:
     """Strip timezone info from a datetime returned from PostgreSQL (TIMESTAMPTZ)."""

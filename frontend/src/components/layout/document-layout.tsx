@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, Trash2 } from 'lucide-react'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../ui/tabs'
 import { Badge } from '../ui/badge'
 import { Button } from '../ui/button'
@@ -22,6 +22,7 @@ export interface DocumentLayoutProps {
   onChapterChange: (chapter: number) => void
   children: React.ReactNode
   className?: string
+  onChapterRemoved?: (removedChapterNumber: number) => void
 }
 
 const TAB_LABELS: Record<Tab, string> = {
@@ -39,6 +40,7 @@ export function DocumentLayout({
   onChapterChange,
   children,
   className,
+  onChapterRemoved,
 }: DocumentLayoutProps) {
   const navigate = useNavigate()
 
@@ -47,6 +49,8 @@ export function DocumentLayout({
   const metadataCache = useDocumentStore((s) => s.metadataCache)
   const fetchMetadata = useDocumentStore((s) => s.fetchMetadata)
   const saveMetadataAction = useDocumentStore((s) => s.saveMetadata)
+  const removeChapter = useDocumentStore((s) => s.removeChapter)
+  const [removingChapter, setRemovingChapter] = useState(false)
 
   const docHash = document.file_hash
   const [localDescription, setLocalDescription] = useState('')
@@ -77,6 +81,31 @@ export function DocumentLayout({
     { length: document.num_chapters },
     (_, i) => ({ number: i + 1, title: undefined, num_chunks: 0, sections: [] }),
   )
+
+  const selectedChapterObj = chapters.find((ch) => ch.number === selectedChapter)
+
+  const handleRemoveChapter = async () => {
+    if (!selectedChapterObj) return
+    const prefix = `Chapter ${selectedChapterObj.number}`
+    const title = selectedChapterObj.title?.startsWith(prefix)
+      ? selectedChapterObj.title.slice(prefix.length).trim()
+      : selectedChapterObj.title
+    const displayName = title || prefix
+    const confirmed = window.confirm(
+      `Remove "${displayName}"? This will delete its summary, flashcards, and all indexed content. This cannot be undone.`
+    )
+    if (!confirmed) return
+    setRemovingChapter(true)
+    try {
+      await removeChapter(docHash, selectedChapter)
+      // Navigate to first remaining chapter
+      if (onChapterRemoved) {
+        onChapterRemoved(selectedChapter)
+      }
+    } finally {
+      setRemovingChapter(false)
+    }
+  }
 
   return (
     <div className={cn('flex flex-col gap-4', className)}>
@@ -127,22 +156,38 @@ export function DocumentLayout({
         </p>
       </div>
 
-      {/* Chapter selector dropdown */}
-      <Select
-        label="Chapter"
-        value={selectedChapter}
-        onChange={(e) => onChapterChange(Number(e.target.value))}
-      >
-        {chapters.map((ch) => {
-          const prefix = `Chapter ${ch.number}`
-          const title = ch.title?.startsWith(prefix) ? ch.title.slice(prefix.length).trim() : ch.title
-          return (
-            <option key={ch.number} value={ch.number}>
-              {title || prefix}
-            </option>
-          )
-        })}
-      </Select>
+      {/* Chapter selector dropdown with remove button */}
+      <div className="flex items-end gap-2">
+        <div className="flex-1">
+          <Select
+            label="Chapter"
+            value={selectedChapter}
+            onChange={(e) => onChapterChange(Number(e.target.value))}
+          >
+            {chapters.map((ch) => {
+              const prefix = `Chapter ${ch.number}`
+              const title = ch.title?.startsWith(prefix) ? ch.title.slice(prefix.length).trim() : ch.title
+              return (
+                <option key={ch.number} value={ch.number}>
+                  {title || prefix}
+                </option>
+              )
+            })}
+          </Select>
+        </div>
+        {chapters.length > 1 && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => { void handleRemoveChapter() }}
+            disabled={removingChapter}
+            aria-label="Remove chapter"
+            className="shrink-0 text-gray-400 hover:text-red-500 hover:bg-red-50"
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        )}
+      </div>
 
       {/* Tabs */}
       <Tabs

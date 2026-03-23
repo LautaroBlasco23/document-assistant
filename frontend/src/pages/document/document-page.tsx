@@ -30,6 +30,16 @@ export function DocumentPage() {
     setSearchParams({ tab }, { replace: true })
   }
 
+  const handleChapterRemoved = (removedChapterNumber: number) => {
+    // Navigate to the first available chapter that isn't the removed one
+    const remaining = structure?.chapters.filter((ch) => ch.number !== removedChapterNumber) ?? []
+    if (remaining.length > 0) {
+      setSelectedChapter(remaining[0].number)
+    } else {
+      setSelectedChapter(1)
+    }
+  }
+
   const loading = docsLoading && documents.length === 0
 
   if (!hash) {
@@ -94,6 +104,7 @@ export function DocumentPage() {
       onTabChange={handleTabChange}
       selectedChapter={selectedChapter}
       onChapterChange={setSelectedChapter}
+      onChapterRemoved={handleChapterRemoved}
     >
       {renderTabContent()}
     </DocumentLayout>

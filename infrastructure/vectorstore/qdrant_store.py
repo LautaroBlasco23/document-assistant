@@ -195,6 +195,43 @@ class QdrantStore:
         )
         logger.info("Deleted all points with file_hash %s", file_hash)
 
+    def delete_by_chapter(self, file_hash: str, chapter_index: int) -> int:
+        """Delete all chunks for a specific chapter. Returns count of deleted points."""
+        chapter_filter = qmodels.Filter(
+            must=[
+                qmodels.FieldCondition(
+                    key="file_hash",
+                    match=qmodels.MatchValue(value=file_hash),
+                ),
+                qmodels.FieldCondition(
+                    key="chapter",
+                    match=qmodels.MatchValue(value=chapter_index),
+                ),
+            ]
+        )
+        # Count first
+        points, _ = self._client.scroll(
+            collection_name=self._collection,
+            scroll_filter=chapter_filter,
+            limit=10000,
+            with_payload=False,
+            with_vectors=False,
+        )
+        count = len(points)
+        if count == 0:
+            logger.info(
+                "No points found for file_hash=%s chapter=%d", file_hash, chapter_index
+            )
+            return 0
+        self._client.delete(
+            collection_name=self._collection,
+            points_selector=qmodels.FilterSelector(filter=chapter_filter),
+        )
+        logger.info(
+            "Deleted %d points for file_hash=%s chapter=%d", count, file_hash, chapter_index
+        )
+        return count
+
 
 def _meta_attr(meta: ChunkMetadata | None, attr: str, default):
     if meta is None:

@@ -48,3 +48,7 @@ class ContentStore(ABC):
     @abstractmethod
     def delete_by_document(self, document_hash: str) -> None:
         """Delete all generated content for a document (used when document is deleted)."""
+
+    @abstractmethod
+    def delete_chapter(self, document_hash: str, chapter_index: int) -> None:
+        """Delete all generated content for a specific chapter (summaries + flashcards)."""

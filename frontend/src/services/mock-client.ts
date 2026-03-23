@@ -12,6 +12,7 @@ import type {
   SummaryResponse,
   FlashcardResponse,
   MetadataResponse,
+  ChapterDeleteResponse,
 } from '../types/api'
 import type { ServiceClient } from './client.interface'
 
@@ -44,6 +45,16 @@ export class MockClient implements ServiceClient {
   async deleteDocument(hash: string): Promise<void> {
     await delay(100)
     this.deletedHashes.add(hash)
+  }
+
+  async deleteChapter(_docHash: string, chapterNumber: number): Promise<ChapterDeleteResponse> {
+    await delay(150)
+    return {
+      message: `Removed chapter ${chapterNumber}`,
+      vectors_deleted: 42,
+      summaries_deleted: 1,
+      flashcards_deleted: 10,
+    }
   }
 
   async ingestDocument(formData: FormData): Promise<IngestTaskOut> {

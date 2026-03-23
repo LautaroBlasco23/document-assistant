@@ -65,3 +65,12 @@ class MetadataResponse(BaseModel):
     document_hash: str
     description: str
     document_type: str = ""
+
+
+class ChapterDeleteResponse(BaseModel):
+    """Response from chapter deletion endpoint."""
+
+    message: str
+    vectors_deleted: int
+    summaries_deleted: int
+    flashcards_deleted: int

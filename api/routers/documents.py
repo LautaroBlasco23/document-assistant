@@ -12,6 +12,7 @@ from fastapi.responses import JSONResponse
 
 from api.deps import ServicesDep
 from api.schemas.documents import (
+    ChapterDeleteResponse,
     ChapterOut,
     DocumentOut,
     DocumentStructureOut,
@@ -24,7 +25,7 @@ from application.ingest import _hash_file, ingest_file
 from core.model.document_metadata import DocumentMetadata
 from infrastructure.chunking.splitter import ChapterAwareSplitter
 from infrastructure.graph.entity_extractor import extract_entities
-from infrastructure.output.manifest import write_manifest
+from infrastructure.output.manifest import remove_chapter_from_manifest, write_manifest
 from infrastructure.output.markdown_writer import _safe_name
 
 logger = logging.getLogger(__name__)
@@ -325,4 +326,107 @@ async def delete_document(file_hash: str, services: ServicesDep) -> JSONResponse
     return JSONResponse(
         {"message": f"Deleted document {file_hash[:12]}"},
         status_code=200,
+    )
+
+
+@router.delete(
+    "/documents/{file_hash}/chapters/{chapter_number}",
+    response_model=ChapterDeleteResponse,
+)
+async def delete_chapter(
+    file_hash: str, chapter_number: int, services: ServicesDep
+) -> ChapterDeleteResponse:
+    """Remove a single chapter from all stores.
+
+    chapter_number is 1-based (user-facing). Internally converted to 0-based chapter_index.
+    Stable-index strategy: other chapters keep their original indices; only the manifest
+    entry for the removed chapter is deleted.
+    """
+    documents = _list_documents()
+    doc_manifest = next((d for d in documents if d["file_hash"] == file_hash), None)
+
+    if not doc_manifest:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    chapter_index = chapter_number - 1  # convert to 0-based
+
+    # Validate chapter exists in manifest
+    manifest_chapters = doc_manifest.get("chapters", [])
+    chapter_entry = next(
+        (ch for ch in manifest_chapters if ch.get("index") == chapter_index), None
+    )
+    if chapter_entry is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Chapter {chapter_number} not found in document",
+        )
+
+    # Reject removal if it would leave the document with zero chapters
+    if len(manifest_chapters) <= 1:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Cannot remove the only chapter. "
+                "Delete the entire document instead."
+            ),
+        )
+
+    logger.info(
+        "Deleting chapter %d (index=%d) from document %s",
+        chapter_number,
+        chapter_index,
+        file_hash[:12],
+    )
+    errors: list[str] = []
+
+    # 1. PostgreSQL — transactional; do first
+    summaries_deleted = 0
+    flashcards_deleted = 0
+    try:
+        # Count before deletion for response
+        existing_summary = services.content_store.get_summary(file_hash, chapter_index)
+        summaries_deleted = 1 if existing_summary is not None else 0
+        existing_flashcards = services.content_store.get_flashcards(file_hash, chapter_index)
+        flashcards_deleted = len(existing_flashcards)
+        services.content_store.delete_chapter(file_hash, chapter_index)
+    except Exception as e:
+        logger.error("Failed to delete chapter %d from PostgreSQL: %s", chapter_index, e)
+        errors.append(f"PostgreSQL: {e}")
+
+    # 2. Qdrant
+    vectors_deleted = 0
+    try:
+        vectors_deleted = services.qdrant.delete_by_chapter(file_hash, chapter_index)
+    except Exception as e:
+        logger.error("Failed to delete chapter %d from Qdrant: %s", chapter_index, e)
+        errors.append(f"Qdrant: {e}")
+
+    # 3. Neo4j
+    try:
+        services.neo4j.delete_chapter(file_hash, chapter_index)
+    except Exception as e:
+        logger.error("Failed to delete chapter %d from Neo4j: %s", chapter_index, e)
+        errors.append(f"Neo4j: {e}")
+
+    # 4. Manifest
+    try:
+        remove_chapter_from_manifest(file_hash, chapter_index, OUTPUT_DIR)
+    except Exception as e:
+        logger.error("Failed to remove chapter %d from manifest: %s", chapter_index, e)
+        errors.append(f"Manifest: {e}")
+
+    if errors:
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                f"Partial deletion failure for chapter {chapter_number} "
+                f"of {file_hash[:12]}: {'; '.join(errors)}"
+            ),
+        )
+
+    return ChapterDeleteResponse(
+        message=f"Removed chapter {chapter_number} from document {file_hash[:12]}",
+        vectors_deleted=vectors_deleted,
+        summaries_deleted=summaries_deleted,
+        flashcards_deleted=flashcards_deleted,
     )

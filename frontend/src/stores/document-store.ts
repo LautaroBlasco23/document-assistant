@@ -15,6 +15,7 @@ interface DocumentState {
   fetchDocuments: () => Promise<void>
   fetchStructure: (hash: string) => Promise<void>
   removeDocument: (hash: string) => Promise<void>
+  removeChapter: (hash: string, chapterNumber: number) => Promise<void>
   fetchMetadata: (hash: string) => Promise<void>
   saveMetadata: (hash: string, description: string, documentType?: string) => Promise<void>
 }
@@ -55,6 +56,24 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
     set((state) => ({
       documents: state.documents.filter((doc) => doc.file_hash !== hash),
     }))
+  },
+
+  removeChapter: async (hash: string, chapterNumber: number) => {
+    await client.deleteChapter(hash, chapterNumber)
+    // Invalidate structure cache so the chapter list is re-fetched on next access
+    set((state) => {
+      const { [hash]: _removed, ...rest } = state.structureCache
+      return { structureCache: rest }
+    })
+    // Re-fetch structure to reflect the deletion immediately
+    try {
+      const structure = await client.documentStructure(hash)
+      set((state) => ({
+        structureCache: { ...state.structureCache, [hash]: structure },
+      }))
+    } catch {
+      // fail silently — cache is already invalidated
+    }
   },
 
   fetchMetadata: async (hash: string) => {
