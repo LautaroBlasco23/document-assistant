@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Layers } from 'lucide-react'
 import { client } from '../../services'
 import { useFlashcardStore } from '../../stores/flashcard-store'
@@ -6,7 +6,6 @@ import { useTaskStore } from '../../stores/task-store'
 import { useDocumentStore } from '../../stores/document-store'
 import { Button } from '../../components/ui/button'
 import { EmptyState } from '../../components/ui/empty-state'
-import { Tooltip } from '../../components/ui/tooltip'
 import { TaskProgress } from './task-progress'
 import { FlashcardCard } from './flashcard-card'
 import { FlashcardReview } from './flashcard-review'
@@ -14,9 +13,11 @@ import { mockFlashcards } from '../../mocks/flashcards'
 import type { DocumentStructureOut, FlashcardOut } from '../../types/api'
 import type { FlashcardDeck } from '../../types/domain'
 
+type CategoryFilter = 'all' | 'terminology' | 'key_facts' | 'concepts'
+
 interface FlashcardTabProps {
   docHash: string
-  chapter?: number
+  chapter: number
   structure: DocumentStructureOut | null
 }
 
@@ -26,13 +27,14 @@ export function FlashcardTab({ docHash, chapter, structure: _structure }: Flashc
   const addDeck = useFlashcardStore((state) => state.addDeck)
   const startReview = useFlashcardStore((state) => state.startReview)
 
+  const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('all')
+
   const documents = useDocumentStore((state) => state.documents)
   const doc = documents.find((d) => d.file_hash === docHash)
   const bookTitle = doc ? doc.filename.replace(/\.[^/.]+$/, '') : docHash
 
   // Load stored flashcards when chapter changes (if deck not already in memory)
   useEffect(() => {
-    if (chapter === undefined) return
     const deckKey = `${docHash}-${chapter}`
     const existingDecks = useFlashcardStore.getState().decks[deckKey]
     if (existingDecks && existingDecks.length > 0) return  // already loaded
@@ -62,7 +64,7 @@ export function FlashcardTab({ docHash, chapter, structure: _structure }: Flashc
 
   // When the task completes, build the deck and clear the task from the store
   useEffect(() => {
-    if (!task || task.status !== 'completed' || chapter === undefined) return
+    if (!task || task.status !== 'completed') return
 
     const flashcards = (task.result?.flashcards as FlashcardOut[] | undefined) ?? []
     const deck: FlashcardDeck = {
@@ -76,21 +78,24 @@ export function FlashcardTab({ docHash, chapter, structure: _structure }: Flashc
     useTaskStore.getState().clearTask(task.taskId)
   }, [task?.status, task?.taskId, docHash, chapter, addDeck])
 
-  const deckKey = chapter !== undefined ? `${docHash}-${chapter}` : null
-  const currentDeck = deckKey ? (decks[deckKey] ?? [])[0] : undefined
+  const deckKey = `${docHash}-${chapter}`
+  const currentDeck = decks[deckKey]?.[0]
+  const filteredCards = currentDeck
+    ? categoryFilter === 'all'
+      ? currentDeck.cards
+      : currentDeck.cards.filter((card) => card.category === categoryFilter)
+    : []
 
   // If there's an active review for the current chapter, show review mode
   const isReviewingCurrentChapter =
     activeReview !== null &&
-    chapter !== undefined &&
     activeReview.deckIndex === `${docHash}-${chapter}`
 
-  if (isReviewingCurrentChapter && chapter !== undefined) {
+  if (isReviewingCurrentChapter) {
     return <FlashcardReview docHash={docHash} chapter={chapter} />
   }
 
   const handleGenerate = async () => {
-    if (chapter === undefined) return
     try {
       const response = await client.generateFlashcards(chapter, bookTitle, docHash)
       useTaskStore.getState().submitTask({
@@ -105,14 +110,12 @@ export function FlashcardTab({ docHash, chapter, structure: _structure }: Flashc
     }
   }
 
-  const isDisabled = chapter === undefined
-
   const generateButton = (
     <Button
       variant="primary"
       size="sm"
       onClick={() => void handleGenerate()}
-      disabled={isDisabled || isGenerating}
+      disabled={isGenerating}
       loading={isGenerating}
     >
       {currentDeck && currentDeck.cards.length > 0 ? 'Regenerate Flashcards' : 'Generate Flashcards'}
@@ -123,19 +126,13 @@ export function FlashcardTab({ docHash, chapter, structure: _structure }: Flashc
     <div className="flex flex-col gap-4">
       {/* Toolbar */}
       <div className="flex items-center gap-3">
-        {isDisabled ? (
-          <Tooltip content="Select a specific chapter first">
-            <span>{generateButton}</span>
-          </Tooltip>
-        ) : (
-          generateButton
-        )}
+        {generateButton}
 
         {currentDeck && currentDeck.cards.length > 0 && !isGenerating && (
           <Button
             variant="secondary"
             size="sm"
-            onClick={() => chapter !== undefined && startReview(docHash, chapter)}
+            onClick={() => startReview(docHash, chapter)}
           >
             Start Review
           </Button>
@@ -158,23 +155,40 @@ export function FlashcardTab({ docHash, chapter, structure: _structure }: Flashc
 
       {/* Card grid */}
       {!isGenerating && currentDeck && currentDeck.cards.length > 0 && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {currentDeck.cards.map((card, index) => (
-            <FlashcardCard key={index} card={card} />
-          ))}
-        </div>
+        <>
+          <div className="flex items-center gap-3">
+            <label htmlFor="category-filter" className="text-sm font-medium text-gray-700">
+              Filter by:
+            </label>
+            <select
+              id="category-filter"
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value as CategoryFilter)}
+              className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+            >
+              <option value="all">All Cards</option>
+              <option value="terminology">Terminology</option>
+              <option value="key_facts">Key Facts</option>
+              <option value="concepts">Concepts</option>
+            </select>
+            <span className="text-sm text-gray-500">
+              {filteredCards.length} {filteredCards.length === 1 ? 'card' : 'cards'}
+            </span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {filteredCards.map((card, index) => (
+              <FlashcardCard key={index} card={card} />
+            ))}
+          </div>
+        </>
       )}
 
       {/* Empty states */}
       {!isGenerating && !currentDeck && (
         <EmptyState
           icon={Layers}
-          title={isDisabled ? 'Select a chapter' : 'No flashcards yet'}
-          description={
-            isDisabled
-              ? 'Choose a specific chapter to generate flashcards'
-              : 'Generate flashcards to start reviewing this chapter'
-          }
+          title="No flashcards yet"
+          description="Generate flashcards to start reviewing this chapter"
         />
       )}
 

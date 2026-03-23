@@ -6,13 +6,12 @@ import { useDocumentStore } from '../../stores/document-store'
 import { Button } from '../../components/ui/button'
 import { EmptyState } from '../../components/ui/empty-state'
 import { TaskProgress } from './task-progress'
-import { Tooltip } from '../../components/ui/tooltip'
 import { mockSummaries } from '../../mocks/summaries'
 import type { DocumentStructureOut } from '../../types/api'
 
 interface SummaryTabProps {
   docHash: string
-  chapter?: number
+  chapter: number
   structure: DocumentStructureOut | null
 }
 
@@ -31,7 +30,6 @@ export function SummaryTab({ docHash, chapter, structure: _structure }: SummaryT
 
   // Load stored summary when chapter changes
   useEffect(() => {
-    if (chapter === undefined) return
     let cancelled = false
     setIsLoadingStored(true)
     setSummaryData(null)
@@ -78,7 +76,6 @@ export function SummaryTab({ docHash, chapter, structure: _structure }: SummaryT
   }, [task?.status, task?.taskId, docHash])
 
   const handleGenerate = async () => {
-    if (chapter === undefined) return
     setSummaryData(null)
     try {
       const response = await client.summarizeChapter(chapter, bookTitle, docHash)
@@ -96,14 +93,13 @@ export function SummaryTab({ docHash, chapter, structure: _structure }: SummaryT
 
   const isGenerating = task !== undefined && (task.status === 'pending' || task.status === 'running')
   const isLoading = isLoadingStored || isGenerating
-  const isDisabled = chapter === undefined
 
   const generateButton = (
     <Button
       variant="primary"
       size="sm"
       onClick={() => void handleGenerate()}
-      disabled={isDisabled || isLoading}
+      disabled={isLoading}
       loading={isGenerating}
     >
       {summaryData ? 'Regenerate' : 'Generate'}
@@ -114,13 +110,7 @@ export function SummaryTab({ docHash, chapter, structure: _structure }: SummaryT
     <div className="flex flex-col gap-4">
       {/* Toolbar */}
       <div className="flex items-center gap-3 flex-wrap">
-        {isDisabled ? (
-          <Tooltip content="Select a chapter first">
-            <span>{generateButton}</span>
-          </Tooltip>
-        ) : (
-          generateButton
-        )}
+        {generateButton}
       </div>
 
       {/* Loading state */}

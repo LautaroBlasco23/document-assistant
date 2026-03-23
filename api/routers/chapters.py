@@ -79,7 +79,9 @@ def _summarize_background(
 
         _set_progress(task, 10, f"Retrieving context for chapter {chapter_num}...")
         chunks = services.retriever.retrieve(
-            f"chapter {chapter_num} summary", k=20, filters={"chapter": chapter_index}
+            f"chapter {chapter_num} summary",
+            k=20,
+            filters={"chapter": chapter_index, "file_hash": document_hash},
         )
 
         if not chunks:
@@ -100,8 +102,11 @@ def _summarize_background(
                 _set_progress(task, 40, "LLM is generating summary...")
 
         summary = SummarizerAgent(services.fast_llm).summarize(
-            chapter_obj, chunks, on_progress=sum_progress,
-            document_title=document_title, document_description=document_description,
+            chapter_obj,
+            chunks,
+            on_progress=sum_progress,
+            document_title=document_title,
+            document_description=document_description,
             document_type=document_type,
         )
 
@@ -146,8 +151,7 @@ def _generate_flashcards_background(
             cached = services.content_store.get_flashcards(document_hash, chapter_index)
             if cached:
                 flashcards = [
-                    {"front": c.front, "back": c.back, "category": "key_facts"}
-                    for c in cached
+                    {"front": c.front, "back": c.back, "category": "key_facts"} for c in cached
                 ]
                 _set_progress(task, 100, "Loaded from cache")
                 task.result = {"chapter": chapter_num, "flashcards": flashcards, "cached": True}
@@ -162,7 +166,9 @@ def _generate_flashcards_background(
 
         _set_progress(task, 5, f"Retrieving context for chapter {chapter_num}...")
         chunks = services.retriever.retrieve(
-            f"chapter {chapter_num}", k=20, filters={"chapter": chapter_index}
+            f"chapter {chapter_num}",
+            k=20,
+            filters={"chapter": chapter_index, "file_hash": document_hash},
         )
 
         if not chunks:

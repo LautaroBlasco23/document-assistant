@@ -21,7 +21,7 @@ export function DocumentPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const { documents, loading: docsLoading } = useDocuments()
   const { structure, loading: structureLoading } = useDocumentStructure(hash ?? '')
-  const [selectedChapter, setSelectedChapter] = useState<number | undefined>(undefined)
+  const [selectedChapter, setSelectedChapter] = useState<number>(1)
 
   const rawTab = searchParams.get('tab')
   const activeTab: Tab = isValidTab(rawTab) ? rawTab : 'summary'

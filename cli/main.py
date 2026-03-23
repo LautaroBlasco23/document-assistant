@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 # Service health check
 # ---------------------------------------------------------------------------
 
+
 def check_ollama(base_url: str) -> bool:
     try:
         resp = requests.get(f"{base_url}/api/tags", timeout=5)
@@ -57,7 +58,11 @@ def run_check() -> int:
     checks = [
         ("Ollama", config.ollama.base_url, check_ollama(config.ollama.base_url)),
         ("Qdrant", config.qdrant.url, check_qdrant(config.qdrant.url)),
-        ("Neo4j", config.neo4j.uri, check_neo4j(config.neo4j.uri, config.neo4j.user, config.neo4j.password)),
+        (
+            "Neo4j",
+            config.neo4j.uri,
+            check_neo4j(config.neo4j.uri, config.neo4j.user, config.neo4j.password),
+        ),
     ]
 
     # Calculate column widths for alignment
@@ -71,7 +76,9 @@ def run_check() -> int:
     # Print each service
     for service, url, ok in checks:
         status_text = f"{GREEN}✓ OK{RESET}" if ok else f"{RED}✗ FAIL{RESET}"
-        print(f"{BOLD}│{RESET}  {service.ljust(service_width)}  {url.ljust(url_width)}  {status_text}")
+        print(
+            f"{BOLD}│{RESET}  {service.ljust(service_width)}  {url.ljust(url_width)}  {status_text}"
+        )
         all_ok = all_ok and ok
 
     # Print footer
@@ -84,6 +91,7 @@ def run_check() -> int:
 # ---------------------------------------------------------------------------
 # Ingest
 # ---------------------------------------------------------------------------
+
 
 def run_ingest(path: str, provider: str | None = None) -> int:
     from application.ingest import ingest_file
@@ -182,6 +190,7 @@ def run_ingest(path: str, provider: str | None = None) -> int:
 # Summarize
 # ---------------------------------------------------------------------------
 
+
 def run_summarize(book_title: str, chapter_num: int, provider: str | None = None) -> int:
     from application.agents.summarizer import SummarizerAgent
     from application.retriever import HybridRetriever
@@ -206,7 +215,7 @@ def run_summarize(book_title: str, chapter_num: int, provider: str | None = None
     retriever = HybridRetriever(qdrant, neo4j, embedder, llm, config)
 
     query = f"chapter {chapter_num} summary"
-    filters = {"chapter": chapter_index}
+    filters = {"chapter": chapter_index, "file_hash": book_title}
     chunks = retriever.retrieve(query, k=20, filters=filters)
 
     if not chunks:
@@ -216,6 +225,7 @@ def run_summarize(book_title: str, chapter_num: int, provider: str | None = None
 
     # Build a minimal Document for the writer
     from core.model.document import Chapter, Document
+
     chapter_obj = Chapter(index=chapter_index, title=f"Chapter {chapter_num}", pages=[])
     doc = Document(
         source_path=book_title,
@@ -237,6 +247,7 @@ def run_summarize(book_title: str, chapter_num: int, provider: str | None = None
 # ---------------------------------------------------------------------------
 # Generate Markdown (all three outputs)
 # ---------------------------------------------------------------------------
+
 
 def run_generate_md(book_title: str, chapter_num: int, provider: str | None = None) -> int:
     from application.agents.flashcard_generator import FlashcardGeneratorAgent
@@ -267,7 +278,7 @@ def run_generate_md(book_title: str, chapter_num: int, provider: str | None = No
     retriever = HybridRetriever(qdrant, neo4j, embedder, llm, config)
 
     chunks = retriever.retrieve(
-        f"chapter {chapter_num}", k=20, filters={"chapter": chapter_index}
+        f"chapter {chapter_num}", k=20, filters={"chapter": chapter_index, "file_hash": book_title}
     )
 
     if not chunks:
@@ -302,6 +313,7 @@ def run_generate_md(book_title: str, chapter_num: int, provider: str | None = No
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
+
 
 def _setup_logging(log_format: str) -> None:
     if log_format == "json":
