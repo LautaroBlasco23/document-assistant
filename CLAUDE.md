@@ -80,9 +80,9 @@ frontend/       # React + TypeScript + Tailwind SPA (Vite, port 5173)
 |------------|-------------|--------|------|
 | Groq API   | `https://api.groq.com` | — | LLM inference (default; requires `DOCASSIST_GROQ__API_KEY`) |
 | Ollama     | localhost:11434 | Host-installed | Embeddings (`nomic-embed-text`); optional LLM fallback |
-| Qdrant     | localhost:6333  | `docker/docker-compose.yml` | Vector store |
-| Neo4j      | localhost:7687  | `docker/docker-compose.yml` | Knowledge graph |
-| PostgreSQL | localhost:5432  | `docker/docker-compose.yml` | Content persistence (summaries, flashcards, metadata) |
+| Qdrant     | localhost:6333  | `docker-compose.yml` | Vector store |
+| Neo4j      | localhost:7687  | `docker-compose.yml` | Knowledge graph |
+| PostgreSQL | localhost:5432  | `docker-compose.yml` | Content persistence (summaries, flashcards, metadata) |
 
 ## Commands
 
@@ -94,7 +94,7 @@ make start
 make stop
 
 # Start infrastructure only
-docker compose -f docker/docker-compose.yml up -d
+docker compose up -d
 
 # Install dependencies
 uv sync

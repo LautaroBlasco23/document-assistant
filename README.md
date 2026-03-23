@@ -37,7 +37,7 @@ Uses Docker (Qdrant + Neo4j + PostgreSQL), Ollama for embeddings, Groq API for L
 ### 1. Start infrastructure services
 
 ```bash
-docker compose -f docker/docker-compose.yml up -d
+docker compose up -d
 ```
 
 This starts:

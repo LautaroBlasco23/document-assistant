@@ -109,6 +109,6 @@ Write-Host "`n===== All done! =====" -ForegroundColor Green
 Write-Host "Close and reopen PowerShell so PATH changes take effect, then run:"
 Write-Host ""
 Write-Host "  uv sync                                          # install Python deps"
-Write-Host "  docker compose -f docker/docker-compose.yml up -d  # start Qdrant + Neo4j"
+Write-Host "  docker compose up -d                               # start Qdrant + Neo4j"
 Write-Host "  cd electron && npm install && npm run dev        # run the app"
 Write-Host ""
