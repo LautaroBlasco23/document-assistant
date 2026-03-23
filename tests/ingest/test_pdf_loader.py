@@ -113,3 +113,43 @@ def test_chapter_heading_word_ordinal_variants():
     # Non-chapter text should not match
     assert not _is_chapter_heading("The one chapter\nSome text")[0]
     assert not _is_chapter_heading("Once upon a time\nSome text")[0]
+
+
+def test_chapter_heading_numbered_variants():
+    """Verify _is_chapter_heading matches numbered formats."""
+    assert _is_chapter_heading("Chapter 1: Introduction\nText")[0]
+    assert _is_chapter_heading("CHAPTER 2 Introduction\nText")[0]
+    assert _is_chapter_heading("1. Introduction\nText")[0]
+    assert _is_chapter_heading("1 Introduction\nText")[0]
+    assert _is_chapter_heading("12. Methods\nText")[0]
+    assert _is_chapter_heading("1.2 Introduction\nText")[0]
+
+
+def test_chapter_heading_part_sections():
+    """Verify _is_chapter_heading matches Part and Section patterns."""
+    assert _is_chapter_heading("Part I\nText")[0]
+    assert _is_chapter_heading("Part 1: Summary\nText")[0]
+    assert _is_chapter_heading("PART III Summary\nText")[0]
+    assert _is_chapter_heading("Section 1\nText")[0]
+    assert _is_chapter_heading("SECTION 2 Introduction\nText")[0]
+
+
+def test_chapter_heading_uppercase_standalone():
+    """Verify _is_chapter_heading matches standalone uppercase headings."""
+    assert _is_chapter_heading("CHAPTER\nText")[0]
+    assert _is_chapter_heading("PREFACE\nText")[0]
+    assert _is_chapter_heading("REFERENCES\nText")[0]
+    assert _is_chapter_heading("APPENDIX\nText")[0]
+
+
+def test_single_chapter_document():
+    """A document with only one chapter should be named 'Document', not 'Introduction'."""
+    pages = [
+        Page(number=1, text="Article Title\n\nSome article content. " * 20),
+        Page(number=2, text="More article content. " * 20),
+    ]
+    from infrastructure.ingest.pdf_loader import _detect_chapters
+
+    chapters = _detect_chapters(pages)
+    assert len(chapters) == 1
+    assert chapters[0].title == "Document"

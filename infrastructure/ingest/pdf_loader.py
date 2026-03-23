@@ -22,11 +22,27 @@ _ORDINAL_WORDS = (
 )
 
 # Patterns that signal a chapter heading
+# Ordered by specificity - more specific patterns should come first
 _CHAPTER_PATTERNS = [
-    re.compile(r"^chapter\s+\d+", re.IGNORECASE),
-    re.compile(r"^chapter\s+(?:" + _ORDINAL_WORDS + r")\b", re.IGNORECASE),
-    re.compile(r"^\d+\.\s+[A-Z]"),
-    re.compile(r"^part\s+[IVX\d]+", re.IGNORECASE),
+    # Chapter + number (with optional colon and title): "Chapter 1",
+    # "Chapter 1: Introduction", "CHAPTER 2"
+    re.compile(r"^chapter\s+\d+(?::?\s+.+)?$", re.IGNORECASE),
+    # Chapter + written ordinal: "Chapter One", "Chapter Twenty-One"
+    re.compile(r"^chapter\s+(?:" + _ORDINAL_WORDS + r")(?::?\s+.+)?$", re.IGNORECASE),
+    # Numbered chapter with title: "1. Introduction", "1.2 Introduction", "12. CHAPTER TITLE"
+    re.compile(r"^\d+(?:\.\d+)*\.?\s*[A-Z].*", re.IGNORECASE),
+    # Number + space + uppercase title: "1 Introduction", "10 Methods and Materials"
+    re.compile(r"^\d+\s+[A-Z][A-Za-z]"),
+    # Part with Roman numerals or numbers: "Part I", "Part 1", "Part III: Summary"
+    re.compile(r"^part\s+[IVX\d]+(?::?\s+.*)?$", re.IGNORECASE),
+    # Section marker: "Section 1", "SECTION 2"
+    re.compile(r"^section\s+\d+", re.IGNORECASE),
+    # Standalone uppercase short line (likely a chapter/section title): "PREFACE", "REFERENCES"
+    re.compile(
+        r"^(?:CHAPTER|SECTION|PART|PROLOGUE|EPILOGUE|FOREWORD|AFTERWORD|APPENDIX|PREFACE|REFERENCES|INTRODUCTION|CONCLUSION)(?:\s*$|\s+\n)"
+    ),
+    # Single "1" or "01" at start of page (with optional content after newline)
+    re.compile(r"^\s*\d{1,3}\s*\n\n"),
 ]
 
 SYNTHETIC_CHAPTER_SIZE = 20  # pages per synthetic chapter when no headings found
@@ -45,10 +61,7 @@ def load_pdf(path: Path, file_hash: str, original_filename: str = "") -> Documen
 
     normalized = normalize(raw_pages)
 
-    pages = [
-        Page(number=i + 1, text=text)
-        for i, text in enumerate(normalized)
-    ]
+    pages = [Page(number=i + 1, text=text) for i, text in enumerate(normalized)]
 
     # Try ToC-based detection first, then heuristic, then synthetic
     chapters = (
@@ -202,8 +215,20 @@ def _detect_chapters(pages: list[Page]) -> list[Chapter]:
     if current_pages:
         chapters.append(Chapter(index=chapter_index, title=current_title, pages=current_pages))
 
-    # Only return if we found at least 2 chapters (otherwise fall back to synthetic)
-    return chapters if len(chapters) >= 2 else []
+    # Return chapters if we found at least 2, or if we found exactly 1
+    # (single-chapter documents should use "Document" as title, not "Introduction")
+    if len(chapters) >= 2:
+        return chapters
+    if len(chapters) == 1:
+        # Single chapter detected - rename to "Document" for articles/short docs
+        chapters[0] = Chapter(
+            index=0,
+            title="Document",
+            pages=chapters[0].pages,
+            sections=chapters[0].sections,
+        )
+        return chapters
+    return []
 
 
 def _synthetic_chapters(pages: list[Page]) -> list[Chapter]:
