@@ -98,6 +98,8 @@ def run_ingest(path: str, provider: str | None = None) -> int:
     from infrastructure.chunking.splitter import ChapterAwareSplitter
     from infrastructure.graph.entity_extractor import extract_entities
     from infrastructure.graph.neo4j_store import Neo4jStore
+    from infrastructure.ingest.epub_loader import load_epub
+    from infrastructure.ingest.pdf_loader import load_pdf
     from infrastructure.llm.embedding_cache import EmbeddingCache
     from infrastructure.llm.factory import create_llm
     from infrastructure.llm.ollama import OllamaEmbedder
@@ -138,7 +140,12 @@ def run_ingest(path: str, provider: str | None = None) -> int:
         print(f"Ingesting {file_path.name} ...")
         t0 = time.perf_counter()
 
-        doc = ingest_file(file_path, config, original_filename=file_path.name)
+        doc = ingest_file(
+            file_path,
+            loaders={".pdf": load_pdf, ".epub": load_epub},
+            exists_fn=qdrant.has_file,
+            original_filename=file_path.name,
+        )
         if doc is None:
             print("  Skipped (already ingested or unsupported)")
             continue
@@ -194,6 +201,7 @@ def run_ingest(path: str, provider: str | None = None) -> int:
 def run_summarize(book_title: str, chapter_num: int, provider: str | None = None) -> int:
     from application.agents.summarizer import SummarizerAgent
     from application.retriever import HybridRetriever
+    from infrastructure.graph.entity_extractor import extract_entities
     from infrastructure.graph.neo4j_store import Neo4jStore
     from infrastructure.llm.embedding_cache import EmbeddingCache
     from infrastructure.llm.factory import create_fast_llm, create_llm
@@ -212,7 +220,7 @@ def run_summarize(book_title: str, chapter_num: int, provider: str | None = None
     fast_llm = create_fast_llm(config, llm)
     qdrant = QdrantStore(config.qdrant)
     neo4j = Neo4jStore(config.neo4j)
-    retriever = HybridRetriever(qdrant, neo4j, embedder, llm, config)
+    retriever = HybridRetriever(qdrant, neo4j, embedder, llm, extract_entities)
 
     query = f"chapter {chapter_num} summary"
     filters = {"chapter": chapter_index, "file_hash": book_title}
@@ -254,6 +262,7 @@ def run_generate_md(book_title: str, chapter_num: int, provider: str | None = No
     from application.agents.summarizer import SummarizerAgent
     from application.retriever import HybridRetriever
     from core.model.document import Chapter, Document
+    from infrastructure.graph.entity_extractor import extract_entities
     from infrastructure.graph.neo4j_store import Neo4jStore
     from infrastructure.llm.embedding_cache import EmbeddingCache
     from infrastructure.llm.factory import create_fast_llm, create_llm
@@ -275,7 +284,7 @@ def run_generate_md(book_title: str, chapter_num: int, provider: str | None = No
     fast_llm = create_fast_llm(config, llm)
     qdrant = QdrantStore(config.qdrant)
     neo4j = Neo4jStore(config.neo4j)
-    retriever = HybridRetriever(qdrant, neo4j, embedder, llm, config)
+    retriever = HybridRetriever(qdrant, neo4j, embedder, llm, extract_entities)
 
     chunks = retriever.retrieve(
         f"chapter {chapter_num}", k=20, filters={"chapter": chapter_index, "file_hash": book_title}

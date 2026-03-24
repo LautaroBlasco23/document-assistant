@@ -27,9 +27,11 @@ from api.tasks import Task
 from application.ingest import _hash_file, ingest_file, preview_file
 from core.model.document_metadata import DocumentMetadata
 from infrastructure.chunking.splitter import ChapterAwareSplitter
-from infrastructure.graph.entity_extractor import extract_entities
-from infrastructure.output.manifest import remove_chapter_from_manifest, write_manifest
 from infrastructure.config import PROJECT_ROOT
+from infrastructure.graph.entity_extractor import extract_entities
+from infrastructure.ingest.epub_loader import load_epub, preview_epub
+from infrastructure.ingest.pdf_loader import load_pdf, preview_pdf
+from infrastructure.output.manifest import remove_chapter_from_manifest, write_manifest
 from infrastructure.output.markdown_writer import _safe_name
 
 logger = logging.getLogger(__name__)
@@ -128,7 +130,7 @@ async def preview_document(
         tmp_path = Path(tmp.name)
 
     try:
-        preview = preview_file(tmp_path, services.config)
+        preview = preview_file(tmp_path, {".pdf": preview_pdf, ".epub": preview_epub})
         if preview is None:
             raise HTTPException(
                 status_code=400,
@@ -230,7 +232,11 @@ def _ingest_selected_chapters(
 
         task.progress = f"Loading {filename}"
         logger.info("Ingest selected: loading %s", filename)
-        doc = ingest_file(tmp_path, services.config, original_filename=filename)
+        doc = ingest_file(
+            tmp_path,
+            loaders={".pdf": load_pdf, ".epub": load_epub},
+            original_filename=filename,
+        )
         if doc is None:
             raise ValueError("Failed to load document")
 
@@ -386,7 +392,11 @@ def _ingest_background(
         # Ingest the file (loads chapters and returns Document)
         task.progress = f"Loading {filename}"
         logger.info("Ingest: loading %s", filename)
-        doc = ingest_file(tmp_path, services.config, original_filename=filename)
+        doc = ingest_file(
+            tmp_path,
+            loaders={".pdf": load_pdf, ".epub": load_epub},
+            original_filename=filename,
+        )
         if doc is None:
             raise ValueError("Failed to load document")
 

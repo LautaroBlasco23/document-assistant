@@ -1,11 +1,11 @@
 import json
 import logging
+from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 from core.model.chunk import Chunk
 from core.ports.embedder import Embedder
 from core.ports.llm import LLM
-from infrastructure.config import AppConfig
 
 if TYPE_CHECKING:
     from infrastructure.graph.neo4j_store import Neo4jStore
@@ -30,13 +30,13 @@ class HybridRetriever:
         neo4j: "Neo4jStore",
         embedder: Embedder,
         llm: LLM,
-        config: AppConfig,
+        entity_extractor: Callable[[str, LLM], list[dict]] | None = None,
     ):
         self._qdrant = qdrant
         self._neo4j = neo4j
         self._embedder = embedder
         self._llm = llm
-        self._config = config
+        self._entity_extractor = entity_extractor
 
     def retrieve(
         self, query: str, k: int = 20, filters: dict | None = None
@@ -61,19 +61,19 @@ class HybridRetriever:
         logger.debug("Keyword search: %d hits", len(keyword_hits))
 
         # 3. Graph: extract entities from query and fetch related chunks
-        try:
-            from infrastructure.graph.entity_extractor import extract_entities
-            entities = extract_entities(query, self._llm)
-            entity_names = [e["name"] for e in entities]
-            if entity_names:
-                chunk_ids = self._neo4j.query_related(entity_names)
-                if chunk_ids:
-                    graph_chunks = self._qdrant.fetch_by_ids(chunk_ids[:k])
-                    for c in graph_chunks:
-                        candidates[c.id] = c
-                    logger.debug("Graph search: %d hits", len(graph_chunks))
-        except Exception as exc:
-            logger.warning("Graph retrieval failed: %s", exc)
+        if self._entity_extractor is not None:
+            try:
+                entities = self._entity_extractor(query, self._llm)
+                entity_names = [e["name"] for e in entities]
+                if entity_names:
+                    chunk_ids = self._neo4j.query_related(entity_names)
+                    if chunk_ids:
+                        graph_chunks = self._qdrant.fetch_by_ids(chunk_ids[:k])
+                        for c in graph_chunks:
+                            candidates[c.id] = c
+                        logger.debug("Graph search: %d hits", len(graph_chunks))
+            except Exception as exc:
+                logger.warning("Graph retrieval failed: %s", exc)
 
         if not candidates:
             return []
