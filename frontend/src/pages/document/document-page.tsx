@@ -23,6 +23,10 @@ export function DocumentPage() {
   const { structure, loading: structureLoading } = useDocumentStructure(hash ?? '')
   const [selectedChapter, setSelectedChapter] = useState<number>(1)
 
+  // Get the qdrant_index for the currently selected chapter
+  const selectedChapterData = structure?.chapters.find((ch) => ch.number === selectedChapter)
+  const currentQdrantIndex = selectedChapterData?.qdrant_index ?? 0
+
   const rawTab = searchParams.get('tab')
   const activeTab: Tab = isValidTab(rawTab) ? rawTab : 'summary'
 
@@ -88,9 +92,9 @@ export function DocumentPage() {
   const renderTabContent = () => {
     switch (activeTab) {
       case 'flashcards':
-        return <FlashcardTab docHash={hash} chapter={selectedChapter} structure={structure} />
+        return <FlashcardTab docHash={hash} chapter={selectedChapter} qdrantIndex={currentQdrantIndex} structure={structure} />
       case 'summary':
-        return <SummaryTab docHash={hash} chapter={selectedChapter} structure={structure} />
+        return <SummaryTab docHash={hash} chapter={selectedChapter} qdrantIndex={currentQdrantIndex} structure={structure} />
       default:
         return null
     }

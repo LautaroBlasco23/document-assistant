@@ -18,10 +18,11 @@ type CategoryFilter = 'all' | 'terminology' | 'key_facts' | 'concepts'
 interface FlashcardTabProps {
   docHash: string
   chapter: number
+  qdrantIndex: number
   structure: DocumentStructureOut | null
 }
 
-export function FlashcardTab({ docHash, chapter, structure: _structure }: FlashcardTabProps) {
+export function FlashcardTab({ docHash, chapter, qdrantIndex, structure: _structure }: FlashcardTabProps) {
   const decks = useFlashcardStore((state) => state.decks)
   const activeReview = useFlashcardStore((state) => state.activeReview)
   const addDeck = useFlashcardStore((state) => state.addDeck)
@@ -39,7 +40,7 @@ export function FlashcardTab({ docHash, chapter, structure: _structure }: Flashc
     const existingDecks = useFlashcardStore.getState().decks[deckKey]
     if (existingDecks && existingDecks.length > 0) return  // already loaded
     let cancelled = false
-    void client.getStoredFlashcards(docHash, chapter).then((stored) => {
+    void client.getStoredFlashcards(docHash, chapter, qdrantIndex).then((stored) => {
       if (cancelled || stored.length === 0) return
       const deck: FlashcardDeck = {
         documentHash: docHash,
@@ -50,7 +51,7 @@ export function FlashcardTab({ docHash, chapter, structure: _structure }: Flashc
       addDeck(docHash, chapter, deck)
     })
     return () => { cancelled = true }
-  }, [docHash, chapter, addDeck])
+  }, [docHash, chapter, qdrantIndex, addDeck])
 
   // Subscribe to the task for this specific (docHash, chapter, type) context
   const task = useTaskStore((state) =>
@@ -97,7 +98,7 @@ export function FlashcardTab({ docHash, chapter, structure: _structure }: Flashc
 
   const handleGenerate = async () => {
     try {
-      const response = await client.generateFlashcards(chapter, bookTitle, docHash)
+      const response = await client.generateFlashcards(chapter, qdrantIndex, bookTitle, docHash, true)
       useTaskStore.getState().submitTask({
         taskId: response.task_id,
         type: 'flashcards',

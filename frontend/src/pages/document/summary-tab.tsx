@@ -6,12 +6,12 @@ import { useDocumentStore } from '../../stores/document-store'
 import { Button } from '../../components/ui/button'
 import { EmptyState } from '../../components/ui/empty-state'
 import { TaskProgress } from './task-progress'
-import { mockSummaries } from '../../mocks/summaries'
 import type { DocumentStructureOut } from '../../types/api'
 
 interface SummaryTabProps {
   docHash: string
   chapter: number
+  qdrantIndex: number
   structure: DocumentStructureOut | null
 }
 
@@ -20,7 +20,55 @@ interface SummaryData {
   bullets: string[]
 }
 
-export function SummaryTab({ docHash, chapter, structure: _structure }: SummaryTabProps) {
+/** Attempt to extract structured summary data, recovering from JSON-stringified fields. */
+function parseSummaryData(
+  description: string | undefined,
+  bullets: unknown,
+  content?: string
+): SummaryData | null {
+  const safeBullets = (val: unknown): string[] =>
+    Array.isArray(val) ? val.filter((b): b is string => typeof b === 'string') : []
+
+  // Try description field first
+  if (description) {
+    if (!description.startsWith('{')) {
+      return { description, bullets: safeBullets(bullets) }
+    }
+    // Attempt recovery from JSON-stringified description
+    try {
+      const parsed = JSON.parse(description) as Record<string, unknown>
+      if (typeof parsed.description === 'string') {
+        return {
+          description: parsed.description,
+          bullets: safeBullets(parsed.bullets),
+        }
+      }
+    } catch { /* not valid JSON, fall through */ }
+  }
+
+  // Fall back to content field (backward compat with markdown-only summaries)
+  if (content) {
+    // Strip markdown code fences that some LLMs add (e.g. ```json\n...\n```)
+    const strippedContent = content.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '').trim()
+    if (strippedContent.startsWith('{')) {
+      try {
+        const parsed = JSON.parse(strippedContent) as Record<string, unknown>
+        if (typeof parsed.description === 'string') {
+          return {
+            description: parsed.description,
+            bullets: safeBullets(parsed.bullets),
+          }
+        }
+      } catch { /* not valid JSON, fall through */ }
+    } else {
+      return { description: strippedContent, bullets: [] }
+    }
+  }
+
+  return null
+}
+
+export function SummaryTab({ docHash, chapter, qdrantIndex, structure: _structure }: SummaryTabProps) {
   const [summaryData, setSummaryData] = useState<SummaryData | null>(null)
   const [isLoadingStored, setIsLoadingStored] = useState(false)
 
@@ -33,22 +81,20 @@ export function SummaryTab({ docHash, chapter, structure: _structure }: SummaryT
     let cancelled = false
     setIsLoadingStored(true)
     setSummaryData(null)
-    void client.getStoredSummary(docHash, chapter).then((stored) => {
+    void client.getStoredSummary(docHash, chapter, qdrantIndex).then((stored) => {
       if (cancelled) return
       setIsLoadingStored(false)
       if (stored) {
-        if (stored.description) {
-          setSummaryData({ description: stored.description, bullets: stored.bullets })
-        } else {
-          // Backward compat: old cached data only has content
-          setSummaryData({ description: stored.content, bullets: [] })
+        const parsed = parseSummaryData(stored.description, stored.bullets, stored.content)
+        if (parsed) {
+          setSummaryData(parsed)
         }
       }
     }).catch(() => {
       if (!cancelled) setIsLoadingStored(false)
     })
     return () => { cancelled = true }
-  }, [docHash, chapter])
+  }, [docHash, chapter, qdrantIndex])
 
   // Subscribe to the task for this specific (docHash, chapter, type) context
   const task = useTaskStore((state) =>
@@ -60,16 +106,16 @@ export function SummaryTab({ docHash, chapter, structure: _structure }: SummaryT
   // When the task completes, extract the result and clear it from the store
   useEffect(() => {
     if (!task || task.status !== 'completed') return
-    const resultDesc = (task.result as Record<string, unknown> | null)?.description as string | undefined
-    const resultBullets = (task.result as Record<string, unknown> | null)?.bullets as string[] | undefined
+    const result = task.result
 
-    if (resultDesc) {
-      setSummaryData({ description: resultDesc, bullets: resultBullets ?? [] })
-    } else {
-      // Fall back to mock data keyed by docHash
-      const mock = mockSummaries[docHash]
-      if (mock) {
-        setSummaryData({ description: mock.description, bullets: mock.bullets })
+    if (result && typeof result === 'object' && !Array.isArray(result)) {
+      const r = result as Record<string, unknown>
+      const parsed = parseSummaryData(
+        typeof r.description === 'string' ? r.description : undefined,
+        r.bullets
+      )
+      if (parsed) {
+        setSummaryData(parsed)
       }
     }
     useTaskStore.getState().clearTask(task.taskId)
@@ -78,7 +124,7 @@ export function SummaryTab({ docHash, chapter, structure: _structure }: SummaryT
   const handleGenerate = async () => {
     setSummaryData(null)
     try {
-      const response = await client.summarizeChapter(chapter, bookTitle, docHash)
+      const response = await client.summarizeChapter(chapter, qdrantIndex, bookTitle, docHash, true)
       useTaskStore.getState().submitTask({
         taskId: response.task_id,
         type: 'summary',
@@ -88,6 +134,16 @@ export function SummaryTab({ docHash, chapter, structure: _structure }: SummaryT
       })
     } catch {
       // API call failed before task was submitted -- no cleanup needed
+    }
+  }
+
+  const handleClear = async () => {
+    try {
+      await client.deleteSummary(docHash, chapter, qdrantIndex)
+      setSummaryData(null)
+    } catch {
+      // Ignore errors (e.g. 404 if already gone)
+      setSummaryData(null)
     }
   }
 
@@ -111,6 +167,15 @@ export function SummaryTab({ docHash, chapter, structure: _structure }: SummaryT
       {/* Toolbar */}
       <div className="flex items-center gap-3 flex-wrap">
         {generateButton}
+        {summaryData && !isLoading && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => void handleClear()}
+          >
+            Clear
+          </Button>
+        )}
       </div>
 
       {/* Loading state */}

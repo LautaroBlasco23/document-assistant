@@ -19,6 +19,7 @@ export interface SectionOut {
 
 export interface ChapterOut {
   number: number
+  qdrant_index: number
   title?: string
   num_chunks: number
   sections?: SectionOut[]
@@ -131,4 +132,40 @@ export interface ChapterDeleteResponse {
   vectors_deleted: number
   summaries_deleted: number
   flashcards_deleted: number
+}
+
+export interface ActiveTaskOut {
+  task_id: string
+  task_type: string
+  doc_hash: string
+  filename: string
+  status: 'pending' | 'running' | 'completed' | 'failed'
+  progress: string
+  progress_pct: number
+  chapter: number
+  book_title: string
+}
+
+export interface ActiveTasksOut {
+  tasks: ActiveTaskOut[]
+}
+
+export interface ChapterPreviewOut {
+  index: number
+  title: string
+  page_start: number
+  page_end: number
+}
+
+export interface DocumentPreviewOut {
+  file_hash: string
+  filename: string
+  num_chapters: number
+  chapters: ChapterPreviewOut[]
+}
+
+export interface IngestChaptersRequest {
+  chapter_indices: number[]
+  document_type?: string
+  description?: string
 }

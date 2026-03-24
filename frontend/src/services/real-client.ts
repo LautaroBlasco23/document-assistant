@@ -126,34 +126,47 @@ export class RealClient implements ServiceClient {
     return res.data
   }
 
-  async summarizeChapter(chapter: number, bookTitle: string, documentHash: string): Promise<TaskResponseOut> {
+  async summarizeChapter(chapter: number, qdrantIndex: number, bookTitle: string, documentHash: string, force = false): Promise<TaskResponseOut> {
     const res = await httpClient.post<TaskResponseOut>('/chapters/summarize', {
       chapter,
+      qdrant_index: qdrantIndex,
       book_title: bookTitle,
       document_hash: documentHash,
+      force,
     })
     return res.data
   }
 
-  async generateFlashcards(chapter: number, bookTitle: string, documentHash: string): Promise<TaskResponseOut> {
+  async generateFlashcards(chapter: number, qdrantIndex: number, bookTitle: string, documentHash: string, force = false): Promise<TaskResponseOut> {
     const res = await httpClient.post<TaskResponseOut>('/chapters/flashcards', {
       chapter,
+      qdrant_index: qdrantIndex,
       book_title: bookTitle,
       document_hash: documentHash,
+      force,
     })
     return res.data
   }
 
-  async getStoredSummary(docHash: string, chapter: number): Promise<SummaryResponse | null> {
-    const res = await httpClient.get<SummaryResponse>(`/documents/${docHash}/summaries/${chapter}`, {
+  async getStoredSummary(docHash: string, chapter: number, qdrantIndex?: number): Promise<SummaryResponse | null> {
+    // Use qdrant_index if provided, otherwise fall back to chapter-1
+    const chapterParam = qdrantIndex !== undefined ? qdrantIndex + 1 : chapter
+    const res = await httpClient.get<SummaryResponse>(`/documents/${docHash}/summaries/${chapterParam}`, {
       validateStatus: (s) => s === 200 || s === 404,
     })
     return res.status === 404 ? null : res.data
   }
 
-  async getStoredFlashcards(docHash: string, chapter: number): Promise<FlashcardResponse[]> {
+  async deleteSummary(docHash: string, chapter: number, qdrantIndex?: number): Promise<void> {
+    const chapterParam = qdrantIndex !== undefined ? qdrantIndex + 1 : chapter
+    await httpClient.delete(`/documents/${docHash}/summaries/${chapterParam}`)
+  }
+
+  async getStoredFlashcards(docHash: string, chapter: number, qdrantIndex?: number): Promise<FlashcardResponse[]> {
+    // Use qdrant_index if provided, otherwise fall back to chapter-1
+    const chapterParam = qdrantIndex !== undefined ? qdrantIndex + 1 : chapter
     const res = await httpClient.get<FlashcardResponse[]>(`/documents/${docHash}/flashcards`, {
-      params: { chapter },
+      params: { chapter: chapterParam },
     })
     return res.data
   }

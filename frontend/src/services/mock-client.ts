@@ -13,6 +13,8 @@ import type {
   FlashcardResponse,
   MetadataResponse,
   ChapterDeleteResponse,
+  ActiveTasksOut,
+  DocumentPreviewOut,
 } from '../types/api'
 import type { ServiceClient } from './client.interface'
 
@@ -64,6 +66,34 @@ export class MockClient implements ServiceClient {
     return { task_id: taskId, filename }
   }
 
+  async previewDocument(_file: File): Promise<DocumentPreviewOut> {
+    await delay(500)
+    return {
+      file_hash: 'mock-preview-hash',
+      filename: 'mock-document.pdf',
+      num_chapters: 5,
+      chapters: [
+        { index: 0, title: 'Introduction', page_start: 1, page_end: 10 },
+        { index: 1, title: 'Chapter 1: Getting Started', page_start: 11, page_end: 25 },
+        { index: 2, title: 'Chapter 2: Core Concepts', page_start: 26, page_end: 50 },
+        { index: 3, title: 'Chapter 3: Advanced Topics', page_start: 51, page_end: 80 },
+        { index: 4, title: 'Conclusion', page_start: 81, page_end: 90 },
+      ],
+    }
+  }
+
+  async ingestDocumentChapters(
+    _fileHash: string,
+    _file: File,
+    _chapterIndices: number[],
+    _documentType?: string,
+    _description?: string
+  ): Promise<IngestTaskOut> {
+    await delay(300)
+    const taskId = `mock-task-${Math.random().toString(36).slice(2, 10)}`
+    return { task_id: taskId, filename: 'mock-document.pdf' }
+  }
+
   async getConfig(): Promise<ConfigOut> {
     await delay(150)
     return { ...mockConfig }
@@ -90,7 +120,12 @@ export class MockClient implements ServiceClient {
     }
   }
 
-  async summarizeChapter(_chapter: number, _bookTitle: string, _documentHash: string): Promise<TaskResponseOut> {
+  async listActiveTasks(): Promise<ActiveTasksOut> {
+    await delay(100)
+    return { tasks: [] }
+  }
+
+  async summarizeChapter(_chapter: number, _qdrantIndex: number, _bookTitle: string, _documentHash: string, _force?: boolean): Promise<TaskResponseOut> {
     await delay(200)
     return {
       task_id: `sum-task-${Math.random().toString(36).slice(2, 10)}`,
@@ -98,7 +133,7 @@ export class MockClient implements ServiceClient {
     }
   }
 
-  async generateFlashcards(_chapter: number, _bookTitle: string, _documentHash: string): Promise<TaskResponseOut> {
+  async generateFlashcards(_chapter: number, _qdrantIndex: number, _bookTitle: string, _documentHash: string, _force?: boolean): Promise<TaskResponseOut> {
     await delay(200)
     return {
       task_id: `fc-task-${Math.random().toString(36).slice(2, 10)}`,
@@ -106,12 +141,16 @@ export class MockClient implements ServiceClient {
     }
   }
 
-  async getStoredSummary(_docHash: string, _chapter: number): Promise<SummaryResponse | null> {
+  async getStoredSummary(_docHash: string, _chapter: number, _qdrantIndex?: number): Promise<SummaryResponse | null> {
     await delay(100)
     return null
   }
 
-  async getStoredFlashcards(_docHash: string, _chapter: number): Promise<FlashcardResponse[]> {
+  async deleteSummary(_docHash: string, _chapter: number, _qdrantIndex?: number): Promise<void> {
+    await delay(100)
+  }
+
+  async getStoredFlashcards(_docHash: string, _chapter: number, _qdrantIndex?: number): Promise<FlashcardResponse[]> {
     await delay(100)
     return []
   }

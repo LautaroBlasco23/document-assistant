@@ -1,7 +1,6 @@
 import { create } from 'zustand'
 import { client } from '../services'
 
-// Module-level map of active polling intervals (outside Zustand state)
 const pollingIntervals = new Map<string, ReturnType<typeof setInterval>>()
 
 export type GenerationTaskType = 'summary' | 'qa' | 'flashcards'
@@ -20,7 +19,7 @@ export interface GenerationTask {
 }
 
 interface TaskState {
-  tasks: Record<string, GenerationTask>  // keyed by taskId
+  tasks: Record<string, GenerationTask>
   submitTask: (params: {
     taskId: string
     type: GenerationTaskType
@@ -29,9 +28,8 @@ interface TaskState {
     bookTitle: string
   }) => void
   clearTask: (taskId: string) => void
+  rehydrateFromBackend: () => Promise<void>
 }
-
-// --- sessionStorage helpers ---
 
 const SESSION_KEY = 'docassist_active_tasks'
 
@@ -71,17 +69,64 @@ function removeFromSession(taskId: string) {
   }
 }
 
-// --- Store ---
+function _startPolling(taskId: string) {
+  if (pollingIntervals.has(taskId)) return
 
-export const useTaskStore = create<TaskState>((set) => ({
-  tasks: {},
+  const interval = setInterval(async () => {
+    try {
+      const status = await client.getTaskStatus(taskId)
 
-  submitTask: ({ taskId, type, docHash, chapter, bookTitle }) => {
-    // Guard against duplicate polling
-    if (pollingIntervals.has(taskId)) return
+      useTaskStore.setState((state) => {
+        const existing = state.tasks[taskId]
+        if (!existing) {
+          clearInterval(interval)
+          pollingIntervals.delete(taskId)
+          return state
+        }
+        const updated: GenerationTask = {
+          ...existing,
+          status: status.status as GenerationTask['status'],
+          progress: status.progress ?? null,
+          progressPct: status.progress_pct ?? null,
+          result: (status.result as Record<string, unknown> | null) ?? null,
+          error: status.error ?? null,
+        }
+        if (status.status === 'completed' || status.status === 'failed') {
+          clearInterval(interval)
+          pollingIntervals.delete(taskId)
+          removeFromSession(taskId)
+        }
+        return { tasks: { ...state.tasks, [taskId]: updated } }
+      })
+    } catch (err) {
+      const is404 = err instanceof Error && err.message.includes('404')
+      clearInterval(interval)
+      pollingIntervals.delete(taskId)
+      removeFromSession(taskId)
+      useTaskStore.setState((state) => {
+        const existing = state.tasks[taskId]
+        if (!existing) return state
+        return {
+          tasks: {
+            ...state.tasks,
+            [taskId]: {
+              ...existing,
+              status: 'failed',
+              error: is404 ? 'Task not found (server may have restarted)' : 'Lost connection to server',
+            },
+          },
+        }
+      })
+    }
+  }, 1500)
 
-    // Add task entry to state
-    set((state) => ({
+  pollingIntervals.set(taskId, interval)
+}
+
+function _addTask(taskId: string, type: GenerationTaskType, docHash: string, chapter: number, bookTitle: string) {
+  useTaskStore.setState((state) => {
+    if (state.tasks[taskId]) return state
+    return {
       tasks: {
         ...state.tasks,
         [taskId]: {
@@ -97,66 +142,18 @@ export const useTaskStore = create<TaskState>((set) => ({
           error: null,
         },
       },
-    }))
+    }
+  })
+  persistToSession({ taskId, type, docHash, chapter, bookTitle })
+  _startPolling(taskId)
+}
 
-    // Persist to sessionStorage so we can recover after page refresh
-    persistToSession({ taskId, type, docHash, chapter, bookTitle })
+export const useTaskStore = create<TaskState>((set) => ({
+  tasks: {},
 
-    const interval = setInterval(async () => {
-      try {
-        const status = await client.getTaskStatus(taskId)
-
-        set((state) => {
-          const existing = state.tasks[taskId]
-          if (!existing) return state
-          return {
-            tasks: {
-              ...state.tasks,
-              [taskId]: {
-                ...existing,
-                status: status.status as GenerationTask['status'],
-                progress: status.progress ?? null,
-                progressPct: status.progress_pct ?? null,
-                result: (status.result as Record<string, unknown> | null) ?? null,
-                error: status.error ?? null,
-              },
-            },
-          }
-        })
-
-        if (status.status === 'completed' || status.status === 'failed') {
-          clearInterval(interval)
-          pollingIntervals.delete(taskId)
-          removeFromSession(taskId)
-        }
-      } catch (err) {
-        // Detect 404 (stale task ID after server restart) vs generic network error
-        const is404 =
-          err instanceof Error && err.message.includes('404')
-        clearInterval(interval)
-        pollingIntervals.delete(taskId)
-        removeFromSession(taskId)
-
-        set((state) => {
-          const existing = state.tasks[taskId]
-          if (!existing) return state
-          return {
-            tasks: {
-              ...state.tasks,
-              [taskId]: {
-                ...existing,
-                status: 'failed',
-                error: is404
-                  ? 'Task not found (server may have restarted)'
-                  : 'Lost connection to server',
-              },
-            },
-          }
-        })
-      }
-    }, 1500)
-
-    pollingIntervals.set(taskId, interval)
+  submitTask: ({ taskId, type, docHash, chapter, bookTitle }) => {
+    if (pollingIntervals.has(taskId)) return
+    _addTask(taskId, type, docHash, chapter, bookTitle)
   },
 
   clearTask: (taskId: string) => {
@@ -169,29 +166,39 @@ export const useTaskStore = create<TaskState>((set) => ({
     set((state) => {
       const updated: Record<string, GenerationTask> = {}
       for (const key of Object.keys(state.tasks)) {
-        if (key !== taskId) {
-          updated[key] = state.tasks[key]
-        }
+        if (key !== taskId) updated[key] = state.tasks[key]
       }
       return { tasks: updated }
     })
   },
+
+  rehydrateFromBackend: async () => {
+    try {
+      const { tasks: activeTasks } = await client.listActiveTasks()
+      for (const t of activeTasks) {
+        if (t.task_type === 'summarize') {
+          _addTask(t.task_id, 'summary', t.doc_hash, t.chapter, t.book_title)
+        } else if (t.task_type === 'flashcards') {
+          _addTask(t.task_id, 'flashcards', t.doc_hash, t.chapter, t.book_title)
+        }
+      }
+    } catch {
+      // ignore network errors during rehydration
+    }
+  },
 }))
 
-// --- Rehydration on module load ---
-// Resume polling for any tasks that were in progress when the page was refreshed.
-
-function rehydrate() {
+function _rehydrateFromSession() {
   try {
     const raw = sessionStorage.getItem(SESSION_KEY)
     if (!raw) return
     const entries = JSON.parse(raw) as PersistedTask[]
     for (const entry of entries) {
-      useTaskStore.getState().submitTask(entry)
+      _addTask(entry.taskId, entry.type, entry.docHash, entry.chapter, entry.bookTitle)
     }
   } catch {
     sessionStorage.removeItem(SESSION_KEY)
   }
 }
 
-rehydrate()
+_rehydrateFromSession()

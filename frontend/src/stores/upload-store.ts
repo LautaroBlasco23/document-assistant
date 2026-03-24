@@ -2,14 +2,15 @@ import { create } from 'zustand'
 import { client } from '../services'
 import { useDocumentStore } from './document-store'
 
-// Module-level map of active polling intervals (outside Zustand state)
 const pollingIntervals = new Map<string, ReturnType<typeof setInterval>>()
+
+export type UploadStatus = 'uploading' | 'processing' | 'completed' | 'failed'
 
 export interface UploadEntry {
   id: string
   filename: string
   taskId: string | null
-  status: 'uploading' | 'processing' | 'completed' | 'failed'
+  status: UploadStatus
   progress: string | null
   error: string | null
 }
@@ -17,41 +18,122 @@ export interface UploadEntry {
 interface UploadState {
   uploads: UploadEntry[]
   startUpload: (file: File, documentType?: string, description?: string) => Promise<void>
+  handleIngestTask: (taskId: string, filename: string) => void
   dismissUpload: (id: string) => void
+  rehydrate: () => Promise<void>
 }
 
-function updateEntry(
-  set: (fn: (state: UploadState) => Partial<UploadState>) => void,
-  id: string,
-  partial: Partial<UploadEntry>,
-) {
-  set((state) => ({
-    uploads: state.uploads.map((entry) =>
-      entry.id === id ? { ...entry, ...partial } : entry
-    ),
+const LOCAL_KEY = 'docassist_uploads'
+
+type PersistedUpload = Omit<UploadEntry, 'progress' | 'error'>
+
+function _load(): PersistedUpload[] {
+  try {
+    const raw = localStorage.getItem(LOCAL_KEY)
+    return raw ? (JSON.parse(raw) as PersistedUpload[]) : []
+  } catch {
+    return []
+  }
+}
+
+function _save(uploads: UploadEntry[]) {
+  try {
+    const persisted: PersistedUpload[] = uploads.map(({ id, filename, taskId, status }) => ({
+      id,
+      filename,
+      taskId,
+      status,
+    }))
+    localStorage.setItem(LOCAL_KEY, JSON.stringify(persisted))
+  } catch {
+    // ignore storage errors
+  }
+}
+
+function _remove(id: string) {
+  try {
+    const raw = localStorage.getItem(LOCAL_KEY)
+    if (!raw) return
+    const uploads = (JSON.parse(raw) as PersistedUpload[]).filter((u) => u.id !== id)
+    if (uploads.length === 0) {
+      localStorage.removeItem(LOCAL_KEY)
+    } else {
+      localStorage.setItem(LOCAL_KEY, JSON.stringify(uploads))
+    }
+  } catch {
+    // ignore
+  }
+}
+
+function _startPolling(id: string, taskId: string) {
+  if (pollingIntervals.has(id)) return
+
+  const interval = setInterval(async () => {
+    try {
+      const status = await client.getTaskStatus(taskId)
+
+      useUploadStore.setState((state) => {
+        const entry = state.uploads.find((u) => u.id === id)
+        if (!entry) {
+          clearInterval(interval)
+          pollingIntervals.delete(id)
+          return state
+        }
+
+        const updated: UploadEntry = { ...entry, progress: status.progress }
+        if (status.status === 'completed') {
+          updated.status = 'completed'
+          clearInterval(interval)
+          pollingIntervals.delete(id)
+          _remove(id)
+          setTimeout(() => useUploadStore.getState().dismissUpload(id), 2000)
+          useDocumentStore.getState().fetchDocuments()
+        } else if (status.status === 'failed') {
+          updated.status = 'failed'
+          updated.error = status.error ?? 'Processing failed'
+          clearInterval(interval)
+          pollingIntervals.delete(id)
+          _remove(id)
+        }
+
+        return { uploads: state.uploads.map((u) => (u.id === id ? updated : u)) }
+      })
+    } catch {
+      useUploadStore.setState((state) => ({
+        uploads: state.uploads.map((u) =>
+          u.id === id ? { ...u, status: 'failed', error: 'Lost connection to server' } : u
+        ),
+      }))
+      clearInterval(interval)
+      pollingIntervals.delete(id)
+      _remove(id)
+    }
+  }, 1500)
+
+  pollingIntervals.set(id, interval)
+}
+
+function _addUpload(upload: UploadEntry) {
+  useUploadStore.setState((state) => ({
+    uploads: [...state.uploads.filter((u) => u.id !== upload.id), upload],
   }))
 }
 
-export const useUploadStore = create<UploadState>((set, get) => ({
+export const useUploadStore = create<UploadState>((set) => ({
   uploads: [],
 
   startUpload: async (file: File, documentType = '', description = '') => {
     const id = crypto.randomUUID()
+    const entry: UploadEntry = {
+      id,
+      filename: file.name,
+      taskId: null,
+      status: 'uploading',
+      progress: null,
+      error: null,
+    }
 
-    // Push new entry immediately so the card appears right away
-    set((state) => ({
-      uploads: [
-        ...state.uploads,
-        {
-          id,
-          filename: file.name,
-          taskId: null,
-          status: 'uploading',
-          progress: null,
-          error: null,
-        },
-      ],
-    }))
+    _addUpload(entry)
 
     let taskId: string
     try {
@@ -62,49 +144,33 @@ export const useUploadStore = create<UploadState>((set, get) => ({
       const result = await client.ingestDocument(formData)
       taskId = result.task_id
     } catch (err) {
-      updateEntry(set, id, {
+      _addUpload({
+        ...entry,
         status: 'failed',
         error: err instanceof Error ? err.message : 'Upload failed',
       })
       return
     }
 
-    updateEntry(set, id, { taskId, status: 'processing' })
+    const processingEntry: UploadEntry = { ...entry, taskId, status: 'processing' }
+    _addUpload(processingEntry)
+    _save([...useUploadStore.getState().uploads, processingEntry])
+    _startPolling(id, taskId)
+  },
 
-    const interval = setInterval(async () => {
-      try {
-        const status = await client.getTaskStatus(taskId)
-
-        if (status.status === 'completed') {
-          updateEntry(set, id, { status: 'completed', progress: status.progress })
-          clearInterval(interval)
-          pollingIntervals.delete(id)
-
-          await useDocumentStore.getState().fetchDocuments()
-          setTimeout(() => {
-            get().dismissUpload(id)
-          }, 2000)
-        } else if (status.status === 'failed') {
-          updateEntry(set, id, {
-            status: 'failed',
-            error: status.error ?? 'Processing failed',
-            progress: status.progress,
-          })
-          clearInterval(interval)
-          pollingIntervals.delete(id)
-        } else {
-          // Still running — update progress message
-          updateEntry(set, id, { progress: status.progress })
-        }
-      } catch {
-        // Network error during polling — stop and mark failed
-        updateEntry(set, id, { status: 'failed', error: 'Lost connection to server' })
-        clearInterval(interval)
-        pollingIntervals.delete(id)
-      }
-    }, 1500)
-
-    pollingIntervals.set(id, interval)
+  handleIngestTask: (taskId: string, filename: string) => {
+    const id = crypto.randomUUID()
+    const entry: UploadEntry = {
+      id,
+      filename,
+      taskId,
+      status: 'processing',
+      progress: null,
+      error: null,
+    }
+    _addUpload(entry)
+    _save([...useUploadStore.getState().uploads, entry])
+    _startPolling(id, taskId)
   },
 
   dismissUpload: (id: string) => {
@@ -113,8 +179,22 @@ export const useUploadStore = create<UploadState>((set, get) => ({
       clearInterval(interval)
       pollingIntervals.delete(id)
     }
-    set((state) => ({
-      uploads: state.uploads.filter((entry) => entry.id !== id),
-    }))
+    _remove(id)
+    set((state) => ({ uploads: state.uploads.filter((u) => u.id !== id) }))
+  },
+
+  rehydrate: async () => {
+    const persisted = _load()
+    if (persisted.length === 0) return
+
+    for (const p of persisted) {
+      _addUpload({ ...p, progress: null, error: null })
+
+      if (p.status === 'processing' && p.taskId) {
+        _startPolling(p.id, p.taskId)
+      } else if (p.status !== 'processing') {
+        _remove(p.id)
+      }
+    }
   },
 }))
