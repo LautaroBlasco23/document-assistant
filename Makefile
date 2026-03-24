@@ -1,6 +1,7 @@
 .PHONY: start stop check clean help dev-deps infra-deps
 
 DOCKER_COMPOSE := docker compose
+BACKEND_DIR := backend
 
 help:
 	@echo "Document Assistant - Infrastructure Management"
@@ -22,7 +23,7 @@ start: infra-deps dev-deps
 	@echo "Starting backend (http://localhost:8000) and frontend (http://localhost:5173)..."
 	@set -a; [ -f .env ] && . ./.env; set +a; \
 	trap "make stop" EXIT; \
-	uv run python -m uvicorn api.main:app --port 8000 --log-level warning --no-access-log & \
+	cd $(BACKEND_DIR) && uv run uvicorn api.main:app --port 8000 --reload --log-level warning --no-access-log & \
 	BACKEND_PID=$$!; \
 	echo "Waiting for backend to be ready..."; \
 	for i in $$(seq 1 15); do \
@@ -41,7 +42,7 @@ infra-deps:
 	@echo "Starting infrastructure services (Qdrant, Neo4j)..."
 	$(DOCKER_COMPOSE) up -d
 	@echo "Installing Python dependencies..."
-	uv sync
+	cd $(BACKEND_DIR) && uv sync
 	@echo "Pulling Ollama models..."
 	ollama pull llama3.2
 	ollama pull nomic-embed-text
@@ -61,7 +62,7 @@ stop:
 
 check:
 	@echo "Checking service health..."
-	uv run python -m cli.main check
+	cd $(BACKEND_DIR) && uv run python -m cli.main check
 
 clean:
 	@echo "Stopping services and removing Docker volumes..."

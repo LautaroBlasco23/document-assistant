@@ -14,12 +14,13 @@ from application.agents.flashcard_generator import FlashcardGeneratorAgent
 from application.agents.summarizer import SummarizerAgent
 from core.model.document import Chapter
 from core.model.generated_content import Flashcard, Summary
+from infrastructure.config import PROJECT_ROOT
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-_OUTPUT_DIR = Path("data/output")
+_OUTPUT_DIR = PROJECT_ROOT / "data" / "output"
 
 
 def _set_progress(task: Task, pct: int, message: str) -> None:

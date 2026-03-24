@@ -8,7 +8,7 @@ import requests
 from neo4j import GraphDatabase
 from qdrant_client import QdrantClient
 
-from infrastructure.config import load_config
+from infrastructure.config import PROJECT_ROOT, load_config
 
 logger = logging.getLogger(__name__)
 
@@ -131,7 +131,7 @@ def run_ingest(path: str, provider: str | None = None) -> int:
         overlap_tokens=config.chunking.overlap_tokens,
     )
 
-    output_dir = Path("data/output")
+    output_dir = PROJECT_ROOT / "data" / "output"
     processed = 0
 
     for file_path in files:
@@ -237,7 +237,7 @@ def run_summarize(book_title: str, chapter_num: int, provider: str | None = None
     agent = SummarizerAgent(fast_llm)
     summary = agent.summarize(chapter_obj, chunks)
 
-    output_dir = Path("data/output")
+    output_dir = PROJECT_ROOT / "data" / "output"
     out_path = write_summary(doc, chapter_index, summary, chunks, output_dir)
     print(f"Summary written to {out_path}")
     neo4j.close()
@@ -294,7 +294,7 @@ def run_generate_md(book_title: str, chapter_num: int, provider: str | None = No
         chapters=[chapter_obj],
     )
 
-    output_dir = Path("data/output")
+    output_dir = PROJECT_ROOT / "data" / "output"
 
     print("Generating summary ...")
     summary = SummarizerAgent(fast_llm).summarize(chapter_obj, chunks)

@@ -29,13 +29,14 @@ from core.model.document_metadata import DocumentMetadata
 from infrastructure.chunking.splitter import ChapterAwareSplitter
 from infrastructure.graph.entity_extractor import extract_entities
 from infrastructure.output.manifest import remove_chapter_from_manifest, write_manifest
+from infrastructure.config import PROJECT_ROOT
 from infrastructure.output.markdown_writer import _safe_name
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-OUTPUT_DIR = Path("data/output")
+OUTPUT_DIR = PROJECT_ROOT / "data" / "output"
 
 
 def _list_documents() -> list[dict]:

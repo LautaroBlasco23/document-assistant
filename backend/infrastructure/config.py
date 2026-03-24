@@ -58,10 +58,13 @@ class AppConfig(BaseSettings):
     model_config = {"env_prefix": "DOCASSIST_", "env_nested_delimiter": "__"}
 
 
+PROJECT_ROOT = Path(__file__).parent.parent.parent  # infrastructure → backend → project root
+
+
 def load_config(config_path: Path | None = None) -> AppConfig:
     """Load config from YAML file, with env var overrides."""
     if config_path is None:
-        config_path = Path(__file__).parent.parent / "config" / "default.yml"
+        config_path = PROJECT_ROOT / "config" / "default.yml"
 
     if config_path.exists():
         with open(config_path) as f:
@@ -74,7 +77,7 @@ def load_config(config_path: Path | None = None) -> AppConfig:
 def save_config(config: AppConfig, config_path: Path | None = None) -> None:
     """Save config to YAML file."""
     if config_path is None:
-        config_path = Path(__file__).parent.parent / "config" / "default.yml"
+        config_path = PROJECT_ROOT / "config" / "default.yml"
 
     config_path.parent.mkdir(parents=True, exist_ok=True)
 

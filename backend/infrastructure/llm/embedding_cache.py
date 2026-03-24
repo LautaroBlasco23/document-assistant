@@ -7,7 +7,7 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_DB = Path(__file__).parent.parent.parent / "data" / ".cache" / "embeddings.db"
+_DEFAULT_DB = Path(__file__).parent.parent.parent.parent / "data" / ".cache" / "embeddings.db"
 
 
 class EmbeddingCache:
