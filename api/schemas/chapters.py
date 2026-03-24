@@ -7,7 +7,8 @@ class ChapterRequest(BaseModel):
     """Request for chapter analysis."""
 
     book_title: str  # Used for context only
-    chapter: int  # 1-based
+    chapter: int  # 1-based user-facing number
+    qdrant_index: int  # Actual chapter_index stored in Qdrant
     document_hash: str  # SHA-256 file hash for persistence
     force: bool = False  # Force regeneration even if cached
 

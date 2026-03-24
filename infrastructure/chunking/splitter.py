@@ -18,15 +18,19 @@ class ChapterAwareSplitter:
         self.max_tokens = max_tokens
         self.overlap_tokens = overlap_tokens
 
-    def split(self, document: Document) -> list[Chunk]:
+    def split(self, document: Document, chapter_indices: set[int] | None = None) -> list[Chunk]:
+        chapters = document.chapters
+        if chapter_indices is not None:
+            chapters = [c for c in chapters if c.index in chapter_indices]
         chunks: list[Chunk] = []
-        for chapter in document.chapters:
+        for chapter in chapters:
             chunks.extend(self._split_chapter(document, chapter))
         logger.info(
-            "Split %s into %d chunks (%d chapters)",
+            "Split %s into %d chunks (%d chapters%s)",
             document.title,
             len(chunks),
-            len(document.chapters),
+            len(chapters),
+            f" filtered from {len(document.chapters)}" if chapter_indices else "",
         )
         return chunks
 

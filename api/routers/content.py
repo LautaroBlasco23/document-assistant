@@ -32,7 +32,7 @@ async def get_summaries(file_hash: str, services: ServicesDep) -> list[SummaryRe
 async def get_summary(file_hash: str, chapter: int, services: ServicesDep) -> SummaryResponse:
     """Get summary for a specific chapter (1-based)."""
     summary = services.content_store.get_summary(file_hash, chapter - 1)
-    if not summary:
+    if summary is None:
         raise HTTPException(status_code=404, detail="Summary not found")
     return SummaryResponse(
         chapter=chapter,
@@ -41,6 +41,12 @@ async def get_summary(file_hash: str, chapter: int, services: ServicesDep) -> Su
         bullets=summary.bullets,
         created_at=summary.created_at.isoformat(),
     )
+
+
+@router.delete("/documents/{file_hash}/summaries/{chapter}", status_code=204)
+async def delete_summary(file_hash: str, chapter: int, services: ServicesDep) -> None:
+    """Delete the stored summary for a specific chapter (1-based)."""
+    services.content_store.delete_summary(file_hash, chapter - 1)
 
 
 @router.get("/documents/{file_hash}/flashcards", response_model=list[FlashcardResponse])

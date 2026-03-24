@@ -156,11 +156,32 @@ class SummarizerAgent(BaseAgent):
 
         try:
             parsed = json.loads(raw)
+            # Handle double-stringified response (entire JSON wrapped in quotes)
+            if isinstance(parsed, str):
+                parsed = json.loads(parsed)
+
             description = parsed.get("description", "")
             bullets = parsed.get("bullets", [])
+
+            # Handle bullets stored as JSON string instead of list
+            if isinstance(bullets, str):
+                try:
+                    bullets = json.loads(bullets)
+                except (json.JSONDecodeError, TypeError):
+                    bullets = []
             if not isinstance(bullets, list):
                 bullets = []
-        except (json.JSONDecodeError, AttributeError):
+
+            # Handle double-encoded JSON (LLM sometimes returns JSON as a string)
+            if isinstance(description, str) and description.startswith('{"'):
+                try:
+                    inner = json.loads(description)
+                    description = inner.get("description", description)
+                    if isinstance(inner.get("bullets"), list):
+                        bullets = inner["bullets"]
+                except json.JSONDecodeError:
+                    pass  # Keep original description if parsing fails
+        except (json.JSONDecodeError, AttributeError, TypeError):
             logger.warning("LLM returned non-JSON summary; falling back to raw text")
             description = ""
             bullets = []

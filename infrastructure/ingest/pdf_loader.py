@@ -1,5 +1,6 @@
 import logging
 import re
+from dataclasses import dataclass
 from pathlib import Path
 
 import fitz  # PyMuPDF
@@ -46,6 +47,106 @@ _CHAPTER_PATTERNS = [
 ]
 
 SYNTHETIC_CHAPTER_SIZE = 20  # pages per synthetic chapter when no headings found
+
+
+@dataclass
+class ChapterPreview:
+    """Lightweight chapter metadata without full page text."""
+
+    index: int
+    title: str
+    page_start: int  # 1-based
+    page_end: int  # 1-based
+
+
+def preview_pdf(path: Path, file_hash: str) -> tuple[Document | None, list[ChapterPreview]]:
+    """Extract chapter structure from a PDF without loading full page text.
+
+    This is a lightweight operation that only reads the table of contents
+    and uses heuristics to determine chapter boundaries.
+
+    Returns (doc, chapters) where doc has no populated chapters (just metadata).
+    chapters is the list of ChapterPreview objects.
+    """
+    doc = fitz.open(str(path))
+    title = doc.metadata.get("title") or path.stem
+    author = doc.metadata.get("author", "")
+    total_pages = len(doc)
+
+    chapters = _extract_chapter_structure(doc, total_pages)
+    doc.close()
+
+    result_doc = Document(
+        source_path=str(path),
+        title=title,
+        file_hash=file_hash,
+        original_filename=path.name,
+        chapters=[],  # Not populated - use full load for that
+        metadata={"author": author},
+    )
+
+    logger.info("Preview PDF %s: %d pages, %d chapters", path.name, total_pages, len(chapters))
+    return result_doc, chapters
+
+
+def _extract_chapter_structure(doc: fitz.Document, total_pages: int) -> list[ChapterPreview]:
+    """Extract chapter structure from ToC or heuristics without loading page text."""
+    toc = doc.get_toc()
+    if not toc:
+        return _synthetic_chapter_structure(total_pages)
+
+    level1 = [(title, page_num) for level, title, page_num in toc if level == 1]
+    level2 = [(title, page_num) for level, title, page_num in toc if level == 2]
+
+    if not level1 and not level2:
+        return _synthetic_chapter_structure(total_pages)
+
+    if not level1 and level2:
+        return [ChapterPreview(index=0, title="Document", page_start=1, page_end=total_pages)]
+
+    chapters: list[ChapterPreview] = []
+    all_entries = [(level, title, page_num) for level, title, page_num in toc if level in (1, 2)]
+
+    chapter_index = 0
+    for i, (entry_level, entry_title, entry_page) in enumerate(all_entries):
+        if entry_level != 1:
+            continue
+
+        chapter_end_page = total_pages
+        for j in range(i + 1, len(all_entries)):
+            if all_entries[j][0] == 1:
+                chapter_end_page = all_entries[j][2] - 1
+                break
+
+        chapters.append(
+            ChapterPreview(
+                index=chapter_index,
+                title=entry_title or f"Chapter {chapter_index + 1}",
+                page_start=entry_page,
+                page_end=chapter_end_page,
+            )
+        )
+        chapter_index += 1
+
+    return chapters or _synthetic_chapter_structure(total_pages)
+
+
+def _synthetic_chapter_structure(total_pages: int) -> list[ChapterPreview]:
+    """Generate synthetic chapter structure based on page ranges."""
+    chapters = []
+    for i in range(0, total_pages, SYNTHETIC_CHAPTER_SIZE):
+        end_page = min(i + SYNTHETIC_CHAPTER_SIZE, total_pages)
+        chapters.append(
+            ChapterPreview(
+                index=len(chapters),
+                title=f"Section {len(chapters) + 1}",
+                page_start=i + 1,
+                page_end=end_page,
+            )
+        )
+    return chapters or [
+        ChapterPreview(index=0, title="Document", page_start=1, page_end=total_pages)
+    ]
 
 
 def load_pdf(path: Path, file_hash: str, original_filename: str = "") -> Document:

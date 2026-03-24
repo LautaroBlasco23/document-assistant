@@ -14,7 +14,8 @@ class SectionOut(BaseModel):
 class ChapterOut(BaseModel):
     """Chapter metadata."""
 
-    number: int
+    number: int  # User-facing sequential number (1, 2, 3...)
+    qdrant_index: int  # Actual chapter_index stored in Qdrant (may have gaps)
     title: str | None
     num_chunks: int
     sections: list[SectionOut] = []
@@ -74,3 +75,29 @@ class ChapterDeleteResponse(BaseModel):
     vectors_deleted: int
     summaries_deleted: int
     flashcards_deleted: int
+
+
+class ChapterPreviewOut(BaseModel):
+    """Chapter metadata for preview/selection."""
+
+    index: int
+    title: str
+    page_start: int
+    page_end: int
+
+
+class DocumentPreviewOut(BaseModel):
+    """Response from preview endpoint - chapter structure without storage."""
+
+    file_hash: str
+    filename: str
+    num_chapters: int
+    chapters: list[ChapterPreviewOut]
+
+
+class IngestChaptersRequest(BaseModel):
+    """Request to ingest selected chapters after preview."""
+
+    chapter_indices: list[int] = Field(description="0-based indices of chapters to ingest")
+    document_type: str = Field(default="")
+    description: str = Field(default="")

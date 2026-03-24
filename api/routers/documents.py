@@ -77,13 +77,17 @@ def _get_document_chapters(file_hash: str, services: ServicesDep) -> list[Chapte
             chapter = chunk.metadata.chapter_index if chunk.metadata else 0
             chapters_data[chapter] = chapters_data.get(chapter, 0) + 1
 
+        # Use sequential numbering (1, 2, 3...) for user-facing chapter numbers,
+        # not the actual chapter_index from Qdrant which may have gaps
+        sorted_chapters = sorted(chapters_data.items())
         return [
             ChapterOut(
-                number=ch + 1,
-                title=chapters_from_manifest.get(ch, f"Chapter {ch + 1}"),
+                number=user_chapter_num,  # Sequential 1-based (1, 2, 3...)
+                qdrant_index=actual_index,  # Actual index stored in Qdrant for filtering
+                title=chapters_from_manifest.get(actual_index, f"Chapter {user_chapter_num}"),
                 num_chunks=count,
             )
-            for ch, count in sorted(chapters_data.items())
+            for user_chapter_num, (actual_index, count) in enumerate(sorted_chapters, start=1)
         ]
     except Exception as e:
         logger.warning(f"Failed to get chapters for {file_hash}: {e}")

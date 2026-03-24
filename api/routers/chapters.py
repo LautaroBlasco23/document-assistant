@@ -50,17 +50,20 @@ def _get_document_title(document_hash: str) -> str:
 
 
 def _summarize_background(
-    task: Task, chapter_num: int, services: ServicesDep, document_hash: str, force: bool
+    task: Task,
+    chapter_num: int,
+    qdrant_index: int,
+    services: ServicesDep,
+    document_hash: str,
+    force: bool,
 ) -> str:
     """Background task to summarize a chapter."""
     t0 = time.perf_counter()
-    logger.info("Starting summarize for chapter %d", chapter_num)
+    logger.info("Starting summarize for chapter %d (qdrant_index=%d)", chapter_num, qdrant_index)
     try:
-        chapter_index = chapter_num - 1
-
         # Return cached result if available and not forced
         if not force:
-            cached = services.content_store.get_summary(document_hash, chapter_index)
+            cached = services.content_store.get_summary(document_hash, qdrant_index)
             if cached:
                 _set_progress(task, 100, "Loaded from cache")
                 task.result = {
@@ -81,7 +84,7 @@ def _summarize_background(
         chunks = services.retriever.retrieve(
             f"chapter {chapter_num} summary",
             k=20,
-            filters={"chapter": chapter_index, "file_hash": document_hash},
+            filters={"chapter": qdrant_index, "file_hash": document_hash},
         )
 
         if not chunks:
@@ -95,7 +98,7 @@ def _summarize_background(
         )
         _set_progress(task, 25, f"Retrieved {len(chunks)} chunks, generating summary...")
         chapter_title = f"Chapter {chapter_num}"
-        chapter_obj = Chapter(index=chapter_index, title=chapter_title, pages=[])
+        chapter_obj = Chapter(index=qdrant_index, title=chapter_title, pages=[])
 
         def sum_progress(phase: str) -> None:
             if phase == "calling_llm":
@@ -114,13 +117,13 @@ def _summarize_background(
         services.content_store.save_summary(
             Summary(
                 document_hash=document_hash,
-                chapter_index=chapter_index,
+                chapter_index=qdrant_index,
                 content=summary["content"],
                 description=summary["description"],
                 bullets=summary["bullets"],
             )
         )
-        logger.debug("Persisted summary for doc=%s chapter=%d", document_hash[:12], chapter_index)
+        logger.debug("Persisted summary for doc=%s chapter=%d", document_hash[:12], qdrant_index)
 
         _set_progress(task, 95, "Finalizing...")
         task.result = {
@@ -138,17 +141,20 @@ def _summarize_background(
 
 
 def _generate_flashcards_background(
-    task: Task, chapter_num: int, services: ServicesDep, document_hash: str, force: bool
+    task: Task,
+    chapter_num: int,
+    qdrant_index: int,
+    services: ServicesDep,
+    document_hash: str,
+    force: bool,
 ) -> list[dict]:
     """Background task to generate flashcards for a chapter."""
     t0 = time.perf_counter()
-    logger.info("Starting flashcards for chapter %d", chapter_num)
+    logger.info("Starting flashcards for chapter %d (qdrant_index=%d)", chapter_num, qdrant_index)
     try:
-        chapter_index = chapter_num - 1
-
         # Return cached result if available and not forced
         if not force:
-            cached = services.content_store.get_flashcards(document_hash, chapter_index)
+            cached = services.content_store.get_flashcards(document_hash, qdrant_index)
             if cached:
                 flashcards = [
                     {"front": c.front, "back": c.back, "category": "key_facts"} for c in cached
@@ -168,7 +174,7 @@ def _generate_flashcards_background(
         chunks = services.retriever.retrieve(
             f"chapter {chapter_num}",
             k=20,
-            filters={"chapter": chapter_index, "file_hash": document_hash},
+            filters={"chapter": qdrant_index, "file_hash": document_hash},
         )
 
         if not chunks:
@@ -201,7 +207,7 @@ def _generate_flashcards_background(
         flashcard_models = [
             Flashcard(
                 document_hash=document_hash,
-                chapter_index=chapter_index,
+                chapter_index=qdrant_index,
                 front=p["front"],
                 back=p["back"],
             )
@@ -212,7 +218,7 @@ def _generate_flashcards_background(
             "Persisted %d flashcards for doc=%s chapter=%d",
             len(flashcard_models),
             document_hash[:12],
-            chapter_index,
+            qdrant_index,
         )
 
         _set_progress(task, 95, "Finalizing...")
@@ -229,7 +235,16 @@ def _generate_flashcards_background(
 async def summarize_chapter(req: ChapterRequest, services: ServicesDep) -> TaskResponseOut:
     """Start background task to summarize a chapter."""
     task_id = services.task_registry.submit(
-        _summarize_background, req.chapter, services, req.document_hash, req.force
+        _summarize_background,
+        req.chapter,
+        req.qdrant_index,  # Pass actual Qdrant chapter_index for filtering
+        services,
+        req.document_hash,
+        req.force,
+        task_type="summarize",
+        doc_hash=req.document_hash,
+        chapter=req.chapter,
+        book_title=req.book_title,
     )
     logger.info("Chapter summarize task submitted: task_id=%s, chapter=%d", task_id, req.chapter)
     return TaskResponseOut(task_id=task_id, task_type="summarize")
@@ -239,7 +254,16 @@ async def summarize_chapter(req: ChapterRequest, services: ServicesDep) -> TaskR
 async def generate_flashcards(req: ChapterRequest, services: ServicesDep) -> TaskResponseOut:
     """Start background task to generate flashcards for a chapter."""
     task_id = services.task_registry.submit(
-        _generate_flashcards_background, req.chapter, services, req.document_hash, req.force
+        _generate_flashcards_background,
+        req.chapter,
+        req.qdrant_index,  # Pass actual Qdrant chapter_index for filtering
+        services,
+        req.document_hash,
+        req.force,
+        task_type="flashcards",
+        doc_hash=req.document_hash,
+        chapter=req.chapter,
+        book_title=req.book_title,
     )
     logger.info("Chapter flashcards task submitted: task_id=%s, chapter=%d", task_id, req.chapter)
     return TaskResponseOut(task_id=task_id, task_type="flashcards")

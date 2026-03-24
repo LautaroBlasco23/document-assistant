@@ -1,4 +1,5 @@
 import logging
+from dataclasses import dataclass
 from pathlib import Path
 
 import ebooklib
@@ -9,6 +10,79 @@ from core.model.document import Chapter, Document, Page
 from infrastructure.ingest.normalizer import normalize
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class ChapterPreview:
+    """Lightweight chapter metadata without full page text."""
+
+    index: int
+    title: str
+    page_start: int  # 1-based (EPUB has no page concept, use index + 1)
+    page_end: int
+
+
+def preview_epub(path: Path, file_hash: str) -> tuple[Document | None, list[ChapterPreview]]:
+    """Extract chapter structure from an EPUB without loading full page text.
+
+    Returns (doc, chapters) where doc has no populated chapters (just metadata).
+    chapters is the list of ChapterPreview objects.
+    """
+    book = epub.read_epub(str(path), options={"ignore_ncx": True})
+
+    title = _get_metadata(book, "title") or path.stem
+    author = _get_metadata(book, "creator") or ""
+
+    chapters: list[ChapterPreview] = []
+    idx = 0
+    for item in book.get_items_of_type(ebooklib.ITEM_DOCUMENT):
+        chapter_title = _extract_title_only(item)
+        chapters.append(
+            ChapterPreview(
+                index=idx,
+                title=chapter_title or f"Chapter {idx + 1}",
+                page_start=idx + 1,
+                page_end=idx + 1,
+            )
+        )
+        idx += 1
+
+    result_doc = Document(
+        source_path=str(path),
+        title=title,
+        file_hash=file_hash,
+        original_filename=path.name,
+        chapters=[],  # Not populated - use full load for that
+        metadata={"author": author},
+    )
+
+    logger.info("Preview EPUB %s: %d chapters", path.name, len(chapters))
+    return result_doc, chapters
+
+
+def _extract_title_only(item: epub.EpubItem) -> str:
+    """Extract title from an EPUB item without loading full text."""
+    try:
+        content = item.get_content()
+        root = etree.fromstring(content)
+    except Exception:
+        return ""
+
+    title = ""
+    title_el = root.find(".//{http://www.w3.org/1999/xhtml}title")
+    if title_el is not None and title_el.text:
+        title = title_el.text.strip()
+
+    if not title:
+        for tag in ("h1", "h2"):
+            el = root.find(f".//{{{_XHTML}}}{{tag}}", {"tag": tag})
+            if el is None:
+                el = root.find(f".//{_XHTML}{tag}")
+            if el is not None:
+                title = "".join(el.itertext()).strip()
+                break
+
+    return title
 
 
 def load_epub(path: Path, file_hash: str, original_filename: str = "") -> Document:

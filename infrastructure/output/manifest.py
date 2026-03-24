@@ -17,11 +17,17 @@ def write_manifest(
     model: str,
     output_dir: Path,
     num_chapters: int = 0,
+    stored_chapter_indices: list[int] | None = None,
 ) -> Path:
     safe_title = _safe_name(doc.title)
     d = output_dir / safe_title
     d.mkdir(parents=True, exist_ok=True)
     out = d / "manifest.json"
+
+    is_partial = stored_chapter_indices is not None and len(stored_chapter_indices) < len(
+        doc.chapters
+    )
+    stored_set = set(stored_chapter_indices) if stored_chapter_indices else None
 
     chapters_data = []
     for ch in doc.chapters:
@@ -34,6 +40,7 @@ def write_manifest(
                 "index": ch.index,
                 "title": ch.title,
                 "sections": sections_data,
+                "stored": stored_set is None or ch.index in stored_set,
             }
         )
 
@@ -49,18 +56,22 @@ def write_manifest(
         "num_chapters": num_chapters,
         "chapters": chapters_data,
     }
+
+    if is_partial:
+        manifest["partial"] = True
+        manifest["stored_chapter_indices"] = sorted(stored_chapter_indices or [])
+        manifest["total_detected_chapters"] = len(doc.chapters)
+
     with open(out, "w") as f:
         json.dump(manifest, f, indent=2)
         f.flush()
         os.fsync(f.fileno())
 
-    logger.info("Wrote manifest: %s", out)
+    logger.info("Wrote manifest: %s (partial=%s)", out, is_partial)
     return out
 
 
-def remove_chapter_from_manifest(
-    file_hash: str, chapter_index: int, output_dir: Path
-) -> int:
+def remove_chapter_from_manifest(file_hash: str, chapter_index: int, output_dir: Path) -> int:
     """Remove a chapter entry from the manifest JSON. Returns count of remaining chapters.
 
     Idempotent: if the chapter is already absent or the manifest is missing, logs a warning
@@ -84,9 +95,7 @@ def remove_chapter_from_manifest(
                     logger.warning("Failed to read manifest %s: %s", candidate, e)
 
     if manifest_path is None:
-        logger.warning(
-            "Manifest not found for file_hash=%s, skipping manifest update", file_hash
-        )
+        logger.warning("Manifest not found for file_hash=%s, skipping manifest update", file_hash)
         return 0
 
     try:

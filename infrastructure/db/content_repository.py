@@ -52,11 +52,23 @@ class PostgresContentStore(ContentStore):
             bullets = json.loads(raw_bullets) if raw_bullets else []
         except (json.JSONDecodeError, TypeError):
             bullets = []
+        description = row["description"] or ""
+        # Recover from JSON-stringified description (legacy/corrupted data)
+        if description.startswith('{'):
+            try:
+                inner = json.loads(description)
+                if isinstance(inner, dict):
+                    description = inner.get("description", description)
+                    inner_bullets = inner.get("bullets")
+                    if isinstance(inner_bullets, list) and not bullets:
+                        bullets = inner_bullets
+            except (json.JSONDecodeError, TypeError):
+                pass  # Keep original description
         return Summary(
             document_hash=document_hash,
             chapter_index=chapter_index,
             content=row["content"],
-            description=row["description"] or "",
+            description=description,
             bullets=bullets,
             created_at=_ensure_naive(row["created_at"]),
         )
@@ -77,12 +89,24 @@ class PostgresContentStore(ContentStore):
                 bullets = json.loads(raw_bullets) if raw_bullets else []
             except (json.JSONDecodeError, TypeError):
                 bullets = []
+            description = row["description"] or ""
+            # Recover from JSON-stringified description (legacy/corrupted data)
+            if description.startswith('{'):
+                try:
+                    inner = json.loads(description)
+                    if isinstance(inner, dict):
+                        description = inner.get("description", description)
+                        inner_bullets = inner.get("bullets")
+                        if isinstance(inner_bullets, list) and not bullets:
+                            bullets = inner_bullets
+                except (json.JSONDecodeError, TypeError):
+                    pass  # Keep original description
             result.append(
                 Summary(
                     document_hash=document_hash,
                     chapter_index=row["chapter_index"],
                     content=row["content"],
-                    description=row["description"] or "",
+                    description=description,
                     bullets=bullets,
                     created_at=_ensure_naive(row["created_at"]),
                 )
@@ -230,6 +254,20 @@ class PostgresContentStore(ContentStore):
                         "DELETE FROM document_metadata WHERE document_hash = %s", (document_hash,)
                     )
         logger.debug("Deleted all content for doc=%s", document_hash[:12])
+
+    def delete_summary(self, document_hash: str, chapter_index: int) -> None:
+        with self._lock:
+            conn = self._conn()
+            self._rollback_if_failed(conn)
+            with conn.transaction():
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "DELETE FROM summaries WHERE document_hash = %s AND chapter_index = %s",
+                        (document_hash, chapter_index),
+                    )
+        logger.debug(
+            "Deleted summary for doc=%s chapter=%d", document_hash[:12], chapter_index
+        )
 
     def delete_chapter(self, document_hash: str, chapter_index: int) -> None:
         with self._lock:
