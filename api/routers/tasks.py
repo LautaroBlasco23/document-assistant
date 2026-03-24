@@ -5,11 +5,36 @@ import logging
 from fastapi import APIRouter, HTTPException
 
 from api.deps import ServicesDep
-from api.schemas.tasks import TaskStatusOut
+from api.schemas.tasks import ActiveTaskOut, ActiveTasksOut, TaskStatusOut
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+@router.get("/tasks/active", response_model=ActiveTasksOut)
+async def list_active_tasks(services: ServicesDep) -> ActiveTasksOut:
+    """List all non-terminal tasks (pending/running)."""
+    from infrastructure.db.task_repository import TaskRepository
+
+    repo = TaskRepository(services._pg_pool)
+    rows = repo.list_active()
+    return ActiveTasksOut(
+        tasks=[
+            ActiveTaskOut(
+                task_id=row["task_id"],
+                task_type=row["task_type"],
+                doc_hash=row["doc_hash"] or "",
+                filename=row["filename"] or "",
+                status=row["status"],
+                progress=row["progress"] or "",
+                progress_pct=row["progress_pct"] or 0,
+                chapter=row.get("chapter") or 0,
+                book_title=row.get("book_title") or "",
+            )
+            for row in rows
+        ]
+    )
 
 
 @router.get("/tasks/{task_id}", response_model=TaskStatusOut)

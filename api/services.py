@@ -10,6 +10,7 @@ from core.ports.llm import LLM
 from infrastructure.config import AppConfig, load_config
 from infrastructure.db.content_repository import PostgresContentStore
 from infrastructure.db.postgres import PostgresPool
+from infrastructure.db.task_repository import TaskRepository
 from infrastructure.graph.neo4j_store import Neo4jStore
 from infrastructure.llm.embedding_cache import EmbeddingCache
 from infrastructure.llm.factory import create_fast_llm, create_llm
@@ -55,11 +56,11 @@ def init_services(config: AppConfig | None = None) -> Services:
     qdrant = QdrantStore(config.qdrant)
     neo4j = Neo4jStore(config.neo4j)
     retriever = HybridRetriever(qdrant, neo4j, embedder, llm, config)
-    task_registry = TaskRegistry(max_workers=2)
-
     pg_pool = PostgresPool(config.postgres)
     pg_pool.connect()
     content_store = PostgresContentStore(pg_pool)
+    task_repo = TaskRepository(pg_pool)
+    task_registry = TaskRegistry(max_workers=2, repo=task_repo)
 
     _services = Services(
         config=config,
