@@ -11,27 +11,30 @@ Python — justified exception to the Go preference. The NLP/ML ecosystem (PyMuP
 Layered / DDD-inspired:
 
 ```
-core/           # Domain models and port interfaces (no external deps)
-  model/        # Document, Chapter, Page, Chunk, Summary, Flashcard, DocumentMetadata
-  ports/        # ABCs: Embedder, LLM, ContentStore
-application/    # Use cases (orchestration logic)
-  agents/       # SummarizerAgent, FlashcardGeneratorAgent
-  ingest.py     # Ingestion use case (hash + load + idempotency check)
-  retriever.py  # HybridRetriever (vector + keyword + graph + rerank)
-infrastructure/ # Adapters: config loader, Ollama client, Qdrant, Neo4j, PostgreSQL
-  ingest/       # pdf_loader, epub_loader, normalizer
-  chunking/     # ChapterAwareSplitter
-  llm/          # OllamaEmbedder, OllamaLLM, GroqLLM, EmbeddingCache, factory
-  vectorstore/  # QdrantStore
-  graph/        # Neo4jStore, entity_extractor
-  db/           # PostgresPool, ContentRepository, schema + migrations
-  output/       # markdown_writer, manifest
-api/            # FastAPI backend (wraps application layer, no duplication)
-  routers/      # health, documents, chapters, content, config, tasks
-  schemas/      # Pydantic request/response models
-  services.py   # Singleton service container (lifespan-managed)
-  tasks.py      # In-memory task registry + ThreadPoolExecutor
-cli/            # CLI entry point (check, ingest, summarize, generate-md, config)
+backend/        # All Python backend code (pyproject.toml + uv.lock live here)
+  core/           # Domain models and port interfaces (no external deps)
+    model/        # Document, Chapter, Page, Chunk, Summary, Flashcard, DocumentMetadata
+    ports/        # ABCs: Embedder, LLM, ContentStore
+  application/    # Use cases (orchestration logic)
+    agents/       # SummarizerAgent, FlashcardGeneratorAgent
+    ingest.py     # Ingestion use case (hash + load + idempotency check)
+    retriever.py  # HybridRetriever (vector + keyword + graph + rerank)
+  infrastructure/ # Adapters: config loader, Ollama client, Qdrant, Neo4j, PostgreSQL
+    ingest/       # pdf_loader, epub_loader, normalizer
+    chunking/     # ChapterAwareSplitter
+    llm/          # OllamaEmbedder, OllamaLLM, GroqLLM, EmbeddingCache, factory
+    vectorstore/  # QdrantStore
+    graph/        # Neo4jStore, entity_extractor
+    db/           # PostgresPool, ContentRepository, schema + migrations
+    output/       # markdown_writer, manifest
+  api/            # FastAPI backend (wraps application layer, no duplication)
+    routers/      # health, documents, chapters, content, config, tasks
+    schemas/      # Pydantic request/response models
+    services.py   # Singleton service container (lifespan-managed)
+    tasks.py      # In-memory task registry + ThreadPoolExecutor
+  cli/            # CLI entry point (check, ingest, summarize, generate-md, config)
+  tests/          # Unit and integration tests
+config/         # YAML configuration (default.yml)
 frontend/       # React + TypeScript + Tailwind SPA (Vite, port 5173)
   src/
     pages/      # Library, Document (summary/flashcards tabs), Settings
@@ -66,7 +69,7 @@ frontend/       # React + TypeScript + Tailwind SPA (Vite, port 5173)
 
 ## Configuration
 
-- YAML config at `config/default.yml`
+- YAML config at `config/default.yml` (project root, not inside `backend/`)
 - Loaded via pydantic-settings with env var overrides (prefix: `DOCASSIST_`, nested delimiter: `__`)
 - Example overrides:
   - `DOCASSIST_GROQ__API_KEY=gsk_...` — Groq API key (required when `llm_provider=groq`)
@@ -96,36 +99,36 @@ make stop
 # Start infrastructure only
 docker compose up -d
 
-# Install dependencies
-uv sync
+# Install dependencies (from backend/)
+cd backend && uv sync
 
 # Health check all services
-uv run python -m cli.main check
-# or
 make check
+# or
+cd backend && uv run python -m cli.main check
 
 # Ingest a file or directory
-uv run python -m cli.main ingest data/raw/book.pdf
+cd backend && uv run python -m cli.main ingest ../data/raw/book.pdf
 
 # Generate all markdown outputs for chapter 1
-uv run python -m cli.main generate-md "book" 1
+cd backend && uv run python -m cli.main generate-md "book" 1
 
 # Summarize a chapter
-uv run python -m cli.main summarize "book" 1
+cd backend && uv run python -m cli.main summarize "book" 1
 
 # Run tests (unit only)
-uv run pytest
+cd backend && uv run pytest
 
 # Run integration tests (requires running services)
-uv run pytest -m integration
+cd backend && uv run pytest -m integration
 
 # Lint
-uv run ruff check .
+cd backend && uv run ruff check .
 
 # --- API backend ---
 
 # Start FastAPI (standalone)
-uv run uvicorn api.main:app --port 8000
+cd backend && uv run uvicorn api.main:app --port 8000
 
 # Verify health
 curl http://localhost:8000/api/health

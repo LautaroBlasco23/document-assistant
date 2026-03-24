@@ -66,13 +66,15 @@ Ollama is used for embeddings only. LLM inference runs via Groq by default.
 ### 4. Install dependencies
 
 ```bash
-uv sync
+cd backend && uv sync
 ```
 
 ### 5. Verify everything works
 
 ```bash
-uv run python -m cli.main check
+make check
+# or
+cd backend && uv run python -m cli.main check
 ```
 
 Expected output:
@@ -91,7 +93,7 @@ make start
 
 # Or manually:
 # Terminal 1 — start the FastAPI backend
-uv run uvicorn api.main:app --port 8000
+cd backend && uv run uvicorn api.main:app --port 8000
 
 # Terminal 2 — start the frontend dev server
 cd frontend
@@ -104,7 +106,7 @@ The Vite dev server starts on port 5173 and proxies `/api` requests to the FastA
 ### Alternative: API only
 
 ```bash
-uv run uvicorn api.main:app --port 8000
+cd backend && uv run uvicorn api.main:app --port 8000
 # then open http://localhost:8000/docs for interactive API docs
 ```
 
@@ -113,9 +115,9 @@ uv run uvicorn api.main:app --port 8000
 ### Ingest a document
 
 ```bash
-uv run python -m cli.main ingest data/raw/book.pdf
+cd backend && uv run python -m cli.main ingest ../data/raw/book.pdf
 # or a whole directory
-uv run python -m cli.main ingest data/raw/
+cd backend && uv run python -m cli.main ingest ../data/raw/
 ```
 
 This will:
@@ -130,7 +132,7 @@ This will:
 ### Generate Markdown outputs
 
 ```bash
-uv run python -m cli.main generate-md "book" 1
+cd backend && uv run python -m cli.main generate-md "book" 1
 ```
 
 Produces in `data/output/<book>/`:
@@ -140,7 +142,7 @@ Produces in `data/output/<book>/`:
 ### Generate chapter summary only
 
 ```bash
-uv run python -m cli.main summarize "book" 1
+cd backend && uv run python -m cli.main summarize "book" 1
 ```
 
 ## Project structure
@@ -149,29 +151,40 @@ uv run python -m cli.main summarize "book" 1
 document-assistant/
 ├── config/
 │   └── default.yml              # Service URLs, model names, chunking params
-├── core/
-│   ├── model/                   # Document, Chapter, Page, Chunk, Summary, Flashcard, DocumentMetadata
-│   └── ports/                   # Embedder, LLM, ContentStore ABCs
-├── application/
-│   ├── agents/                  # SummarizerAgent, FlashcardGeneratorAgent
-│   ├── ingest.py                # ingest_file() use case
-│   └── retriever.py             # HybridRetriever
-├── infrastructure/
-│   ├── config.py                # Pydantic-settings config loader + save_config()
-│   ├── ingest/                  # pdf_loader, epub_loader, normalizer
-│   ├── chunking/                # ChapterAwareSplitter
-│   ├── llm/                     # OllamaEmbedder, OllamaLLM, GroqLLM, EmbeddingCache, factory
-│   ├── vectorstore/             # QdrantStore (upsert, search, delete)
-│   ├── graph/                   # Neo4jStore (entity upsert, graph queries, delete)
-│   ├── db/                      # PostgresPool, ContentRepository, schema + migrations
-│   └── output/                  # markdown_writer, manifest
-├── api/                         # FastAPI backend
-│   ├── main.py                  # App factory, lifespan, CORS
-│   ├── services.py              # Singleton service container
-│   ├── deps.py                  # FastAPI dependency injection
-│   ├── tasks.py                 # In-memory task registry + ThreadPoolExecutor
-│   ├── routers/                 # health, documents, chapters, content, config, tasks
-│   └── schemas/                 # Pydantic request/response models
+├── backend/                     # All Python backend code
+│   ├── core/
+│   │   ├── model/               # Document, Chapter, Page, Chunk, Summary, Flashcard, DocumentMetadata
+│   │   └── ports/               # Embedder, LLM, ContentStore ABCs
+│   ├── application/
+│   │   ├── agents/              # SummarizerAgent, FlashcardGeneratorAgent
+│   │   ├── ingest.py            # ingest_file() use case
+│   │   └── retriever.py         # HybridRetriever
+│   ├── infrastructure/
+│   │   ├── config.py            # Pydantic-settings config loader + save_config()
+│   │   ├── ingest/              # pdf_loader, epub_loader, normalizer
+│   │   ├── chunking/            # ChapterAwareSplitter
+│   │   ├── llm/                 # OllamaEmbedder, OllamaLLM, GroqLLM, EmbeddingCache, factory
+│   │   ├── vectorstore/         # QdrantStore (upsert, search, delete)
+│   │   ├── graph/               # Neo4jStore (entity upsert, graph queries, delete)
+│   │   ├── db/                  # PostgresPool, ContentRepository, schema + migrations
+│   │   └── output/              # markdown_writer, manifest
+│   ├── api/                     # FastAPI backend
+│   │   ├── main.py              # App factory, lifespan, CORS
+│   │   ├── services.py          # Singleton service container
+│   │   ├── deps.py              # FastAPI dependency injection
+│   │   ├── tasks.py             # In-memory task registry + ThreadPoolExecutor
+│   │   ├── routers/             # health, documents, chapters, content, config, tasks
+│   │   └── schemas/             # Pydantic request/response models
+│   ├── cli/
+│   │   └── main.py              # CLI: check, ingest, summarize, generate-md
+│   ├── tests/
+│   │   ├── ingest/
+│   │   ├── chunking/
+│   │   ├── embeddings/
+│   │   ├── integration/
+│   │   └── eval/
+│   ├── pyproject.toml
+│   └── uv.lock
 ├── frontend/                    # Vite web SPA (React + TypeScript + Tailwind)
 │   └── src/
 │       ├── pages/               # Library, Document (summary/flashcards), Settings
@@ -182,16 +195,7 @@ document-assistant/
 │       ├── types/               # TypeScript domain and API types
 │       ├── lib/                 # Utilities: cn (classname)
 │       └── mocks/               # Mock data for development/testing
-├── cli/
-│   └── main.py                  # CLI: check, ingest, summarize, generate-md
-├── docker/
-│   └── docker-compose.yml       # Qdrant + Neo4j + PostgreSQL
-├── tests/
-│   ├── ingest/
-│   ├── chunking/
-│   ├── embeddings/
-│   ├── integration/
-│   └── eval/
+├── docker-compose.yml           # Qdrant + Neo4j + PostgreSQL
 └── data/
     ├── raw/                     # Place PDFs/EPUBs here
     ├── output/                  # Generated Markdown + manifests
@@ -221,7 +225,7 @@ export DOCASSIST_QDRANT__COLLECTION_NAME=my_docs
 To use Ollama for LLM inference instead of Groq (e.g. fully offline):
 
 ```bash
-uv run python -m cli.main summarize "book" 1 --provider ollama
+cd backend && uv run python -m cli.main summarize "book" 1 --provider ollama
 ```
 
 ## Development
@@ -234,16 +238,16 @@ make start
 make stop
 
 # Run unit tests (no services required)
-uv run pytest
+cd backend && uv run pytest
 
 # Run integration tests (requires running Docker services)
-uv run pytest -m integration
+cd backend && uv run pytest -m integration
 
 # Lint Python
-uv run ruff check .
+cd backend && uv run ruff check .
 
 # Auto-fix lint issues
-uv run ruff check --fix .
+cd backend && uv run ruff check --fix .
 
 # Build TypeScript frontend (from frontend/)
 cd frontend && npm run build
