@@ -103,20 +103,27 @@ function _startPolling(taskId: string) {
       clearInterval(interval)
       pollingIntervals.delete(taskId)
       removeFromSession(taskId)
-      useTaskStore.setState((state) => {
-        const existing = state.tasks[taskId]
-        if (!existing) return state
-        return {
-          tasks: {
-            ...state.tasks,
-            [taskId]: {
-              ...existing,
-              status: 'failed',
-              error: is404 ? 'Task not found (server may have restarted)' : 'Lost connection to server',
+      if (is404) {
+        // Task no longer exists on the server (e.g. server restarted) — drop silently
+        useTaskStore.setState((state) => {
+          const updated: Record<string, GenerationTask> = {}
+          for (const key of Object.keys(state.tasks)) {
+            if (key !== taskId) updated[key] = state.tasks[key]
+          }
+          return { tasks: updated }
+        })
+      } else {
+        useTaskStore.setState((state) => {
+          const existing = state.tasks[taskId]
+          if (!existing) return state
+          return {
+            tasks: {
+              ...state.tasks,
+              [taskId]: { ...existing, status: 'failed', error: 'Lost connection to server' },
             },
-          },
-        }
-      })
+          }
+        })
+      }
     }
   }, 1500)
 
@@ -201,4 +208,8 @@ function _rehydrateFromSession() {
   }
 }
 
-_rehydrateFromSession()
+// Rehydrate from backend to avoid polling for tasks that may not exist
+// (e.g., after server restart). Fallback to sessionStorage if backend is unreachable.
+useTaskStore.getState().rehydrateFromBackend().catch(() => {
+  _rehydrateFromSession()
+})

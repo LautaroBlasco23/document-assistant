@@ -73,13 +73,32 @@ class TaskRepository:
                 )
             self._conn().commit()
 
+    def fail_orphaned(self) -> int:
+        """Mark all pending/running tasks as failed (called on server startup to clear stale tasks)."""
+        with self._lock:
+            with self._conn().cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE background_tasks
+                    SET status = 'failed',
+                        error = 'Server was restarted before this task could complete',
+                        updated_at = NOW()
+                    WHERE status IN ('pending', 'running')
+                    """,
+                )
+                count = cur.rowcount
+            self._conn().commit()
+        if count:
+            logger.info("Marked %d orphaned task(s) as failed on startup", count)
+        return count
+
     def list_active(self) -> list[dict]:
         with self._lock:
             with self._conn().cursor() as cur:
                 cur.execute(
                     """
                     SELECT task_id, task_type, doc_hash, filename, status, progress,
-                           progress_pct, result, error
+                           progress_pct, result, error, chapter, book_title
                     FROM background_tasks
                     WHERE status IN ('pending', 'running')
                     ORDER BY created_at ASC

@@ -60,6 +60,7 @@ def init_services(config: AppConfig | None = None) -> Services:
     pg_pool.connect()
     content_store = PostgresContentStore(pg_pool)
     task_repo = TaskRepository(pg_pool)
+    task_repo.fail_orphaned()
     task_registry = TaskRegistry(max_workers=2, repo=task_repo)
 
     _services = Services(
