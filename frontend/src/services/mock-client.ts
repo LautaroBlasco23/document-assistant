@@ -15,6 +15,9 @@ import type {
   ChapterDeleteResponse,
   ActiveTasksOut,
   DocumentPreviewOut,
+  ExamResultOut,
+  ChapterExamStatusOut,
+  ChatResponse,
 } from '../types/api'
 import type { ServiceClient } from './client.interface'
 
@@ -155,6 +158,23 @@ export class MockClient implements ServiceClient {
     return []
   }
 
+  async getPendingFlashcards(_docHash: string, _chapter?: number, _qdrantIndex?: number): Promise<FlashcardResponse[]> {
+    await delay(100)
+    return []
+  }
+
+  async approveFlashcards(_docHash: string, _flashcardIds: string[]): Promise<void> {
+    await delay(100)
+  }
+
+  async rejectFlashcards(_docHash: string, _flashcardIds: string[]): Promise<void> {
+    await delay(100)
+  }
+
+  async approveAllFlashcards(_docHash: string, _chapter?: number, _qdrantIndex?: number): Promise<void> {
+    await delay(100)
+  }
+
   async getMetadata(docHash: string): Promise<MetadataResponse> {
     await delay(100)
     const stored = this.metadataStore.get(docHash)
@@ -169,5 +189,42 @@ export class MockClient implements ServiceClient {
     await delay(100)
     this.metadataStore.set(docHash, { description, document_type: documentType })
     return { document_hash: docHash, description, document_type: documentType }
+  }
+
+  async submitExamResult(_docHash: string, chapter: number, totalCards: number, correctCount: number): Promise<ExamResultOut> {
+    await delay(100)
+    return {
+      id: `mock-exam-${Math.random().toString(36).slice(2, 10)}`,
+      chapter,
+      total_cards: totalCards,
+      correct_count: correctCount,
+      passed: correctCount === totalCards,
+      completed_at: new Date().toISOString(),
+    }
+  }
+
+  async getExamStatus(_docHash: string): Promise<ChapterExamStatusOut[]> {
+    await delay(100)
+    return []
+  }
+
+  async getExamStatusForChapter(_docHash: string, chapter: number): Promise<ChapterExamStatusOut> {
+    await delay(100)
+    return {
+      chapter,
+      level: 0,
+      level_name: 'none',
+      last_exam_at: null,
+      cooldown_until: null,
+      can_take_exam: true,
+    }
+  }
+
+  async chat(): Promise<ChatResponse> {
+    await delay(1500)
+    return {
+      answer: 'This is a mock answer. In production, the LLM would generate a response based on the document context.',
+      sources: [{ page_number: 1, text_preview: 'Mock source text preview...' }],
+    }
   }
 }

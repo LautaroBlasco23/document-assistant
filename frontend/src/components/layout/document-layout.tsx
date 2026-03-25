@@ -10,6 +10,7 @@ import { cn } from '../../lib/cn'
 import type { ChapterOut, DocumentOut, DocumentStructureOut } from '../../types/api'
 import type { Tab } from '../../types/domain'
 import { useDocumentStore } from '../../stores/document-store'
+import { useExamStore } from '../../stores/exam-store'
 
 const DESCRIPTION_MAX_LENGTH = 500
 
@@ -28,6 +29,14 @@ export interface DocumentLayoutProps {
 const TAB_LABELS: Record<Tab, string> = {
   flashcards: 'Flashcards',
   summary: 'Summary',
+  exam: 'Exam',
+  chat: 'Chat',
+}
+
+const LEVEL_SUFFIXES: Record<number, string> = {
+  1: ' [Completed]',
+  2: ' [Gold]',
+  3: ' [Platinum]',
 }
 
 
@@ -56,11 +65,19 @@ export function DocumentLayout({
   const [localDescription, setLocalDescription] = useState('')
   const [metadataLoaded, setMetadataLoaded] = useState(false)
 
+  const chapterStatus = useExamStore((s) => s.chapterStatus)
+  const fetchChapterStatus = useExamStore((s) => s.fetchChapterStatus)
+
   // Fetch metadata on mount or when document changes
   useEffect(() => {
     setMetadataLoaded(false)
     void fetchMetadata(docHash).then(() => setMetadataLoaded(true))
   }, [docHash, fetchMetadata])
+
+  // Fetch exam status for all chapters when document changes
+  useEffect(() => {
+    void fetchChapterStatus(docHash)
+  }, [docHash, fetchChapterStatus])
 
   // Sync local state from cache after fetch completes
   useEffect(() => {
@@ -167,9 +184,12 @@ export function DocumentLayout({
             {chapters.map((ch) => {
               const prefix = `Chapter ${ch.number}`
               const title = ch.title?.startsWith(prefix) ? ch.title.slice(prefix.length).trim() : ch.title
+              const statusKey = `${docHash}-${ch.number}`
+              const level = chapterStatus[statusKey]?.level ?? 0
+              const levelSuffix = LEVEL_SUFFIXES[level] ?? ''
               return (
                 <option key={ch.number} value={ch.number}>
-                  {title || prefix}
+                  {(title || prefix) + levelSuffix}
                 </option>
               )
             })}

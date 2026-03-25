@@ -7,13 +7,26 @@ export interface FlashcardDeck {
   chapter: number
   cards: FlashcardOut[]
   generatedAt: string
+  status?: 'pending' | 'approved'
 }
 
-export interface ReviewSession {
-  deckIndex: string
+export type ChapterLevel = 'none' | 'completed' | 'gold' | 'platinum'
+
+export interface ExamSession {
+  docHash: string
+  chapter: number
+  cards: FlashcardOut[]
   currentIndex: number
-  scores: Record<number, 'easy' | 'medium' | 'hard'>
+  results: Record<number, boolean>  // cardIndex -> correct/incorrect
   isComplete: boolean
 }
 
-export type Tab = 'flashcards' | 'summary'
+export type Tab = 'flashcards' | 'summary' | 'exam' | 'chat'
+
+export interface ChatMessage {
+  id: string
+  role: 'user' | 'assistant'
+  content: string
+  sources?: Array<{ page_number: number | null; text_preview: string }>
+  timestamp: number
+}

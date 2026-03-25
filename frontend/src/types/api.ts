@@ -70,9 +70,13 @@ export interface SummaryOut {
 }
 
 export interface FlashcardOut {
+  id?: string
   front: string
   back: string
   category?: 'terminology' | 'key_facts' | 'concepts'
+  source_page?: number
+  source_chunk_id?: string
+  source_text?: string
 }
 
 // Stored content responses (from PostgreSQL via GET endpoints)
@@ -89,6 +93,10 @@ export interface FlashcardResponse {
   chapter: number  // 1-based
   front: string
   back: string
+  source_page: number | null
+  source_chunk_id: string
+  source_text: string
+  status: 'pending' | 'approved'
   created_at: string
 }
 
@@ -168,4 +176,32 @@ export interface IngestChaptersRequest {
   chapter_indices: number[]
   document_type?: string
   description?: string
+}
+
+export interface ExamResultOut {
+  id: string
+  chapter: number         // 1-based
+  total_cards: number
+  correct_count: number
+  passed: boolean
+  completed_at: string    // ISO 8601
+}
+
+export interface ChapterExamStatusOut {
+  chapter: number         // 1-based
+  level: number           // 0-3
+  level_name: string      // "none" | "completed" | "gold" | "platinum"
+  last_exam_at: string | null
+  cooldown_until: string | null
+  can_take_exam: boolean
+}
+
+export interface ChatSourceOut {
+  page_number: number | null
+  text_preview: string
+}
+
+export interface ChatResponse {
+  answer: string
+  sources: ChatSourceOut[]
 }

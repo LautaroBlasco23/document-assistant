@@ -14,6 +14,9 @@ import type {
   ChapterDeleteResponse,
   ActiveTasksOut,
   DocumentPreviewOut,
+  ExamResultOut,
+  ChapterExamStatusOut,
+  ChatResponse,
 } from '../types/api'
 import type { ServiceClient } from './client.interface'
 
@@ -166,9 +169,38 @@ export class RealClient implements ServiceClient {
     // Use qdrant_index if provided, otherwise fall back to chapter-1
     const chapterParam = qdrantIndex !== undefined ? qdrantIndex + 1 : chapter
     const res = await httpClient.get<FlashcardResponse[]>(`/documents/${docHash}/flashcards`, {
-      params: { chapter: chapterParam },
+      params: { chapter: chapterParam, status: 'approved' },
     })
     return res.data
+  }
+
+  async getPendingFlashcards(docHash: string, chapter?: number, qdrantIndex?: number): Promise<FlashcardResponse[]> {
+    const params: Record<string, unknown> = { status: 'pending' }
+    if (chapter !== undefined) {
+      params.chapter = qdrantIndex !== undefined ? qdrantIndex + 1 : chapter
+    }
+    const res = await httpClient.get<FlashcardResponse[]>(`/documents/${docHash}/flashcards`, {
+      params,
+    })
+    return res.data
+  }
+
+  async approveFlashcards(docHash: string, flashcardIds: string[]): Promise<void> {
+    await httpClient.patch(`/documents/${docHash}/flashcards/approve`, { flashcard_ids: flashcardIds })
+  }
+
+  async rejectFlashcards(docHash: string, flashcardIds: string[]): Promise<void> {
+    await httpClient.delete(`/documents/${docHash}/flashcards/reject`, {
+      data: { flashcard_ids: flashcardIds },
+    })
+  }
+
+  async approveAllFlashcards(docHash: string, chapter?: number, qdrantIndex?: number): Promise<void> {
+    const params: Record<string, unknown> = {}
+    if (chapter !== undefined) {
+      params.chapter = qdrantIndex !== undefined ? qdrantIndex + 1 : chapter
+    }
+    await httpClient.post(`/documents/${docHash}/flashcards/approve-all`, null, { params })
   }
 
   async getMetadata(docHash: string): Promise<MetadataResponse> {
@@ -180,6 +212,43 @@ export class RealClient implements ServiceClient {
     const res = await httpClient.put<MetadataResponse>(`/documents/${docHash}/metadata`, {
       description,
       document_type: documentType,
+    })
+    return res.data
+  }
+
+  async submitExamResult(docHash: string, chapter: number, totalCards: number, correctCount: number): Promise<ExamResultOut> {
+    const res = await httpClient.post<ExamResultOut>('/exams', {
+      document_hash: docHash,
+      chapter,
+      total_cards: totalCards,
+      correct_count: correctCount,
+    })
+    return res.data
+  }
+
+  async getExamStatus(docHash: string): Promise<ChapterExamStatusOut[]> {
+    const res = await httpClient.get<ChapterExamStatusOut[]>(`/documents/${docHash}/exam-status`)
+    return res.data
+  }
+
+  async getExamStatusForChapter(docHash: string, chapter: number): Promise<ChapterExamStatusOut> {
+    const res = await httpClient.get<ChapterExamStatusOut>(`/documents/${docHash}/exam-status/${chapter}`)
+    return res.data
+  }
+
+  async chat(
+    docHash: string,
+    query: string,
+    chapter: number | null,
+    qdrantIndex: number | null,
+    history: Array<{ role: 'user' | 'assistant'; content: string }>
+  ): Promise<ChatResponse> {
+    const res = await httpClient.post<ChatResponse>('/chat', {
+      document_hash: docHash,
+      chapter,
+      qdrant_index: qdrantIndex,
+      query,
+      history,
     })
     return res.data
   }

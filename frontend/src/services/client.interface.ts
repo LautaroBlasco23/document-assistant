@@ -12,6 +12,9 @@ import type {
   ChapterDeleteResponse,
   ActiveTasksOut,
   DocumentPreviewOut,
+  ExamResultOut,
+  ChapterExamStatusOut,
+  ChatResponse,
 } from '../types/api'
 
 export interface ServiceClient {
@@ -37,8 +40,22 @@ export interface ServiceClient {
   getStoredSummary(docHash: string, chapter: number, qdrantIndex?: number): Promise<SummaryResponse | null>
   deleteSummary(docHash: string, chapter: number, qdrantIndex?: number): Promise<void>
   getStoredFlashcards(docHash: string, chapter: number, qdrantIndex?: number): Promise<FlashcardResponse[]>
+  getPendingFlashcards(docHash: string, chapter?: number, qdrantIndex?: number): Promise<FlashcardResponse[]>
+  approveFlashcards(docHash: string, flashcardIds: string[]): Promise<void>
+  rejectFlashcards(docHash: string, flashcardIds: string[]): Promise<void>
+  approveAllFlashcards(docHash: string, chapter?: number, qdrantIndex?: number): Promise<void>
   getMetadata(docHash: string): Promise<MetadataResponse>
   saveMetadata(docHash: string, description: string, documentType?: string): Promise<MetadataResponse>
+  submitExamResult(docHash: string, chapter: number, totalCards: number, correctCount: number): Promise<ExamResultOut>
+  getExamStatus(docHash: string): Promise<ChapterExamStatusOut[]>
+  getExamStatusForChapter(docHash: string, chapter: number): Promise<ChapterExamStatusOut>
+  chat(
+    docHash: string,
+    query: string,
+    chapter: number | null,
+    qdrantIndex: number | null,
+    history: Array<{ role: 'user' | 'assistant'; content: string }>
+  ): Promise<ChatResponse>
 }
 
 export type { ServiceClient as ServiceClientType }
