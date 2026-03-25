@@ -20,6 +20,7 @@ venv/
 # Data
 data/raw/*
 data/output/*
+data/uploads/
 !data/raw/.gitkeep
 !data/output/.gitkeep
 
@@ -69,6 +70,7 @@ lerna-debug.log*
 
 # Claude Code
 .claude/
+.opencode/
 
 # Documentation (generated during development)
 .docs/
