@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 
 from core.model.document_metadata import DocumentMetadata
+from core.model.exam import ExamResult
 from core.model.generated_content import Flashcard, Summary
 
 
@@ -25,13 +26,32 @@ class ContentStore(ABC):
 
     @abstractmethod
     def get_flashcards(
-        self, document_hash: str, chapter_index: int | None = None
+        self,
+        document_hash: str,
+        chapter_index: int | None = None,
+        status: str | None = "approved",
     ) -> list[Flashcard]:
-        """Get flashcards. If chapter_index is None, return all for the document."""
+        """Get flashcards. If chapter_index is None, return all for the document.
+        If status is None, return all regardless of status. Default returns only approved cards."""
 
     @abstractmethod
     def save_flashcards(self, flashcards: list[Flashcard]) -> None:
         """Save flashcards. Deletes existing for the same (document_hash, chapter_index) first."""
+
+    @abstractmethod
+    def approve_flashcards(self, flashcard_ids: list[str]) -> int:
+        """Bulk-update flashcard status to 'approved'. Returns count of updated rows."""
+
+    @abstractmethod
+    def delete_flashcards_by_ids(self, flashcard_ids: list[str]) -> int:
+        """Hard-delete flashcards by their IDs. Returns count of deleted rows."""
+
+    @abstractmethod
+    def approve_all_flashcards(
+        self, document_hash: str, chapter_index: int | None = None
+    ) -> int:
+        """Approve all pending flashcards for a document (optionally filtered by chapter).
+        Returns count of updated rows."""
 
     # --- Metadata ---
 
@@ -56,3 +76,22 @@ class ContentStore(ABC):
     @abstractmethod
     def delete_chapter(self, document_hash: str, chapter_index: int) -> None:
         """Delete all generated content for a specific chapter (summaries + flashcards)."""
+
+    # --- Exam results ---
+
+    @abstractmethod
+    def save_exam_result(self, result: ExamResult) -> None:
+        """Persist a completed exam session."""
+
+    @abstractmethod
+    def get_exam_results(self, document_hash: str, chapter_index: int) -> list[ExamResult]:
+        """Get all exam results for a chapter, ordered by completed_at DESC."""
+
+    @abstractmethod
+    def get_chapter_level(self, document_hash: str, chapter_index: int) -> int:
+        """Return 0 (none), 1 (Completed), 2 (Gold), or 3 (Platinum).
+        Count total passed=true exams. Cap at 3. Failed exams do not reduce the level."""
+
+    @abstractmethod
+    def reset_exam_progress(self, document_hash: str, chapter_index: int) -> None:
+        """Delete all exam results for a chapter (called on flashcard regeneration)."""

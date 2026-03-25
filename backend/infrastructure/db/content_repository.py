@@ -7,6 +7,7 @@ import psycopg
 from psycopg.pq import TransactionStatus
 
 from core.model.document_metadata import DocumentMetadata
+from core.model.exam import ExamResult
 from core.model.generated_content import Flashcard, Summary
 from core.ports.content_store import ContentStore
 from infrastructure.db.postgres import PostgresPool
@@ -143,22 +144,28 @@ class PostgresContentStore(ContentStore):
     # --- Flashcards ---
 
     def get_flashcards(
-        self, document_hash: str, chapter_index: int | None = None
+        self,
+        document_hash: str,
+        chapter_index: int | None = None,
+        status: str | None = "approved",
     ) -> list[Flashcard]:
         conn = self._conn()
         with conn.cursor() as cur:
+            conditions = ["document_hash = %s"]
+            params: list = [document_hash]
             if chapter_index is not None:
-                cur.execute(
-                    "SELECT id, chapter_index, front, back, created_at FROM flashcards"
-                    " WHERE document_hash = %s AND chapter_index = %s ORDER BY created_at",
-                    (document_hash, chapter_index),
-                )
-            else:
-                cur.execute(
-                    "SELECT id, chapter_index, front, back, created_at FROM flashcards"
-                    " WHERE document_hash = %s ORDER BY created_at",
-                    (document_hash,),
-                )
+                conditions.append("chapter_index = %s")
+                params.append(chapter_index)
+            if status is not None:
+                conditions.append("status = %s")
+                params.append(status)
+            where = " AND ".join(conditions)
+            cur.execute(
+                f"SELECT id, chapter_index, front, back,"
+                f" source_page, source_chunk_id, source_text, status, created_at"
+                f" FROM flashcards WHERE {where} ORDER BY created_at",
+                params,
+            )
             rows = cur.fetchall()
         return [
             Flashcard(
@@ -167,6 +174,10 @@ class PostgresContentStore(ContentStore):
                 chapter_index=row["chapter_index"],
                 front=row["front"],
                 back=row["back"],
+                source_page=row["source_page"],
+                source_chunk_id=row["source_chunk_id"] or "",
+                source_text=row["source_text"] or "",
+                status=row["status"] or "pending",
                 created_at=_ensure_naive(row["created_at"]),
             )
             for row in rows
@@ -189,20 +200,89 @@ class PostgresContentStore(ContentStore):
                     for card in flashcards:
                         cur.execute(
                             "INSERT INTO flashcards"
-                            " (id, document_hash, chapter_index, front, back, created_at)"
-                            " VALUES (%s, %s, %s, %s, %s, %s)",
+                            " (id, document_hash, chapter_index, front, back,"
+                            "  source_page, source_chunk_id, source_text, status, created_at)"
+                            " VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
                             (
                                 card.id,
                                 card.document_hash,
                                 card.chapter_index,
                                 card.front,
                                 card.back,
+                                card.source_page,
+                                card.source_chunk_id,
+                                card.source_text,
+                                card.status,
                                 card.created_at,
                             ),
                         )
         logger.debug(
             "Saved %d flashcards doc=%s chapter=%d", len(flashcards), doc_hash[:12], chapter_index
         )
+
+    def approve_flashcards(self, flashcard_ids: list[str]) -> int:
+        if not flashcard_ids:
+            return 0
+        with self._lock:
+            conn = self._conn()
+            self._rollback_if_failed(conn)
+            with conn.transaction():
+                with conn.cursor() as cur:
+                    placeholders = ",".join(["%s"] * len(flashcard_ids))
+                    cur.execute(
+                        f"UPDATE flashcards SET status = 'approved' WHERE id IN ({placeholders})",
+                        flashcard_ids,
+                    )
+                    count = cur.rowcount
+        logger.debug("Approved %d flashcards", count)
+        return count
+
+    def delete_flashcards_by_ids(self, flashcard_ids: list[str]) -> int:
+        if not flashcard_ids:
+            return 0
+        with self._lock:
+            conn = self._conn()
+            self._rollback_if_failed(conn)
+            with conn.transaction():
+                with conn.cursor() as cur:
+                    placeholders = ",".join(["%s"] * len(flashcard_ids))
+                    cur.execute(
+                        f"DELETE FROM flashcards WHERE id IN ({placeholders})",
+                        flashcard_ids,
+                    )
+                    count = cur.rowcount
+        logger.debug("Deleted %d flashcards by IDs", count)
+        return count
+
+    def approve_all_flashcards(
+        self, document_hash: str, chapter_index: int | None = None
+    ) -> int:
+        with self._lock:
+            conn = self._conn()
+            self._rollback_if_failed(conn)
+            with conn.transaction():
+                with conn.cursor() as cur:
+                    if chapter_index is not None:
+                        cur.execute(
+                            "UPDATE flashcards SET status = 'approved'"
+                            " WHERE document_hash = %s AND chapter_index = %s"
+                            " AND status = 'pending'",
+                            (document_hash, chapter_index),
+                        )
+                    else:
+                        cur.execute(
+                            "UPDATE flashcards SET status = 'approved'"
+                            " WHERE document_hash = %s AND status = 'pending'",
+                            (document_hash,),
+                        )
+                    count = cur.rowcount
+        logger.debug(
+            "Approved all pending flashcards for doc=%s chapter=%s: %d updated",
+            document_hash[:12],
+            chapter_index,
+            count,
+        )
+        return count
 
     # --- Metadata ---
 
@@ -253,6 +333,9 @@ class PostgresContentStore(ContentStore):
                     cur.execute(
                         "DELETE FROM document_metadata WHERE document_hash = %s", (document_hash,)
                     )
+                    cur.execute(
+                        "DELETE FROM exam_results WHERE document_hash = %s", (document_hash,)
+                    )
         logger.debug("Deleted all content for doc=%s", document_hash[:12])
 
     def delete_summary(self, document_hash: str, chapter_index: int) -> None:
@@ -283,8 +366,93 @@ class PostgresContentStore(ContentStore):
                         "DELETE FROM flashcards WHERE document_hash = %s AND chapter_index = %s",
                         (document_hash, chapter_index),
                     )
+                    cur.execute(
+                        "DELETE FROM exam_results WHERE document_hash = %s AND chapter_index = %s",
+                        (document_hash, chapter_index),
+                    )
         logger.debug(
             "Deleted chapter %d content for doc=%s", chapter_index, document_hash[:12]
+        )
+
+    # --- Exam results ---
+
+    def save_exam_result(self, result: ExamResult) -> None:
+        with self._lock:
+            conn = self._conn()
+            self._rollback_if_failed(conn)
+            with conn.transaction():
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "INSERT INTO exam_results"
+                        " (id, document_hash, chapter_index,"
+                        "  total_cards, correct_count, passed, completed_at)"
+                        " VALUES (%s, %s, %s, %s, %s, %s, %s)",
+                        (
+                            result.id,
+                            result.document_hash,
+                            result.chapter_index,
+                            result.total_cards,
+                            result.correct_count,
+                            result.passed,
+                            result.completed_at,
+                        ),
+                    )
+        logger.debug(
+            "Saved exam result doc=%s chapter=%d passed=%s",
+            result.document_hash[:12],
+            result.chapter_index,
+            result.passed,
+        )
+
+    def get_exam_results(self, document_hash: str, chapter_index: int) -> list[ExamResult]:
+        conn = self._conn()
+        self._rollback_if_failed(conn)
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT id, total_cards, correct_count, passed, completed_at FROM exam_results"
+                " WHERE document_hash = %s AND chapter_index = %s"
+                " ORDER BY completed_at DESC",
+                (document_hash, chapter_index),
+            )
+            rows = cur.fetchall()
+        return [
+            ExamResult(
+                id=str(row["id"]),
+                document_hash=document_hash,
+                chapter_index=chapter_index,
+                total_cards=row["total_cards"],
+                correct_count=row["correct_count"],
+                passed=row["passed"],
+                completed_at=_ensure_naive(row["completed_at"]),
+            )
+            for row in rows
+        ]
+
+    def get_chapter_level(self, document_hash: str, chapter_index: int) -> int:
+        conn = self._conn()
+        self._rollback_if_failed(conn)
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT COUNT(*) AS pass_count FROM exam_results"
+                " WHERE document_hash = %s AND chapter_index = %s AND passed = true",
+                (document_hash, chapter_index),
+            )
+            row = cur.fetchone()
+        count = row["pass_count"] if row else 0
+        return min(int(count), 3)
+
+    def reset_exam_progress(self, document_hash: str, chapter_index: int) -> None:
+        with self._lock:
+            conn = self._conn()
+            self._rollback_if_failed(conn)
+            with conn.transaction():
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "DELETE FROM exam_results WHERE document_hash = %s AND chapter_index = %s",
+                        (document_hash, chapter_index),
+                    )
+        logger.debug(
+            "Reset exam progress for doc=%s chapter=%d", document_hash[:12], chapter_index
         )
 
 

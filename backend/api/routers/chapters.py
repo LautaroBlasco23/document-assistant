@@ -3,7 +3,6 @@
 import json
 import logging
 import time
-from pathlib import Path
 
 from fastapi import APIRouter
 
@@ -158,7 +157,15 @@ def _generate_flashcards_background(
             cached = services.content_store.get_flashcards(document_hash, qdrant_index)
             if cached:
                 flashcards = [
-                    {"front": c.front, "back": c.back, "category": "key_facts"} for c in cached
+                    {
+                        "id": c.id,
+                        "front": c.front,
+                        "back": c.back,
+                        "category": "key_facts",
+                        "source_page": c.source_page,
+                        "source_text": c.source_text,
+                    }
+                    for c in cached
                 ]
                 _set_progress(task, 100, "Loaded from cache")
                 task.result = {"chapter": chapter_num, "flashcards": flashcards, "cached": True}
@@ -204,26 +211,63 @@ def _generate_flashcards_background(
             document_type=document_type,
         )
 
+        # Build page -> chunks lookup for source attribution
+        page_to_chunks: dict[int, list] = {}
+        for chunk in chunks:
+            page = chunk.metadata.page_number if chunk.metadata else None
+            if page is not None:
+                page_to_chunks.setdefault(page, []).append(chunk)
+
         _set_progress(task, 85, "Saving flashcards...")
-        flashcard_models = [
-            Flashcard(
-                document_hash=document_hash,
-                chapter_index=qdrant_index,
-                front=p["front"],
-                back=p["back"],
+        flashcard_models = []
+        for card in cards:
+            source_page = card.get("source_page")
+            source_chunk_id = ""
+            source_text = ""
+            if source_page is not None:
+                matching = page_to_chunks.get(source_page, [])
+                if matching:
+                    best_chunk = matching[0]
+                    source_chunk_id = best_chunk.id or ""
+                    source_text = (best_chunk.text or "")[:400]
+            flashcard_models.append(
+                Flashcard(
+                    document_hash=document_hash,
+                    chapter_index=qdrant_index,
+                    front=card["front"],
+                    back=card["back"],
+                    source_page=source_page,
+                    source_chunk_id=source_chunk_id,
+                    source_text=source_text,
+                    status="pending",
+                )
             )
-            for p in cards
-        ]
         services.content_store.save_flashcards(flashcard_models)
         logger.debug(
-            "Persisted %d flashcards for doc=%s chapter=%d",
+            "Persisted %d flashcards (pending) for doc=%s chapter=%d",
             len(flashcard_models),
             document_hash[:12],
             qdrant_index,
         )
+        services.content_store.reset_exam_progress(document_hash, qdrant_index)
+        logger.debug("Reset exam progress for doc=%s chapter=%d", document_hash[:12], qdrant_index)
 
         _set_progress(task, 95, "Finalizing...")
-        task.result = {"chapter": chapter_num, "flashcards": cards, "cached": False}
+        task.result = {
+            "chapter": chapter_num,
+            "flashcards": [
+                {
+                    "id": card_model.id,
+                    "front": card["front"],
+                    "back": card["back"],
+                    "category": card.get("category", "key_facts"),
+                    "source_page": card.get("source_page"),
+                    "source_text": card_model.source_text,
+                }
+                for card, card_model in zip(cards, flashcard_models)
+            ],
+            "cached": False,
+        }
         elapsed = time.perf_counter() - t0
         logger.info("Completed flashcards for chapter %d in %.1fs", chapter_num, elapsed)
         return cards

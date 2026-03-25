@@ -1,82 +1,70 @@
 import { create } from 'zustand'
-import type { FlashcardDeck, ReviewSession } from '../types/domain'
-
-// TODO: Upgrade to SM-2 spaced repetition scheduling.
-// SM-2 requires: nextReviewAt (Date), interval (days), easeFactor (float, 2.5 default).
-// scoreCard() would compute: new interval = old interval * easeFactor (adjusted by score),
-// new easeFactor = easeFactor - 0.8 + 0.28*quality - 0.02*quality^2 (where quality: easy=5, medium=3, hard=1).
-// This requires persisting review history per card (localStorage or backend).
+import type { FlashcardDeck } from '../types/domain'
 
 interface FlashcardState {
-  /** Keyed by `${docHash}-${chapter}` */
+  /** Approved decks, keyed by `${docHash}-${chapter}` */
   decks: Record<string, FlashcardDeck[]>
-  activeReview: ReviewSession | null
+  /** Pending decks awaiting review, keyed by `${docHash}-${chapter}` */
+  pendingDecks: Record<string, FlashcardDeck | null>
+
   addDeck: (docHash: string, chapter: number, deck: FlashcardDeck) => void
-  startReview: (docHash: string, chapter: number) => void
-  scoreCard: (score: 'easy' | 'medium' | 'hard') => void
-  nextCard: () => void
-  endReview: () => void
+  setPendingDeck: (docHash: string, chapter: number, deck: FlashcardDeck) => void
+  clearPendingDeck: (docHash: string, chapter: number) => void
+  /** Remove specific card IDs from the pending deck (after rejection) */
+  removePendingCards: (docHash: string, chapter: number, cardIds: string[]) => void
 }
 
 function deckKey(docHash: string, chapter: number): string {
   return `${docHash}-${chapter}`
 }
 
-export const useFlashcardStore = create<FlashcardState>((set, get) => ({
+export const useFlashcardStore = create<FlashcardState>((set) => ({
   decks: {},
-  activeReview: null,
+  pendingDecks: {},
 
   addDeck: (docHash: string, chapter: number, deck: FlashcardDeck) => {
     const key = deckKey(docHash, chapter)
     set((state) => ({
       decks: {
         ...state.decks,
-        [key]: [...(state.decks[key] ?? []), deck],
+        [key]: [deck],
       },
     }))
   },
 
-  startReview: (docHash: string, chapter: number) => {
-    set({
-      activeReview: {
-        deckIndex: deckKey(docHash, chapter),
-        currentIndex: 0,
-        scores: {},
-        isComplete: false,
+  setPendingDeck: (docHash: string, chapter: number, deck: FlashcardDeck) => {
+    const key = deckKey(docHash, chapter)
+    set((state) => ({
+      pendingDecks: {
+        ...state.pendingDecks,
+        [key]: deck,
       },
-    })
+    }))
   },
 
-  scoreCard: (score: 'easy' | 'medium' | 'hard') => {
-    const { activeReview } = get()
-    if (!activeReview) return
-    set({
-      activeReview: {
-        ...activeReview,
-        scores: { ...activeReview.scores, [activeReview.currentIndex]: score },
+  clearPendingDeck: (docHash: string, chapter: number) => {
+    const key = deckKey(docHash, chapter)
+    set((state) => ({
+      pendingDecks: {
+        ...state.pendingDecks,
+        [key]: null,
       },
-    })
+    }))
   },
 
-  nextCard: () => {
-    const { activeReview, decks } = get()
-    if (!activeReview) return
-
-    const deck = (decks[activeReview.deckIndex] ?? [])[0]
-    const totalCards = deck?.cards.length ?? 0
-    const nextIndex = activeReview.currentIndex + 1
-    const isComplete = nextIndex >= totalCards
-
-    set({
-      activeReview: {
-        ...activeReview,
-        currentIndex: nextIndex,
-        isComplete,
-      },
+  removePendingCards: (docHash: string, chapter: number, cardIds: string[]) => {
+    const key = deckKey(docHash, chapter)
+    const idSet = new Set(cardIds)
+    set((state) => {
+      const pending = state.pendingDecks[key]
+      if (!pending) return state
+      const remaining = pending.cards.filter((c) => !idSet.has(c.id ?? ''))
+      return {
+        pendingDecks: {
+          ...state.pendingDecks,
+          [key]: remaining.length > 0 ? { ...pending, cards: remaining } : null,
+        },
+      }
     })
-  },
-
-  endReview: () => {
-    set({ activeReview: null })
   },
 }))

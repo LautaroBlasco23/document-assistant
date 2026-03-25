@@ -33,15 +33,18 @@ _SYSTEM = (
     "- Do NOT create cards about study exercises, glossary sections, or instructional "
     "material embedded in the text.\n\n"
     "You MUST respond with a JSON object containing a single key 'cards' whose value "
-    "is an array of objects with 'front', 'back', and 'category' keys.\n"
-    "Valid categories: 'terminology', 'key_facts', 'concepts'\n\n"
+    "is an array of objects with 'front', 'back', 'category', and 'source_page' keys.\n"
+    "Valid categories: 'terminology', 'key_facts', 'concepts'\n"
+    "For 'source_page': use the page number from the [p.N] prefix of the chunk the card "
+    "is based on. If the card draws from multiple pages, use the first. "
+    "If unknown, omit the field.\n\n"
     'Example: {"cards": ['
     '{"front": "Photosynthesis", "back": "The process by which plants convert '
-    'sunlight into energy...", "category": "terminology"}, '
+    'sunlight into energy...", "category": "terminology", "source_page": 12}, '
     '{"front": "What wavelengths of light do chloroplasts absorb most?", '
-    '"back": "Red and blue wavelengths...", "category": "key_facts"}, '
-    '{"front": "Why do leaves appear green?", '
-    '"back": "Because chlorophyll reflects green light...", "category": "concepts"}'
+    '"back": "Red and blue wavelengths...", "category": "key_facts", "source_page": 14}, '
+    '{"front": "Why do leaves appear green?", "back": "Because chlorophyll reflects '
+    'green light...", "category": "concepts", "source_page": 14}'
     "]}"
 )
 
@@ -145,12 +148,22 @@ class FlashcardGeneratorAgent(BaseAgent):
             )
             return []
 
-        return [
-            {
+        cards = []
+        for d in data:
+            if not isinstance(d, dict) or "front" not in d:
+                continue
+            card: dict = {
                 "front": d.get("front", ""),
                 "back": d.get("back", ""),
                 "category": d.get("category", "key_facts"),
             }
-            for d in data
-            if isinstance(d, dict) and "front" in d
-        ]
+            raw_page = d.get("source_page")
+            if isinstance(raw_page, int):
+                card["source_page"] = raw_page
+            elif isinstance(raw_page, str):
+                try:
+                    card["source_page"] = int(raw_page)
+                except ValueError:
+                    pass
+            cards.append(card)
+        return cards

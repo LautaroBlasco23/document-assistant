@@ -3,6 +3,7 @@ import logging
 import threading
 
 import psycopg
+from psycopg.pq import TransactionStatus
 
 from infrastructure.db.postgres import PostgresPool
 
@@ -15,7 +16,10 @@ class TaskRepository:
         self._lock = threading.Lock()
 
     def _conn(self) -> psycopg.Connection:
-        return self._pool.connection()
+        conn = self._pool.connection()
+        if conn.info.transaction_status == TransactionStatus.INERROR:
+            conn.rollback()
+        return conn
 
     def create(
         self,
@@ -74,7 +78,10 @@ class TaskRepository:
             self._conn().commit()
 
     def fail_orphaned(self) -> int:
-        """Mark all pending/running tasks as failed (called on server startup to clear stale tasks)."""
+        """Mark all pending/running tasks as failed.
+
+        Called on server startup to clear stale tasks.
+        """
         with self._lock:
             with self._conn().cursor() as cur:
                 cur.execute(

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Layers } from 'lucide-react'
 import { client } from '../../services'
 import { useFlashcardStore } from '../../stores/flashcard-store'
+import { useExamStore } from '../../stores/exam-store'
 import { useTaskStore } from '../../stores/task-store'
 import { useDocumentStore } from '../../stores/document-store'
 import { Button } from '../../components/ui/button'
@@ -24,9 +25,9 @@ interface FlashcardTabProps {
 
 export function FlashcardTab({ docHash, chapter, qdrantIndex, structure: _structure }: FlashcardTabProps) {
   const decks = useFlashcardStore((state) => state.decks)
-  const activeReview = useFlashcardStore((state) => state.activeReview)
+  const pendingDecks = useFlashcardStore((state) => state.pendingDecks)
   const addDeck = useFlashcardStore((state) => state.addDeck)
-  const startReview = useFlashcardStore((state) => state.startReview)
+  const setPendingDeck = useFlashcardStore((state) => state.setPendingDeck)
 
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('all')
 
@@ -34,24 +35,65 @@ export function FlashcardTab({ docHash, chapter, qdrantIndex, structure: _struct
   const doc = documents.find((d) => d.file_hash === docHash)
   const bookTitle = doc ? doc.filename.replace(/\.[^/.]+$/, '') : docHash
 
-  // Load stored flashcards when chapter changes (if deck not already in memory)
+  const deckKey = `${docHash}-${chapter}`
+  const currentDeck = decks[deckKey]?.[0]
+  const pendingDeck = pendingDecks[deckKey] ?? null
+
+  // On mount: load approved cards OR check for pending ones
   useEffect(() => {
-    const deckKey = `${docHash}-${chapter}`
-    const existingDecks = useFlashcardStore.getState().decks[deckKey]
-    if (existingDecks && existingDecks.length > 0) return  // already loaded
     let cancelled = false
-    void client.getStoredFlashcards(docHash, chapter, qdrantIndex).then((stored) => {
+
+    const loadCards = async () => {
+      // If we already have an approved deck in memory, skip
+      const existingDecks = useFlashcardStore.getState().decks[deckKey]
+      const existingPending = useFlashcardStore.getState().pendingDecks[deckKey]
+      if ((existingDecks && existingDecks.length > 0) || existingPending) return
+
+      // Check for pending cards first (review screen takes priority)
+      const pending = await client.getPendingFlashcards(docHash, chapter, qdrantIndex)
+      if (cancelled) return
+
+      if (pending.length > 0) {
+        const deck: FlashcardDeck = {
+          documentHash: docHash,
+          chapter,
+          cards: pending.map((c) => ({
+            id: c.id,
+            front: c.front,
+            back: c.back,
+            source_page: c.source_page ?? undefined,
+            source_chunk_id: c.source_chunk_id,
+            source_text: c.source_text,
+          } as FlashcardOut)),
+          generatedAt: pending[0].created_at,
+          status: 'pending',
+        }
+        setPendingDeck(docHash, chapter, deck)
+        return
+      }
+
+      // No pending cards -- load approved ones
+      const stored = await client.getStoredFlashcards(docHash, chapter, qdrantIndex)
       if (cancelled || stored.length === 0) return
       const deck: FlashcardDeck = {
         documentHash: docHash,
         chapter,
-        cards: stored.map((c) => ({ front: c.front, back: c.back })),
+        cards: stored.map((c) => ({
+          id: c.id,
+          front: c.front,
+          back: c.back,
+          source_page: c.source_page ?? undefined,
+          source_chunk_id: c.source_chunk_id,
+          source_text: c.source_text,
+        } as FlashcardOut)),
         generatedAt: stored[0].created_at,
       }
       addDeck(docHash, chapter, deck)
-    })
+    }
+
+    void loadCards()
     return () => { cancelled = true }
-  }, [docHash, chapter, qdrantIndex, addDeck])
+  }, [docHash, chapter, qdrantIndex, addDeck, setPendingDeck, deckKey])
 
   // Subscribe to the task for this specific (docHash, chapter, type) context
   const task = useTaskStore((state) =>
@@ -63,38 +105,32 @@ export function FlashcardTab({ docHash, chapter, qdrantIndex, structure: _struct
   const isGenerating = task !== undefined && (task.status === 'pending' || task.status === 'running')
   const generateError = task?.status === 'failed' ? (task.error ?? 'Generation failed') : null
 
-  // When the task completes, build the deck and clear the task from the store
+  // When the task completes, put result into pendingDeck for review
   useEffect(() => {
     if (!task || task.status !== 'completed') return
 
     const flashcards = (task.result?.flashcards as FlashcardOut[] | undefined) ?? []
+    const cards = flashcards.length > 0 ? flashcards : (mockFlashcards[docHash] ?? [])
+
     const deck: FlashcardDeck = {
       documentHash: docHash,
       chapter,
-      cards: flashcards.length > 0 ? flashcards : (mockFlashcards[docHash] ?? []),
+      cards,
       generatedAt: new Date().toISOString(),
+      status: 'pending',
     }
 
-    addDeck(docHash, chapter, deck)
+    setPendingDeck(docHash, chapter, deck)
     useTaskStore.getState().clearTask(task.taskId)
-  }, [task?.status, task?.taskId, docHash, chapter, addDeck])
+    // Clear exam status cache since flashcards were regenerated
+    useExamStore.getState().clearChapterStatus(docHash, chapter)
+  }, [task?.status, task?.taskId, docHash, chapter, addDeck, setPendingDeck])
 
-  const deckKey = `${docHash}-${chapter}`
-  const currentDeck = decks[deckKey]?.[0]
   const filteredCards = currentDeck
     ? categoryFilter === 'all'
       ? currentDeck.cards
       : currentDeck.cards.filter((card) => card.category === categoryFilter)
     : []
-
-  // If there's an active review for the current chapter, show review mode
-  const isReviewingCurrentChapter =
-    activeReview !== null &&
-    activeReview.deckIndex === `${docHash}-${chapter}`
-
-  if (isReviewingCurrentChapter) {
-    return <FlashcardReview docHash={docHash} chapter={chapter} />
-  }
 
   const handleGenerate = async () => {
     try {
@@ -109,6 +145,19 @@ export function FlashcardTab({ docHash, chapter, qdrantIndex, structure: _struct
     } catch {
       // API call failed before task was submitted -- no cleanup needed
     }
+  }
+
+  // If there's a pending deck to review, show the review screen
+  if (pendingDeck && !isGenerating) {
+    return (
+      <FlashcardReview
+        docHash={docHash}
+        chapter={chapter}
+        qdrantIndex={qdrantIndex}
+        pendingDeck={pendingDeck}
+        onDone={() => {/* store is updated inside FlashcardReview */}}
+      />
+    )
   }
 
   const generateButton = (
@@ -128,16 +177,6 @@ export function FlashcardTab({ docHash, chapter, qdrantIndex, structure: _struct
       {/* Toolbar */}
       <div className="flex items-center gap-3">
         {generateButton}
-
-        {currentDeck && currentDeck.cards.length > 0 && !isGenerating && (
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => startReview(docHash, chapter)}
-          >
-            Start Review
-          </Button>
-        )}
       </div>
 
       {/* Generate error */}
@@ -178,7 +217,7 @@ export function FlashcardTab({ docHash, chapter, qdrantIndex, structure: _struct
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {filteredCards.map((card, index) => (
-              <FlashcardCard key={index} card={card} />
+              <FlashcardCard key={card.id ?? index} card={card} />
             ))}
           </div>
         </>

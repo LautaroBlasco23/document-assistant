@@ -1,179 +1,223 @@
 import { useState } from 'react'
-import { X } from 'lucide-react'
+import { Check, X, CheckCheck } from 'lucide-react'
+import { client } from '../../services'
 import { useFlashcardStore } from '../../stores/flashcard-store'
 import { Button } from '../../components/ui/button'
-import { Progress } from '../../components/ui/progress'
+import { FlashcardCard } from './flashcard-card'
+import type { FlashcardDeck } from '../../types/domain'
+import type { FlashcardOut } from '../../types/api'
 
 interface FlashcardReviewProps {
   docHash: string
   chapter: number
+  qdrantIndex: number
+  pendingDeck: FlashcardDeck
+  onDone: () => void
 }
 
-export function FlashcardReview({ docHash, chapter }: FlashcardReviewProps) {
-  const decks = useFlashcardStore((state) => state.decks)
-  const activeReview = useFlashcardStore((state) => state.activeReview)
-  const scoreCard = useFlashcardStore((state) => state.scoreCard)
-  const nextCard = useFlashcardStore((state) => state.nextCard)
-  const endReview = useFlashcardStore((state) => state.endReview)
+export function FlashcardReview({
+  docHash,
+  chapter,
+  qdrantIndex,
+  pendingDeck,
+  onDone,
+}: FlashcardReviewProps) {
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  const deckKey = `${docHash}-${chapter}`
-  const deck = (decks[deckKey] ?? [])[0]
-  const [flipped, setFlipped] = useState(false)
+  const { addDeck, clearPendingDeck, removePendingCards } = useFlashcardStore.getState()
+  const cards = pendingDeck.cards
 
-  if (!deck || !activeReview) return null
-
-  const { currentIndex, scores, isComplete } = activeReview
-  const totalCards = deck.cards.length
-  const progressValue = totalCards > 0 ? (currentIndex / totalCards) * 100 : 0
-  const currentCard = deck.cards[currentIndex]
-
-  const handleScore = (score: 'easy' | 'medium' | 'hard') => {
-    scoreCard(score)
-    setFlipped(false)
-    nextCard()
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
   }
 
-  // Count scores
-  const scoreCounts = { easy: 0, medium: 0, hard: 0 }
-  for (const s of Object.values(scores)) {
-    scoreCounts[s]++
+  const selectAll = () => {
+    setSelectedIds(new Set(cards.map((c) => c.id ?? '').filter(Boolean)))
   }
 
-  // Review complete screen
-  if (isComplete) {
-    return (
-      <div className="flex flex-col items-center justify-center gap-6 py-12">
-        <div className="text-center">
-          <h2 className="text-2xl font-bold text-gray-800 mb-2">Review Complete!</h2>
-          <p className="text-gray-500">You reviewed {totalCards} cards</p>
-        </div>
-        <div className="flex gap-6">
-          <div className="flex flex-col items-center">
-            <span className="text-2xl font-bold text-green-600">{scoreCounts.easy}</span>
-            <span className="text-sm text-gray-500">Easy</span>
-          </div>
-          <div className="flex flex-col items-center">
-            <span className="text-2xl font-bold text-amber-500">{scoreCounts.medium}</span>
-            <span className="text-sm text-gray-500">Medium</span>
-          </div>
-          <div className="flex flex-col items-center">
-            <span className="text-2xl font-bold text-red-500">{scoreCounts.hard}</span>
-            <span className="text-sm text-gray-500">Hard</span>
-          </div>
-        </div>
-        <Button variant="secondary" onClick={endReview}>
-          Return to Browse
-        </Button>
-      </div>
-    )
+  const deselectAll = () => {
+    setSelectedIds(new Set())
   }
 
-  if (!currentCard) return null
+  const handleApproveAll = async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      await client.approveAllFlashcards(docHash, chapter, qdrantIndex)
+      // Reload approved cards and show them in normal view
+      const approved = await client.getStoredFlashcards(docHash, chapter, qdrantIndex)
+      const deck: FlashcardDeck = {
+        documentHash: docHash,
+        chapter,
+        cards: approved.map((c) => ({
+          id: c.id,
+          front: c.front,
+          back: c.back,
+          source_page: c.source_page ?? undefined,
+          source_chunk_id: c.source_chunk_id,
+          source_text: c.source_text,
+        } as FlashcardOut)),
+        generatedAt: approved[0]?.created_at ?? new Date().toISOString(),
+      }
+      addDeck(docHash, chapter, deck)
+      clearPendingDeck(docHash, chapter)
+      onDone()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to approve cards')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleApproveSelected = async () => {
+    if (selectedIds.size === 0) return
+    setLoading(true)
+    setError(null)
+    try {
+      const ids = [...selectedIds]
+      await client.approveFlashcards(docHash, ids)
+      // Remove approved from pending deck; if none left, close review
+      removePendingCards(docHash, chapter, ids)
+      setSelectedIds(new Set())
+      const remaining = useFlashcardStore.getState().pendingDecks[`${docHash}-${chapter}`]
+      if (!remaining || remaining.cards.length === 0) {
+        // All cards processed -- reload approved and close
+        const approved = await client.getStoredFlashcards(docHash, chapter, qdrantIndex)
+        if (approved.length > 0) {
+          const deck: FlashcardDeck = {
+            documentHash: docHash,
+            chapter,
+            cards: approved.map((c) => ({
+              id: c.id,
+              front: c.front,
+              back: c.back,
+              source_page: c.source_page ?? undefined,
+              source_chunk_id: c.source_chunk_id,
+              source_text: c.source_text,
+            } as FlashcardOut)),
+            generatedAt: approved[0].created_at,
+          }
+          addDeck(docHash, chapter, deck)
+        }
+        clearPendingDeck(docHash, chapter)
+        onDone()
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to approve cards')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleRejectSelected = async () => {
+    if (selectedIds.size === 0) return
+    setLoading(true)
+    setError(null)
+    try {
+      const ids = [...selectedIds]
+      await client.rejectFlashcards(docHash, ids)
+      removePendingCards(docHash, chapter, ids)
+      setSelectedIds(new Set())
+      const remaining = useFlashcardStore.getState().pendingDecks[`${docHash}-${chapter}`]
+      if (!remaining || remaining.cards.length === 0) {
+        clearPendingDeck(docHash, chapter)
+        onDone()
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to reject cards')
+    } finally {
+      setLoading(false)
+    }
+  }
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Header with progress and end button */}
-      <div className="flex items-center gap-3">
-        <div className="flex-1">
-          <Progress value={progressValue} />
-          <p className="text-xs text-gray-400 mt-1">
-            {currentIndex + 1} / {totalCards}
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-sm font-semibold text-gray-800">Review Generated Flashcards</h3>
+          <p className="text-xs text-gray-500 mt-0.5">
+            {cards.length} card{cards.length !== 1 ? 's' : ''} awaiting review
           </p>
         </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={endReview}
-          aria-label="End review"
-          className="shrink-0"
-        >
-          <X className="h-4 w-4" />
-          End Review
-        </Button>
       </div>
 
-      {/* Large review card */}
-      <div
-        style={{ perspective: '1000px' }}
-        className="cursor-pointer"
-        onClick={() => !flipped && setFlipped(true)}
-        role="button"
-        aria-label={flipped ? 'Card answer shown' : 'Click to reveal answer'}
-        tabIndex={0}
-        onKeyDown={(e) => {
-          if ((e.key === 'Enter' || e.key === ' ') && !flipped) {
-            e.preventDefault()
-            setFlipped(true)
-          }
-        }}
-      >
-        <div
-          style={{
-            transformStyle: 'preserve-3d',
-            transition: 'transform 0.5s',
-            transform: flipped ? 'rotateY(180deg)' : 'rotateY(0deg)',
-            position: 'relative',
-            minHeight: '240px',
-          }}
+      {/* Toolbar */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <Button
+          variant="primary"
+          size="sm"
+          onClick={() => void handleApproveAll()}
+          disabled={loading}
+          loading={loading}
         >
-          {/* Front */}
-          <div
-            style={{ backfaceVisibility: 'hidden' }}
-            className="absolute inset-0 bg-white border border-gray-200 rounded-xl p-8 flex flex-col justify-between shadow-sm"
-          >
-            <div className="text-xs font-medium text-gray-400 uppercase tracking-wide">Question</div>
-            <p className="text-lg text-gray-800 font-medium text-center flex-1 flex items-center justify-center py-4">
-              {currentCard.front}
-            </p>
-            <p className="text-sm text-gray-400 text-center">Click to reveal answer</p>
-          </div>
+          <CheckCheck className="h-3.5 w-3.5 mr-1" />
+          Approve All
+        </Button>
 
-          {/* Back */}
-          <div
-            style={{
-              backfaceVisibility: 'hidden',
-              transform: 'rotateY(180deg)',
-            }}
-            className="absolute inset-0 bg-accent/5 border border-accent/20 rounded-xl p-8 flex flex-col justify-between shadow-sm"
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={() => void handleApproveSelected()}
+          disabled={loading || selectedIds.size === 0}
+        >
+          <Check className="h-3.5 w-3.5 mr-1" />
+          Approve Selected ({selectedIds.size})
+        </Button>
+
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={() => void handleRejectSelected()}
+          disabled={loading || selectedIds.size === 0}
+          className="text-red-600 border-red-200 hover:bg-red-50"
+        >
+          <X className="h-3.5 w-3.5 mr-1" />
+          Reject Selected ({selectedIds.size})
+        </Button>
+
+        <div className="ml-auto flex items-center gap-2">
+          <button
+            className="text-xs text-primary hover:underline"
+            onClick={selectAll}
           >
-            <div className="text-xs font-medium text-accent uppercase tracking-wide">Answer</div>
-            <p className="text-base text-gray-700 text-center flex-1 flex items-center justify-center py-4">
-              {currentCard.back}
-            </p>
-            <div className="flex justify-center gap-3">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={(e) => { e.stopPropagation(); handleScore('hard') }}
-                className="border border-red-200 text-red-600 hover:bg-red-50"
-              >
-                Hard
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={(e) => { e.stopPropagation(); handleScore('medium') }}
-                className="border border-amber-200 text-amber-600 hover:bg-amber-50"
-              >
-                Medium
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={(e) => { e.stopPropagation(); handleScore('easy') }}
-                className="border border-green-200 text-green-600 hover:bg-green-50"
-              >
-                Easy
-              </Button>
-            </div>
-          </div>
+            Select all
+          </button>
+          <span className="text-gray-300">|</span>
+          <button
+            className="text-xs text-gray-500 hover:underline"
+            onClick={deselectAll}
+          >
+            Deselect all
+          </button>
         </div>
       </div>
 
-      {flipped && (
-        <p className="text-center text-sm text-gray-400">
-          Rate how well you knew this card
-        </p>
+      {error && <p className="text-sm text-red-500">{error}</p>}
+
+      {/* Card grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        {cards.map((card) => (
+          <div key={card.id ?? card.front}>
+            <FlashcardCard
+              card={card}
+              reviewMode
+              selected={selectedIds.has(card.id ?? '')}
+              onToggleSelect={toggleSelect}
+            />
+          </div>
+        ))}
+      </div>
+
+      {cards.length === 0 && (
+        <p className="text-sm text-gray-500 text-center py-6">No cards to review.</p>
       )}
     </div>
   )

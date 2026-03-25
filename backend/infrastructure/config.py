@@ -46,6 +46,13 @@ class PostgresConfig(BaseModel):
     password: str = "docassist_pass"
 
 
+class ExamConfig(BaseModel):
+    cooldown_after_fail_hours: int = 2
+    cooldown_completed_days: int = 4
+    cooldown_gold_days: int = 14
+    cooldown_platinum_days: int = 30
+
+
 class AppConfig(BaseSettings):
     ollama: OllamaConfig = OllamaConfig()
     groq: GroqConfig = GroqConfig()
@@ -53,6 +60,7 @@ class AppConfig(BaseSettings):
     neo4j: Neo4jConfig = Neo4jConfig()
     chunking: ChunkingConfig = ChunkingConfig()
     postgres: PostgresConfig = PostgresConfig()
+    exam: ExamConfig = ExamConfig()
     llm_provider: str = "groq"  # "ollama" | "groq"
 
     model_config = {"env_prefix": "DOCASSIST_", "env_nested_delimiter": "__"}
@@ -123,6 +131,12 @@ def save_config(config: AppConfig, config_path: Path | None = None) -> None:
             "database": config.postgres.database,
             "user": config.postgres.user,
             "password": config.postgres.password,
+        },
+        "exam": {
+            "cooldown_after_fail_hours": config.exam.cooldown_after_fail_hours,
+            "cooldown_completed_days": config.exam.cooldown_completed_days,
+            "cooldown_gold_days": config.exam.cooldown_gold_days,
+            "cooldown_platinum_days": config.exam.cooldown_platinum_days,
         },
     }
 

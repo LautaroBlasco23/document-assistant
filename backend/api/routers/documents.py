@@ -18,7 +18,6 @@ from api.schemas.documents import (
     DocumentOut,
     DocumentPreviewOut,
     DocumentStructureOut,
-    IngestChaptersRequest,
     IngestTaskOut,
     MetadataRequest,
     MetadataResponse,
