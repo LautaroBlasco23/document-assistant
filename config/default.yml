@@ -34,3 +34,9 @@ postgres:
   database: "docassist"
   user: "docassist"
   password: "docassist_pass"
+
+exam:
+  cooldown_after_fail_hours: 2
+  cooldown_completed_days: 4
+  cooldown_gold_days: 14
+  cooldown_platinum_days: 30

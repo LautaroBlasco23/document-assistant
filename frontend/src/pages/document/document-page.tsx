@@ -7,10 +7,12 @@ import { SkeletonLine, SkeletonBlock } from '../../components/ui/skeleton'
 import { Button } from '../../components/ui/button'
 import { FlashcardTab } from './flashcard-tab'
 import { SummaryTab } from './summary-tab'
+import { ExamTab } from './exam-tab'
+import { ChatTab } from './chat-tab'
 import type { Tab } from '../../types/domain'
 import { useState } from 'react'
 
-const VALID_TABS: Tab[] = ['flashcards', 'summary']
+const VALID_TABS: Tab[] = ['flashcards', 'summary', 'exam', 'chat']
 
 function isValidTab(value: string | null): value is Tab {
   return VALID_TABS.includes(value as Tab)
@@ -95,6 +97,10 @@ export function DocumentPage() {
         return <FlashcardTab docHash={hash} chapter={selectedChapter} qdrantIndex={currentQdrantIndex} structure={structure} />
       case 'summary':
         return <SummaryTab docHash={hash} chapter={selectedChapter} qdrantIndex={currentQdrantIndex} structure={structure} />
+      case 'exam':
+        return <ExamTab docHash={hash} chapter={selectedChapter} qdrantIndex={currentQdrantIndex} structure={structure} />
+      case 'chat':
+        return <ChatTab docHash={hash} chapter={selectedChapter} qdrantIndex={currentQdrantIndex} structure={structure} />
       default:
         return null
     }
