@@ -55,7 +55,7 @@ class PostgresContentStore(ContentStore):
             bullets = []
         description = row["description"] or ""
         # Recover from JSON-stringified description (legacy/corrupted data)
-        if description.startswith('{'):
+        if description.startswith("{"):
             try:
                 inner = json.loads(description)
                 if isinstance(inner, dict):
@@ -92,7 +92,7 @@ class PostgresContentStore(ContentStore):
                 bullets = []
             description = row["description"] or ""
             # Recover from JSON-stringified description (legacy/corrupted data)
-            if description.startswith('{'):
+            if description.startswith("{"):
                 try:
                     inner = json.loads(description)
                     if isinstance(inner, dict):
@@ -254,9 +254,7 @@ class PostgresContentStore(ContentStore):
         logger.debug("Deleted %d flashcards by IDs", count)
         return count
 
-    def approve_all_flashcards(
-        self, document_hash: str, chapter_index: int | None = None
-    ) -> int:
+    def approve_all_flashcards(self, document_hash: str, chapter_index: int | None = None) -> int:
         with self._lock:
             conn = self._conn()
             self._rollback_if_failed(conn)
@@ -291,7 +289,8 @@ class PostgresContentStore(ContentStore):
         self._rollback_if_failed(conn)
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT description, document_type FROM document_metadata WHERE document_hash = %s",
+                "SELECT description, document_type, file_extension "
+                "FROM document_metadata WHERE document_hash = %s",
                 (document_hash,),
             )
             row = cur.fetchone()
@@ -300,6 +299,7 @@ class PostgresContentStore(ContentStore):
         return DocumentMetadata(
             description=row["description"] or "",
             document_type=row["document_type"] or "",
+            file_extension=row["file_extension"] or "",
         )
 
     def save_metadata(self, document_hash: str, metadata: DocumentMetadata) -> None:
@@ -310,13 +310,22 @@ class PostgresContentStore(ContentStore):
                 with conn.cursor() as cur:
                     cur.execute(
                         "INSERT INTO document_metadata"
-                        " (document_hash, description, document_type, updated_at)"
-                        " VALUES (%s, %s, %s, NOW())"
+                        " (document_hash, description, document_type, file_extension, updated_at)"
+                        " VALUES (%s, %s, %s, %s, NOW())"
                         " ON CONFLICT (document_hash)"
                         " DO UPDATE SET description = EXCLUDED.description,"
                         " document_type = EXCLUDED.document_type,"
+                        " file_extension = COALESCE("
+                        "   EXCLUDED.file_extension,"
+                        "   document_metadata.file_extension"
+                        " ),"
                         " updated_at = NOW()",
-                        (document_hash, metadata.description, metadata.document_type),
+                        (
+                            document_hash,
+                            metadata.description,
+                            metadata.document_type,
+                            metadata.file_extension,
+                        ),
                     )
         logger.debug("Saved metadata for doc=%s", document_hash[:12])
 
@@ -348,9 +357,7 @@ class PostgresContentStore(ContentStore):
                         "DELETE FROM summaries WHERE document_hash = %s AND chapter_index = %s",
                         (document_hash, chapter_index),
                     )
-        logger.debug(
-            "Deleted summary for doc=%s chapter=%d", document_hash[:12], chapter_index
-        )
+        logger.debug("Deleted summary for doc=%s chapter=%d", document_hash[:12], chapter_index)
 
     def delete_chapter(self, document_hash: str, chapter_index: int) -> None:
         with self._lock:
@@ -370,9 +377,7 @@ class PostgresContentStore(ContentStore):
                         "DELETE FROM exam_results WHERE document_hash = %s AND chapter_index = %s",
                         (document_hash, chapter_index),
                     )
-        logger.debug(
-            "Deleted chapter %d content for doc=%s", chapter_index, document_hash[:12]
-        )
+        logger.debug("Deleted chapter %d content for doc=%s", chapter_index, document_hash[:12])
 
     # --- Exam results ---
 
@@ -451,9 +456,7 @@ class PostgresContentStore(ContentStore):
                         "DELETE FROM exam_results WHERE document_hash = %s AND chapter_index = %s",
                         (document_hash, chapter_index),
                     )
-        logger.debug(
-            "Reset exam progress for doc=%s chapter=%d", document_hash[:12], chapter_index
-        )
+        logger.debug("Reset exam progress for doc=%s chapter=%d", document_hash[:12], chapter_index)
 
 
 def _ensure_naive(dt: datetime) -> datetime:

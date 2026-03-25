@@ -7,8 +7,9 @@ import tempfile
 import time
 from pathlib import Path
 
+import fitz
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 
 from api.deps import ServicesDep
 from api.schemas.documents import (
@@ -27,6 +28,7 @@ from application.ingest import _hash_file, ingest_file, preview_file
 from core.model.document_metadata import DocumentMetadata
 from infrastructure.chunking.splitter import ChapterAwareSplitter
 from infrastructure.config import PROJECT_ROOT
+from infrastructure.file_persistence import delete_persisted_file, get_persisted_file, persist_file
 from infrastructure.graph.entity_extractor import extract_entities
 from infrastructure.ingest.epub_loader import load_epub, preview_epub
 from infrastructure.ingest.pdf_loader import load_pdf, preview_pdf
@@ -66,10 +68,13 @@ def _get_document_chapters(file_hash: str, services: ServicesDep) -> list[Chapte
     documents = _list_documents()
     doc_manifest = next((d for d in documents if d["file_hash"] == file_hash), None)
 
-    chapters_from_manifest: dict[int, str] = {}
+    chapters_from_manifest: dict[int, dict] = {}
     if doc_manifest and "chapters" in doc_manifest:
         for ch in doc_manifest["chapters"]:
-            chapters_from_manifest[ch.get("index", 0)] = ch.get("title", "")
+            chapters_from_manifest[ch.get("index", 0)] = {
+                "title": ch.get("title", ""),
+                "sections": ch.get("sections", []),
+            }
 
     try:
         results = services.qdrant.search_by_file(file_hash)
@@ -79,15 +84,16 @@ def _get_document_chapters(file_hash: str, services: ServicesDep) -> list[Chapte
             chapter = chunk.metadata.chapter_index if chunk.metadata else 0
             chapters_data[chapter] = chapters_data.get(chapter, 0) + 1
 
-        # Use sequential numbering (1, 2, 3...) for user-facing chapter numbers,
-        # not the actual chapter_index from Qdrant which may have gaps
         sorted_chapters = sorted(chapters_data.items())
         return [
             ChapterOut(
-                number=user_chapter_num,  # Sequential 1-based (1, 2, 3...)
-                qdrant_index=actual_index,  # Actual index stored in Qdrant for filtering
-                title=chapters_from_manifest.get(actual_index, f"Chapter {user_chapter_num}"),
+                number=user_chapter_num,
+                qdrant_index=actual_index,
+                title=chapters_from_manifest.get(actual_index, {}).get(
+                    "title", f"Chapter {user_chapter_num}"
+                ),
                 num_chunks=count,
+                sections=chapters_from_manifest.get(actual_index, {}).get("sections", []),
             )
             for user_chapter_num, (actual_index, count) in enumerate(sorted_chapters, start=1)
         ]
@@ -291,10 +297,17 @@ def _ingest_selected_chapters(
             stored_chapter_indices=list(chapter_indices),
         )
 
-        if description or document_type:
+        task.progress = "Persisting file..."
+        logger.info("Ingest selected: persisting original file")
+        file_ext = Path(filename).suffix.lstrip(".").lower()
+        persist_file(file_hash, file_ext, file_content)
+
+        if description or document_type or file_ext:
             services.content_store.save_metadata(
                 file_hash,
-                DocumentMetadata(description=description, document_type=document_type),
+                DocumentMetadata(
+                    description=description, document_type=document_type, file_extension=file_ext
+                ),
             )
             logger.info("Ingest selected: saved metadata for doc=%s", file_hash[:12])
 
@@ -339,11 +352,14 @@ async def get_metadata(file_hash: str, services: ServicesDep) -> MetadataRespons
     """Get the user-provided metadata for a document."""
     meta = services.content_store.get_metadata(file_hash)
     if meta is None:
-        return MetadataResponse(document_hash=file_hash, description="", document_type="")
+        return MetadataResponse(
+            document_hash=file_hash, description="", document_type="", file_extension=""
+        )
     return MetadataResponse(
         document_hash=file_hash,
         description=meta.description,
         document_type=meta.document_type,
+        file_extension=meta.file_extension,
     )
 
 
@@ -358,6 +374,89 @@ async def save_metadata(
         document_hash=file_hash,
         description=req.description,
         document_type=req.document_type,
+    )
+
+
+@router.get("/documents/{file_hash}/file")
+async def get_document_file(file_hash: str, services: ServicesDep) -> FileResponse:
+    """Get the original document file (PDF or EPUB) for viewing."""
+    meta = services.content_store.get_metadata(file_hash)
+    if meta is None or not meta.file_extension:
+        raise HTTPException(status_code=404, detail="File not found or file type unknown")
+
+    file_path = get_persisted_file(file_hash, meta.file_extension)
+    if file_path is None:
+        raise HTTPException(status_code=404, detail="File not found on disk")
+
+    media_type = "application/pdf" if meta.file_extension == "pdf" else "application/epub+zip"
+    return FileResponse(
+        path=file_path,
+        media_type=media_type,
+        filename=f"{file_hash}.{meta.file_extension}",
+        content_disposition_type="inline",
+    )
+
+
+@router.get("/documents/{file_hash}/chapters/{chapter}/pdf")
+async def get_chapter_pdf(file_hash: str, chapter: int, services: ServicesDep) -> StreamingResponse:
+    """Get a chapter-specific PDF containing only the pages for that chapter.
+
+    Chapter is 1-based (user-facing).
+    """
+    meta = services.content_store.get_metadata(file_hash)
+    if meta is None or meta.file_extension != "pdf":
+        raise HTTPException(status_code=404, detail="PDF not found")
+
+    file_path = get_persisted_file(file_hash, meta.file_extension)
+    if file_path is None:
+        raise HTTPException(status_code=404, detail="File not found on disk")
+
+    documents = _list_documents()
+    doc_manifest = next((d for d in documents if d["file_hash"] == file_hash), None)
+    if doc_manifest is None or "chapters" not in doc_manifest:
+        raise HTTPException(status_code=404, detail="Document structure not found")
+
+    stored_chapters = [c for c in doc_manifest["chapters"] if c.get("stored", True)]
+    if chapter < 1 or chapter > len(stored_chapters):
+        raise HTTPException(status_code=404, detail="Chapter not found")
+
+    manifest_chapter = stored_chapters[chapter - 1]
+    sections = manifest_chapter.get("sections", [])
+
+    if not sections:
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                "Chapter page range not available. "
+                "Document may have been ingested without chapter detection."
+            ),
+        )
+
+    page_start = sections[0]["page_start"]
+    page_end = sections[-1]["page_end"]
+
+    doc = fitz.open(str(file_path))
+    chapter_pdf = fitz.open()
+    for page_num in range(page_start, page_end + 1):
+        if page_num <= len(doc):
+            chapter_pdf.insert_pdf(doc, from_page=page_num - 1, to_page=page_num - 1)
+
+    output_buffer = chapter_pdf.tobytes()
+    chapter_pdf.close()
+    doc.close()
+
+    filename = f"{manifest_chapter.get('title', f'Chapter {chapter}')}.pdf"
+
+    async def iterfile():
+        yield output_buffer
+
+    return StreamingResponse(
+        iterfile(),
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'inline; filename="{filename}"',
+            "Content-Length": str(len(output_buffer)),
+        },
     )
 
 
@@ -449,12 +548,20 @@ def _ingest_background(
             num_chapters=num_chapters,
         )
 
+        # Persist the original file
+        task.progress = "Persisting file..."
+        logger.info("Ingest: persisting original file")
+        file_ext = Path(filename).suffix.lstrip(".").lower()
+        persist_file(doc.file_hash, file_ext, file_content)
+
         # Persist metadata if provided at upload time
-        if description or document_type:
+        if description or document_type or file_ext:
             file_hash = doc.file_hash
             services.content_store.save_metadata(
                 file_hash,
-                DocumentMetadata(description=description, document_type=document_type),
+                DocumentMetadata(
+                    description=description, document_type=document_type, file_extension=file_ext
+                ),
             )
             logger.info("Ingest: saved metadata for doc=%s", file_hash[:12])
 
@@ -538,6 +645,15 @@ async def delete_document(file_hash: str, services: ServicesDep) -> JSONResponse
     except Exception as e:
         logger.error(f"Failed to delete manifest directory for {file_hash}: {e}")
         errors.append(f"Manifest: {e}")
+
+    # Delete persisted file
+    try:
+        meta = services.content_store.get_metadata(file_hash)
+        if meta and meta.file_extension:
+            delete_persisted_file(file_hash, meta.file_extension)
+    except Exception as e:
+        logger.error(f"Failed to delete persisted file for {file_hash}: {e}")
+        errors.append(f"Persisted file: {e}")
 
     if errors:
         raise HTTPException(

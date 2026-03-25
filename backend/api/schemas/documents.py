@@ -66,6 +66,7 @@ class MetadataResponse(BaseModel):
     document_hash: str
     description: str
     document_type: str = ""
+    file_extension: str = ""
 
 
 class ChapterDeleteResponse(BaseModel):

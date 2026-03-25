@@ -2,6 +2,26 @@ import * as RadixDialog from '@radix-ui/react-dialog'
 import { Button } from './button'
 import { cn } from '../../lib/cn'
 
+export interface DialogContentProps {
+  children: React.ReactNode
+  className?: string
+}
+
+export function DialogContent({ children, className }: DialogContentProps) {
+  return (
+    <RadixDialog.Content
+      className={cn(
+        'fixed z-50 left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2',
+        'w-full max-w-lg bg-white rounded-card shadow-lg p-6',
+        'animate-fade-in',
+        className,
+      )}
+    >
+      {children}
+    </RadixDialog.Content>
+  )
+}
+
 export interface DialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void

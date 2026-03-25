@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, Trash2 } from 'lucide-react'
+import { ArrowLeft, Trash2, Eye, BookOpen } from 'lucide-react'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../ui/tabs'
 import { Badge } from '../ui/badge'
 import { Button } from '../ui/button'
@@ -11,6 +11,8 @@ import type { ChapterOut, DocumentOut, DocumentStructureOut } from '../../types/
 import type { Tab } from '../../types/domain'
 import { useDocumentStore } from '../../stores/document-store'
 import { useExamStore } from '../../stores/exam-store'
+import { PdfViewer, EpubViewer } from '../document-viewer'
+import { client } from '../../services'
 
 const DESCRIPTION_MAX_LENGTH = 500
 
@@ -68,6 +70,9 @@ export function DocumentLayout({
   const chapterStatus = useExamStore((s) => s.chapterStatus)
   const fetchChapterStatus = useExamStore((s) => s.fetchChapterStatus)
 
+  const [viewerOpen, setViewerOpen] = useState(false)
+  const [viewerMode, setViewerMode] = useState<'full' | 'chapter'>('full')
+
   // Fetch metadata on mount or when document changes
   useEffect(() => {
     setMetadataLoaded(false)
@@ -124,6 +129,24 @@ export function DocumentLayout({
     }
   }
 
+  const metadata = metadataCache[docHash]
+  const fileExtension = metadata?.file_extension || ''
+  const canViewFile = fileExtension === 'pdf' || fileExtension === 'epub'
+
+  const handleViewFile = () => {
+    setViewerMode('full')
+    setViewerOpen(true)
+  }
+
+  const handleViewChapter = () => {
+    setViewerMode('chapter')
+    setViewerOpen(true)
+  }
+
+  const selectedChapterSections = selectedChapterObj?.sections || []
+  const chapterPageStart = selectedChapterSections.length > 0 ? selectedChapterSections[0].page_start : 1
+  const chapterPageEnd = selectedChapterSections.length > 0 ? selectedChapterSections[selectedChapterSections.length - 1].page_end : 1
+
   return (
     <div className={cn('flex flex-col gap-4', className)}>
       {/* Document header */}
@@ -149,12 +172,25 @@ export function DocumentLayout({
 
       {/* Document context input */}
       <div className="flex flex-col gap-1">
-        <label
-          htmlFor="doc-context"
-          className="text-xs font-medium text-gray-500"
-        >
-          Document context
-        </label>
+        <div className="flex items-center justify-between">
+          <label
+            htmlFor="doc-context"
+            className="text-xs font-medium text-gray-500"
+          >
+            Document context
+          </label>
+          {canViewFile && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleViewFile}
+              className="h-6 px-2 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+            >
+              <Eye className="h-3 w-3 mr-1" />
+              View file
+            </Button>
+          )}
+        </div>
         <textarea
           id="doc-context"
           className="w-full rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700 placeholder-gray-400 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary resize-none"
@@ -208,6 +244,17 @@ export function DocumentLayout({
           </Button>
         )}
       </div>
+      {canViewFile && (
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={handleViewChapter}
+          className="text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50 -mt-2"
+        >
+          <BookOpen className="h-3 w-3 mr-1" />
+          View chapter pages (p. {chapterPageStart}{chapterPageEnd !== chapterPageStart ? `-${chapterPageEnd}` : ''})
+        </Button>
+      )}
 
       {/* Tabs */}
       <Tabs
@@ -229,6 +276,27 @@ export function DocumentLayout({
           </TabsContent>
         ))}
       </Tabs>
+
+      {/* Document viewer modal */}
+      {viewerOpen && canViewFile && (
+        fileExtension === 'pdf' ? (
+          <PdfViewer
+            fileUrl={viewerMode === 'chapter' && selectedChapterObj?.sections?.length
+              ? client.getChapterPdfUrl(docHash, selectedChapter)
+              : client.getDocumentFileUrl(docHash)}
+            filename={viewerMode === 'chapter' && selectedChapterObj?.sections?.length
+              ? `${selectedChapterObj.title || `Chapter ${selectedChapter}`}.pdf`
+              : document.filename}
+            onClose={() => setViewerOpen(false)}
+          />
+        ) : (
+          <EpubViewer
+            fileUrl={client.getDocumentFileUrl(docHash)}
+            filename={document.filename}
+            onClose={() => setViewerOpen(false)}
+          />
+        )
+      )}
     </div>
   )
 }

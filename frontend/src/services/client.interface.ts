@@ -56,6 +56,8 @@ export interface ServiceClient {
     qdrantIndex: number | null,
     history: Array<{ role: 'user' | 'assistant'; content: string }>
   ): Promise<ChatResponse>
+  getDocumentFileUrl(docHash: string): string
+  getChapterPdfUrl(docHash: string, chapter: number): string
 }
 
 export type { ServiceClient as ServiceClientType }

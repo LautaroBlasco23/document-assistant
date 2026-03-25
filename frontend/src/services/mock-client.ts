@@ -182,13 +182,22 @@ export class MockClient implements ServiceClient {
       document_hash: docHash,
       description: stored?.description ?? '',
       document_type: stored?.document_type ?? '',
+      file_extension: 'pdf',
     }
   }
 
   async saveMetadata(docHash: string, description: string, documentType = ''): Promise<MetadataResponse> {
     await delay(100)
     this.metadataStore.set(docHash, { description, document_type: documentType })
-    return { document_hash: docHash, description, document_type: documentType }
+    return { document_hash: docHash, description, document_type: documentType, file_extension: 'pdf' }
+  }
+
+  getDocumentFileUrl(docHash: string): string {
+    return `/api/documents/${docHash}/file`
+  }
+
+  getChapterPdfUrl(docHash: string, chapter: number): string {
+    return `/api/documents/${docHash}/chapters/${chapter}/pdf`
   }
 
   async submitExamResult(_docHash: string, chapter: number, totalCards: number, correctCount: number): Promise<ExamResultOut> {

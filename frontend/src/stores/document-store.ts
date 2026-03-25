@@ -5,6 +5,7 @@ import type { DocumentOut, DocumentStructureOut } from '../types/api'
 interface DocumentMetadata {
   description: string
   document_type: string
+  file_extension: string
 }
 
 interface DocumentState {
@@ -82,7 +83,7 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
       set((state) => ({
         metadataCache: {
           ...state.metadataCache,
-          [hash]: { description: resp.description, document_type: resp.document_type },
+          [hash]: { description: resp.description, document_type: resp.document_type, file_extension: resp.file_extension },
         },
       }))
     } catch {
@@ -97,7 +98,7 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
     set((state) => ({
       metadataCache: {
         ...state.metadataCache,
-        [hash]: { description, document_type: newDocType },
+        [hash]: { description, document_type: newDocType, file_extension: current?.file_extension ?? '' },
       },
     }))
     try {

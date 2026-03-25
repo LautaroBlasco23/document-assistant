@@ -252,4 +252,12 @@ export class RealClient implements ServiceClient {
     })
     return res.data
   }
+
+  getDocumentFileUrl(docHash: string): string {
+    return `/api/documents/${docHash}/file`
+  }
+
+  getChapterPdfUrl(docHash: string, chapter: number): string {
+    return `/api/documents/${docHash}/chapters/${chapter}/pdf`
+  }
 }

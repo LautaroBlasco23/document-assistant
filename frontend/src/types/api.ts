@@ -133,6 +133,7 @@ export interface MetadataResponse {
   document_hash: string
   description: string
   document_type: string
+  file_extension: string
 }
 
 export interface ChapterDeleteResponse {

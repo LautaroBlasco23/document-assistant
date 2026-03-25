@@ -31,10 +31,17 @@ def write_manifest(
 
     chapters_data = []
     for ch in doc.chapters:
-        sections_data = [
-            {"title": s.title, "page_start": s.page_start, "page_end": s.page_end}
-            for s in ch.sections
-        ]
+        if ch.sections:
+            sections_data = [
+                {"title": s.title, "page_start": s.page_start, "page_end": s.page_end}
+                for s in ch.sections
+            ]
+        elif ch.pages:
+            page_start = ch.pages[0].number
+            page_end = ch.pages[-1].number
+            sections_data = [{"title": ch.title, "page_start": page_start, "page_end": page_end}]
+        else:
+            sections_data = []
         chapters_data.append(
             {
                 "index": ch.index,
