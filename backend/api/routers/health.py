@@ -19,17 +19,23 @@ async def get_health(services: ServicesDep) -> HealthOut:
     logger.debug("Health check requested")
     statuses: list[ServiceStatus] = []
 
-    # Check Ollama
-    try:
-        resp = requests.get(f"{services.embedder.base_url}/api/tags", timeout=5)
-        if resp.status_code == 200:
-            statuses.append(ServiceStatus(name="ollama", healthy=True))
+    # Check embedder (Ollama or Groq depending on provider)
+    if services.config.llm_provider == "groq":
+        if services.config.groq.api_key:
+            statuses.append(ServiceStatus(name="embedder", healthy=True))
         else:
-            statuses.append(
-                ServiceStatus(name="ollama", healthy=False, error=f"HTTP {resp.status_code}")
-            )
-    except Exception as e:
-        statuses.append(ServiceStatus(name="ollama", healthy=False, error=str(e)))
+            statuses.append(ServiceStatus(name="embedder", healthy=False, error="Groq API key not set"))
+    else:
+        try:
+            resp = requests.get(f"{services.config.ollama.base_url.rstrip('/')}/api/tags", timeout=5)
+            if resp.status_code == 200:
+                statuses.append(ServiceStatus(name="embedder", healthy=True))
+            else:
+                statuses.append(
+                    ServiceStatus(name="embedder", healthy=False, error=f"HTTP {resp.status_code}")
+                )
+        except Exception as e:
+            statuses.append(ServiceStatus(name="embedder", healthy=False, error=str(e)))
 
     # Check Qdrant (connectivity only — collection may not exist before first ingest)
     try:

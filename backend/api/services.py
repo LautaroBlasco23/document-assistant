@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from api.tasks import TaskRegistry
 from application.retriever import HybridRetriever
 from core.ports.content_store import ContentStore
+from core.ports.embedder import Embedder
 from core.ports.llm import LLM
 from infrastructure.config import AppConfig, load_config
 from infrastructure.db.content_repository import PostgresContentStore
@@ -14,8 +15,7 @@ from infrastructure.db.task_repository import TaskRepository
 from infrastructure.graph.entity_extractor import extract_entities
 from infrastructure.graph.neo4j_store import Neo4jStore
 from infrastructure.llm.embedding_cache import EmbeddingCache
-from infrastructure.llm.factory import create_fast_llm, create_llm
-from infrastructure.llm.ollama import OllamaEmbedder
+from infrastructure.llm.factory import create_embedder, create_fast_llm, create_llm
 from infrastructure.vectorstore.qdrant_store import QdrantStore
 
 logger = logging.getLogger(__name__)
@@ -26,7 +26,7 @@ class Services:
     """Container for all infrastructure and application services."""
 
     config: AppConfig
-    embedder: OllamaEmbedder
+    embedder: Embedder
     llm: LLM
     fast_llm: LLM
     qdrant: QdrantStore
@@ -49,7 +49,7 @@ def init_services(config: AppConfig | None = None) -> Services:
         config = load_config()
 
     cache = EmbeddingCache()
-    embedder = OllamaEmbedder(config.ollama, cache=cache)
+    embedder = create_embedder(config, cache=cache)
 
     llm = create_llm(config)
     fast_llm = create_fast_llm(config, llm)
@@ -77,10 +77,11 @@ def init_services(config: AppConfig | None = None) -> Services:
         _pg_pool=pg_pool,
     )
 
+    embed_model = config.groq.embedding_model if config.llm_provider == "groq" else config.ollama.embedding_model
     logger.info(
         "Config: provider=%s embed=%s qdrant=%s neo4j=%s postgres=%s:%d",
         config.llm_provider,
-        config.ollama.embedding_model,
+        embed_model,
         config.qdrant.url,
         config.neo4j.uri,
         config.postgres.host,

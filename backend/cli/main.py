@@ -101,8 +101,7 @@ def run_ingest(path: str, provider: str | None = None) -> int:
     from infrastructure.ingest.epub_loader import load_epub
     from infrastructure.ingest.pdf_loader import load_pdf
     from infrastructure.llm.embedding_cache import EmbeddingCache
-    from infrastructure.llm.factory import create_llm
-    from infrastructure.llm.ollama import OllamaEmbedder
+    from infrastructure.llm.factory import create_embedder, create_llm
     from infrastructure.output.manifest import write_manifest
     from infrastructure.vectorstore.qdrant_store import QdrantStore
 
@@ -122,7 +121,7 @@ def run_ingest(path: str, provider: str | None = None) -> int:
         print(f"No PDF/EPUB files found at {path}", file=sys.stderr)
         return 1
 
-    embedder = OllamaEmbedder(config.ollama, EmbeddingCache())
+    embedder = create_embedder(config, EmbeddingCache())
     llm = create_llm(config)
     qdrant = QdrantStore(config.qdrant)
     neo4j = Neo4jStore(config.neo4j)
@@ -204,8 +203,7 @@ def run_summarize(book_title: str, chapter_num: int, provider: str | None = None
     from infrastructure.graph.entity_extractor import extract_entities
     from infrastructure.graph.neo4j_store import Neo4jStore
     from infrastructure.llm.embedding_cache import EmbeddingCache
-    from infrastructure.llm.factory import create_fast_llm, create_llm
-    from infrastructure.llm.ollama import OllamaEmbedder
+    from infrastructure.llm.factory import create_embedder, create_fast_llm, create_llm
     from infrastructure.output.markdown_writer import write_summary
     from infrastructure.vectorstore.qdrant_store import QdrantStore
 
@@ -215,7 +213,7 @@ def run_summarize(book_title: str, chapter_num: int, provider: str | None = None
 
     chapter_index = chapter_num - 1
 
-    embedder = OllamaEmbedder(config.ollama, EmbeddingCache())
+    embedder = create_embedder(config, EmbeddingCache())
     llm = create_llm(config)
     fast_llm = create_fast_llm(config, llm)
     qdrant = QdrantStore(config.qdrant)
@@ -265,8 +263,7 @@ def run_generate_md(book_title: str, chapter_num: int, provider: str | None = No
     from infrastructure.graph.entity_extractor import extract_entities
     from infrastructure.graph.neo4j_store import Neo4jStore
     from infrastructure.llm.embedding_cache import EmbeddingCache
-    from infrastructure.llm.factory import create_fast_llm, create_llm
-    from infrastructure.llm.ollama import OllamaEmbedder
+    from infrastructure.llm.factory import create_embedder, create_fast_llm, create_llm
     from infrastructure.output.markdown_writer import (
         write_flashcards,
         write_summary,
@@ -279,7 +276,7 @@ def run_generate_md(book_title: str, chapter_num: int, provider: str | None = No
 
     chapter_index = chapter_num - 1
 
-    embedder = OllamaEmbedder(config.ollama, EmbeddingCache())
+    embedder = create_embedder(config, EmbeddingCache())
     llm = create_llm(config)
     fast_llm = create_fast_llm(config, llm)
     qdrant = QdrantStore(config.qdrant)

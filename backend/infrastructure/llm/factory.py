@@ -1,9 +1,23 @@
 import logging
 
+from core.ports.embedder import Embedder
 from core.ports.llm import LLM
 from infrastructure.config import AppConfig
+from infrastructure.llm.embedding_cache import EmbeddingCache
 
 logger = logging.getLogger(__name__)
+
+
+def create_embedder(config: AppConfig, cache: EmbeddingCache | None = None) -> Embedder:
+    """Instantiate the embedder based on config.llm_provider."""
+    if config.llm_provider == "groq":
+        from infrastructure.llm.groq_embedder import GroqEmbedder
+        logger.info("Using Groq embedder: model=%s", config.groq.embedding_model)
+        return GroqEmbedder(config.groq, cache=cache)
+    else:
+        from infrastructure.llm.ollama import OllamaEmbedder
+        logger.info("Using Ollama embedder: model=%s", config.ollama.embedding_model)
+        return OllamaEmbedder(config.ollama, cache=cache)
 
 
 def create_llm(config: AppConfig) -> LLM:

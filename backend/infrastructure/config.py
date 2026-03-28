@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 import yaml
@@ -18,6 +19,7 @@ class GroqConfig(BaseModel):
     base_url: str = "https://api.groq.com/openai/v1"
     model: str = "mixtral-8x7b-32768"
     fast_model: str | None = None                   # e.g. "llama-3.1-8b-instant"
+    embedding_model: str = "nomic-embed-text-v1.5"
     timeout: int = 60
     max_retries: int = 3                            # for 429 backoff
 
@@ -74,12 +76,27 @@ def load_config(config_path: Path | None = None) -> AppConfig:
     if config_path is None:
         config_path = PROJECT_ROOT / "config" / "default.yml"
 
+    data: dict = {}
     if config_path.exists():
         with open(config_path) as f:
             data = yaml.safe_load(f) or {}
-        return AppConfig(**data)
 
-    return AppConfig()
+    # pydantic-settings treats __init__ kwargs as highest priority, so YAML
+    # data passed via **data would shadow env var overrides for nested models.
+    # Manually merge DOCASSIST_* env vars on top so they always win.
+    prefix = "DOCASSIST_"
+    for key, value in os.environ.items():
+        if not key.startswith(prefix):
+            continue
+        parts = key[len(prefix):].lower().split("__")
+        node = data
+        for part in parts[:-1]:
+            if not isinstance(node.get(part), dict):
+                node[part] = {}
+            node = node[part]
+        node[parts[-1]] = value
+
+    return AppConfig(**data)
 
 
 def save_config(config: AppConfig, config_path: Path | None = None) -> None:
@@ -101,6 +118,7 @@ def save_config(config: AppConfig, config_path: Path | None = None) -> None:
     groq_data: dict = {
         "base_url": config.groq.base_url,
         "model": config.groq.model,
+        "embedding_model": config.groq.embedding_model,
         "timeout": config.groq.timeout,
         "max_retries": config.groq.max_retries,
     }

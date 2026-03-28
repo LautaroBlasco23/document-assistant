@@ -12,6 +12,7 @@ groq:
   base_url: "https://api.groq.com/openai/v1"
   model: "llama-3.3-70b-versatile"
   fast_model: "llama-3.1-8b-instant"
+  embedding_model: "nomic-embed-text-v1.5"
   timeout: 60
   max_retries: 3
 
@@ -29,7 +30,7 @@ chunking:
   overlap_tokens: 128
 
 postgres:
-  host: "localhost"
+  host: "postgres"
   port: 5432
   database: "docassist"
   user: "docassist"
