@@ -1,4 +1,4 @@
-.PHONY: start stop check clean help dev-deps infra-deps
+.PHONY: start stop check clean help env-check dev-deps infra-deps
 
 DOCKER_COMPOSE := docker compose
 BACKEND_DIR := backend
@@ -13,7 +13,7 @@ help:
 	@echo "  make clean   - Remove all stored data (Docker volumes, cache, generated output)"
 	@echo "  make help    - Show this help message"
 
-start: infra-deps dev-deps
+start: env-check infra-deps dev-deps
 	@for port in 5173 5174 5175 5176 5177; do \
 		if lsof -Pi :$$port -sTCP:LISTEN -t >/dev/null 2>&1; then \
 			echo "Killing process on port $$port..."; \
@@ -37,6 +37,9 @@ start: infra-deps dev-deps
 	curl -sf http://localhost:8000/api/health > /dev/null 2>&1 || { echo "Backend failed to start."; kill $$BACKEND_PID 2>/dev/null; exit 1; }; \
 	cd frontend && VITE_MOCK=false npm run dev 2>&1 | sed 's/^/[web] /'; \
 	wait $$BACKEND_PID
+
+env-check:
+	@bash scripts/setupEnv.sh
 
 infra-deps:
 	@echo "Starting infrastructure services (Qdrant, Neo4j)..."
