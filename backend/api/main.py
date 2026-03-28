@@ -1,6 +1,7 @@
 """FastAPI application factory and lifespan management."""
 
 import logging
+import os
 import time
 from contextlib import asynccontextmanager
 
@@ -80,14 +81,21 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
-    # CORS configuration: allow Electron app, dev Vite server, and file:// protocol
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=[
+    # CORS: ALLOWED_ORIGINS env var (comma-separated) overrides the dev defaults.
+    # Set it via scripts/setupEnv.sh when running behind the nginx reverse proxy.
+    _env_origins = os.getenv("ALLOWED_ORIGINS", "")
+    _origins = (
+        [o.strip() for o in _env_origins.split(",") if o.strip()]
+        if _env_origins
+        else [
             "http://localhost:5173",  # Vite dev server
             "app://.",  # Electron app (packaged)
             "file://",  # Electron renderer process
-        ],
+        ]
+    )
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=_origins,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
