@@ -75,9 +75,7 @@ def _extract_title_only(item: epub.EpubItem) -> str:
 
     if not title:
         for tag in ("h1", "h2"):
-            el = root.find(f".//{{{_XHTML}}}{{tag}}", {"tag": tag})
-            if el is None:
-                el = root.find(f".//{_XHTML}{tag}")
+            el = root.find(f".//{{{_XHTML}}}{tag}")
             if el is not None:
                 title = "".join(el.itertext()).strip()
                 break
@@ -148,9 +146,7 @@ def _parse_item(item: epub.EpubItem) -> tuple[str, str]:
 
     if not title:
         for tag in ("h1", "h2"):
-            el = root.find(f".//{{{_XHTML}}}{{tag}}", {"tag": tag})
-            if el is None:
-                el = root.find(f".//{_XHTML}{tag}")
+            el = root.find(f".//{{{_XHTML}}}{tag}")
             if el is not None:
                 title = "".join(el.itertext()).strip()
                 break
