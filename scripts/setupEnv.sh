@@ -64,6 +64,11 @@ for secret_key in POSTGRES_PASSWORD NEO4J_PASSWORD; do
     fi
 done
 
+# Keep DOCASSIST_POSTGRES__PASSWORD in sync with POSTGRES_PASSWORD so the local
+# backend (started outside Docker) uses the same credential as the container.
+pg_pass=$(get_val "$ENV_FILE" "POSTGRES_PASSWORD")
+write_val "DOCASSIST_POSTGRES__PASSWORD" "$pg_pass"
+
 # ── Compute ALLOWED_ORIGINS from DOMAIN + NGINX_PORT ──────────────────────────
 
 DOMAIN=$(get_val "$ENV_FILE" "DOMAIN"); DOMAIN="${DOMAIN:-localhost}"
