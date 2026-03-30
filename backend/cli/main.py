@@ -94,6 +94,8 @@ def run_check() -> int:
 
 
 def run_ingest(path: str, provider: str | None = None) -> int:
+    import functools
+
     from application.ingest import ingest_file
     from infrastructure.chunking.splitter import ChapterAwareSplitter
     from infrastructure.graph.entity_extractor import extract_entities
@@ -141,7 +143,10 @@ def run_ingest(path: str, provider: str | None = None) -> int:
 
         doc = ingest_file(
             file_path,
-            loaders={".pdf": load_pdf, ".epub": load_epub},
+            loaders={
+                ".pdf": load_pdf,
+                ".epub": functools.partial(load_epub, epub_config=config.epub),
+            },
             exists_fn=qdrant.has_file,
             original_filename=file_path.name,
         )

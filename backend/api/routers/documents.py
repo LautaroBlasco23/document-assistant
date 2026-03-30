@@ -1,5 +1,6 @@
 """Document management endpoints."""
 
+import functools
 import json
 import logging
 import shutil
@@ -135,7 +136,13 @@ async def preview_document(
         tmp_path = Path(tmp.name)
 
     try:
-        preview = preview_file(tmp_path, {".pdf": preview_pdf, ".epub": preview_epub})
+        preview = preview_file(
+            tmp_path,
+            {
+                ".pdf": preview_pdf,
+                ".epub": functools.partial(preview_epub, epub_config=services.config.epub),
+            },
+        )
         if preview is None:
             raise HTTPException(
                 status_code=400,
@@ -239,7 +246,10 @@ def _ingest_selected_chapters(
         logger.info("Ingest selected: loading %s", filename)
         doc = ingest_file(
             tmp_path,
-            loaders={".pdf": load_pdf, ".epub": load_epub},
+            loaders={
+                ".pdf": load_pdf,
+                ".epub": functools.partial(load_epub, epub_config=services.config.epub),
+            },
             original_filename=filename,
         )
         if doc is None:
@@ -492,7 +502,10 @@ def _ingest_background(
         logger.info("Ingest: loading %s", filename)
         doc = ingest_file(
             tmp_path,
-            loaders={".pdf": load_pdf, ".epub": load_epub},
+            loaders={
+                ".pdf": load_pdf,
+                ".epub": functools.partial(load_epub, epub_config=services.config.epub),
+            },
             original_filename=filename,
         )
         if doc is None:

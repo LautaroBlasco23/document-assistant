@@ -41,3 +41,7 @@ exam:
   cooldown_completed_days: 4
   cooldown_gold_days: 14
   cooldown_platinum_days: 30
+
+epub:
+  chapter_depth: 1
+  min_chapter_words: 100

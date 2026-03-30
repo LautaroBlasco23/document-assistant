@@ -55,6 +55,11 @@ class ExamConfig(BaseModel):
     cooldown_platinum_days: int = 30
 
 
+class EpubConfig(BaseModel):
+    chapter_depth: int = 1          # ToC depth level that defines "chapters" (1 = top-level only)
+    min_chapter_words: int = 100    # Merge items shorter than this into the previous chapter
+
+
 class AppConfig(BaseSettings):
     ollama: OllamaConfig = OllamaConfig()
     groq: GroqConfig = GroqConfig()
@@ -63,6 +68,7 @@ class AppConfig(BaseSettings):
     chunking: ChunkingConfig = ChunkingConfig()
     postgres: PostgresConfig = PostgresConfig()
     exam: ExamConfig = ExamConfig()
+    epub: EpubConfig = EpubConfig()
     llm_provider: str = "groq"  # "ollama" | "groq"
 
     model_config = {"env_prefix": "DOCASSIST_", "env_nested_delimiter": "__"}
@@ -155,6 +161,10 @@ def save_config(config: AppConfig, config_path: Path | None = None) -> None:
             "cooldown_completed_days": config.exam.cooldown_completed_days,
             "cooldown_gold_days": config.exam.cooldown_gold_days,
             "cooldown_platinum_days": config.exam.cooldown_platinum_days,
+        },
+        "epub": {
+            "chapter_depth": config.epub.chapter_depth,
+            "min_chapter_words": config.epub.min_chapter_words,
         },
     }
 
