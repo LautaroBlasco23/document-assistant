@@ -322,6 +322,78 @@ def run_generate_md(book_title: str, chapter_num: int, provider: str | None = No
 
 
 # ---------------------------------------------------------------------------
+# Prune orphaned documents
+# ---------------------------------------------------------------------------
+
+
+def run_prune() -> int:
+    import json
+
+    from application.delete_document import delete_document
+    from infrastructure.db.content_repository import PostgresContentStore
+    from infrastructure.db.postgres import PostgresPool
+    from infrastructure.graph.neo4j_store import Neo4jStore
+    from infrastructure.vectorstore.qdrant_store import QdrantStore
+
+    config = load_config()
+    output_dir = PROJECT_ROOT / "data" / "output"
+
+    if not output_dir.exists():
+        print("No documents found (data/output/ does not exist).")
+        return 0
+
+    # Collect all manifests
+    manifests = []
+    for doc_dir in output_dir.iterdir():
+        if not doc_dir.is_dir():
+            continue
+        manifest_file = doc_dir / "manifest.json"
+        if manifest_file.exists():
+            try:
+                with open(manifest_file) as f:
+                    manifests.append(json.load(f))
+            except Exception as e:
+                print(f"  Warning: could not read {manifest_file}: {e}")
+
+    if not manifests:
+        print("No documents found in data/output/.")
+        return 0
+
+    qdrant = QdrantStore(config.qdrant)
+    orphans = [m for m in manifests if not qdrant.has_file(m["file_hash"])]
+
+    if not orphans:
+        print(f"All {len(manifests)} document(s) have data in Qdrant. Nothing to prune.")
+        return 0
+
+    print(f"Found {len(orphans)} orphaned document(s) (no vectors in Qdrant):")
+    for m in orphans:
+        print(f"  - {m.get('original_filename') or m.get('title')} ({m['file_hash'][:12]})")
+
+    neo4j = Neo4jStore(config.neo4j)
+    pg_pool = PostgresPool(config.postgres)
+    pg_pool.connect()
+    content_store = PostgresContentStore(pg_pool)
+
+    try:
+        removed = 0
+        for m in orphans:
+            file_hash = m["file_hash"]
+            errors = delete_document(file_hash, m, qdrant, neo4j, content_store, output_dir)
+            if errors:
+                print(f"  Partial failure for {file_hash[:12]}: {'; '.join(errors)}")
+            else:
+                print(f"  Deleted {m.get('original_filename') or m.get('title')}")
+                removed += 1
+
+        print(f"\nPruned {removed}/{len(orphans)} orphaned document(s).")
+        return 0 if removed == len(orphans) else 1
+    finally:
+        neo4j.close()
+        pg_pool.close()
+
+
+# ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
 
@@ -372,6 +444,8 @@ def main() -> None:
         help="LLM provider override (default: from config)",
     )
 
+    sub.add_parser("prune", help="Remove documents with no data in Qdrant (orphaned manifests)")
+
     args = parser.parse_args()
     _setup_logging(args.log_format)
 
@@ -387,6 +461,9 @@ def main() -> None:
 
     elif args.command == "generate-md":
         sys.exit(run_generate_md(args.book, args.chapter, provider=getattr(args, "provider", None)))
+
+    elif args.command == "prune":
+        sys.exit(run_prune())
 
     else:
         parser.print_help()

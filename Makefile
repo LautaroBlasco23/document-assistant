@@ -1,4 +1,4 @@
-.PHONY: start stop check clean help env-check dev-deps infra-deps
+.PHONY: start stop check clean prune help env-check dev-deps infra-deps
 
 DOCKER_COMPOSE := docker compose
 BACKEND_DIR := backend
@@ -11,6 +11,7 @@ help:
 	@echo "  make stop    - Stop all services"
 	@echo "  make check   - Health check all services (requires Ollama running)"
 	@echo "  make clean   - Remove all stored data (Docker volumes, cache, generated output)"
+	@echo "  make prune   - Remove orphaned documents (manifest exists but no Qdrant data)"
 	@echo "  make help    - Show this help message"
 
 start: env-check infra-deps dev-deps
@@ -65,6 +66,7 @@ stop:
 
 check:
 	@echo "Checking service health..."
+	@set -a; [ -f .env ] && . ./.env; set +a; \
 	cd $(BACKEND_DIR) && uv run python -m cli.main check
 
 clean:
@@ -74,4 +76,11 @@ clean:
 	rm -rf data/.cache
 	@echo "Clearing generated output..."
 	rm -rf data/output/*
+	@echo "Clearing uploaded files..."
+	rm -rf data/uploads/*
 	@echo "Clean complete. Source files in data/raw/ are untouched."
+
+prune:
+	@echo "Pruning orphaned documents (no Qdrant data)..."
+	@set -a; [ -f .env ] && . ./.env; set +a; \
+	cd $(BACKEND_DIR) && uv run python -m cli.main prune
