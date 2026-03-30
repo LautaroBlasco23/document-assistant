@@ -69,6 +69,10 @@ done
 pg_pass=$(get_val "$ENV_FILE" "POSTGRES_PASSWORD")
 write_val "DOCASSIST_POSTGRES__PASSWORD" "$pg_pass"
 
+# Keep DOCASSIST_NEO4J__PASSWORD in sync with NEO4J_PASSWORD.
+neo4j_pass=$(get_val "$ENV_FILE" "NEO4J_PASSWORD")
+write_val "DOCASSIST_NEO4J__PASSWORD" "$neo4j_pass"
+
 # ── Compute ALLOWED_ORIGINS from DOMAIN + NGINX_PORT ──────────────────────────
 
 DOMAIN=$(get_val "$ENV_FILE" "DOMAIN"); DOMAIN="${DOMAIN:-localhost}"
