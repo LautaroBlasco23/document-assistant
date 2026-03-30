@@ -252,7 +252,9 @@ export function DocumentLayout({
           className="text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50 -mt-2"
         >
           <BookOpen className="h-3 w-3 mr-1" />
-          View chapter pages (p. {chapterPageStart}{chapterPageEnd !== chapterPageStart ? `-${chapterPageEnd}` : ''})
+          {fileExtension === 'epub'
+            ? 'Open chapter in reader'
+            : `View chapter pages (p. ${chapterPageStart}${chapterPageEnd !== chapterPageStart ? `-${chapterPageEnd}` : ''})`}
         </Button>
       )}
 
@@ -294,6 +296,8 @@ export function DocumentLayout({
             fileUrl={client.getDocumentFileUrl(docHash)}
             filename={document.filename}
             onClose={() => setViewerOpen(false)}
+            initialChapterHref={viewerMode === 'chapter' ? (selectedChapterObj?.toc_href || undefined) : undefined}
+            initialChapterIndex={viewerMode === 'chapter' ? (selectedChapter - 1) : undefined}
           />
         )
       )}

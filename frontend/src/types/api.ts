@@ -23,6 +23,7 @@ export interface ChapterOut {
   title?: string
   num_chunks: number
   sections?: SectionOut[]
+  toc_href?: string
 }
 
 export interface DocumentOut {

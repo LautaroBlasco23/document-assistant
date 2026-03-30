@@ -8,9 +8,11 @@ interface EpubViewerProps {
   fileUrl: string
   filename: string
   onClose: () => void
+  initialChapterHref?: string   // Exact EPUB TOC href from manifest (preferred)
+  initialChapterIndex?: number  // 0-based chapter index (fallback when href is unavailable)
 }
 
-export function EpubViewer({ fileUrl, filename, onClose }: EpubViewerProps) {
+export function EpubViewer({ fileUrl, filename, onClose, initialChapterHref, initialChapterIndex }: EpubViewerProps) {
   const containerRef = React.useRef<HTMLDivElement>(null)
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
@@ -18,6 +20,8 @@ export function EpubViewer({ fileUrl, filename, onClose }: EpubViewerProps) {
   const [currentChapter, setCurrentChapter] = React.useState(0)
   const renditionRef = React.useRef<unknown>(null)
   const bookRef = React.useRef<unknown>(null)
+  // Ref so the relocated handler always sees the latest TOC without re-registering
+  const tocRef = React.useRef<{ label: string; href: string }[]>([])
 
   React.useEffect(() => {
     let mounted = true
@@ -25,7 +29,7 @@ export function EpubViewer({ fileUrl, filename, onClose }: EpubViewerProps) {
     async function loadEpub() {
       try {
         const ePub = (await import('epubjs')).default
-        const book = ePub(fileUrl)
+        const book = ePub(fileUrl, { openAs: 'epub' })
         bookRef.current = book
 
         await book.ready
@@ -34,10 +38,20 @@ export function EpubViewer({ fileUrl, filename, onClose }: EpubViewerProps) {
 
         const navigation = await book.loaded.navigation
         if (navigation?.toc) {
-          setToc(navigation.toc.map((item: { label: string; href: string }) => ({
+          const tocData = (navigation.toc as { label: string; href: string }[]).map(item => ({
             label: item.label,
             href: item.href,
-          })))
+          }))
+          setToc(tocData)
+          tocRef.current = tocData
+        }
+
+        // Determine where to start: exact href > index fallback > beginning
+        let startHref: string | undefined
+        if (initialChapterHref) {
+          startHref = initialChapterHref
+        } else if (initialChapterIndex !== undefined) {
+          startHref = tocRef.current[initialChapterIndex]?.href
         }
 
         if (containerRef.current) {
@@ -52,13 +66,26 @@ export function EpubViewer({ fileUrl, filename, onClose }: EpubViewerProps) {
             if (mounted) setLoading(false)
           })
 
-          rendition.on('relocated', (location: { start: { index: number } }) => {
-            if (mounted && location.start?.index !== undefined) {
+          rendition.on('relocated', (location: { start: { index: number; href?: string } }) => {
+            if (!mounted) return
+            const spineHref = location.start?.href
+            if (spineHref) {
+              // Match the current spine item's href against TOC hrefs (strip fragments for comparison)
+              const currentFile = spineHref.split('#')[0]
+              const tocIndex = tocRef.current.findIndex(item => {
+                const itemFile = item.href.split('#')[0]
+                // Handle cases where one path has a prefix the other doesn't
+                return itemFile === currentFile
+                  || itemFile.endsWith('/' + currentFile)
+                  || currentFile.endsWith('/' + itemFile)
+              })
+              setCurrentChapter(tocIndex >= 0 ? tocIndex : location.start.index)
+            } else if (location.start?.index !== undefined) {
               setCurrentChapter(location.start.index)
             }
           })
 
-          await rendition.display()
+          await rendition.display(startHref)
         }
       } catch (err) {
         console.error('EPUB load error:', err)
@@ -77,7 +104,7 @@ export function EpubViewer({ fileUrl, filename, onClose }: EpubViewerProps) {
         (bookRef.current as { destroy?: () => void }).destroy?.()
       }
     }
-  }, [fileUrl])
+  }, [fileUrl, initialChapterHref, initialChapterIndex])
 
   const goToPrev = () => {
     if (renditionRef.current) {
