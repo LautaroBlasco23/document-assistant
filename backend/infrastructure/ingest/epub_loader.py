@@ -108,7 +108,7 @@ def _collect_toc_entries(
     toc_nodes: list,
     depth: int,
     target_depth: int,
-    result: dict[str, str],
+    result: dict[str, tuple[str, str]],
 ) -> None:
     """
     Recursively walk the ebooklib ToC tree and collect hrefs at target_depth.
@@ -116,14 +116,14 @@ def _collect_toc_entries(
     toc_nodes: list of either epub.Link or tuple(epub.Section, [children])
     depth: current depth (1 = top level)
     target_depth: the depth to treat as chapter boundaries
-    result: mapping from filename (href without fragment) to chapter title
+    result: mapping from filename (href without fragment) to (chapter title, original_href)
     """
     for node in toc_nodes:
         if isinstance(node, epub.Link):
             if depth == target_depth:
                 filename = node.href.split("#")[0]
                 if filename and filename not in result:
-                    result[filename] = node.title or ""
+                    result[filename] = (node.title or "", node.href)
         elif isinstance(node, tuple) and len(node) == 2:
             section, children = node
             if depth == target_depth:
@@ -131,7 +131,7 @@ def _collect_toc_entries(
                 href = getattr(section, "href", "") or ""
                 filename = href.split("#")[0]
                 if filename and filename not in result:
-                    result[filename] = section.title or ""
+                    result[filename] = (section.title or "", href)
             else:
                 # Recurse into children to find deeper entries
                 _collect_toc_entries(children, depth + 1, target_depth, result)
@@ -141,11 +141,12 @@ def _build_toc_groups(
     book: epub.EpubBook,
     spine_items: list[epub.EpubItem],
     depth: int,
-) -> list[tuple[str, list[epub.EpubItem]]]:
+) -> list[tuple[str, str, list[epub.EpubItem]]]:
     """
-    Returns a list of (chapter_title, [spine_items]) groups.
+    Returns a list of (chapter_title, toc_href, [spine_items]) groups.
 
     Uses book.toc to group spine items under their top-level chapter.
+    toc_href is the original TOC href (may include fragment) for EPUB navigation.
     Falls back to one-item-per-group if toc is empty.
     """
     toc = book.toc
@@ -154,11 +155,11 @@ def _build_toc_groups(
         groups = []
         for item in spine_items:
             title = _extract_title_only(item)
-            groups.append((title, [item]))
+            groups.append((title, "", [item]))
         return groups
 
-    # Build href -> chapter title mapping from ToC at the requested depth
-    toc_map: dict[str, str] = {}
+    # Build href -> (chapter title, original_href) mapping from ToC at the requested depth
+    toc_map: dict[str, tuple[str, str]] = {}
     _collect_toc_entries(list(toc), depth=1, target_depth=depth, result=toc_map)
 
     if not toc_map:
@@ -170,14 +171,15 @@ def _build_toc_groups(
         groups = []
         for item in spine_items:
             title = _extract_title_only(item)
-            groups.append((title, [item]))
+            groups.append((title, "", [item]))
         return groups
 
     # Map each spine item to its chapter group
     # A spine item belongs to the chapter whose ToC href matches the item's file_name.
     # Items not found in the ToC are appended to the previous group (or a default group).
-    groups: list[tuple[str, list[epub.EpubItem]]] = []
+    groups: list[tuple[str, str, list[epub.EpubItem]]] = []
     current_title: str | None = None
+    current_href: str = ""
     current_items: list[epub.EpubItem] = []
 
     for item in spine_items:
@@ -187,16 +189,18 @@ def _build_toc_groups(
         bare_name = file_name.split("/")[-1] if "/" in file_name else file_name
 
         matched_title: str | None = None
+        matched_href: str = ""
         if file_name in toc_map:
-            matched_title = toc_map[file_name]
+            matched_title, matched_href = toc_map[file_name]
         elif bare_name in toc_map:
-            matched_title = toc_map[bare_name]
+            matched_title, matched_href = toc_map[bare_name]
 
         if matched_title is not None:
             # This item starts a new chapter group
             if current_items:
-                groups.append((current_title or "", current_items))
+                groups.append((current_title or "", current_href, current_items))
             current_title = matched_title
+            current_href = matched_href
             current_items = [item]
         else:
             # Belongs to the current group (or starts an unnamed first group)
@@ -205,10 +209,11 @@ def _build_toc_groups(
             else:
                 # Before first ToC entry; start a preamble group
                 current_title = None
+                current_href = ""
                 current_items = [item]
 
     if current_items:
-        groups.append((current_title or "", current_items))
+        groups.append((current_title or "", current_href, current_items))
 
     logger.debug(
         "ToC grouping: %d spine items -> %d groups (depth=%d)",
@@ -220,30 +225,31 @@ def _build_toc_groups(
 
 
 def _apply_min_words_merge(
-    groups: list[tuple[str, list[epub.EpubItem]]],
+    groups: list[tuple[str, str, list[epub.EpubItem]]],
     texts: list[str],
     min_words: int,
-) -> list[tuple[str, str]]:
+) -> list[tuple[str, str, str]]:
     """
     Merge groups whose text is shorter than min_words into the previous group.
 
-    groups: list of (title, [items]) — same order as texts
+    groups: list of (title, toc_href, [items]) — same order as texts
     texts: pre-extracted concatenated text for each group
     min_words: minimum word count; groups below this are merged into the previous group
 
-    Returns list of (title, merged_text).
+    Returns list of (title, toc_href, merged_text).
+    The merged group keeps the previous group's title and toc_href.
     """
     if not groups:
         return []
 
-    result: list[tuple[str, str]] = []
+    result: list[tuple[str, str, str]] = []
 
-    for i, ((title, _items), text) in enumerate(zip(groups, texts)):
+    for (title, toc_href, _items), text in zip(groups, texts):
         word_count = len(text.split())
         if word_count < min_words and result:
-            # Merge into the previous group
-            prev_title, prev_text = result[-1]
-            result[-1] = (prev_title, prev_text + "\n\n" + text)
+            # Merge into the previous group (keep previous title and href)
+            prev_title, prev_href, prev_text = result[-1]
+            result[-1] = (prev_title, prev_href, prev_text + "\n\n" + text)
             logger.debug(
                 "Merged short group '%s' (%d words) into '%s'",
                 title,
@@ -251,7 +257,7 @@ def _apply_min_words_merge(
                 prev_title,
             )
         else:
-            result.append((title, text))
+            result.append((title, toc_href, text))
 
     return result
 
@@ -277,7 +283,7 @@ def load_epub(
 
     # Extract text for each group (concatenate spine item texts with separator)
     group_texts: list[str] = []
-    for _group_title, items in groups:
+    for _group_title, _toc_href, items in groups:
         parts = []
         for item in items:
             _, raw_text = _parse_item(item)
@@ -289,7 +295,7 @@ def load_epub(
     merged = _apply_min_words_merge(groups, group_texts, cfg.min_chapter_words)
 
     chapters: list[Chapter] = []
-    for idx, (chapter_title, text) in enumerate(merged):
+    for idx, (chapter_title, toc_href, text) in enumerate(merged):
         if not text.strip():
             continue
 
@@ -300,6 +306,7 @@ def load_epub(
                 index=idx,
                 title=chapter_title or f"Chapter {idx + 1}",
                 pages=[page],
+                toc_href=toc_href,
             )
         )
 
@@ -348,7 +355,7 @@ def preview_epub(
     # For preview we need to apply min_chapter_words as well so the count matches load_epub.
     # We do a lightweight text extraction just for word counting.
     group_texts: list[str] = []
-    for _group_title, items in groups:
+    for _group_title, _toc_href, items in groups:
         parts = []
         for item in items:
             _, raw_text = _parse_item(item)
@@ -360,7 +367,7 @@ def preview_epub(
 
     chapters: list[ChapterPreview] = []
     idx = 0
-    for chapter_title, text in merged:
+    for chapter_title, _toc_href, text in merged:
         if not text.strip():
             continue
         chapters.append(

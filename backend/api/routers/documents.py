@@ -94,6 +94,7 @@ def _get_document_chapters(file_hash: str, services: ServicesDep) -> list[Chapte
                 ),
                 num_chunks=count,
                 sections=chapters_from_manifest.get(actual_index, {}).get("sections", []),
+                toc_href=chapters_from_manifest.get(actual_index, {}).get("toc_href", ""),
             )
             for user_chapter_num, (actual_index, count) in enumerate(sorted_chapters, start=1)
         ]

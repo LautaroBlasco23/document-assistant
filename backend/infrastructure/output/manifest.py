@@ -42,14 +42,15 @@ def write_manifest(
             sections_data = [{"title": ch.title, "page_start": page_start, "page_end": page_end}]
         else:
             sections_data = []
-        chapters_data.append(
-            {
-                "index": ch.index,
-                "title": ch.title,
-                "sections": sections_data,
-                "stored": stored_set is None or ch.index in stored_set,
-            }
-        )
+        entry: dict = {
+            "index": ch.index,
+            "title": ch.title,
+            "sections": sections_data,
+            "stored": stored_set is None or ch.index in stored_set,
+        }
+        if ch.toc_href:
+            entry["toc_href"] = ch.toc_href
+        chapters_data.append(entry)
 
     manifest = {
         "file_hash": doc.file_hash,

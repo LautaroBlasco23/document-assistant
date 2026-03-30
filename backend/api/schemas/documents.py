@@ -19,6 +19,7 @@ class ChapterOut(BaseModel):
     title: str | None
     num_chunks: int
     sections: list[SectionOut] = []
+    toc_href: str = ""  # EPUB TOC href for direct viewer navigation (empty for PDFs)
 
 
 class DocumentOut(BaseModel):

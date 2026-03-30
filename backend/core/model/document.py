@@ -20,6 +20,7 @@ class Chapter:
     title: str
     pages: list[Page] = field(default_factory=list)
     sections: list[Section] = field(default_factory=list)
+    toc_href: str = ""  # EPUB TOC href for direct navigation (empty for PDFs)
 
 
 @dataclass
