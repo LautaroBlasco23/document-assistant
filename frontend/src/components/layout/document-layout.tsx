@@ -244,7 +244,7 @@ export function DocumentLayout({
           </Button>
         )}
       </div>
-      {canViewFile && (
+      {fileExtension === 'pdf' && (
         <Button
           variant="ghost"
           size="sm"
@@ -252,9 +252,7 @@ export function DocumentLayout({
           className="text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50 -mt-2"
         >
           <BookOpen className="h-3 w-3 mr-1" />
-          {fileExtension === 'epub'
-            ? 'Open chapter in reader'
-            : `View chapter pages (p. ${chapterPageStart}${chapterPageEnd !== chapterPageStart ? `-${chapterPageEnd}` : ''})`}
+          {`View chapter pages (p. ${chapterPageStart}${chapterPageEnd !== chapterPageStart ? `-${chapterPageEnd}` : ''})`}
         </Button>
       )}
 
