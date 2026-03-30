@@ -3,7 +3,6 @@
 import functools
 import json
 import logging
-import shutil
 import tempfile
 import time
 from pathlib import Path
@@ -25,16 +24,16 @@ from api.schemas.documents import (
     MetadataResponse,
 )
 from api.tasks import Task
+from application.delete_document import delete_document as _delete_document
 from application.ingest import _hash_file, ingest_file, preview_file
 from core.model.document_metadata import DocumentMetadata
 from infrastructure.chunking.splitter import ChapterAwareSplitter
 from infrastructure.config import PROJECT_ROOT
-from infrastructure.file_persistence import delete_persisted_file, get_persisted_file, persist_file
+from infrastructure.file_persistence import get_persisted_file, persist_file
 from infrastructure.graph.entity_extractor import extract_entities
 from infrastructure.ingest.epub_loader import load_epub, preview_epub
 from infrastructure.ingest.pdf_loader import load_pdf, preview_pdf
 from infrastructure.output.manifest import remove_chapter_from_manifest, write_manifest
-from infrastructure.output.markdown_writer import _safe_name
 
 logger = logging.getLogger(__name__)
 
@@ -625,48 +624,9 @@ async def delete_document(file_hash: str, services: ServicesDep) -> JSONResponse
         raise HTTPException(status_code=404, detail="Document not found")
 
     logger.info("Deleting document %s", file_hash[:12])
-    errors: list[str] = []
-
-    # Delete from Qdrant — attempt regardless of other failures
-    try:
-        services.qdrant.delete_by_source_file(file_hash)
-    except Exception as e:
-        logger.error(f"Failed to delete {file_hash} from Qdrant: {e}")
-        errors.append(f"Qdrant: {e}")
-
-    # Delete from Neo4j — attempt regardless of other failures
-    try:
-        services.neo4j.delete_document(file_hash)
-    except Exception as e:
-        logger.error(f"Failed to delete {file_hash} from Neo4j: {e}")
-        errors.append(f"Neo4j: {e}")
-
-    # Delete generated content from PostgreSQL
-    try:
-        services.content_store.delete_by_document(file_hash)
-    except Exception as e:
-        logger.error(f"Failed to delete content for {file_hash} from PostgreSQL: {e}")
-        errors.append(f"PostgreSQL: {e}")
-
-    # Delete manifest directory — use the same naming as write_manifest
-    try:
-        doc_dir = OUTPUT_DIR / _safe_name(doc_manifest["title"])
-        if doc_dir.exists():
-            shutil.rmtree(doc_dir)
-        else:
-            logger.warning(f"Manifest directory not found for {file_hash}: {doc_dir}")
-    except Exception as e:
-        logger.error(f"Failed to delete manifest directory for {file_hash}: {e}")
-        errors.append(f"Manifest: {e}")
-
-    # Delete persisted file
-    try:
-        meta = services.content_store.get_metadata(file_hash)
-        if meta and meta.file_extension:
-            delete_persisted_file(file_hash, meta.file_extension)
-    except Exception as e:
-        logger.error(f"Failed to delete persisted file for {file_hash}: {e}")
-        errors.append(f"Persisted file: {e}")
+    errors = _delete_document(
+        file_hash, doc_manifest, services.qdrant, services.neo4j, services.content_store, OUTPUT_DIR
+    )
 
     if errors:
         raise HTTPException(
