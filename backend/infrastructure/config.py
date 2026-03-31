@@ -31,6 +31,7 @@ class OpenRouterConfig(BaseModel):
     fast_model: str | None = None                        # e.g. "google/gemma-2-9b-it:free"
     timeout: int = 120                                   # some models are slower
     max_retries: int = 3
+    requests_per_minute: int = 10                        # proactive rate limiter; reduce for :free models
     site_url: str = ""                                   # optional HTTP-Referer for OpenRouter rankings
     site_name: str = ""                                  # optional X-Title for OpenRouter rankings
 
