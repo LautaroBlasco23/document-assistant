@@ -178,6 +178,47 @@ class QdrantStore:
 
         return all_chunks
 
+    def search_by_chapter(
+        self, file_hash: str, chapter_index: int, limit: int = 500
+    ) -> list[Chunk]:
+        """Get all chunks for a specific chapter, paginated.
+
+        Uses exact payload filters on file_hash and chapter to return every
+        chunk belonging to the chapter, regardless of semantic similarity.
+        The limit parameter controls the scroll page size, not the total count.
+        """
+        all_chunks: list[Chunk] = []
+        offset = None
+        scroll_filter = qmodels.Filter(
+            must=[
+                qmodels.FieldCondition(
+                    key="file_hash",
+                    match=qmodels.MatchValue(value=file_hash),
+                ),
+                qmodels.FieldCondition(
+                    key="chapter",
+                    match=qmodels.MatchValue(value=chapter_index),
+                ),
+            ]
+        )
+
+        while True:
+            points, next_offset = self._client.scroll(
+                collection_name=self._collection,
+                scroll_filter=scroll_filter,
+                limit=limit,
+                offset=offset,
+                with_payload=True,
+                with_vectors=False,
+            )
+            all_chunks.extend(_point_to_chunk(p) for p in points)
+
+            if next_offset is None or not points:
+                break
+            offset = next_offset
+
+        return all_chunks
+
     def delete_by_source_file(self, file_hash: str) -> None:
         """Delete all chunks with a specific file_hash."""
         self._client.delete(

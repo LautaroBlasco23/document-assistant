@@ -81,14 +81,18 @@ def _summarize_background(
         document_type = _metadata.document_type if _metadata else ""
 
         _set_progress(task, 10, f"Retrieving context for chapter {chapter_num}...")
-        chunks = services.retriever.retrieve(
-            f"chapter {chapter_num} summary",
-            k=20,
-            filters={"chapter": qdrant_index, "file_hash": document_hash},
-        )
+        chunks = services.qdrant.search_by_chapter(document_hash, qdrant_index)
 
         if not chunks:
+            logger.error(
+                "No chunks found: file_hash=%s, chapter_index=%d (1-based chapter=%d)",
+                document_hash,
+                qdrant_index,
+                chapter_num,
+            )
             raise ValueError(f"No chunks found for chapter {chapter_num}")
+
+        chunks.sort(key=lambda c: (c.metadata.page_number if c.metadata else 0))
 
         logger.info(
             "Retrieved %d chunks for chapter %d (doc=%s)",
@@ -179,14 +183,18 @@ def _generate_flashcards_background(
         chapter_title = f"Chapter {chapter_num}"
 
         _set_progress(task, 5, f"Retrieving context for chapter {chapter_num}...")
-        chunks = services.retriever.retrieve(
-            f"chapter {chapter_num}",
-            k=20,
-            filters={"chapter": qdrant_index, "file_hash": document_hash},
-        )
+        chunks = services.qdrant.search_by_chapter(document_hash, qdrant_index)
 
         if not chunks:
+            logger.error(
+                "No chunks found: file_hash=%s, chapter_index=%d (1-based chapter=%d)",
+                document_hash,
+                qdrant_index,
+                chapter_num,
+            )
             raise ValueError(f"No chunks found for chapter {chapter_num}")
+
+        chunks.sort(key=lambda c: (c.metadata.page_number if c.metadata else 0))
 
         logger.info(
             "Retrieved %d chunks for chapter %d (doc=%s)",
