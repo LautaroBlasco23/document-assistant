@@ -82,6 +82,8 @@ services:
       # LLM provider and credentials
       - DOCASSIST_LLM_PROVIDER=${DOCASSIST_LLM_PROVIDER:-groq}
       - DOCASSIST_GROQ__API_KEY=${DOCASSIST_GROQ__API_KEY:-}
+      - DOCASSIST_OPENROUTER__API_KEY=${DOCASSIST_OPENROUTER__API_KEY:-}
+      - DOCASSIST_HUGGINGFACE__API_KEY=${DOCASSIST_HUGGINGFACE__API_KEY:-}
       # CORS: origins computed by scripts/setupEnv.sh from DOMAIN + NGINX_PORT
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost}
     extra_hosts:

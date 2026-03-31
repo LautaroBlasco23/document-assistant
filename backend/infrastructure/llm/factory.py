@@ -14,6 +14,14 @@ def create_embedder(config: AppConfig, cache: EmbeddingCache | None = None) -> E
         from infrastructure.llm.groq_embedder import GroqEmbedder
         logger.info("Using Groq embedder: model=%s", config.groq.embedding_model)
         return GroqEmbedder(config.groq, cache=cache)
+    elif config.llm_provider in ("openrouter", "huggingface"):
+        logger.info(
+            "Provider %s does not support embeddings; falling back to Ollama embedder: model=%s",
+            config.llm_provider,
+            config.ollama.embedding_model,
+        )
+        from infrastructure.llm.ollama import OllamaEmbedder
+        return OllamaEmbedder(config.ollama, cache=cache)
     else:
         from infrastructure.llm.ollama import OllamaEmbedder
         logger.info("Using Ollama embedder: model=%s", config.ollama.embedding_model)
@@ -30,6 +38,22 @@ def create_llm(config: AppConfig) -> LLM:
         from infrastructure.llm.groq_llm import GroqLLM
         logger.info("Using Groq LLM: model=%s", config.groq.model)
         return GroqLLM(config.groq)
+    elif config.llm_provider == "openrouter":
+        if not config.openrouter.api_key:
+            raise ValueError(
+                "OpenRouter API key required. Set DOCASSIST_OPENROUTER__API_KEY environment variable."
+            )
+        from infrastructure.llm.openrouter_llm import OpenRouterLLM
+        logger.info("Using OpenRouter LLM: model=%s", config.openrouter.model)
+        return OpenRouterLLM(config.openrouter)
+    elif config.llm_provider == "huggingface":
+        if not config.huggingface.api_key:
+            raise ValueError(
+                "HuggingFace API key required. Set DOCASSIST_HUGGINGFACE__API_KEY environment variable."
+            )
+        from infrastructure.llm.huggingface_llm import HuggingFaceLLM
+        logger.info("Using HuggingFace LLM: model=%s", config.huggingface.model)
+        return HuggingFaceLLM(config.huggingface)
     else:
         from infrastructure.llm.ollama import OllamaLLM
         logger.info("Using Ollama LLM: model=%s", config.ollama.generation_model)
@@ -44,6 +68,20 @@ def create_fast_llm(config: AppConfig, fallback: LLM) -> LLM:
             fast_cfg = config.groq.model_copy(update={"model": config.groq.fast_model})
             logger.info("Using Groq fast LLM: model=%s", fast_cfg.model)
             return GroqLLM(fast_cfg)
+        return fallback
+    elif config.llm_provider == "openrouter":
+        if config.openrouter.fast_model:
+            from infrastructure.llm.openrouter_llm import OpenRouterLLM
+            fast_cfg = config.openrouter.model_copy(update={"model": config.openrouter.fast_model})
+            logger.info("Using OpenRouter fast LLM: model=%s", fast_cfg.model)
+            return OpenRouterLLM(fast_cfg)
+        return fallback
+    elif config.llm_provider == "huggingface":
+        if config.huggingface.fast_model:
+            from infrastructure.llm.huggingface_llm import HuggingFaceLLM
+            fast_cfg = config.huggingface.model_copy(update={"model": config.huggingface.fast_model})
+            logger.info("Using HuggingFace fast LLM: model=%s", fast_cfg.model)
+            return HuggingFaceLLM(fast_cfg)
         return fallback
     else:
         if config.ollama.fast_model:

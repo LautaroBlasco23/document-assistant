@@ -24,6 +24,27 @@ class GroqConfig(BaseModel):
     max_retries: int = 3                            # for 429 backoff
 
 
+class OpenRouterConfig(BaseModel):
+    api_key: str = ""                                    # set via DOCASSIST_OPENROUTER__API_KEY
+    base_url: str = "https://openrouter.ai/api/v1"
+    model: str = "meta-llama/llama-3.3-70b-instruct:free"
+    fast_model: str | None = None                        # e.g. "google/gemma-2-9b-it:free"
+    timeout: int = 120                                   # some models are slower
+    max_retries: int = 3
+    site_url: str = ""                                   # optional HTTP-Referer for OpenRouter rankings
+    site_name: str = ""                                  # optional X-Title for OpenRouter rankings
+
+
+class HuggingFaceConfig(BaseModel):
+    api_key: str = ""                                    # set via DOCASSIST_HUGGINGFACE__API_KEY (hf_ token)
+    base_url: str = "https://router.huggingface.co/v1"
+    model: str = "mistralai/Mistral-7B-Instruct-v0.3"
+    fast_model: str | None = None
+    timeout: int = 120                                   # free tier can be slow (model loading)
+    max_retries: int = 3
+    wait_for_model: bool = True                          # send x-wait-for-model header
+
+
 class QdrantConfig(BaseModel):
     url: str = "http://localhost:6333"
     collection_name: str = "documents"
@@ -63,13 +84,15 @@ class EpubConfig(BaseModel):
 class AppConfig(BaseSettings):
     ollama: OllamaConfig = OllamaConfig()
     groq: GroqConfig = GroqConfig()
+    openrouter: OpenRouterConfig = OpenRouterConfig()
+    huggingface: HuggingFaceConfig = HuggingFaceConfig()
     qdrant: QdrantConfig = QdrantConfig()
     neo4j: Neo4jConfig = Neo4jConfig()
     chunking: ChunkingConfig = ChunkingConfig()
     postgres: PostgresConfig = PostgresConfig()
     exam: ExamConfig = ExamConfig()
     epub: EpubConfig = EpubConfig()
-    llm_provider: str = "groq"  # "ollama" | "groq"
+    llm_provider: str = "groq"  # "ollama" | "groq" | "openrouter" | "huggingface"
 
     model_config = {"env_prefix": "DOCASSIST_", "env_nested_delimiter": "__"}
 
@@ -132,10 +155,37 @@ def save_config(config: AppConfig, config_path: Path | None = None) -> None:
         groq_data["fast_model"] = config.groq.fast_model
     # api_key is never written to YAML -- set via env var
 
+    openrouter_data: dict = {
+        "base_url": config.openrouter.base_url,
+        "model": config.openrouter.model,
+        "timeout": config.openrouter.timeout,
+        "max_retries": config.openrouter.max_retries,
+    }
+    if config.openrouter.fast_model:
+        openrouter_data["fast_model"] = config.openrouter.fast_model
+    if config.openrouter.site_url:
+        openrouter_data["site_url"] = config.openrouter.site_url
+    if config.openrouter.site_name:
+        openrouter_data["site_name"] = config.openrouter.site_name
+    # api_key is never written to YAML -- set via env var
+
+    huggingface_data: dict = {
+        "base_url": config.huggingface.base_url,
+        "model": config.huggingface.model,
+        "timeout": config.huggingface.timeout,
+        "max_retries": config.huggingface.max_retries,
+        "wait_for_model": config.huggingface.wait_for_model,
+    }
+    if config.huggingface.fast_model:
+        huggingface_data["fast_model"] = config.huggingface.fast_model
+    # api_key is never written to YAML -- set via env var
+
     data = {
         "llm_provider": config.llm_provider,
         "ollama": ollama_data,
         "groq": groq_data,
+        "openrouter": openrouter_data,
+        "huggingface": huggingface_data,
         "qdrant": {
             "url": config.qdrant.url,
             "collection_name": config.qdrant.collection_name,

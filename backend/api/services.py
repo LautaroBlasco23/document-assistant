@@ -77,7 +77,12 @@ def init_services(config: AppConfig | None = None) -> Services:
         _pg_pool=pg_pool,
     )
 
-    embed_model = config.groq.embedding_model if config.llm_provider == "groq" else config.ollama.embedding_model
+    if config.llm_provider == "groq":
+        embed_model = config.groq.embedding_model
+    elif config.llm_provider in ("openrouter", "huggingface"):
+        embed_model = config.ollama.embedding_model  # fallback to Ollama
+    else:
+        embed_model = config.ollama.embedding_model
     logger.info(
         "Config: provider=%s embed=%s qdrant=%s neo4j=%s postgres=%s:%d",
         config.llm_provider,

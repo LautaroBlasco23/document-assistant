@@ -422,7 +422,7 @@ def main() -> None:
     p_ingest.add_argument("path", help="Path to file or directory")
     p_ingest.add_argument(
         "--provider",
-        choices=["groq", "ollama"],
+        choices=["groq", "ollama", "openrouter", "huggingface"],
         help="LLM provider override (default: from config)",
     )
 
@@ -431,7 +431,7 @@ def main() -> None:
     p_summarize.add_argument("chapter", type=int, help="Chapter number (1-based)")
     p_summarize.add_argument(
         "--provider",
-        choices=["groq", "ollama"],
+        choices=["groq", "ollama", "openrouter", "huggingface"],
         help="LLM provider override (default: from config)",
     )
 
@@ -440,7 +440,7 @@ def main() -> None:
     p_gen.add_argument("chapter", type=int, help="Chapter number (1-based)")
     p_gen.add_argument(
         "--provider",
-        choices=["groq", "ollama"],
+        choices=["groq", "ollama", "openrouter", "huggingface"],
         help="LLM provider override (default: from config)",
     )
 
