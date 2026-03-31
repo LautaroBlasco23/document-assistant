@@ -1,5 +1,6 @@
 import json
 import logging
+import re
 from typing import Callable
 
 from application.agents.base import BaseAgent
@@ -7,45 +8,82 @@ from core.model.chunk import Chunk
 
 logger = logging.getLogger(__name__)
 
-_BATCH_SIZE = 4
+_MAX_WORDS_PER_BATCH = 2500  # Conservative to leave room for system prompt + response
+
+_TRIVIAL_PATTERNS = [
+    r"^what is (a |an |the )?chapter",
+    r"^what is (a |an |the )?book",
+    r"^who is the (author|reader|student)",
+    r"^what is the title",
+    r"^what page",
+    r"^how many (pages|chapters|sections)",
+    r"^(true or false|yes or no)",
+]
+
+
+def _batch_chunks(chunks: list[Chunk], max_words: int) -> list[list[Chunk]]:
+    """Group chunks into batches that stay within max_words."""
+    batches: list[list[Chunk]] = []
+    current: list[Chunk] = []
+    current_words = 0
+    for chunk in chunks:
+        chunk_words = len(chunk.text.split())
+        if current and current_words + chunk_words > max_words:
+            batches.append(current)
+            current = []
+            current_words = 0
+        current.append(chunk)
+        current_words += chunk_words
+    if current:
+        batches.append(current)
+    return batches
 
 _SYSTEM = (
-    "You are an expert educator creating flashcards for spaced repetition study. "
-    "Given text from a book chapter, create flashcards that help the reader memorize "
-    "and understand the material.\n\n"
-    "Generate EXACTLY 9 flashcards organized in 3 categories (3 cards each):\n\n"
+    "You are an expert educator creating flashcards for spaced repetition study.\n\n"
+    "Your goal is to create flashcards that test UNDERSTANDING, not trivial recall. "
+    "Every card must be worth a student's time to study.\n\n"
+    "QUALITY RULES (follow strictly):\n"
+    "- SKIP: metadata, page numbers, chapter references, author names (unless the "
+    "author's identity is the subject matter), publication dates, section headings, "
+    "table of contents information, and any boilerplate text.\n"
+    "- SKIP: facts that are obvious, self-evident, or could be answered without "
+    "reading the text (e.g., 'What is a book?' or 'Who is the reader?').\n"
+    "- FOCUS: concepts that require understanding to answer correctly. A good test: "
+    "if a student could answer the question by guessing or common sense alone, "
+    "the card is too easy.\n"
+    "- Each card should test a SINGLE idea. Do not combine multiple concepts.\n"
+    "- Backs should be precise and complete, not vague summaries.\n\n"
+    "Generate EXACTLY 9 flashcards in 3 categories (3 each):\n\n"
     "### TERMINOLOGY (3 cards)\n"
-    "Cards that test definitions, key terms, and vocabulary introduced in the text.\n"
-    "- Front: The term or concept name.\n"
-    "- Back: A clear, concise definition in 1-2 sentences, using context from the text.\n\n"
+    "Test definitions of domain-specific terms introduced in the text. "
+    "Do NOT include everyday words or terms the reader would already know.\n"
+    "- Front: The technical term or concept name.\n"
+    "- Back: A precise definition in 1-2 sentences using context from the text. "
+    "Include an example if the text provides one.\n\n"
     "### KEY FACTS (3 cards)\n"
-    "Cards that test specific facts, details, examples, dates, names, or data points.\n"
-    "- Front: A specific question about a fact from the text.\n"
-    "- Back: The precise answer with relevant details.\n\n"
+    "Test specific, non-obvious facts that a reader needs to remember. "
+    "Focus on facts that are surprising, counterintuitive, or essential to the argument.\n"
+    "- Front: A specific question that cannot be answered by common knowledge.\n"
+    "- Back: The precise answer with supporting detail from the text.\n\n"
     "### CONCEPTS (3 cards)\n"
-    "Cards that test understanding of relationships, causes, processes, or arguments.\n"
-    "- Front: A question about why/how something works or relates to other ideas.\n"
-    "- Back: A clear explanation in 2-3 sentences.\n\n"
+    "Test understanding of relationships, causes, processes, or arguments. "
+    "These should require analysis or synthesis, not just recall.\n"
+    "- Front: A 'why' or 'how' question about a process, relationship, or argument.\n"
+    "- Back: A clear explanation in 2-3 sentences that demonstrates understanding.\n\n"
+    "SELF-CHECK before including each card:\n"
+    "1. Would a student who skimmed the chapter already know this? If yes, skip it.\n"
+    "2. Is this testing understanding or just recognition? Prefer understanding.\n"
+    "3. Is the answer specific to this text, or generic knowledge? Prefer text-specific.\n\n"
     "Rules:\n"
     "- Every card MUST be answerable from the provided text alone.\n"
     "- Keep fronts short and precise (one question or term per card).\n"
-    "- Keep backs concise but complete — no vague or generic answers.\n"
+    "- Keep backs concise but complete.\n"
     "- Do NOT create cards about study exercises, glossary sections, or instructional "
     "material embedded in the text.\n\n"
-    "You MUST respond with a JSON object containing a single key 'cards' whose value "
-    "is an array of objects with 'front', 'back', 'category', and 'source_page' keys.\n"
-    "Valid categories: 'terminology', 'key_facts', 'concepts'\n"
-    "For 'source_page': use the page number from the [p.N] prefix of the chunk the card "
-    "is based on. If the card draws from multiple pages, use the first. "
-    "If unknown, omit the field.\n\n"
-    'Example: {"cards": ['
-    '{"front": "Photosynthesis", "back": "The process by which plants convert '
-    'sunlight into energy...", "category": "terminology", "source_page": 12}, '
-    '{"front": "What wavelengths of light do chloroplasts absorb most?", '
-    '"back": "Red and blue wavelengths...", "category": "key_facts", "source_page": 14}, '
-    '{"front": "Why do leaves appear green?", "back": "Because chlorophyll reflects '
-    'green light...", "category": "concepts", "source_page": 14}'
-    "]}"
+    'Respond with a JSON object: {"cards": [{"front": ..., "back": ..., '
+    '"category": ..., "source_page": ...}]}\n'
+    'Valid categories: "terminology", "key_facts", "concepts"\n'
+    "For source_page: use the page number from the [p.N] prefix. If unknown, omit."
 )
 
 
@@ -71,7 +109,8 @@ class FlashcardGeneratorAgent(BaseAgent):
             document_type: Type of document (book, paper, documentation, etc.) for context.
         """
         all_cards = []
-        total_batches = (len(chunks) + _BATCH_SIZE - 1) // _BATCH_SIZE
+        batches = _batch_chunks(chunks, _MAX_WORDS_PER_BATCH)
+        total_batches = len(batches)
 
         # Build context header
         header_parts = []
@@ -85,20 +124,18 @@ class FlashcardGeneratorAgent(BaseAgent):
             header_parts.append(f"Document context: {document_description}")
         header = "\n".join(header_parts)
 
-        for batch_idx in range(0, len(chunks), _BATCH_SIZE):
-            batch = chunks[batch_idx : batch_idx + _BATCH_SIZE]
+        for batch_number, batch in enumerate(batches, 1):
             context = "\n\n".join(
                 f"[p.{c.metadata.page_number if c.metadata else '?'}] {c.text}" for c in batch
             )
             user = f"{header}\n\nText:\n{context}" if header else f"Text:\n{context}"
-            batch_number = batch_idx // _BATCH_SIZE + 1
             logger.info(
                 "Processing flashcard batch %d/%d (%d chunks)",
                 batch_number,
                 total_batches,
                 len(batch),
             )
-            raw = self._call_json(_SYSTEM, user)
+            raw = self._call_json_with_retry(_SYSTEM, user)
             logger.debug(
                 "Batch %d/%d: LLM returned %d chars",
                 batch_number,
@@ -118,6 +155,8 @@ class FlashcardGeneratorAgent(BaseAgent):
                 seen.add(front_normalized)
                 unique_cards.append(card)
         all_cards = unique_cards
+
+        all_cards = self._filter_low_quality(all_cards)
 
         logger.info(
             "Generated %d flashcards from %d chunks (%d batches)",
@@ -167,3 +206,43 @@ class FlashcardGeneratorAgent(BaseAgent):
                     pass
             cards.append(card)
         return cards
+
+    @staticmethod
+    def _filter_low_quality(cards: list[dict]) -> list[dict]:
+        """Remove flashcards that match common trivial patterns."""
+        filtered = []
+        for card in cards:
+            front = card.get("front", "").strip().lower()
+            back = card.get("back", "").strip()
+
+            # Skip cards with very short answers (likely incomplete)
+            if len(back.split()) < 3:
+                logger.debug("Filtered card (short back): %s", front[:80])
+                continue
+
+            # Skip cards with very short questions
+            if len(front.split()) < 2:
+                logger.debug("Filtered card (short front): %s", front[:80])
+                continue
+
+            # Skip cards matching trivial patterns
+            is_trivial = False
+            for pattern in _TRIVIAL_PATTERNS:
+                if re.search(pattern, front):
+                    logger.debug("Filtered card (trivial pattern): %s", front[:80])
+                    is_trivial = True
+                    break
+            if is_trivial:
+                continue
+
+            # Skip cards where front and back are nearly identical
+            if front in back.strip().lower() or back.strip().lower() in front:
+                logger.debug("Filtered card (front/back overlap): %s", front[:80])
+                continue
+
+            filtered.append(card)
+
+        removed = len(cards) - len(filtered)
+        if removed:
+            logger.info("Quality filter removed %d/%d cards", removed, len(cards))
+        return filtered

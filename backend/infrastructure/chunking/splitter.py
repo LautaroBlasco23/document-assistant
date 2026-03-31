@@ -58,8 +58,16 @@ class ChapterAwareSplitter:
             start_char = len(" ".join(words[:start])) + (1 if start > 0 else 0)
             end_char = start_char + len(chunk_text)
 
-            # Determine representative page number (from first page of chapter)
+            # Determine which page this chunk starts on by walking char offsets
             page_number = chapter.pages[0].number if chapter.pages else 0
+            separator_len = len("\n---PAGE---\n")
+            char_offset = 0
+            for pg_num, pg_text in parts:
+                pg_boundary = char_offset + len(pg_text) + separator_len
+                if start_char < pg_boundary:
+                    page_number = pg_num
+                    break
+                char_offset = pg_boundary
 
             metadata = ChunkMetadata(
                 source_file=document.file_hash,

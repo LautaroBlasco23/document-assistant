@@ -22,6 +22,9 @@ Uses Docker (Qdrant + Neo4j + PostgreSQL), Ollama for embeddings, Groq API for L
 - **FastAPI backend** — REST API with background task polling
 - **Vite web SPA** — 3 pages: Library, Document detail (summary / flashcards tabs), Settings
 - **Groq as default LLM** — Fast inference via Groq API with built-in rate limiter; optional fast model for bulk generation tasks
+- **Flashcard quality filtering** — Post-generation heuristic filter removes trivial, short, or self-evident cards without an extra LLM call
+- **Improved generation prompts** — Flashcard and summary prompts include explicit SKIP/FOCUS/SELF-CHECK rules to steer models toward meaningful, non-trivial content
+- **JSON retry** — Agents retry once with a correction prompt when the LLM returns malformed JSON, improving reliability with smaller/free models
 
 ## Prerequisites
 

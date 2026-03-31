@@ -14,45 +14,62 @@ logger = logging.getLogger(__name__)
 _MAX_WORDS_PER_CALL = 3500
 
 _SYSTEM = (
-    "You are an expert reading assistant that creates learning-oriented summaries.\n\n"
+    "You are an expert reading assistant creating learning-oriented summaries.\n\n"
+    "Your goal: help a student understand what matters in this chapter and WHY "
+    "it matters, not just list what topics appear.\n\n"
     "Analyze the provided chapter text and return a JSON object with exactly two keys:\n\n"
-    '1. "description": A 3-4 sentence paragraph explaining what this chapter covers, '
-    "why it matters, and how it connects to the broader subject. "
-    "Write in clear, accessible language.\n\n"
-    '2. "bullets": An array of 6-10 strings, each being a key takeaway, important concept, '
-    "or notable detail from the chapter. "
-    "Each bullet should be a complete, self-contained sentence.\n\n"
+    '1. "description": A 3-4 sentence paragraph that:\n'
+    "   - States the chapter's central argument or thesis (not just 'this chapter covers X')\n"
+    "   - Explains WHY this material matters or what problem it addresses\n"
+    "   - Connects it to the broader subject when possible\n"
+    "   - Uses concrete language, not vague generalities\n\n"
+    '2. "bullets": An array of 6-10 strings. Each bullet must be:\n'
+    "   - A complete, self-contained insight (not 'discusses topic X')\n"
+    "   - Specific enough to be useful for review (include key details, numbers, names)\n"
+    "   - Ordered from most important to least important\n\n"
+    "BAD bullet example: 'The chapter discusses various types of memory.'\n"
+    "GOOD bullet example: 'Working memory has a capacity of roughly 4 chunks of "
+    "information, not the commonly cited 7 plus or minus 2 (Cowan, 2001).'\n\n"
     "Rules:\n"
     "- Use ONLY information from the provided text. Do not add external knowledge.\n"
     "- Ignore study questions, exercises, glossary definitions, or instructional material.\n"
+    "- Do NOT summarize metadata, headers, or table of contents.\n"
     "- Return valid JSON only. No markdown, no code fences."
 )
 
 _SYSTEM_COMBINE = (
     "You are an expert reading assistant. You are given several partial summaries "
-    "of sections from the same chapter. Merge them into a single coherent summary "
-    "using only the information provided.\n\n"
+    "of sections from the same chapter. Merge them into a single coherent summary.\n\n"
+    "When merging:\n"
+    "- Identify the overarching argument or theme across all parts\n"
+    "- Eliminate redundancy between partial summaries\n"
+    "- Prioritize insights that are specific and substantive over generic statements\n"
+    "- Order bullets from most important to least important\n\n"
     "Return a JSON object with exactly two keys:\n\n"
-    '1. "description": A 3-4 sentence paragraph explaining what this chapter covers, '
-    "why it matters, and how it connects to the broader subject.\n\n"
-    '2. "bullets": An array of 6-10 strings, each being a key takeaway, important concept, '
-    "or notable detail from the chapter. "
-    "Each bullet should be a complete, self-contained sentence.\n\n"
+    '1. "description": A 3-4 sentence paragraph explaining the chapter\'s central '
+    "argument, why it matters, and how it connects to the broader subject.\n\n"
+    '2. "bullets": An array of 6-10 strings, each a specific, self-contained insight. '
+    "Each bullet should be a complete sentence with concrete details.\n\n"
     "Rules:\n"
-    "- Use only the information from the provided partial summaries.\n"
+    "- Use only information from the provided partial summaries.\n"
     "- Return valid JSON only. No markdown, no code fences."
 )
 
 _SYSTEM_PARTIAL = (
-    "You are an expert reading assistant. Summarize the following excerpt from a "
-    "chapter to help a reader understand and retain the material.\n\n"
-    "Rules:\n"
-    "- Use ONLY information from the provided text.\n"
-    "- Ignore study questions, exercises, glossary definitions, or instructional material.\n\n"
+    "You are an expert reading assistant. Summarize the following excerpt to help "
+    "a reader understand and retain the most important ideas.\n\n"
+    "Focus on:\n"
+    "- Arguments and claims, not just topics mentioned\n"
+    "- Specific facts, evidence, or examples that support the arguments\n"
+    "- Concepts that would be hard to reconstruct without reading the text\n\n"
+    "Skip:\n"
+    "- Study questions, exercises, glossary definitions, instructional material\n"
+    "- Headers, metadata, table of contents fragments\n"
+    "- Obvious or trivial statements\n\n"
     "Write:\n"
-    "1. A 2-3 sentence overview of what this section covers.\n"
-    "2. A bullet list of 3-5 key concepts or ideas, each with the concept name "
-    "in bold and a brief explanation.\n"
+    "1. A 2-3 sentence overview of the section's main argument or contribution.\n"
+    "2. A bullet list of 3-5 key concepts, each with the concept name in bold "
+    "and a brief explanation including specific details from the text.\n"
     "3. A bullet list of 2-3 important specific details (facts, examples, evidence)."
 )
 
@@ -122,7 +139,7 @@ class SummarizerAgent(BaseAgent):
                 len(chunks),
                 total_words,
             )
-            raw = self._call_json(_SYSTEM, user)
+            raw = self._call_json_with_retry(_SYSTEM, user)
         else:
             logger.info(
                 "Chapter '%s' too large (%d words); splitting into %d batches",
@@ -152,7 +169,7 @@ class SummarizerAgent(BaseAgent):
                 len(partial_summaries),
                 chapter.title,
             )
-            raw = self._call_json(_SYSTEM_COMBINE, user)
+            raw = self._call_json_with_retry(_SYSTEM_COMBINE, user)
 
         try:
             parsed = json.loads(raw)

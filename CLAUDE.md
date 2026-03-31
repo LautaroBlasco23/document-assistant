@@ -53,6 +53,9 @@ frontend/       # React + TypeScript + Tailwind SPA (Vite, port 5173)
 - **Groq as default LLM** — `GroqLLM` via `requests` to Groq's OpenAI-compatible API. Switch to Ollama with `DOCASSIST_LLM_PROVIDER=ollama` or CLI `--provider ollama`.
 - **Groq rate limiter** — `GroqRateLimiter` (sliding window, 25/30 req/min threshold) is a module-level singleton in `groq_llm.py`. Proactively throttles before hitting the free-tier limit; also retries on 429 with exponential backoff.
 - **Fast model for bulk tasks** — `create_fast_llm()` factory selects a smaller model (e.g. `llama-3.1-8b-instant` on Groq, `qwen2.5:3b-instruct` on Ollama) for flashcard/summary generation. Falls back to main model if not configured.
+- **Flashcard quality filter** — `_filter_low_quality` in `FlashcardGeneratorAgent` removes trivial cards post-generation: short fronts/backs, pattern-matched trivial questions (metadata, chapter references), and front/back overlap. No extra LLM call needed.
+- **Word-based flashcard batching** — `_MAX_WORDS_PER_BATCH = 2500` replaces the old fixed `_BATCH_SIZE = 4` chunk count. Matches the summarizer's approach and ensures consistent content density per LLM call.
+- **JSON retry on malformed response** — `BaseAgent._call_json_with_retry` sends a correction prompt once if the LLM returns non-parseable JSON. Helps smaller/free models recover without failing silently.
 - **PostgreSQL for content persistence** — AI-generated summaries, flashcards, and user-provided document metadata stored in PostgreSQL (`summaries`, `flashcards`, `document_metadata` tables). Schema auto-applied on startup; idempotent SQL migrations in `infrastructure/db/migrations/`.
 - **Task polling, not SSE** — Background tasks (summarize, flashcards) return a `task_id`; frontend polls `GET /api/tasks/{task_id}` for progress. No streaming endpoints.
 - **No Whoosh** — Qdrant v1.7+ has built-in full-text search for BM25-style keyword search.
