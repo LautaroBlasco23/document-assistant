@@ -1,23 +1,32 @@
-.PHONY: start stop check clean prune help env-check dev-deps infra-deps
+.PHONY: start stop dev-kill check clean prune help env-check dev-deps infra-deps
 
 DOCKER_COMPOSE := docker compose
 BACKEND_DIR := backend
 PROVIDER ?=
 
 help:
-	@echo "Document Assistant - Infrastructure Management"
+	@echo "\033[1;36mDocument Assistant - Infrastructure Management\033[0m"
 	@echo ""
-	@echo "Available commands:"
-	@echo "  make start                  - Interactive menu: choose environment and LLM provider"
-	@echo "  make start PROVIDER=groq    - Skip provider menu, use Groq"
-	@echo "  make start PROVIDER=ollama  - Skip provider menu, use Ollama"
-	@echo "  make start PROVIDER=openrouter   - Skip provider menu, use OpenRouter"
-	@echo "  make start PROVIDER=huggingface  - Skip provider menu, use HuggingFace"
-	@echo "  make stop    - Stop all services"
-	@echo "  make check   - Health check all services (requires Ollama running)"
-	@echo "  make clean   - Remove all stored data (Docker volumes, cache, generated output)"
-	@echo "  make prune   - Remove orphaned documents (manifest exists but no Qdrant data)"
-	@echo "  make help    - Show this help message"
+	@echo "\033[1mAvailable commands:\033[0m"
+	@echo ""
+	@echo "  \033[1;32mStartup\033[0m"
+	@echo "    make start                          Interactive menu for environment & provider"
+	@echo "    make start PROVIDER=groq            Use Groq"
+	@echo "    make start PROVIDER=ollama          Use local Ollama"
+	@echo "    make start PROVIDER=openrouter      Use OpenRouter"
+	@echo "    make start PROVIDER=huggingface     Use HuggingFace"
+	@echo ""
+	@echo "  \033[1;32mServices\033[0m"
+	@echo "    make stop                           Stop all services"
+	@echo "    make dev-kill                       Force kill backend (8000) & frontend (5173)"
+	@echo "    make check                          Health check all services"
+	@echo ""
+	@echo "  \033[1;32mMaintenance\033[0m"
+	@echo "    make clean                          Remove volumes, cache, generated output"
+	@echo "    make prune                          Remove orphaned documents"
+	@echo ""
+	@echo "  \033[1;32mHelp\033[0m"
+	@echo "    make help                           Show this help message"
 
 start: env-check
 	@PROVIDER=$(PROVIDER) bash scripts/start.sh
@@ -46,6 +55,12 @@ stop:
 	pkill -f "uvicorn api.main:app" || true
 	pkill -f "npm run dev" || true
 	@echo "Services stopped."
+
+dev-kill:
+	@echo "Force killing backend (port 8000) and frontend (port 5173)..."
+	@fuser -k 8000/tcp 2>/dev/null || true
+	@fuser -k 5173/tcp 2>/dev/null || true
+	@echo "Processes killed."
 
 check:
 	@echo "Checking service health..."
