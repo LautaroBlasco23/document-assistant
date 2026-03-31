@@ -8,7 +8,7 @@ from core.model.chunk import Chunk
 
 logger = logging.getLogger(__name__)
 
-_MAX_WORDS_PER_BATCH = 2500  # Conservative to leave room for system prompt + response
+_MAX_WORDS_PER_BATCH = 3000  # Increased from 2500; main model supports 128k context
 
 _TRIVIAL_PATTERNS = [
     r"^what is (a |an |the )?chapter",
@@ -18,6 +18,9 @@ _TRIVIAL_PATTERNS = [
     r"^what page",
     r"^how many (pages|chapters|sections)",
     r"^(true or false|yes or no)",
+    r"^what (does|did) the (text|passage|chapter|author) (say|state|mention|describe)",
+    r"^(according to|as stated in) the (text|passage|chapter)",
+    r"^(define|describe|explain|list) \w+$",
 ]
 
 
@@ -53,19 +56,26 @@ _SYSTEM = (
     "the card is too easy.\n"
     "- Each card should test a SINGLE idea. Do not combine multiple concepts.\n"
     "- Backs should be precise and complete, not vague summaries.\n\n"
-    "Generate EXACTLY 9 flashcards in 3 categories (3 each):\n\n"
-    "### TERMINOLOGY (3 cards)\n"
+    "Generate between 3 and 12 flashcards based on the density and importance of the content.\n\n"
+    "- If the text is mostly structural, transitional, or repetitive: generate 3-5 cards "
+    "focusing only on genuinely important content.\n"
+    "- If the text is dense with new concepts, facts, and arguments: generate 8-12 cards.\n"
+    "- Do NOT pad with low-quality cards to reach a minimum. "
+    "Fewer good cards is always better than more mediocre ones.\n\n"
+    "Categorize each card as one of: \"terminology\", \"key_facts\", or \"concepts\".\n"
+    "Choose the category that best fits -- do not force equal distribution across categories.\n\n"
+    "### TERMINOLOGY\n"
     "Test definitions of domain-specific terms introduced in the text. "
     "Do NOT include everyday words or terms the reader would already know.\n"
     "- Front: The technical term or concept name.\n"
     "- Back: A precise definition in 1-2 sentences using context from the text. "
     "Include an example if the text provides one.\n\n"
-    "### KEY FACTS (3 cards)\n"
+    "### KEY FACTS\n"
     "Test specific, non-obvious facts that a reader needs to remember. "
     "Focus on facts that are surprising, counterintuitive, or essential to the argument.\n"
     "- Front: A specific question that cannot be answered by common knowledge.\n"
     "- Back: The precise answer with supporting detail from the text.\n\n"
-    "### CONCEPTS (3 cards)\n"
+    "### CONCEPTS\n"
     "Test understanding of relationships, causes, processes, or arguments. "
     "These should require analysis or synthesis, not just recall.\n"
     "- Front: A 'why' or 'how' question about a process, relationship, or argument.\n"
@@ -87,6 +97,15 @@ _SYSTEM = (
 )
 
 
+def _jaccard_words(a: str, b: str) -> float:
+    """Return Jaccard similarity between word sets of two strings."""
+    words_a = set(a.lower().split())
+    words_b = set(b.lower().split())
+    if not words_a or not words_b:
+        return 0.0
+    return len(words_a & words_b) / len(words_a | words_b)
+
+
 class FlashcardGeneratorAgent(BaseAgent):
     def generate(
         self,
@@ -96,6 +115,7 @@ class FlashcardGeneratorAgent(BaseAgent):
         document_title: str = "",
         document_description: str = "",
         document_type: str = "",
+        chapter_summary: str = "",
     ) -> list[dict]:
         """Generate categorized flashcards from chunks.
 
@@ -107,6 +127,7 @@ class FlashcardGeneratorAgent(BaseAgent):
             document_title: Title of the document for context.
             document_description: User-provided description of the document for context.
             document_type: Type of document (book, paper, documentation, etc.) for context.
+            chapter_summary: Optional summary of the chapter to help prioritize concepts.
         """
         all_cards = []
         batches = _batch_chunks(chunks, _MAX_WORDS_PER_BATCH)
@@ -124,11 +145,28 @@ class FlashcardGeneratorAgent(BaseAgent):
             header_parts.append(f"Document context: {document_description}")
         header = "\n".join(header_parts)
 
+        # Build summary block once; prepended to every batch user message
+        summary_block = ""
+        if chapter_summary:
+            summary_block = (
+                "Chapter summary (use this to understand what matters most -- "
+                "do NOT create cards about the summary itself):\n"
+                f"{chapter_summary}\n\n"
+            )
+
         for batch_number, batch in enumerate(batches, 1):
             context = "\n\n".join(
                 f"[p.{c.metadata.page_number if c.metadata else '?'}] {c.text}" for c in batch
             )
-            user = f"{header}\n\nText:\n{context}" if header else f"Text:\n{context}"
+            if summary_block or header:
+                user = f"{summary_block}{header}\n\nText:\n{context}"
+            else:
+                user = f"Text:\n{context}"
+
+            # Append content density hint to help the model calibrate card count
+            word_count = sum(len(c.text.split()) for c in batch)
+            user += f"\n\n[Content density: {word_count} words across {len(batch)} text segments]"
+
             logger.info(
                 "Processing flashcard batch %d/%d (%d chunks)",
                 batch_number,
@@ -147,6 +185,7 @@ class FlashcardGeneratorAgent(BaseAgent):
             if on_progress:
                 on_progress(batch_number, total_batches, len(all_cards))
 
+        # Exact dedup by normalized front
         seen = set()
         unique_cards = []
         for card in all_cards:
@@ -155,6 +194,19 @@ class FlashcardGeneratorAgent(BaseAgent):
                 seen.add(front_normalized)
                 unique_cards.append(card)
         all_cards = unique_cards
+
+        # Near-duplicate dedup by Jaccard similarity on front text
+        deduped = []
+        for card in all_cards:
+            dominated = any(
+                _jaccard_words(card["front"], existing["front"]) > 0.8
+                for existing in deduped
+            )
+            if not dominated:
+                deduped.append(card)
+            else:
+                logger.debug("Filtered near-duplicate: %s", card["front"][:80])
+        all_cards = deduped
 
         all_cards = self._filter_low_quality(all_cards)
 
@@ -239,6 +291,15 @@ class FlashcardGeneratorAgent(BaseAgent):
             if front in back.strip().lower() or back.strip().lower() in front:
                 logger.debug("Filtered card (front/back overlap): %s", front[:80])
                 continue
+
+            # Skip cards where back adds minimal new information over the front
+            front_words = set(front.split()) - {"what", "is", "the", "a", "an", "how", "why", "does", "do"}
+            back_words_set = set(back.lower().split())
+            if front_words and len(front_words) <= 4:
+                new_words = back_words_set - front_words - {"is", "a", "an", "the", "that", "which", "are", "was"}
+                if len(new_words) < 3:
+                    logger.debug("Filtered card (back restates front): %s", front[:80])
+                    continue
 
             filtered.append(card)
 

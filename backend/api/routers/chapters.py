@@ -210,13 +210,40 @@ def _generate_flashcards_background(
                 task, pct, f"Building flashcards... batch {batch}/{total} ({cards_so_far} cards)"
             )
 
-        cards = FlashcardGeneratorAgent(services.fast_llm).generate(
+        # Select LLM for flashcard generation based on config
+        if services.config.flashcard_model == "fast" and services.config.llm_provider == "openrouter":
+            logger.warning(
+                "flashcard_model=fast is not viable for openrouter (model too small); "
+                "falling back to main model"
+            )
+            flashcard_llm = services.llm
+        elif services.config.flashcard_model == "fast":
+            flashcard_llm = services.fast_llm
+        else:
+            flashcard_llm = services.llm
+
+        # Fetch existing chapter summary to give the model context
+        existing_summary = services.content_store.get_summary(document_hash, qdrant_index)
+        chapter_summary_text = ""
+        if existing_summary:
+            bullets_str = "\n".join(f"- {b}" for b in existing_summary.bullets) if existing_summary.bullets else ""
+            chapter_summary_text = f"{existing_summary.description}\n{bullets_str}".strip()
+        else:
+            logger.debug(
+                "No summary found for doc=%s chapter=%d; "
+                "consider summarizing first for better flashcard quality",
+                document_hash[:12],
+                qdrant_index,
+            )
+
+        cards = FlashcardGeneratorAgent(flashcard_llm).generate(
             chunks,
             on_progress=fc_progress,
             chapter_title=chapter_title,
             document_title=document_title,
             document_description=document_description,
             document_type=document_type,
+            chapter_summary=chapter_summary_text,
         )
 
         # Build page -> chunks lookup for source attribution

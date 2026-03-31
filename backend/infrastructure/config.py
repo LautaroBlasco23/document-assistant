@@ -94,6 +94,7 @@ class AppConfig(BaseSettings):
     exam: ExamConfig = ExamConfig()
     epub: EpubConfig = EpubConfig()
     llm_provider: str = "groq"  # "ollama" | "groq" | "openrouter" | "huggingface"
+    flashcard_model: str = "main"  # "main" | "fast"
 
     model_config = {"env_prefix": "DOCASSIST_", "env_nested_delimiter": "__"}
 
@@ -183,6 +184,7 @@ def save_config(config: AppConfig, config_path: Path | None = None) -> None:
 
     data = {
         "llm_provider": config.llm_provider,
+        "flashcard_model": config.flashcard_model,
         "ollama": ollama_data,
         "groq": groq_data,
         "openrouter": openrouter_data,

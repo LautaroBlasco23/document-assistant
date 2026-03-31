@@ -313,7 +313,21 @@ def run_generate_md(book_title: str, chapter_num: int, provider: str | None = No
     print(f"  -> {p1}")
 
     print("Generating flashcards ...")
-    cards = FlashcardGeneratorAgent(fast_llm).generate(chunks)
+    # Select LLM based on config
+    if config.flashcard_model == "fast" and config.llm_provider == "openrouter":
+        logger.warning(
+            "flashcard_model=fast is not viable for openrouter (model too small); "
+            "falling back to main model"
+        )
+        flashcard_llm = llm
+    elif config.flashcard_model == "fast":
+        flashcard_llm = fast_llm
+    else:
+        flashcard_llm = llm
+
+    # Extract summary text for flashcard context
+    summary_text = f"{summary['description']}\n" + "\n".join(f"- {b}" for b in summary.get("bullets", []))
+    cards = FlashcardGeneratorAgent(flashcard_llm).generate(chunks, chapter_summary=summary_text)
     p2 = write_flashcards(doc, chapter_index, cards, output_dir)
     print(f"  -> {p2}")
 

@@ -1,11 +1,13 @@
 """Unit tests for FlashcardGeneratorAgent: parsing, filtering, deduplication, batching."""
 import json
+from unittest.mock import MagicMock
 
 import pytest
 
 from application.agents.flashcard_generator import (
     FlashcardGeneratorAgent,
     _batch_chunks,
+    _jaccard_words,
     _MAX_WORDS_PER_BATCH,
 )
 from core.model.chunk import Chunk, ChunkMetadata
@@ -202,3 +204,218 @@ def test_batch_chunks_single_oversized_chunk_not_split():
     batches = _batch_chunks(chunks, max_words=2500)
     assert len(batches) == 1
     assert batches[0] == chunks
+
+
+# ---------------------------------------------------------------------------
+# Test _jaccard_words
+# ---------------------------------------------------------------------------
+
+
+def test_jaccard_identical_strings():
+    assert _jaccard_words("foo bar baz", "foo bar baz") == 1.0
+
+
+def test_jaccard_no_overlap():
+    assert _jaccard_words("foo bar", "baz qux") == 0.0
+
+
+def test_jaccard_partial_overlap():
+    score = _jaccard_words("what is entropy", "what is photosynthesis")
+    assert 0.0 < score < 1.0
+
+
+def test_jaccard_empty_string():
+    assert _jaccard_words("", "foo bar") == 0.0
+    assert _jaccard_words("foo bar", "") == 0.0
+
+
+# ---------------------------------------------------------------------------
+# Test variable card count parsing
+# ---------------------------------------------------------------------------
+
+
+def test_variable_card_count_parsing_3_cards():
+    cards_data = [
+        {"front": f"Question {i}", "back": f"Answer number {i} with detail.", "category": "key_facts"}
+        for i in range(3)
+    ]
+    result = FlashcardGeneratorAgent._parse(_valid_cards_json(cards_data))
+    assert len(result) == 3
+
+
+def test_variable_card_count_parsing_7_cards():
+    cards_data = [
+        {"front": f"Question {i}", "back": f"Answer number {i} with detail.", "category": "key_facts"}
+        for i in range(7)
+    ]
+    result = FlashcardGeneratorAgent._parse(_valid_cards_json(cards_data))
+    assert len(result) == 7
+
+
+def test_variable_card_count_parsing_12_cards():
+    cards_data = [
+        {"front": f"Question {i}", "back": f"Answer number {i} with detail.", "category": "terminology"}
+        for i in range(12)
+    ]
+    result = FlashcardGeneratorAgent._parse(_valid_cards_json(cards_data))
+    assert len(result) == 12
+
+
+# ---------------------------------------------------------------------------
+# Test new trivial patterns
+# ---------------------------------------------------------------------------
+
+
+def test_filter_meta_referential():
+    """Cards that ask what the text/passage/chapter says should be filtered."""
+    cards = [
+        {
+            "front": "What does the text say about metabolism?",
+            "back": "The text explains that metabolism includes anabolism and catabolism processes.",
+            "category": "key_facts",
+        },
+        {
+            "front": "What did the author describe about cell division?",
+            "back": "The author described mitosis and meiosis as two distinct processes.",
+            "category": "key_facts",
+        },
+        {
+            "front": "According to the chapter, what is entropy?",
+            "back": "According to the chapter, entropy is a measure of disorder in a closed system.",
+            "category": "key_facts",
+        },
+    ]
+    result = FlashcardGeneratorAgent._filter_low_quality(cards)
+    assert result == [], f"Expected all meta-referential cards filtered, got: {result}"
+
+
+def test_filter_vague_define():
+    """Cards with 'Define X' (single word target) should be filtered."""
+    cards = [
+        {
+            "front": "Define entropy",
+            "back": "Entropy is a measure of disorder or randomness within a thermodynamic system.",
+            "category": "terminology",
+        },
+        {
+            "front": "Explain photosynthesis",
+            "back": "Photosynthesis is the process by which plants convert sunlight into glucose.",
+            "category": "concepts",
+        },
+    ]
+    result = FlashcardGeneratorAgent._filter_low_quality(cards)
+    assert result == [], f"Expected vague define/explain cards filtered, got: {result}"
+
+
+def test_filter_vague_define_multi_word_not_filtered():
+    """Multi-word 'Define X Y' should NOT be filtered by the single-word pattern."""
+    cards = [
+        {
+            "front": "Define active transport mechanism",
+            "back": "Active transport is the movement of molecules against a concentration gradient using ATP energy.",
+            "category": "terminology",
+        },
+    ]
+    result = FlashcardGeneratorAgent._filter_low_quality(cards)
+    assert len(result) == 1, "Multi-word define should not be filtered"
+
+
+# ---------------------------------------------------------------------------
+# Test near-duplicate Jaccard dedup
+# ---------------------------------------------------------------------------
+
+
+def test_near_duplicate_jaccard():
+    """Cards with >0.8 word overlap in fronts should be deduplicated."""
+    cards = [
+        {"front": "What is the role of ATP in cellular respiration?", "back": "ATP provides energy for metabolic processes in the cell through hydrolysis.", "category": "key_facts"},
+        {"front": "What is the role of ATP in the cellular respiration?", "back": "ATP supplies energy needed by cells during the process of cellular respiration.", "category": "key_facts"},
+    ]
+    # Simulate the dedup logic from generate()
+    deduped = []
+    for card in cards:
+        dominated = any(
+            _jaccard_words(card["front"], existing["front"]) > 0.8
+            for existing in deduped
+        )
+        if not dominated:
+            deduped.append(card)
+    assert len(deduped) == 1, "Near-duplicate fronts should be deduplicated to 1"
+
+
+def test_near_duplicate_different_fronts_kept():
+    """Cards with sufficiently different fronts should both be kept."""
+    cards = [
+        {"front": "What is photosynthesis?", "back": "Photosynthesis is the conversion of sunlight into glucose by plants.", "category": "terminology"},
+        {"front": "What is cellular respiration?", "back": "Cellular respiration is the breakdown of glucose to produce ATP energy.", "category": "terminology"},
+    ]
+    deduped = []
+    for card in cards:
+        dominated = any(
+            _jaccard_words(card["front"], existing["front"]) > 0.8
+            for existing in deduped
+        )
+        if not dominated:
+            deduped.append(card)
+    assert len(deduped) == 2, "Cards with different fronts should both be kept"
+
+
+# ---------------------------------------------------------------------------
+# Test back-restates-front filter
+# ---------------------------------------------------------------------------
+
+
+def test_filter_back_restates_front():
+    """Cards where back adds minimal new information over a short front are filtered."""
+    cards = [
+        {
+            "front": "What is ATP?",
+            "back": "ATP is the ATP.",
+            "category": "terminology",
+        },
+    ]
+    result = FlashcardGeneratorAgent._filter_low_quality(cards)
+    assert result == [], f"Expected restatement card filtered, got: {result}"
+
+
+def test_filter_back_restates_front_with_enough_new_words_kept():
+    """Cards where back genuinely adds new information should be kept."""
+    cards = [
+        {
+            "front": "What is ATP?",
+            "back": "ATP (adenosine triphosphate) is the primary energy currency of cells, providing energy through hydrolysis to ADP.",
+            "category": "terminology",
+        },
+    ]
+    result = FlashcardGeneratorAgent._filter_low_quality(cards)
+    assert len(result) == 1, "Card with substantive back should not be filtered"
+
+
+# ---------------------------------------------------------------------------
+# Test generate() accepts chapter_summary
+# ---------------------------------------------------------------------------
+
+
+def test_generate_accepts_chapter_summary():
+    """Verify that chapter_summary text appears in the user prompt sent to the LLM."""
+    captured_prompts = []
+
+    mock_llm = MagicMock()
+    mock_llm.chat.side_effect = lambda system, user, **kwargs: (
+        captured_prompts.append(user) or
+        json.dumps({"cards": [
+            {"front": "Test question about enzymes?", "back": "Enzymes are biological catalysts that speed up chemical reactions in cells.", "category": "key_facts"}
+        ]})
+    )
+
+    agent = FlashcardGeneratorAgent(mock_llm)
+    chunk = _make_chunk("Enzymes are proteins that catalyze biochemical reactions. " * 20)
+    summary_text = "This chapter covers enzyme kinetics and catalytic mechanisms."
+
+    agent.generate([chunk], chapter_summary=summary_text)
+
+    assert len(captured_prompts) >= 1, "LLM should have been called at least once"
+    first_prompt = captured_prompts[0]
+    assert summary_text in first_prompt, (
+        f"chapter_summary text should appear in user prompt.\nPrompt: {first_prompt[:300]}"
+    )
