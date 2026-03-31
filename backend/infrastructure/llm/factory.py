@@ -10,13 +10,9 @@ logger = logging.getLogger(__name__)
 
 def create_embedder(config: AppConfig, cache: EmbeddingCache | None = None) -> Embedder:
     """Instantiate the embedder based on config.llm_provider."""
-    if config.llm_provider == "groq":
-        from infrastructure.llm.groq_embedder import GroqEmbedder
-        logger.info("Using Groq embedder: model=%s", config.groq.embedding_model)
-        return GroqEmbedder(config.groq, cache=cache)
-    elif config.llm_provider in ("openrouter", "huggingface"):
+    if config.llm_provider in ("groq", "openrouter", "huggingface"):
         logger.info(
-            "Provider %s does not support embeddings; falling back to Ollama embedder: model=%s",
+            "Provider %s does not support embeddings — falling back to Ollama embedder: model=%s",
             config.llm_provider,
             config.ollama.embedding_model,
         )
