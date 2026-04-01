@@ -102,6 +102,7 @@ def run_ingest(path: str, provider: str | None = None) -> int:
     from infrastructure.graph.neo4j_store import Neo4jStore
     from infrastructure.ingest.epub_loader import load_epub
     from infrastructure.ingest.pdf_loader import load_pdf
+    from infrastructure.ingest.txt_loader import load_txt
     from infrastructure.llm.embedding_cache import EmbeddingCache
     from infrastructure.llm.factory import create_embedder, create_llm
     from infrastructure.output.manifest import write_manifest
@@ -115,12 +116,12 @@ def run_ingest(path: str, provider: str | None = None) -> int:
 
     files: list[Path] = []
     if target.is_dir():
-        files = list(target.glob("*.pdf")) + list(target.glob("*.epub"))
+        files = list(target.glob("*.pdf")) + list(target.glob("*.epub")) + list(target.glob("*.txt"))
     else:
         files = [target]
 
     if not files:
-        print(f"No PDF/EPUB files found at {path}", file=sys.stderr)
+        print(f"No PDF/EPUB/TXT files found at {path}", file=sys.stderr)
         return 1
 
     embedder = create_embedder(config, EmbeddingCache())
@@ -146,6 +147,7 @@ def run_ingest(path: str, provider: str | None = None) -> int:
             loaders={
                 ".pdf": load_pdf,
                 ".epub": functools.partial(load_epub, epub_config=config.epub),
+                ".txt": load_txt,
             },
             exists_fn=qdrant.has_file,
             original_filename=file_path.name,

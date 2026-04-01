@@ -17,6 +17,9 @@ import type {
   ExamResultOut,
   ChapterExamStatusOut,
   ChatResponse,
+  CreateDocumentRequest,
+  CreateDocumentResponse,
+  AppendContentResponse,
 } from '../types/api'
 import type { ServiceClient } from './client.interface'
 
@@ -259,5 +262,15 @@ export class RealClient implements ServiceClient {
 
   getChapterPdfUrl(docHash: string, chapter: number): string {
     return `/api/documents/${docHash}/chapters/${chapter}/pdf`
+  }
+
+  async createDocument(req: CreateDocumentRequest): Promise<CreateDocumentResponse> {
+    const res = await httpClient.post<CreateDocumentResponse>('/documents/create', req)
+    return res.data
+  }
+
+  async appendContent(docHash: string, content: string): Promise<AppendContentResponse> {
+    const res = await httpClient.post<AppendContentResponse>(`/documents/${docHash}/append`, { content })
+    return res.data
   }
 }

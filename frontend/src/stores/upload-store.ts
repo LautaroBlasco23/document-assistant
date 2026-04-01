@@ -18,6 +18,7 @@ export interface UploadEntry {
 interface UploadState {
   uploads: UploadEntry[]
   startUpload: (file: File, documentType?: string, description?: string) => Promise<void>
+  createDocument: (title: string, content: string, documentType?: string, description?: string) => Promise<void>
   handleIngestTask: (taskId: string, filename: string) => void
   dismissUpload: (id: string) => void
   rehydrate: () => Promise<void>
@@ -148,6 +149,38 @@ export const useUploadStore = create<UploadState>((set) => ({
         ...entry,
         status: 'failed',
         error: err instanceof Error ? err.message : 'Upload failed',
+      })
+      return
+    }
+
+    const processingEntry: UploadEntry = { ...entry, taskId, status: 'processing' }
+    _addUpload(processingEntry)
+    _save([...useUploadStore.getState().uploads, processingEntry])
+    _startPolling(id, taskId)
+  },
+
+  createDocument: async (title: string, content: string, documentType = '', description = '') => {
+    const id = crypto.randomUUID()
+    const entry: UploadEntry = {
+      id,
+      filename: title,
+      taskId: null,
+      status: 'uploading',
+      progress: null,
+      error: null,
+    }
+
+    _addUpload(entry)
+
+    let taskId: string
+    try {
+      const result = await client.createDocument({ title, content, description, document_type: documentType })
+      taskId = result.task_id
+    } catch (err) {
+      _addUpload({
+        ...entry,
+        status: 'failed',
+        error: err instanceof Error ? err.message : 'Create failed',
       })
       return
     }

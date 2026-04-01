@@ -1,8 +1,10 @@
 """Document management endpoints."""
 
 import functools
+import hashlib
 import json
 import logging
+import os
 import tempfile
 import time
 from pathlib import Path
@@ -13,9 +15,13 @@ from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 
 from api.deps import ServicesDep
 from api.schemas.documents import (
+    AppendContentRequest,
+    AppendContentResponse,
     ChapterDeleteResponse,
     ChapterOut,
     ChapterPreviewOut,
+    CreateDocumentRequest,
+    CreateDocumentResponse,
     DocumentOut,
     DocumentPreviewOut,
     DocumentStructureOut,
@@ -33,7 +39,9 @@ from infrastructure.file_persistence import get_persisted_file, persist_file
 from infrastructure.graph.entity_extractor import extract_entities
 from infrastructure.ingest.epub_loader import load_epub, preview_epub
 from infrastructure.ingest.pdf_loader import load_pdf, preview_pdf
+from infrastructure.ingest.txt_loader import build_document_from_text, load_txt, preview_txt
 from infrastructure.output.manifest import remove_chapter_from_manifest, write_manifest
+from infrastructure.output.markdown_writer import _safe_name
 
 logger = logging.getLogger(__name__)
 
@@ -141,6 +149,7 @@ async def preview_document(
             {
                 ".pdf": preview_pdf,
                 ".epub": functools.partial(preview_epub, epub_config=services.config.epub),
+                ".txt": preview_txt,
             },
         )
         if preview is None:
@@ -249,6 +258,7 @@ def _ingest_selected_chapters(
             loaders={
                 ".pdf": load_pdf,
                 ".epub": functools.partial(load_epub, epub_config=services.config.epub),
+                ".txt": load_txt,
             },
             original_filename=filename,
         )
@@ -398,7 +408,8 @@ async def get_document_file(file_hash: str, services: ServicesDep) -> FileRespon
     if file_path is None:
         raise HTTPException(status_code=404, detail="File not found on disk")
 
-    media_type = "application/pdf" if meta.file_extension == "pdf" else "application/epub+zip"
+    media_types = {"pdf": "application/pdf", "epub": "application/epub+zip", "txt": "text/plain"}
+    media_type = media_types.get(meta.file_extension, "application/octet-stream")
     return FileResponse(
         path=file_path,
         media_type=media_type,
@@ -505,6 +516,7 @@ def _ingest_background(
             loaders={
                 ".pdf": load_pdf,
                 ".epub": functools.partial(load_epub, epub_config=services.config.epub),
+                ".txt": load_txt,
             },
             original_filename=filename,
         )
@@ -737,3 +749,230 @@ async def delete_chapter(
         summaries_deleted=summaries_deleted,
         flashcards_deleted=flashcards_deleted,
     )
+
+
+@router.post("/documents/create", response_model=CreateDocumentResponse)
+async def create_document(
+    req: CreateDocumentRequest, services: ServicesDep
+) -> CreateDocumentResponse:
+    """Create a custom document from pasted text."""
+    file_hash = hashlib.sha256(req.content.encode("utf-8")).hexdigest()
+
+    if services.qdrant.has_file(file_hash):
+        raise HTTPException(
+            status_code=409,
+            detail="Document with identical content already exists",
+        )
+
+    services.content_store.save_custom_document(file_hash, req.title, req.content)
+    services.content_store.save_metadata(
+        file_hash,
+        DocumentMetadata(
+            description=req.description,
+            document_type=req.document_type,
+            file_extension="txt",
+        ),
+    )
+
+    task_id = services.task_registry.submit(
+        _ingest_custom_document,
+        file_hash,
+        req.title,
+        req.content,
+        services,
+        task_type="ingest",
+        filename=f"{req.title}.txt",
+    )
+    logger.info("Create document submitted: %s -> task %s", req.title, task_id)
+
+    return CreateDocumentResponse(task_id=task_id, file_hash=file_hash, title=req.title)
+
+
+def _ingest_custom_document(
+    task: Task,
+    file_hash: str,
+    title: str,
+    content: str,
+    services: ServicesDep,
+) -> str:
+    """Background task to ingest a custom (pasted-text) document."""
+    t0 = time.perf_counter()
+    try:
+        task.progress = "Building document structure..."
+        logger.info("Custom ingest: building doc for %s", title)
+        doc = build_document_from_text(title, content, file_hash, original_filename=f"{title}.txt")
+
+        task.progress = "Chunking..."
+        splitter = ChapterAwareSplitter(
+            max_tokens=services.config.chunking.max_tokens,
+            overlap_tokens=services.config.chunking.overlap_tokens,
+        )
+        chunks = splitter.split(doc)
+        logger.info("Custom ingest: %d chunks", len(chunks))
+
+        if not chunks:
+            raise ValueError("No chunks produced from custom document")
+
+        task.progress = f"Embedding {len(chunks)} chunks..."
+        texts = [c.text for c in chunks]
+        vectors = services.embedder.embed(texts)
+
+        if vectors:
+            services.qdrant.ensure_collection(vector_size=len(vectors[0]))
+
+        task.progress = "Upserting to Qdrant..."
+        services.qdrant.upsert(chunks, vectors)
+
+        task.progress = "Extracting entities..."
+        services.neo4j.upsert_document(
+            doc.file_hash, doc.title, doc.source_path, doc.original_filename
+        )
+        for i, chunk in enumerate(chunks):
+            if i % 10 == 0:
+                task.progress = f"Extracting entities... {i}/{len(chunks)}"
+            entities = extract_entities(chunk.text, services.fast_llm)
+            services.neo4j.upsert_entities(entities, chunk)
+
+        task.progress = "Writing manifest..."
+        num_chapters = len(set(c.metadata.chapter_index for c in chunks if c.metadata))
+        write_manifest(
+            doc,
+            chunk_count=len(chunks),
+            collection=services.config.qdrant.collection_name,
+            model=services.config.ollama.embedding_model,
+            output_dir=OUTPUT_DIR,
+            num_chapters=num_chapters,
+        )
+
+        elapsed = time.perf_counter() - t0
+        task.progress = "Complete"
+        logger.info("Custom ingest complete: %s, %d chunks in %.1fs", title, len(chunks), elapsed)
+        return f"Ingested {len(chunks)} chunks from custom document '{title}'"
+    except Exception as e:
+        task.progress = f"Error: {str(e)}"
+        raise
+
+
+@router.post("/documents/{file_hash}/append", response_model=AppendContentResponse)
+async def append_content(
+    file_hash: str, req: AppendContentRequest, services: ServicesDep
+) -> AppendContentResponse:
+    """Append text to an existing custom document and re-process the new content."""
+    existing = services.content_store.get_custom_document(file_hash)
+    if existing is None:
+        raise HTTPException(status_code=404, detail="Custom document not found")
+
+    services.content_store.append_custom_document(file_hash, req.content)
+
+    task_id = services.task_registry.submit(
+        _append_custom_document,
+        file_hash,
+        req.content,
+        services,
+        task_type="ingest",
+        filename=f"{file_hash[:12]}-append.txt",
+    )
+    logger.info("Append content submitted: doc %s -> task %s", file_hash[:12], task_id)
+
+    return AppendContentResponse(task_id=task_id, file_hash=file_hash)
+
+
+def _append_custom_document(
+    task: Task,
+    file_hash: str,
+    new_content: str,
+    services: ServicesDep,
+) -> str:
+    """Background task to ingest new content appended to a custom document."""
+    t0 = time.perf_counter()
+    try:
+        task.progress = "Building new chapters..."
+        temp_doc = build_document_from_text("append", new_content, file_hash)
+
+        existing_chunks = services.qdrant.search_by_file(file_hash)
+        if existing_chunks:
+            max_index = max(
+                c.metadata.chapter_index for c in existing_chunks if c.metadata
+            )
+            base_index = max_index + 1
+        else:
+            base_index = 0
+
+        for ch in temp_doc.chapters:
+            ch.index += base_index
+
+        task.progress = "Chunking new content..."
+        splitter = ChapterAwareSplitter(
+            max_tokens=services.config.chunking.max_tokens,
+            overlap_tokens=services.config.chunking.overlap_tokens,
+        )
+        chunks = splitter.split(temp_doc)
+        logger.info("Append ingest: %d new chunks (base_index=%d)", len(chunks), base_index)
+
+        if not chunks:
+            task.progress = "Complete (no new content to index)"
+            return "No new chunks produced from appended content"
+
+        task.progress = f"Embedding {len(chunks)} new chunks..."
+        texts = [c.text for c in chunks]
+        vectors = services.embedder.embed(texts)
+
+        if vectors:
+            services.qdrant.ensure_collection(vector_size=len(vectors[0]))
+
+        task.progress = "Upserting to Qdrant..."
+        services.qdrant.upsert(chunks, vectors)
+
+        task.progress = "Extracting entities..."
+        for i, chunk in enumerate(chunks):
+            if i % 10 == 0:
+                task.progress = f"Extracting entities... {i}/{len(chunks)}"
+            entities = extract_entities(chunk.text, services.fast_llm)
+            services.neo4j.upsert_entities(entities, chunk)
+
+        task.progress = "Updating manifest..."
+        documents = _list_documents()
+        doc_manifest = next((d for d in documents if d["file_hash"] == file_hash), None)
+        if doc_manifest is not None:
+            existing_chapters = doc_manifest.get("chapters", [])
+            new_chapter_entries = []
+            for ch in temp_doc.chapters:
+                if ch.pages:
+                    page_start = ch.pages[0].number
+                    page_end = ch.pages[-1].number
+                    sections_data = [
+                        {"title": ch.title, "page_start": page_start, "page_end": page_end}
+                    ]
+                else:
+                    sections_data = []
+                new_chapter_entries.append({
+                    "index": ch.index,
+                    "title": ch.title,
+                    "sections": sections_data,
+                    "stored": True,
+                })
+
+            doc_manifest["chapters"] = existing_chapters + new_chapter_entries
+            doc_manifest["num_chapters"] = len(doc_manifest["chapters"])
+            doc_manifest["chunk_count"] = doc_manifest.get("chunk_count", 0) + len(chunks)
+
+            safe_title = _safe_name(doc_manifest.get("title", file_hash))
+            manifest_path = OUTPUT_DIR / safe_title / "manifest.json"
+            if manifest_path.exists():
+                with open(manifest_path, "w") as f:
+                    json.dump(doc_manifest, f, indent=2)
+                    f.flush()
+                    os.fsync(f.fileno())
+
+        elapsed = time.perf_counter() - t0
+        task.progress = "Complete"
+        logger.info(
+            "Append ingest complete: doc %s, %d new chunks in %.1fs",
+            file_hash[:12],
+            len(chunks),
+            elapsed,
+        )
+        return f"Appended {len(chunks)} new chunks to document {file_hash[:12]}"
+    except Exception as e:
+        task.progress = f"Error: {str(e)}"
+        raise

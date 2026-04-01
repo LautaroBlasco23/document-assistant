@@ -345,6 +345,9 @@ class PostgresContentStore(ContentStore):
                     cur.execute(
                         "DELETE FROM exam_results WHERE document_hash = %s", (document_hash,)
                     )
+                    cur.execute(
+                        "DELETE FROM custom_documents WHERE document_hash = %s", (document_hash,)
+                    )
         logger.debug("Deleted all content for doc=%s", document_hash[:12])
 
     def delete_summary(self, document_hash: str, chapter_index: int) -> None:
@@ -457,6 +460,66 @@ class PostgresContentStore(ContentStore):
                         (document_hash, chapter_index),
                     )
         logger.debug("Reset exam progress for doc=%s chapter=%d", document_hash[:12], chapter_index)
+
+    # --- Custom documents ---
+
+    def save_custom_document(self, document_hash: str, title: str, content: str) -> None:
+        with self._lock:
+            conn = self._conn()
+            self._rollback_if_failed(conn)
+            with conn.transaction():
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "INSERT INTO custom_documents (document_hash, title, content)"
+                        " VALUES (%s, %s, %s)"
+                        " ON CONFLICT (document_hash)"
+                        " DO UPDATE SET content = EXCLUDED.content, updated_at = NOW()",
+                        (document_hash, title, content),
+                    )
+        logger.debug("Saved custom document doc=%s", document_hash[:12])
+
+    def get_custom_document(self, document_hash: str) -> tuple[str, str] | None:
+        conn = self._conn()
+        self._rollback_if_failed(conn)
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT title, content FROM custom_documents WHERE document_hash = %s",
+                (document_hash,),
+            )
+            row = cur.fetchone()
+        if row is None:
+            return None
+        return (row["title"], row["content"])
+
+    def append_custom_document(self, document_hash: str, new_content: str) -> str:
+        with self._lock:
+            conn = self._conn()
+            self._rollback_if_failed(conn)
+            with conn.transaction():
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "UPDATE custom_documents"
+                        " SET content = content || E'\\n\\n' || %s, updated_at = NOW()"
+                        " WHERE document_hash = %s"
+                        " RETURNING content",
+                        (new_content, document_hash),
+                    )
+                    row = cur.fetchone()
+            if row is None:
+                raise ValueError("Custom document not found")
+            return row["content"]
+
+    def delete_custom_document(self, document_hash: str) -> None:
+        with self._lock:
+            conn = self._conn()
+            self._rollback_if_failed(conn)
+            with conn.transaction():
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "DELETE FROM custom_documents WHERE document_hash = %s",
+                        (document_hash,),
+                    )
+        logger.debug("Deleted custom document doc=%s", document_hash[:12])
 
 
 def _ensure_naive(dt: datetime) -> datetime:

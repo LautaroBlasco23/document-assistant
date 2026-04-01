@@ -207,3 +207,25 @@ export interface ChatResponse {
   answer: string
   sources: ChatSourceOut[]
 }
+
+export interface CreateDocumentRequest {
+  title: string
+  content: string
+  description?: string
+  document_type?: string
+}
+
+export interface CreateDocumentResponse {
+  task_id: string
+  file_hash: string
+  title: string
+}
+
+export interface AppendContentRequest {
+  content: string
+}
+
+export interface AppendContentResponse {
+  task_id: string
+  file_hash: string
+}

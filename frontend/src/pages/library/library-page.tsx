@@ -1,5 +1,7 @@
-import { FileUp } from 'lucide-react'
+import * as React from 'react'
+import { FileUp, Plus } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
+import { Button } from '../../components/ui/button'
 import { SkeletonCard } from '../../components/ui/skeleton'
 import { EmptyState } from '../../components/ui/empty-state'
 import { useDocuments } from '../../hooks/use-documents'
@@ -8,12 +10,14 @@ import { useUploadStore } from '../../stores/upload-store'
 import { UploadZone } from './upload-zone'
 import { DocumentCard } from './document-card'
 import { UploadingDocumentCard } from './uploading-document-card'
+import { CreateDocumentDialog } from '../../components/dialogs/create-document-dialog'
 
 export function LibraryPage() {
   const { documents, loading } = useDocuments()
   const removeDocument = useDocumentStore((state) => state.removeDocument)
   const uploads = useUploadStore((state) => state.uploads)
   const dismissUpload = useUploadStore((state) => state.dismissUpload)
+  const [showCreateDialog, setShowCreateDialog] = React.useState(false)
 
   const hasContent = documents.length > 0 || uploads.length > 0
 
@@ -25,10 +29,24 @@ export function LibraryPage() {
         {documents.length > 0 && (
           <Badge variant="neutral">{documents.length}</Badge>
         )}
+        <div className="ml-auto">
+          <Button
+            variant="secondary"
+            onClick={() => setShowCreateDialog(true)}
+          >
+            <Plus className="w-4 h-4 mr-1" />
+            Create Document
+          </Button>
+        </div>
       </div>
 
       {/* Upload zone */}
       <UploadZone />
+
+      <CreateDocumentDialog
+        open={showCreateDialog}
+        onClose={() => setShowCreateDialog(false)}
+      />
 
       {/* Document grid */}
       {loading ? (

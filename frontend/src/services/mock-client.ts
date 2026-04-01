@@ -18,6 +18,9 @@ import type {
   ExamResultOut,
   ChapterExamStatusOut,
   ChatResponse,
+  CreateDocumentRequest,
+  CreateDocumentResponse,
+  AppendContentResponse,
 } from '../types/api'
 import type { ServiceClient } from './client.interface'
 
@@ -235,5 +238,18 @@ export class MockClient implements ServiceClient {
       answer: 'This is a mock answer. In production, the LLM would generate a response based on the document context.',
       sources: [{ page_number: 1, text_preview: 'Mock source text preview...' }],
     }
+  }
+
+  async createDocument(req: CreateDocumentRequest): Promise<CreateDocumentResponse> {
+    await delay(300)
+    const taskId = `mock-task-${Math.random().toString(36).slice(2, 10)}`
+    const fileHash = `mock-hash-${Math.random().toString(36).slice(2, 18)}`
+    return { task_id: taskId, file_hash: fileHash, title: req.title }
+  }
+
+  async appendContent(docHash: string, _content: string): Promise<AppendContentResponse> {
+    await delay(300)
+    const taskId = `mock-task-${Math.random().toString(36).slice(2, 10)}`
+    return { task_id: taskId, file_hash: docHash }
   }
 }

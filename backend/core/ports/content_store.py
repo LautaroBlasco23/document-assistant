@@ -95,3 +95,22 @@ class ContentStore(ABC):
     @abstractmethod
     def reset_exam_progress(self, document_hash: str, chapter_index: int) -> None:
         """Delete all exam results for a chapter (called on flashcard regeneration)."""
+
+    # --- Custom documents ---
+
+    @abstractmethod
+    def save_custom_document(self, document_hash: str, title: str, content: str) -> None:
+        """Persist raw text content for a custom document."""
+
+    @abstractmethod
+    def get_custom_document(self, document_hash: str) -> tuple[str, str] | None:
+        """Get (title, content) for a custom document. Returns None if not found."""
+
+    @abstractmethod
+    def append_custom_document(self, document_hash: str, new_content: str) -> str:
+        """Append text to a custom document. Returns the updated full content.
+        Raises ValueError if document_hash not found."""
+
+    @abstractmethod
+    def delete_custom_document(self, document_hash: str) -> None:
+        """Delete a custom document's raw content."""

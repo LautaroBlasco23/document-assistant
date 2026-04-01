@@ -15,6 +15,9 @@ import type {
   ExamResultOut,
   ChapterExamStatusOut,
   ChatResponse,
+  CreateDocumentRequest,
+  CreateDocumentResponse,
+  AppendContentResponse,
 } from '../types/api'
 
 export interface ServiceClient {
@@ -58,6 +61,8 @@ export interface ServiceClient {
   ): Promise<ChatResponse>
   getDocumentFileUrl(docHash: string): string
   getChapterPdfUrl(docHash: string, chapter: number): string
+  createDocument(req: CreateDocumentRequest): Promise<CreateDocumentResponse>
+  appendContent(docHash: string, content: string): Promise<AppendContentResponse>
 }
 
 export type { ServiceClient as ServiceClientType }

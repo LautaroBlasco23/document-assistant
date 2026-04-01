@@ -103,3 +103,33 @@ class IngestChaptersRequest(BaseModel):
     chapter_indices: list[int] = Field(description="0-based indices of chapters to ingest")
     document_type: str = Field(default="")
     description: str = Field(default="")
+
+
+class CreateDocumentRequest(BaseModel):
+    """Request to create a custom document from pasted text."""
+
+    title: str = Field(..., min_length=1, max_length=200)
+    content: str = Field(..., min_length=1, description="Raw text content")
+    description: str = Field(default="", max_length=500)
+    document_type: str = Field(default="notes")
+
+
+class CreateDocumentResponse(BaseModel):
+    """Response from custom document creation."""
+
+    task_id: str
+    file_hash: str
+    title: str
+
+
+class AppendContentRequest(BaseModel):
+    """Request to append text to an existing custom document."""
+
+    content: str = Field(..., min_length=1, description="New text to append")
+
+
+class AppendContentResponse(BaseModel):
+    """Response from content append."""
+
+    task_id: str
+    file_hash: str
