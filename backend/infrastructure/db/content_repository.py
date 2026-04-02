@@ -348,6 +348,9 @@ class PostgresContentStore(ContentStore):
                     cur.execute(
                         "DELETE FROM custom_documents WHERE document_hash = %s", (document_hash,)
                     )
+                    cur.execute(
+                        "DELETE FROM document_content WHERE file_hash = %s", (document_hash,)
+                    )
         logger.debug("Deleted all content for doc=%s", document_hash[:12])
 
     def delete_summary(self, document_hash: str, chapter_index: int) -> None:
@@ -520,6 +523,36 @@ class PostgresContentStore(ContentStore):
                         (document_hash,),
                     )
         logger.debug("Deleted custom document doc=%s", document_hash[:12])
+
+    # --- Document content ---
+
+    def get_content(self, file_hash: str) -> str | None:
+        conn = self._conn()
+        self._rollback_if_failed(conn)
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT content FROM document_content WHERE file_hash = %s",
+                (file_hash,),
+            )
+            row = cur.fetchone()
+        if row is None:
+            return None
+        return row["content"]
+
+    def save_content(self, file_hash: str, content: str) -> None:
+        with self._lock:
+            conn = self._conn()
+            self._rollback_if_failed(conn)
+            with conn.transaction():
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "INSERT INTO document_content (file_hash, content, updated_at)"
+                        " VALUES (%s, %s, NOW())"
+                        " ON CONFLICT (file_hash)"
+                        " DO UPDATE SET content = EXCLUDED.content, updated_at = NOW()",
+                        (file_hash, content),
+                    )
+        logger.debug("Saved content for doc=%s", file_hash[:12])
 
 
 def _ensure_naive(dt: datetime) -> datetime:

@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { client } from '../services'
-import type { DocumentOut, DocumentStructureOut } from '../types/api'
+import type { DocumentOut, DocumentStructureOut, UpdateContentResponse } from '../types/api'
 
 interface DocumentMetadata {
   description: string
@@ -13,12 +13,17 @@ interface DocumentState {
   loading: boolean
   structureCache: Record<string, DocumentStructureOut>
   metadataCache: Record<string, DocumentMetadata>
+  contentCache: Record<string, string>
   fetchDocuments: () => Promise<void>
   fetchStructure: (hash: string) => Promise<void>
+  setStructureCache: (hash: string, structure: DocumentStructureOut) => void
   removeDocument: (hash: string) => Promise<void>
   removeChapter: (hash: string, chapterNumber: number) => Promise<void>
   fetchMetadata: (hash: string) => Promise<void>
   saveMetadata: (hash: string, description: string, documentType?: string) => Promise<void>
+  fetchContent: (hash: string) => Promise<string | null>
+  updateContent: (hash: string, content: string) => Promise<UpdateContentResponse>
+  clearContent: (hash: string) => void
 }
 
 export const useDocumentStore = create<DocumentState>((set, get) => ({
@@ -26,6 +31,7 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
   loading: false,
   structureCache: {},
   metadataCache: {},
+  contentCache: {},
 
   fetchDocuments: async () => {
     set({ loading: true })
@@ -50,6 +56,12 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
     } catch {
       // fail silently
     }
+  },
+
+  setStructureCache: (hash: string, structure: DocumentStructureOut) => {
+    set((state) => ({
+      structureCache: { ...state.structureCache, [hash]: structure },
+    }))
   },
 
   removeDocument: async (hash: string) => {
@@ -106,5 +118,36 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
     } catch {
       // Keep optimistic update; server sync failed silently
     }
+  },
+
+  fetchContent: async (hash: string) => {
+    const { contentCache } = get()
+    if (contentCache[hash]) return contentCache[hash]
+    try {
+      const resp = await client.getDocumentContent(hash)
+      set((state) => ({
+        contentCache: { ...state.contentCache, [hash]: resp.content },
+      }))
+      return resp.content
+    } catch {
+      return null
+    }
+  },
+
+  updateContent: async (hash: string, content: string) => {
+    const resp = await client.updateDocumentContent(hash, content)
+    // Clear caches on any content update (even if same hash)
+    set((state) => {
+      const { [hash]: _removed, ...rest } = state.contentCache
+      return { contentCache: rest }
+    })
+    return resp
+  },
+
+  clearContent: (hash: string) => {
+    set((state) => {
+      const { [hash]: _removed, ...rest } = state.contentCache
+      return { contentCache: rest }
+    })
   },
 }))

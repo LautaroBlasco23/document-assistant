@@ -229,3 +229,15 @@ export interface AppendContentResponse {
   task_id: string
   file_hash: string
 }
+
+export interface DocumentContentResponse {
+  content: string
+  num_chapters: number
+}
+
+export interface UpdateContentResponse {
+  same: boolean
+  new_hash?: string
+  task_id?: string
+  preserved?: { summaries: number; flashcards: number }
+}

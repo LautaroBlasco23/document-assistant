@@ -47,9 +47,7 @@ class ContentStore(ABC):
         """Hard-delete flashcards by their IDs. Returns count of deleted rows."""
 
     @abstractmethod
-    def approve_all_flashcards(
-        self, document_hash: str, chapter_index: int | None = None
-    ) -> int:
+    def approve_all_flashcards(self, document_hash: str, chapter_index: int | None = None) -> int:
         """Approve all pending flashcards for a document (optionally filtered by chapter).
         Returns count of updated rows."""
 
@@ -114,3 +112,13 @@ class ContentStore(ABC):
     @abstractmethod
     def delete_custom_document(self, document_hash: str) -> None:
         """Delete a custom document's raw content."""
+
+    # --- Document content ---
+
+    @abstractmethod
+    def get_content(self, file_hash: str) -> str | None:
+        """Get the raw text content for a document. Returns None if not stored."""
+
+    @abstractmethod
+    def save_content(self, file_hash: str, content: str) -> None:
+        """Upsert the raw text content for a document."""

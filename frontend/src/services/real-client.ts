@@ -20,6 +20,8 @@ import type {
   CreateDocumentRequest,
   CreateDocumentResponse,
   AppendContentResponse,
+  DocumentContentResponse,
+  UpdateContentResponse,
 } from '../types/api'
 import type { ServiceClient } from './client.interface'
 
@@ -271,6 +273,16 @@ export class RealClient implements ServiceClient {
 
   async appendContent(docHash: string, content: string): Promise<AppendContentResponse> {
     const res = await httpClient.post<AppendContentResponse>(`/documents/${docHash}/append`, { content })
+    return res.data
+  }
+
+  async getDocumentContent(docHash: string): Promise<DocumentContentResponse> {
+    const res = await httpClient.get<DocumentContentResponse>(`/documents/${docHash}/content`)
+    return res.data
+  }
+
+  async updateDocumentContent(docHash: string, content: string): Promise<UpdateContentResponse> {
+    const res = await httpClient.put<UpdateContentResponse>(`/documents/${docHash}/content`, { content })
     return res.data
   }
 }

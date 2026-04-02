@@ -133,3 +133,25 @@ class AppendContentResponse(BaseModel):
 
     task_id: str
     file_hash: str
+
+
+class DocumentContentResponse(BaseModel):
+    """Response containing raw document content."""
+
+    content: str
+    num_chapters: int
+
+
+class UpdateContentRequest(BaseModel):
+    """Request body for updating document content."""
+
+    content: str = Field(..., min_length=1, description="New raw text content")
+
+
+class UpdateContentResponse(BaseModel):
+    """Response from content update endpoint."""
+
+    same: bool
+    new_hash: str | None = None
+    task_id: str | None = None
+    preserved: dict[str, int] | None = None

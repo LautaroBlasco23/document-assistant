@@ -1,4 +1,4 @@
-import { useParams, useSearchParams, Link } from 'react-router-dom'
+import { useParams, useSearchParams, Link, useNavigate } from 'react-router-dom'
 import { ArrowLeft } from 'lucide-react'
 import { useDocuments } from '../../hooks/use-documents'
 import { useDocumentStructure } from '../../hooks/use-document-structure'
@@ -11,6 +11,7 @@ import { ExamTab } from './exam-tab'
 import { ChatTab } from './chat-tab'
 import type { Tab } from '../../types/domain'
 import { useState } from 'react'
+import { useDocumentStore } from '../../stores/document-store'
 
 const VALID_TABS: Tab[] = ['flashcards', 'summary', 'exam', 'chat']
 
@@ -21,9 +22,11 @@ function isValidTab(value: string | null): value is Tab {
 export function DocumentPage() {
   const { hash } = useParams<{ hash: string }>()
   const [searchParams, setSearchParams] = useSearchParams()
+  const navigate = useNavigate()
   const { documents, loading: docsLoading } = useDocuments()
-  const { structure, loading: structureLoading } = useDocumentStructure(hash ?? '')
+  const { structure, loading: structureLoading, refresh: refreshStructure } = useDocumentStructure(hash ?? '')
   const [selectedChapter, setSelectedChapter] = useState<number>(1)
+  const clearContent = useDocumentStore((s) => s.clearContent)
 
   // Get the qdrant_index for the currently selected chapter
   const selectedChapterData = structure?.chapters.find((ch) => ch.number === selectedChapter)
@@ -43,6 +46,16 @@ export function DocumentPage() {
       setSelectedChapter(remaining[0].number)
     } else {
       setSelectedChapter(1)
+    }
+  }
+
+  const handleEditSave = async (newHash?: string) => {
+    if (newHash) {
+      clearContent(hash!)
+      await refreshStructure()
+      navigate(`/documents/${newHash}`, { replace: true })
+    } else {
+      await refreshStructure()
     }
   }
 
@@ -115,6 +128,7 @@ export function DocumentPage() {
       selectedChapter={selectedChapter}
       onChapterChange={setSelectedChapter}
       onChapterRemoved={handleChapterRemoved}
+      onEditSave={handleEditSave}
     >
       {renderTabContent()}
     </DocumentLayout>

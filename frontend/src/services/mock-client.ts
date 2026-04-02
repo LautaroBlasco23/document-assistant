@@ -21,6 +21,8 @@ import type {
   CreateDocumentRequest,
   CreateDocumentResponse,
   AppendContentResponse,
+  DocumentContentResponse,
+  UpdateContentResponse,
 } from '../types/api'
 import type { ServiceClient } from './client.interface'
 
@@ -251,5 +253,24 @@ export class MockClient implements ServiceClient {
     await delay(300)
     const taskId = `mock-task-${Math.random().toString(36).slice(2, 10)}`
     return { task_id: taskId, file_hash: docHash }
+  }
+
+  async getDocumentContent(_docHash: string): Promise<DocumentContentResponse> {
+    await delay(200)
+    return {
+      content: 'Mock document content...\n\n###\n# Chapter 1\n###\n\nThis is the first chapter content.',
+      num_chapters: 3,
+    }
+  }
+
+  async updateDocumentContent(_docHash: string, _content: string): Promise<UpdateContentResponse> {
+    await delay(500)
+    const newHash = `mock-hash-${Math.random().toString(36).slice(2, 18)}`
+    return {
+      same: false,
+      new_hash: newHash,
+      task_id: `mock-task-${Math.random().toString(36).slice(2, 10)}`,
+      preserved: { summaries: 2, flashcards: 15 },
+    }
   }
 }

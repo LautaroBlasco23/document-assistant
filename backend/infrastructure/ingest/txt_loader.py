@@ -4,12 +4,19 @@ from pathlib import Path
 
 from core.model.document import Chapter, Document, Page, Section
 from infrastructure.ingest.normalizer import normalize
-from infrastructure.ingest.pdf_loader import SYNTHETIC_CHAPTER_SIZE, ChapterPreview, _CHAPTER_PATTERNS
+from infrastructure.ingest.pdf_loader import (
+    SYNTHETIC_CHAPTER_SIZE,
+    ChapterPreview,
+    _CHAPTER_PATTERNS,
+)
 
 logger = logging.getLogger(__name__)
 
 _MARKDOWN_H1 = re.compile(r"^#\s+(.+)$", re.MULTILINE)
 _MARKDOWN_H2 = re.compile(r"^#{2,3}\s+(.+)$", re.MULTILINE)
+
+_SEPARATOR_PATTERN = re.compile(r"^#{3,}\s*$", re.MULTILINE)
+_CHAPTER_TITLE = re.compile(r"^#\s+(.+)$", re.MULTILINE)
 
 _SYNTHETIC_WORDS_PER_CHAPTER = 5000
 
@@ -23,9 +30,10 @@ def build_document_from_text(
     """Build a Document from raw text, detecting chapter boundaries.
 
     Detection priority:
-    1. Markdown level-1 headers (# Title)
-    2. Common heading patterns (reused from pdf_loader._CHAPTER_PATTERNS)
-    3. Synthetic fallback (~5000 words per chapter)
+    1. ### separator format (### + # Title + ###)
+    2. Markdown level-1 headers (# Title)
+    3. Common heading patterns (reused from pdf_loader._CHAPTER_PATTERNS)
+    4. Synthetic fallback (~5000 words per chapter)
     """
     if not content.strip():
         return Document(
@@ -37,7 +45,8 @@ def build_document_from_text(
         )
 
     chapters = (
-        _detect_markdown_chapters(content)
+        _detect_separator_chapters(content)
+        or _detect_markdown_chapters(content)
         or _detect_pattern_chapters(content)
         or _synthetic_chapters(content)
     )
@@ -91,7 +100,8 @@ def preview_txt(path: Path, file_hash: str) -> tuple[Document | None, list[Chapt
     title = Path(display_name).stem
 
     chapters = (
-        _detect_markdown_chapters(text)
+        _detect_separator_chapters(text)
+        or _detect_markdown_chapters(text)
         or _detect_pattern_chapters(text)
         or _synthetic_chapters(text)
     )
@@ -154,6 +164,46 @@ def _extract_subsections(text: str) -> list[Section]:
     for m in _MARKDOWN_H2.finditer(text):
         sections.append(Section(title=m.group(1).strip(), page_start=1, page_end=1))
     return sections
+
+
+def _detect_separator_chapters(content: str) -> list[Chapter]:
+    """Split content on ### separator format: ### followed by # Title followed by ###."""
+    matches = list(_SEPARATOR_PATTERN.finditer(content))
+    if len(matches) < 2:
+        return []
+
+    chapters: list[Chapter] = []
+    for i in range(len(matches) - 1):
+        start_pos = matches[i].end()
+        end_pos = matches[i + 1].start()
+
+        chapter_block = content[start_pos:end_pos].strip()
+
+        title_match = _CHAPTER_TITLE.search(chapter_block)
+        if not title_match:
+            continue
+
+        title = title_match.group(1).strip()
+
+        title_end = title_match.end()
+        chapter_text = chapter_block[title_end:].strip()
+
+        normalized = normalize([chapter_text])
+        clean_text = normalized[0] if normalized else chapter_text
+
+        page = Page(number=1, text=clean_text)
+        sections = _extract_subsections(chapter_text)
+
+        chapters.append(
+            Chapter(
+                index=len(chapters),
+                title=title,
+                pages=[page],
+                sections=sections,
+            )
+        )
+
+    return chapters
 
 
 def _detect_pattern_chapters(content: str) -> list[Chapter]:

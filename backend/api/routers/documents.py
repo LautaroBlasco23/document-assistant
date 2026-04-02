@@ -22,12 +22,15 @@ from api.schemas.documents import (
     ChapterPreviewOut,
     CreateDocumentRequest,
     CreateDocumentResponse,
+    DocumentContentResponse,
     DocumentOut,
     DocumentPreviewOut,
     DocumentStructureOut,
     IngestTaskOut,
     MetadataRequest,
     MetadataResponse,
+    UpdateContentRequest,
+    UpdateContentResponse,
 )
 from api.tasks import Task
 from application.delete_document import delete_document as _delete_document
@@ -765,6 +768,7 @@ async def create_document(
         )
 
     services.content_store.save_custom_document(file_hash, req.title, req.content)
+    services.content_store.save_content(file_hash, req.content)
     services.content_store.save_metadata(
         file_hash,
         DocumentMetadata(
@@ -891,9 +895,7 @@ def _append_custom_document(
 
         existing_chunks = services.qdrant.search_by_file(file_hash)
         if existing_chunks:
-            max_index = max(
-                c.metadata.chapter_index for c in existing_chunks if c.metadata
-            )
+            max_index = max(c.metadata.chapter_index for c in existing_chunks if c.metadata)
             base_index = max_index + 1
         else:
             base_index = 0
@@ -945,12 +947,14 @@ def _append_custom_document(
                     ]
                 else:
                     sections_data = []
-                new_chapter_entries.append({
-                    "index": ch.index,
-                    "title": ch.title,
-                    "sections": sections_data,
-                    "stored": True,
-                })
+                new_chapter_entries.append(
+                    {
+                        "index": ch.index,
+                        "title": ch.title,
+                        "sections": sections_data,
+                        "stored": True,
+                    }
+                )
 
             doc_manifest["chapters"] = existing_chapters + new_chapter_entries
             doc_manifest["num_chapters"] = len(doc_manifest["chapters"])
@@ -973,6 +977,169 @@ def _append_custom_document(
             elapsed,
         )
         return f"Appended {len(chunks)} new chunks to document {file_hash[:12]}"
+    except Exception as e:
+        task.progress = f"Error: {str(e)}"
+        raise
+
+
+@router.get("/documents/{file_hash}/content", response_model=DocumentContentResponse)
+async def get_document_content(file_hash: str, services: ServicesDep) -> DocumentContentResponse:
+    """Get the raw text content for a document."""
+    documents = _list_documents()
+    doc_manifest = next((d for d in documents if d["file_hash"] == file_hash), None)
+
+    if not doc_manifest:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    content = services.content_store.get_content(file_hash)
+    if content is None:
+        raise HTTPException(status_code=404, detail="Content not found")
+
+    num_chapters = doc_manifest.get("num_chapters", 0)
+    return DocumentContentResponse(content=content, num_chapters=num_chapters)
+
+
+@router.put("/documents/{file_hash}/content", response_model=UpdateContentResponse)
+async def update_document_content(
+    file_hash: str, req: UpdateContentRequest, services: ServicesDep
+) -> UpdateContentResponse:
+    """Update the raw text content for a document, triggering re-ingestion."""
+    documents = _list_documents()
+    doc_manifest = next((d for d in documents if d["file_hash"] == file_hash), None)
+
+    if not doc_manifest:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    new_hash = hashlib.sha256(req.content.encode("utf-8")).hexdigest()
+
+    if new_hash == file_hash:
+        return UpdateContentResponse(same=True)
+
+    old_summaries = services.content_store.get_summaries(file_hash)
+    old_flashcards = services.content_store.get_flashcards(file_hash)
+
+    preserved_summaries = len(old_summaries)
+    preserved_flashcards = len(old_flashcards)
+
+    if services.qdrant.has_file(new_hash):
+        raise HTTPException(
+            status_code=409,
+            detail="Document with identical content already exists",
+        )
+
+    errors = _delete_document(
+        file_hash, doc_manifest, services.qdrant, services.neo4j, services.content_store, OUTPUT_DIR
+    )
+    if errors:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to delete old document: {'; '.join(errors)}",
+        )
+
+    task_id = services.task_registry.submit(
+        _ingest_updated_document,
+        new_hash,
+        req.content,
+        services,
+        file_hash,
+        len(old_summaries),
+        len(old_flashcards),
+        task_type="ingest",
+        filename=f"{new_hash[:12]}.txt",
+    )
+    logger.info(
+        "Update content submitted: old %s -> new %s -> task %s",
+        file_hash[:12],
+        new_hash[:12],
+        task_id,
+    )
+
+    return UpdateContentResponse(
+        same=False,
+        new_hash=new_hash,
+        task_id=task_id,
+        preserved={"summaries": preserved_summaries, "flashcards": preserved_flashcards},
+    )
+
+
+def _ingest_updated_document(
+    task: Task,
+    file_hash: str,
+    content: str,
+    services: ServicesDep,
+    old_hash: str,
+    old_num_summaries: int,
+    old_num_flashcards: int,
+) -> str:
+    """Background task to ingest an updated document while preserving old summaries/flashcards."""
+    t0 = time.perf_counter()
+    try:
+        task.progress = "Building document structure..."
+        logger.info("Update ingest: building doc for new hash %s", file_hash[:12])
+        title = f"Document {file_hash[:12]}"
+        doc = build_document_from_text(
+            title, content, file_hash, original_filename=f"{file_hash[:12]}.txt"
+        )
+
+        task.progress = "Storing content..."
+        services.content_store.save_content(file_hash, content)
+
+        task.progress = "Chunking..."
+        splitter = ChapterAwareSplitter(
+            max_tokens=services.config.chunking.max_tokens,
+            overlap_tokens=services.config.chunking.overlap_tokens,
+        )
+        chunks = splitter.split(doc)
+        logger.info("Update ingest: %d chunks", len(chunks))
+
+        if not chunks:
+            raise ValueError("No chunks produced from updated document")
+
+        task.progress = f"Embedding {len(chunks)} chunks..."
+        texts = [c.text for c in chunks]
+        vectors = services.embedder.embed(texts)
+
+        if vectors:
+            services.qdrant.ensure_collection(vector_size=len(vectors[0]))
+
+        task.progress = "Upserting to Qdrant..."
+        services.qdrant.upsert(chunks, vectors)
+
+        task.progress = "Extracting entities..."
+        services.neo4j.upsert_document(
+            doc.file_hash, doc.title, doc.source_path, doc.original_filename
+        )
+        for i, chunk in enumerate(chunks):
+            if i % 10 == 0:
+                task.progress = f"Extracting entities... {i}/{len(chunks)}"
+            entities = extract_entities(chunk.text, services.fast_llm)
+            services.neo4j.upsert_entities(entities, chunk)
+
+        task.progress = "Writing manifest..."
+        num_chapters = len(set(c.metadata.chapter_index for c in chunks if c.metadata))
+        write_manifest(
+            doc,
+            chunk_count=len(chunks),
+            collection=services.config.qdrant.collection_name,
+            model=services.config.ollama.embedding_model,
+            output_dir=OUTPUT_DIR,
+            num_chapters=num_chapters,
+        )
+
+        services.content_store.save_metadata(
+            file_hash,
+            DocumentMetadata(description="", document_type="", file_extension="txt"),
+        )
+
+        elapsed = time.perf_counter() - t0
+        task.progress = "Complete"
+        logger.info(
+            "Update ingest complete: new %s, %d chunks in %.1fs",
+            file_hash[:12],
+            len(chunks),
+            elapsed,
+        )
+        return f"Ingested {len(chunks)} chunks for updated document {file_hash[:12]}"
     except Exception as e:
         task.progress = f"Error: {str(e)}"
         raise

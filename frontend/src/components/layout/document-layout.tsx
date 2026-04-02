@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, Trash2, Eye, BookOpen } from 'lucide-react'
+import { ArrowLeft, Trash2, Eye, BookOpen, Pencil } from 'lucide-react'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../ui/tabs'
 import { Badge } from '../ui/badge'
 import { Button } from '../ui/button'
@@ -13,6 +13,8 @@ import { useDocumentStore } from '../../stores/document-store'
 import { useExamStore } from '../../stores/exam-store'
 import { PdfViewer, EpubViewer } from '../document-viewer'
 import { client } from '../../services'
+import { ChapterEditorDialog } from '../dialogs/chapter-editor-dialog'
+import { DocumentEditorDialog } from '../dialogs/document-editor-dialog'
 
 const DESCRIPTION_MAX_LENGTH = 500
 
@@ -26,6 +28,8 @@ export interface DocumentLayoutProps {
   children: React.ReactNode
   className?: string
   onChapterRemoved?: (removedChapterNumber: number) => void
+  onEditSave?: () => void
+  canEdit?: boolean
 }
 
 const TAB_LABELS: Record<Tab, string> = {
@@ -52,6 +56,8 @@ export function DocumentLayout({
   children,
   className,
   onChapterRemoved,
+  onEditSave,
+  canEdit = true,
 }: DocumentLayoutProps) {
   const navigate = useNavigate()
 
@@ -72,6 +78,9 @@ export function DocumentLayout({
 
   const [viewerOpen, setViewerOpen] = useState(false)
   const [viewerMode, setViewerMode] = useState<'full' | 'chapter'>('full')
+
+  const [chapterEditorOpen, setChapterEditorOpen] = useState(false)
+  const [documentEditorOpen, setDocumentEditorOpen] = useState(false)
 
   // Fetch metadata on mount or when document changes
   useEffect(() => {
@@ -132,6 +141,7 @@ export function DocumentLayout({
   const metadata = metadataCache[docHash]
   const fileExtension = metadata?.file_extension || ''
   const canViewFile = fileExtension === 'pdf' || fileExtension === 'epub'
+  const canEditDocument = canEdit && (fileExtension === 'txt' || fileExtension === 'text')
 
   const handleViewFile = () => {
     setViewerMode('full')
@@ -165,6 +175,17 @@ export function DocumentLayout({
             {document.filename}
           </h1>
         </div>
+        {canEditDocument && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setDocumentEditorOpen(true)}
+            aria-label="Edit document"
+            className="shrink-0 text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+          >
+            <Pencil className="h-4 w-4" />
+          </Button>
+        )}
         <Badge variant="neutral" className="shrink-0">
           {chapterCount} {chapterCount === 1 ? 'chapter' : 'chapters'}
         </Badge>
@@ -231,6 +252,17 @@ export function DocumentLayout({
             })}
           </Select>
         </div>
+        {canEditDocument && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setChapterEditorOpen(true)}
+            aria-label="Edit chapter"
+            className="shrink-0 text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+          >
+            <Pencil className="h-4 w-4" />
+          </Button>
+        )}
         {chapters.length > 1 && (
           <Button
             variant="ghost"
@@ -299,6 +331,25 @@ export function DocumentLayout({
           />
         )
       )}
+
+      {/* Chapter editor dialog */}
+      <ChapterEditorDialog
+        open={chapterEditorOpen}
+        onClose={() => setChapterEditorOpen(false)}
+        docHash={docHash}
+        chapterNumber={selectedChapter}
+        totalChapters={chapterCount}
+        onSave={onEditSave}
+      />
+
+      {/* Document editor dialog */}
+      <DocumentEditorDialog
+        open={documentEditorOpen}
+        onClose={() => setDocumentEditorOpen(false)}
+        docHash={docHash}
+        initialTitle={document.filename}
+        onSave={onEditSave}
+      />
     </div>
   )
 }
