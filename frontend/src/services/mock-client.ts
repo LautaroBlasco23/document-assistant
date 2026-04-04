@@ -61,7 +61,7 @@ export class MockClient implements ServiceClient {
     await delay(150)
     return {
       message: `Removed chapter ${chapterNumber}`,
-      vectors_deleted: 42,
+      chunks_deleted: 42,
       summaries_deleted: 1,
       flashcards_deleted: 10,
     }
@@ -117,7 +117,7 @@ export class MockClient implements ServiceClient {
     } else if (count === 1) {
       return { task_id: taskId, status: 'running', progress: 'Chunking document...' }
     } else if (count === 2) {
-      return { task_id: taskId, status: 'running', progress: 'Generating embeddings...' }
+      return { task_id: taskId, status: 'running', progress: 'Storing chunks...' }
     } else {
       return {
         task_id: taskId,
@@ -133,7 +133,7 @@ export class MockClient implements ServiceClient {
     return { tasks: [] }
   }
 
-  async summarizeChapter(_chapter: number, _qdrantIndex: number, _bookTitle: string, _documentHash: string, _force?: boolean): Promise<TaskResponseOut> {
+  async summarizeChapter(_chapter: number, _chapterIndex: number, _bookTitle: string, _documentHash: string, _force?: boolean): Promise<TaskResponseOut> {
     await delay(200)
     return {
       task_id: `sum-task-${Math.random().toString(36).slice(2, 10)}`,
@@ -141,7 +141,7 @@ export class MockClient implements ServiceClient {
     }
   }
 
-  async generateFlashcards(_chapter: number, _qdrantIndex: number, _bookTitle: string, _documentHash: string, _force?: boolean): Promise<TaskResponseOut> {
+  async generateFlashcards(_chapter: number, _chapterIndex: number, _bookTitle: string, _documentHash: string, _force?: boolean): Promise<TaskResponseOut> {
     await delay(200)
     return {
       task_id: `fc-task-${Math.random().toString(36).slice(2, 10)}`,
@@ -149,21 +149,21 @@ export class MockClient implements ServiceClient {
     }
   }
 
-  async getStoredSummary(_docHash: string, _chapter: number, _qdrantIndex?: number): Promise<SummaryResponse | null> {
+  async getStoredSummary(_docHash: string, _chapter: number, _chapterIndex?: number): Promise<SummaryResponse | null> {
     await delay(100)
     return null
   }
 
-  async deleteSummary(_docHash: string, _chapter: number, _qdrantIndex?: number): Promise<void> {
+  async deleteSummary(_docHash: string, _chapter: number, _chapterIndex?: number): Promise<void> {
     await delay(100)
   }
 
-  async getStoredFlashcards(_docHash: string, _chapter: number, _qdrantIndex?: number): Promise<FlashcardResponse[]> {
+  async getStoredFlashcards(_docHash: string, _chapter: number, _chapterIndex?: number): Promise<FlashcardResponse[]> {
     await delay(100)
     return []
   }
 
-  async getPendingFlashcards(_docHash: string, _chapter?: number, _qdrantIndex?: number): Promise<FlashcardResponse[]> {
+  async getPendingFlashcards(_docHash: string, _chapter?: number, _chapterIndex?: number): Promise<FlashcardResponse[]> {
     await delay(100)
     return []
   }
@@ -176,7 +176,7 @@ export class MockClient implements ServiceClient {
     await delay(100)
   }
 
-  async approveAllFlashcards(_docHash: string, _chapter?: number, _qdrantIndex?: number): Promise<void> {
+  async approveAllFlashcards(_docHash: string, _chapter?: number, _chapterIndex?: number): Promise<void> {
     await delay(100)
   }
 

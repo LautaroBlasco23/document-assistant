@@ -19,7 +19,7 @@ export interface SectionOut {
 
 export interface ChapterOut {
   number: number
-  qdrant_index: number
+  chapter_index: number
   title?: string
   num_chunks: number
   sections?: SectionOut[]
@@ -104,18 +104,7 @@ export interface FlashcardResponse {
 export interface OllamaConfig {
   base_url: string
   generation_model: string
-  embedding_model: string
   timeout: number
-}
-
-export interface QdrantConfig {
-  url: string
-  collection_name: string
-}
-
-export interface Neo4jConfig {
-  uri: string
-  user: string
 }
 
 export interface ChunkingConfig {
@@ -125,8 +114,6 @@ export interface ChunkingConfig {
 
 export interface ConfigOut {
   ollama: OllamaConfig
-  qdrant: QdrantConfig
-  neo4j: Neo4jConfig
   chunking: ChunkingConfig
 }
 
@@ -139,7 +126,7 @@ export interface MetadataResponse {
 
 export interface ChapterDeleteResponse {
   message: string
-  vectors_deleted: number
+  chunks_deleted: number
   summaries_deleted: number
   flashcards_deleted: number
 }
