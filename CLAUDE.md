@@ -1,10 +1,10 @@
 # Document Assistant
 
-Local document reader agent with hybrid retrieval (vector + knowledge graph).
+Local document reader agent with direct PostgreSQL text storage.
 
 ## Language
 
-Python — justified exception to the Go preference. The NLP/ML ecosystem (PyMuPDF, ebooklib, embedding models, Ollama client libraries) is Python-native with no viable Go alternatives.
+Python — justified exception to the Go preference. The NLP/ML ecosystem (PyMuPDF, ebooklib, Ollama client libraries) is Python-native with no viable Go alternatives.
 
 ## Architecture
 
@@ -14,18 +14,15 @@ Layered / DDD-inspired:
 backend/        # All Python backend code (pyproject.toml + uv.lock live here)
   core/           # Domain models and port interfaces (no external deps)
     model/        # Document, Chapter, Page, Chunk, Summary, Flashcard, DocumentMetadata
-    ports/        # ABCs: Embedder, LLM, ContentStore
+    ports/        # ABCs: LLM, ContentStore
   application/    # Use cases (orchestration logic)
     agents/       # SummarizerAgent, FlashcardGeneratorAgent
     ingest.py     # Ingestion use case (hash + load + idempotency check)
-    retriever.py  # HybridRetriever (vector + keyword + graph + rerank)
-  infrastructure/ # Adapters: config loader, Ollama client, Qdrant, Neo4j, PostgreSQL
+  infrastructure/ # Adapters: config loader, Ollama client, PostgreSQL
     ingest/       # pdf_loader, epub_loader, normalizer
     chunking/     # ChapterAwareSplitter
-    llm/          # OllamaEmbedder, OllamaLLM, GroqLLM, EmbeddingCache, factory
-    vectorstore/  # QdrantStore
-    graph/        # Neo4jStore, entity_extractor
-    db/           # PostgresPool, ContentRepository, schema + migrations
+    llm/          # OllamaLLM, GroqLLM, factory
+    db/           # PostgresPool, ContentRepository, schema + migrations (incl. document_chunks)
     output/       # markdown_writer, manifest
   api/            # FastAPI backend (wraps application layer, no duplication)
     routers/      # health, documents, chapters, content, config, tasks
@@ -49,21 +46,18 @@ frontend/       # React + TypeScript + Tailwind SPA (Vite, port 5173)
 
 ## Key decisions
 
-- **No LlamaIndex/LangChain** — Direct `requests` to Groq/Ollama + `qdrant-client` + `neo4j` driver. Simpler, fewer deps, more debuggable.
+- **No LlamaIndex/LangChain** — Direct `requests` to Groq/Ollama + `psycopg` for PostgreSQL. Simpler, fewer deps, more debuggable.
 - **Groq as default LLM** — `GroqLLM` via `requests` to Groq's OpenAI-compatible API. Switch to Ollama with `DOCASSIST_LLM_PROVIDER=ollama` or CLI `--provider ollama`.
 - **Groq rate limiter** — `GroqRateLimiter` (sliding window, 25/30 req/min threshold) is a module-level singleton in `groq_llm.py`. Proactively throttles before hitting the free-tier limit; also retries on 429 with exponential backoff.
 - **Fast model for bulk tasks** — `create_fast_llm()` factory selects a smaller model (e.g. `llama-3.1-8b-instant` on Groq, `qwen2.5:3b-instruct` on Ollama) for flashcard/summary generation. Falls back to main model if not configured.
 - **Flashcard quality filter** — `_filter_low_quality` in `FlashcardGeneratorAgent` removes trivial cards post-generation: short fronts/backs, pattern-matched trivial questions (metadata, chapter references), and front/back overlap. No extra LLM call needed.
 - **Word-based flashcard batching** — `_MAX_WORDS_PER_BATCH = 2500` replaces the old fixed `_BATCH_SIZE = 4` chunk count. Matches the summarizer's approach and ensures consistent content density per LLM call.
 - **JSON retry on malformed response** — `BaseAgent._call_json_with_retry` sends a correction prompt once if the LLM returns non-parseable JSON. Helps smaller/free models recover without failing silently.
-- **PostgreSQL for content persistence** — AI-generated summaries, flashcards, and user-provided document metadata stored in PostgreSQL (`summaries`, `flashcards`, `document_metadata` tables). Schema auto-applied on startup; idempotent SQL migrations in `infrastructure/db/migrations/`.
+- **PostgreSQL for all persistence** — Raw chunks stored in `document_chunks` table; AI-generated summaries, flashcards, and metadata in `summaries`, `flashcards`, `document_metadata` tables. Schema auto-applied on startup; idempotent SQL migrations in `infrastructure/db/migrations/`.
 - **Task polling, not SSE** — Background tasks (summarize, flashcards) return a `task_id`; frontend polls `GET /api/tasks/{task_id}` for progress. No streaming endpoints.
-- **No Whoosh** — Qdrant v1.7+ has built-in full-text search for BM25-style keyword search.
-- **No spaCy (deferred)** — LLM-based entity extraction via Ollama with regex fallback. Add spaCy only if extraction quality or speed demands it.
 - **No Tesseract OCR (deferred)** — Most text PDFs/EPUBs won't need it. Add when encountering scanned docs.
 - **uv** for dependency management (not pip+venv).
-- **Idempotent ingestion** — Documents identified by SHA-256 file hash; Qdrant checked before re-processing.
-- **SQLite embedding cache** — `data/.cache/embeddings.db` keyed by SHA-256 of text; avoids re-embedding unchanged chunks.
+- **Idempotent ingestion** — Documents identified by SHA-256 file hash; `document_chunks` table checked before re-processing.
 - **Token counting** — Whitespace split (`len(text.split())`). No tiktoken dependency; upgrade if precision is needed.
 - **FastAPI wraps, not duplicates** — `api/` calls `application/` use cases directly; no logic is reimplemented.
 - **In-memory task registry** — `ThreadPoolExecutor(max_workers=2)` for background ingestion/analysis tasks; no Celery/Redis needed for single-user local use.
@@ -77,7 +71,7 @@ frontend/       # React + TypeScript + Tailwind SPA (Vite, port 5173)
 - Example overrides:
   - `DOCASSIST_GROQ__API_KEY=gsk_...` — Groq API key (required when `llm_provider=groq`)
   - `DOCASSIST_LLM_PROVIDER=ollama` — switch to local Ollama for LLM inference
-  - `DOCASSIST_OLLAMA__BASE_URL=http://other-host:11434` — remote Ollama for embeddings
+  - `DOCASSIST_OLLAMA__BASE_URL=http://other-host:11434` — remote Ollama base URL
   - `DOCASSIST_POSTGRES__HOST=db-host` — remote PostgreSQL host
 
 ## External services
@@ -85,10 +79,8 @@ frontend/       # React + TypeScript + Tailwind SPA (Vite, port 5173)
 | Service    | Default URL | Docker | Role |
 |------------|-------------|--------|------|
 | Groq API   | `https://api.groq.com` | — | LLM inference (default; requires `DOCASSIST_GROQ__API_KEY`) |
-| Ollama     | localhost:11434 | Host-installed | Embeddings (`nomic-embed-text`); optional LLM fallback |
-| Qdrant     | localhost:6333  | `docker-compose.yml` | Vector store |
-| Neo4j      | localhost:7687  | `docker-compose.yml` | Knowledge graph |
-| PostgreSQL | localhost:5432  | `docker-compose.yml` | Content persistence (summaries, flashcards, metadata) |
+| Ollama     | localhost:11434 | Host-installed | Optional local LLM fallback |
+| PostgreSQL | localhost:5432  | `docker-compose.yml` | All persistence: chunks, summaries, flashcards, metadata |
 
 ## Commands
 
@@ -152,7 +144,7 @@ npm run build
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/api/health` | Check Ollama, Qdrant, Neo4j, PostgreSQL |
+| GET | `/api/health` | Check LLM provider and PostgreSQL |
 | GET | `/api/documents` | List all ingested documents |
 | POST | `/api/documents/ingest` | Upload file → `{task_id}` |
 | GET | `/api/documents/{hash}/structure` | List chapters |
