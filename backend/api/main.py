@@ -52,7 +52,7 @@ def _configure_logging() -> None:
     root.addHandler(handler)
 
     # Suppress noisy third-party loggers
-    for name in ("httpcore", "httpx", "urllib3", "neo4j", "qdrant_client"):
+    for name in ("httpcore", "httpx", "urllib3"):
         logging.getLogger(name).setLevel(logging.WARNING)
 
 

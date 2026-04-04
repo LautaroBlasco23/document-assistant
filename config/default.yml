@@ -5,7 +5,6 @@ ollama:
   base_url: "http://localhost:11434"
   generation_model: "qwen2.5:14b-instruct"
   fast_model: "qwen2.5:3b-instruct"  # Smaller model for bulk generation tasks
-  embedding_model: "nomic-embed-text"
   timeout: 300
 
 groq:
@@ -13,7 +12,6 @@ groq:
   base_url: "https://api.groq.com/openai/v1"
   model: "llama-3.3-70b-versatile"
   fast_model: "llama-3.1-8b-instant"
-  embedding_model: "nomic-embed-text-v1.5"
   timeout: 60
   max_retries: 3
 
@@ -33,15 +31,6 @@ huggingface:
   timeout: 120
   max_retries: 3
   wait_for_model: true
-
-qdrant:
-  url: "http://localhost:6333"
-  collection_name: "documents"
-
-neo4j:
-  uri: "bolt://localhost:7687"
-  user: "neo4j"
-  password: "document_assistant_pass"
 
 chunking:
   max_tokens: 512

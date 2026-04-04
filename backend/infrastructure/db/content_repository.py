@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 import psycopg
 from psycopg.pq import TransactionStatus
 
+from core.model.chunk import Chunk, ChunkMetadata
 from core.model.document_metadata import DocumentMetadata
 from core.model.exam import ExamResult
 from core.model.generated_content import Flashcard, Summary
@@ -351,6 +352,9 @@ class PostgresContentStore(ContentStore):
                     cur.execute(
                         "DELETE FROM document_content WHERE file_hash = %s", (document_hash,)
                     )
+                    cur.execute(
+                        "DELETE FROM document_chunks WHERE file_hash = %s", (document_hash,)
+                    )
         logger.debug("Deleted all content for doc=%s", document_hash[:12])
 
     def delete_summary(self, document_hash: str, chapter_index: int) -> None:
@@ -381,6 +385,10 @@ class PostgresContentStore(ContentStore):
                     )
                     cur.execute(
                         "DELETE FROM exam_results WHERE document_hash = %s AND chapter_index = %s",
+                        (document_hash, chapter_index),
+                    )
+                    cur.execute(
+                        "DELETE FROM document_chunks WHERE file_hash = %s AND chapter_index = %s",
                         (document_hash, chapter_index),
                     )
         logger.debug("Deleted chapter %d content for doc=%s", chapter_index, document_hash[:12])
@@ -553,6 +561,149 @@ class PostgresContentStore(ContentStore):
                         (file_hash, content),
                     )
         logger.debug("Saved content for doc=%s", file_hash[:12])
+
+    # --- Chunks ---
+
+    def has_file(self, file_hash: str) -> bool:
+        conn = self._conn()
+        self._rollback_if_failed(conn)
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT 1 FROM document_chunks WHERE file_hash = %s LIMIT 1",
+                (file_hash,),
+            )
+            row = cur.fetchone()
+        return row is not None
+
+    def save_chunks(self, file_hash: str, chunks: list[Chunk]) -> None:
+        if not chunks:
+            return
+        # Track chunk_index per chapter (position within the chapter)
+        chapter_counters: dict[int, int] = {}
+        rows: list[tuple] = []
+        for chunk in chunks:
+            meta = chunk.metadata
+            chapter_index = meta.chapter_index if meta else 0
+            page_number = meta.page_number if meta else None
+            idx = chapter_counters.get(chapter_index, 0)
+            chapter_counters[chapter_index] = idx + 1
+            rows.append((
+                file_hash,
+                chapter_index,
+                idx,
+                chunk.text,
+                page_number,
+                chunk.token_count,
+            ))
+        with self._lock:
+            conn = self._conn()
+            self._rollback_if_failed(conn)
+            with conn.transaction():
+                with conn.cursor() as cur:
+                    cur.executemany(
+                        "INSERT INTO document_chunks"
+                        " (file_hash, chapter_index, chunk_index, text, page_number, token_count)"
+                        " VALUES (%s, %s, %s, %s, %s, %s)"
+                        " ON CONFLICT (file_hash, chapter_index, chunk_index) DO NOTHING",
+                        rows,
+                    )
+        logger.debug("Saved %d chunks for doc=%s", len(rows), file_hash[:12])
+
+    def get_chunks_by_chapter(self, file_hash: str, chapter_index: int) -> list[Chunk]:
+        conn = self._conn()
+        self._rollback_if_failed(conn)
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT chunk_index, text, page_number, token_count"
+                " FROM document_chunks"
+                " WHERE file_hash = %s AND chapter_index = %s"
+                " ORDER BY chunk_index",
+                (file_hash, chapter_index),
+            )
+            rows = cur.fetchall()
+        return [
+            Chunk(
+                text=row["text"],
+                token_count=row["token_count"],
+                metadata=ChunkMetadata(
+                    source_file=file_hash,
+                    chapter_index=chapter_index,
+                    page_number=row["page_number"] or 0,
+                    start_char=0,
+                    end_char=0,
+                ),
+            )
+            for row in rows
+        ]
+
+    def get_chunks_by_file(self, file_hash: str) -> list[Chunk]:
+        conn = self._conn()
+        self._rollback_if_failed(conn)
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT chapter_index, chunk_index, text, page_number, token_count"
+                " FROM document_chunks"
+                " WHERE file_hash = %s"
+                " ORDER BY chapter_index, chunk_index",
+                (file_hash,),
+            )
+            rows = cur.fetchall()
+        return [
+            Chunk(
+                text=row["text"],
+                token_count=row["token_count"],
+                metadata=ChunkMetadata(
+                    source_file=file_hash,
+                    chapter_index=row["chapter_index"],
+                    page_number=row["page_number"] or 0,
+                    start_char=0,
+                    end_char=0,
+                ),
+            )
+            for row in rows
+        ]
+
+    def get_chapter_structure(self, file_hash: str) -> list[tuple[int, int]]:
+        conn = self._conn()
+        self._rollback_if_failed(conn)
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT chapter_index, COUNT(*) AS chunk_count"
+                " FROM document_chunks"
+                " WHERE file_hash = %s"
+                " GROUP BY chapter_index"
+                " ORDER BY chapter_index",
+                (file_hash,),
+            )
+            rows = cur.fetchall()
+        return [(row["chapter_index"], row["chunk_count"]) for row in rows]
+
+    def delete_chunks_by_file(self, file_hash: str) -> None:
+        with self._lock:
+            conn = self._conn()
+            self._rollback_if_failed(conn)
+            with conn.transaction():
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "DELETE FROM document_chunks WHERE file_hash = %s",
+                        (file_hash,),
+                    )
+        logger.debug("Deleted all chunks for doc=%s", file_hash[:12])
+
+    def delete_chunks_by_chapter(self, file_hash: str, chapter_index: int) -> None:
+        with self._lock:
+            conn = self._conn()
+            self._rollback_if_failed(conn)
+            with conn.transaction():
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "DELETE FROM document_chunks"
+                        " WHERE file_hash = %s AND chapter_index = %s",
+                        (file_hash, chapter_index),
+                    )
+        logger.debug(
+            "Deleted chunks for doc=%s chapter=%d", file_hash[:12], chapter_index
+        )
 
 
 def _ensure_naive(dt: datetime) -> datetime:

@@ -5,8 +5,6 @@ import time
 from pathlib import Path
 
 import requests
-from neo4j import GraphDatabase
-from qdrant_client import QdrantClient
 
 from infrastructure.config import PROJECT_ROOT, load_config
 
@@ -26,20 +24,15 @@ def check_ollama(base_url: str) -> bool:
         return False
 
 
-def check_qdrant(url: str) -> bool:
+def check_postgres(config) -> bool:
     try:
-        client = QdrantClient(url=url, timeout=5)
-        client.get_collections()
-        return True
-    except Exception:
-        return False
+        from infrastructure.db.postgres import PostgresPool
 
-
-def check_neo4j(uri: str, user: str, password: str) -> bool:
-    try:
-        driver = GraphDatabase.driver(uri, auth=(user, password))
-        driver.verify_connectivity()
-        driver.close()
+        pool = PostgresPool(config.postgres)
+        pool.connect()
+        with pool.connection().cursor() as cur:
+            cur.execute("SELECT 1")
+        pool.close()
         return True
     except Exception:
         return False
@@ -55,14 +48,19 @@ def run_check() -> int:
     RESET = "\033[0m"
     BOLD = "\033[1m"
 
+    if config.llm_provider == "ollama":
+        llm_url = config.ollama.base_url
+        llm_ok = check_ollama(config.ollama.base_url)
+    else:
+        llm_url = f"groq (key={'set' if config.groq.api_key else 'missing'})"
+        llm_ok = bool(config.groq.api_key)
+
+    postgres_url = f"{config.postgres.host}:{config.postgres.port}"
+    postgres_ok = check_postgres(config)
+
     checks = [
-        ("Ollama", config.ollama.base_url, check_ollama(config.ollama.base_url)),
-        ("Qdrant", config.qdrant.url, check_qdrant(config.qdrant.url)),
-        (
-            "Neo4j",
-            config.neo4j.uri,
-            check_neo4j(config.neo4j.uri, config.neo4j.user, config.neo4j.password),
-        ),
+        ("LLM", llm_url, llm_ok),
+        ("PostgreSQL", postgres_url, postgres_ok),
     ]
 
     # Calculate column widths for alignment
@@ -98,15 +96,12 @@ def run_ingest(path: str, provider: str | None = None) -> int:
 
     from application.ingest import ingest_file
     from infrastructure.chunking.splitter import ChapterAwareSplitter
-    from infrastructure.graph.entity_extractor import extract_entities
-    from infrastructure.graph.neo4j_store import Neo4jStore
+    from infrastructure.db.content_repository import PostgresContentStore
+    from infrastructure.db.postgres import PostgresPool
     from infrastructure.ingest.epub_loader import load_epub
     from infrastructure.ingest.pdf_loader import load_pdf
     from infrastructure.ingest.txt_loader import load_txt
-    from infrastructure.llm.embedding_cache import EmbeddingCache
-    from infrastructure.llm.factory import create_embedder, create_llm
     from infrastructure.output.manifest import write_manifest
-    from infrastructure.vectorstore.qdrant_store import QdrantStore
 
     config = load_config()
     if provider is not None:
@@ -124,11 +119,9 @@ def run_ingest(path: str, provider: str | None = None) -> int:
         print(f"No PDF/EPUB/TXT files found at {path}", file=sys.stderr)
         return 1
 
-    embedder = create_embedder(config, EmbeddingCache())
-    llm = create_llm(config)
-    qdrant = QdrantStore(config.qdrant)
-    neo4j = Neo4jStore(config.neo4j)
-    neo4j.ensure_indexes()
+    pg_pool = PostgresPool(config.postgres)
+    pg_pool.connect()
+    content_store = PostgresContentStore(pg_pool)
 
     splitter = ChapterAwareSplitter(
         max_tokens=config.chunking.max_tokens,
@@ -138,63 +131,49 @@ def run_ingest(path: str, provider: str | None = None) -> int:
     output_dir = PROJECT_ROOT / "data" / "output"
     processed = 0
 
-    for file_path in files:
-        print(f"Ingesting {file_path.name} ...")
-        t0 = time.perf_counter()
+    try:
+        for file_path in files:
+            print(f"Ingesting {file_path.name} ...")
+            t0 = time.perf_counter()
 
-        doc = ingest_file(
-            file_path,
-            loaders={
-                ".pdf": load_pdf,
-                ".epub": functools.partial(load_epub, epub_config=config.epub),
-                ".txt": load_txt,
-            },
-            exists_fn=qdrant.has_file,
-            original_filename=file_path.name,
-        )
-        if doc is None:
-            print("  Skipped (already ingested or unsupported)")
-            continue
+            doc = ingest_file(
+                file_path,
+                loaders={
+                    ".pdf": load_pdf,
+                    ".epub": functools.partial(load_epub, epub_config=config.epub),
+                    ".txt": load_txt,
+                },
+                exists_fn=content_store.has_file,
+                original_filename=file_path.name,
+            )
+            if doc is None:
+                print("  Skipped (already ingested or unsupported)")
+                continue
 
-        # Chunk
-        print("  Chunking ...")
-        chunks = splitter.split(doc)
-        print(f"  {len(chunks)} chunks")
+            # Chunk
+            print("  Chunking ...")
+            chunks = splitter.split(doc)
+            print(f"  {len(chunks)} chunks")
 
-        # Embed
-        print("  Embedding ...")
-        texts = [c.text for c in chunks]
-        vectors = embedder.embed(texts)
+            # Store chunks in PostgreSQL
+            print("  Storing chunks to PostgreSQL ...")
+            content_store.save_chunks(doc.file_hash, chunks)
 
-        # Ensure collection exists
-        if vectors:
-            qdrant.ensure_collection(vector_size=len(vectors[0]))
+            # Write manifest
+            write_manifest(
+                doc,
+                chunk_count=len(chunks),
+                collection="",
+                model="",
+                output_dir=output_dir,
+            )
 
-        # Upsert vectors
-        print("  Upserting to Qdrant ...")
-        qdrant.upsert(chunks, vectors)
+            elapsed = time.perf_counter() - t0
+            print(f"  Done in {elapsed:.1f}s")
+            processed += 1
+    finally:
+        pg_pool.close()
 
-        # Extract entities and store in graph
-        print("  Extracting entities ...")
-        neo4j.upsert_document(doc.file_hash, doc.title, doc.source_path, doc.original_filename)
-        for chunk in chunks:
-            entities = extract_entities(chunk.text, llm)
-            neo4j.upsert_entities(entities, chunk)
-
-        # Write manifest
-        write_manifest(
-            doc,
-            chunk_count=len(chunks),
-            collection=config.qdrant.collection_name,
-            model=config.ollama.embedding_model,
-            output_dir=output_dir,
-        )
-
-        elapsed = time.perf_counter() - t0
-        print(f"  Done in {elapsed:.1f}s")
-        processed += 1
-
-    neo4j.close()
     print(f"\nIngested {processed}/{len(files)} file(s).")
     return 0 if processed > 0 else 1
 
@@ -206,13 +185,10 @@ def run_ingest(path: str, provider: str | None = None) -> int:
 
 def run_summarize(book_title: str, chapter_num: int, provider: str | None = None) -> int:
     from application.agents.summarizer import SummarizerAgent
-    from application.retriever import HybridRetriever
-    from infrastructure.graph.entity_extractor import extract_entities
-    from infrastructure.graph.neo4j_store import Neo4jStore
-    from infrastructure.llm.embedding_cache import EmbeddingCache
-    from infrastructure.llm.factory import create_embedder, create_fast_llm, create_llm
+    from infrastructure.db.content_repository import PostgresContentStore
+    from infrastructure.db.postgres import PostgresPool
+    from infrastructure.llm.factory import create_fast_llm, create_llm
     from infrastructure.output.markdown_writer import write_summary
-    from infrastructure.vectorstore.qdrant_store import QdrantStore
 
     config = load_config()
     if provider is not None:
@@ -220,41 +196,40 @@ def run_summarize(book_title: str, chapter_num: int, provider: str | None = None
 
     chapter_index = chapter_num - 1
 
-    embedder = create_embedder(config, EmbeddingCache())
     llm = create_llm(config)
     fast_llm = create_fast_llm(config, llm)
-    qdrant = QdrantStore(config.qdrant)
-    neo4j = Neo4jStore(config.neo4j)
-    retriever = HybridRetriever(qdrant, neo4j, embedder, llm, extract_entities)
 
-    query = f"chapter {chapter_num} summary"
-    filters = {"chapter": chapter_index, "file_hash": book_title}
-    chunks = retriever.retrieve(query, k=20, filters=filters)
+    pg_pool = PostgresPool(config.postgres)
+    pg_pool.connect()
+    content_store = PostgresContentStore(pg_pool)
 
-    if not chunks:
-        print(f"No chunks found for book '{book_title}' chapter {chapter_num}.", file=sys.stderr)
-        neo4j.close()
-        return 1
+    try:
+        chunks = content_store.get_chunks_by_chapter(book_title, chapter_index)
 
-    # Build a minimal Document for the writer
-    from core.model.document import Chapter, Document
+        if not chunks:
+            print(f"No chunks found for book '{book_title}' chapter {chapter_num}.", file=sys.stderr)
+            return 1
 
-    chapter_obj = Chapter(index=chapter_index, title=f"Chapter {chapter_num}", pages=[])
-    doc = Document(
-        source_path=book_title,
-        title=book_title,
-        file_hash="",
-        chapters=[chapter_obj],
-    )
+        # Build a minimal Document for the writer
+        from core.model.document import Chapter, Document
 
-    agent = SummarizerAgent(fast_llm)
-    summary = agent.summarize(chapter_obj, chunks)
+        chapter_obj = Chapter(index=chapter_index, title=f"Chapter {chapter_num}", pages=[])
+        doc = Document(
+            source_path=book_title,
+            title=book_title,
+            file_hash="",
+            chapters=[chapter_obj],
+        )
 
-    output_dir = PROJECT_ROOT / "data" / "output"
-    out_path = write_summary(doc, chapter_index, summary, chunks, output_dir)
-    print(f"Summary written to {out_path}")
-    neo4j.close()
-    return 0
+        agent = SummarizerAgent(fast_llm)
+        summary = agent.summarize(chapter_obj, chunks)
+
+        output_dir = PROJECT_ROOT / "data" / "output"
+        out_path = write_summary(doc, chapter_index, summary, chunks, output_dir)
+        print(f"Summary written to {out_path}")
+        return 0
+    finally:
+        pg_pool.close()
 
 
 # ---------------------------------------------------------------------------
@@ -265,17 +240,14 @@ def run_summarize(book_title: str, chapter_num: int, provider: str | None = None
 def run_generate_md(book_title: str, chapter_num: int, provider: str | None = None) -> int:
     from application.agents.flashcard_generator import FlashcardGeneratorAgent
     from application.agents.summarizer import SummarizerAgent
-    from application.retriever import HybridRetriever
     from core.model.document import Chapter, Document
-    from infrastructure.graph.entity_extractor import extract_entities
-    from infrastructure.graph.neo4j_store import Neo4jStore
-    from infrastructure.llm.embedding_cache import EmbeddingCache
-    from infrastructure.llm.factory import create_embedder, create_fast_llm, create_llm
+    from infrastructure.db.content_repository import PostgresContentStore
+    from infrastructure.db.postgres import PostgresPool
+    from infrastructure.llm.factory import create_fast_llm, create_llm
     from infrastructure.output.markdown_writer import (
         write_flashcards,
         write_summary,
     )
-    from infrastructure.vectorstore.qdrant_store import QdrantStore
 
     config = load_config()
     if provider is not None:
@@ -283,58 +255,59 @@ def run_generate_md(book_title: str, chapter_num: int, provider: str | None = No
 
     chapter_index = chapter_num - 1
 
-    embedder = create_embedder(config, EmbeddingCache())
     llm = create_llm(config)
     fast_llm = create_fast_llm(config, llm)
-    qdrant = QdrantStore(config.qdrant)
-    neo4j = Neo4jStore(config.neo4j)
-    retriever = HybridRetriever(qdrant, neo4j, embedder, llm, extract_entities)
 
-    chunks = retriever.retrieve(
-        f"chapter {chapter_num}", k=20, filters={"chapter": chapter_index, "file_hash": book_title}
-    )
+    pg_pool = PostgresPool(config.postgres)
+    pg_pool.connect()
+    content_store = PostgresContentStore(pg_pool)
 
-    if not chunks:
-        print(f"No chunks found for chapter {chapter_num}.", file=sys.stderr)
-        neo4j.close()
-        return 1
+    try:
+        chunks = content_store.get_chunks_by_chapter(book_title, chapter_index)
 
-    chapter_obj = Chapter(index=chapter_index, title=f"Chapter {chapter_num}", pages=[])
-    doc = Document(
-        source_path=book_title,
-        title=book_title,
-        file_hash="",
-        chapters=[chapter_obj],
-    )
+        if not chunks:
+            print(f"No chunks found for chapter {chapter_num}.", file=sys.stderr)
+            return 1
 
-    output_dir = PROJECT_ROOT / "data" / "output"
-
-    print("Generating summary ...")
-    summary = SummarizerAgent(fast_llm).summarize(chapter_obj, chunks)
-    p1 = write_summary(doc, chapter_index, summary, chunks, output_dir)
-    print(f"  -> {p1}")
-
-    print("Generating flashcards ...")
-    # Select LLM based on config
-    if config.flashcard_model == "fast" and config.llm_provider == "openrouter":
-        logger.warning(
-            "flashcard_model=fast is not viable for openrouter (model too small); "
-            "falling back to main model"
+        chapter_obj = Chapter(index=chapter_index, title=f"Chapter {chapter_num}", pages=[])
+        doc = Document(
+            source_path=book_title,
+            title=book_title,
+            file_hash="",
+            chapters=[chapter_obj],
         )
-        flashcard_llm = llm
-    elif config.flashcard_model == "fast":
-        flashcard_llm = fast_llm
-    else:
-        flashcard_llm = llm
 
-    # Extract summary text for flashcard context
-    summary_text = f"{summary['description']}\n" + "\n".join(f"- {b}" for b in summary.get("bullets", []))
-    cards = FlashcardGeneratorAgent(flashcard_llm).generate(chunks, chapter_summary=summary_text)
-    p2 = write_flashcards(doc, chapter_index, cards, output_dir)
-    print(f"  -> {p2}")
+        output_dir = PROJECT_ROOT / "data" / "output"
 
-    neo4j.close()
-    return 0
+        print("Generating summary ...")
+        summary = SummarizerAgent(fast_llm).summarize(chapter_obj, chunks)
+        p1 = write_summary(doc, chapter_index, summary, chunks, output_dir)
+        print(f"  -> {p1}")
+
+        print("Generating flashcards ...")
+        # Select LLM based on config
+        if config.flashcard_model == "fast" and config.llm_provider == "openrouter":
+            logger.warning(
+                "flashcard_model=fast is not viable for openrouter (model too small); "
+                "falling back to main model"
+            )
+            flashcard_llm = llm
+        elif config.flashcard_model == "fast":
+            flashcard_llm = fast_llm
+        else:
+            flashcard_llm = llm
+
+        # Extract summary text for flashcard context
+        summary_text = f"{summary['description']}\n" + "\n".join(
+            f"- {b}" for b in summary.get("bullets", [])
+        )
+        cards = FlashcardGeneratorAgent(flashcard_llm).generate(chunks, chapter_summary=summary_text)
+        p2 = write_flashcards(doc, chapter_index, cards, output_dir)
+        print(f"  -> {p2}")
+
+        return 0
+    finally:
+        pg_pool.close()
 
 
 # ---------------------------------------------------------------------------
@@ -348,8 +321,6 @@ def run_prune() -> int:
     from application.delete_document import delete_document
     from infrastructure.db.content_repository import PostgresContentStore
     from infrastructure.db.postgres import PostgresPool
-    from infrastructure.graph.neo4j_store import Neo4jStore
-    from infrastructure.vectorstore.qdrant_store import QdrantStore
 
     config = load_config()
     output_dir = PROJECT_ROOT / "data" / "output"
@@ -375,27 +346,25 @@ def run_prune() -> int:
         print("No documents found in data/output/.")
         return 0
 
-    qdrant = QdrantStore(config.qdrant)
-    orphans = [m for m in manifests if not qdrant.has_file(m["file_hash"])]
-
-    if not orphans:
-        print(f"All {len(manifests)} document(s) have data in Qdrant. Nothing to prune.")
-        return 0
-
-    print(f"Found {len(orphans)} orphaned document(s) (no vectors in Qdrant):")
-    for m in orphans:
-        print(f"  - {m.get('original_filename') or m.get('title')} ({m['file_hash'][:12]})")
-
-    neo4j = Neo4jStore(config.neo4j)
     pg_pool = PostgresPool(config.postgres)
     pg_pool.connect()
     content_store = PostgresContentStore(pg_pool)
 
     try:
+        orphans = [m for m in manifests if not content_store.has_file(m["file_hash"])]
+
+        if not orphans:
+            print(f"All {len(manifests)} document(s) have data in PostgreSQL. Nothing to prune.")
+            return 0
+
+        print(f"Found {len(orphans)} orphaned document(s) (no chunks in PostgreSQL):")
+        for m in orphans:
+            print(f"  - {m.get('original_filename') or m.get('title')} ({m['file_hash'][:12]})")
+
         removed = 0
         for m in orphans:
             file_hash = m["file_hash"]
-            errors = delete_document(file_hash, m, qdrant, neo4j, content_store, output_dir)
+            errors = delete_document(file_hash, m, content_store, output_dir)
             if errors:
                 print(f"  Partial failure for {file_hash[:12]}: {'; '.join(errors)}")
             else:
@@ -405,7 +374,6 @@ def run_prune() -> int:
         print(f"\nPruned {removed}/{len(orphans)} orphaned document(s).")
         return 0 if removed == len(orphans) else 1
     finally:
-        neo4j.close()
         pg_pool.close()
 
 
@@ -460,7 +428,7 @@ def main() -> None:
         help="LLM provider override (default: from config)",
     )
 
-    sub.add_parser("prune", help="Remove documents with no data in Qdrant (orphaned manifests)")
+    sub.add_parser("prune", help="Remove documents with no chunks in PostgreSQL (orphaned manifests)")
 
     args = parser.parse_args()
     _setup_logging(args.log_format)

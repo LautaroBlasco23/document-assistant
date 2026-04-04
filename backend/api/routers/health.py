@@ -19,38 +19,29 @@ async def get_health(services: ServicesDep) -> HealthOut:
     logger.debug("Health check requested")
     statuses: list[ServiceStatus] = []
 
-    # Check embedder (Ollama or Groq depending on provider)
-    if services.config.llm_provider == "groq":
-        if services.config.groq.api_key:
-            statuses.append(ServiceStatus(name="embedder", healthy=True))
-        else:
-            statuses.append(ServiceStatus(name="embedder", healthy=False, error="Groq API key not set"))
-    else:
+    # Check LLM provider connectivity
+    if services.config.llm_provider == "ollama":
         try:
-            resp = requests.get(f"{services.config.ollama.base_url.rstrip('/')}/api/tags", timeout=5)
+            resp = requests.get(
+                f"{services.config.ollama.base_url.rstrip('/')}/api/tags", timeout=3
+            )
             if resp.status_code == 200:
-                statuses.append(ServiceStatus(name="embedder", healthy=True))
+                statuses.append(ServiceStatus(name="llm", healthy=True))
             else:
                 statuses.append(
-                    ServiceStatus(name="embedder", healthy=False, error=f"HTTP {resp.status_code}")
+                    ServiceStatus(name="llm", healthy=False, error=f"HTTP {resp.status_code}")
                 )
         except Exception as e:
-            statuses.append(ServiceStatus(name="embedder", healthy=False, error=str(e)))
-
-    # Check Qdrant (connectivity only — collection may not exist before first ingest)
-    try:
-        services.qdrant.client.get_collections()
-        statuses.append(ServiceStatus(name="qdrant", healthy=True))
-    except Exception as e:
-        statuses.append(ServiceStatus(name="qdrant", healthy=False, error=str(e)))
-
-    # Check Neo4j
-    try:
-        with services.neo4j.driver.session() as session:
-            session.run("RETURN 1")
-        statuses.append(ServiceStatus(name="neo4j", healthy=True))
-    except Exception as e:
-        statuses.append(ServiceStatus(name="neo4j", healthy=False, error=str(e)))
+            statuses.append(ServiceStatus(name="llm", healthy=False, error=str(e)))
+    else:
+        # Groq, OpenRouter, HuggingFace — check that API key is set
+        api_key = services.config.groq.api_key if hasattr(services.config, "groq") else ""
+        if api_key:
+            statuses.append(ServiceStatus(name="llm", healthy=True))
+        else:
+            statuses.append(
+                ServiceStatus(name="llm", healthy=False, error="API key not set")
+            )
 
     # Check PostgreSQL
     try:

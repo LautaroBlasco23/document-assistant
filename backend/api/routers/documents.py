@@ -39,7 +39,6 @@ from core.model.document_metadata import DocumentMetadata
 from infrastructure.chunking.splitter import ChapterAwareSplitter
 from infrastructure.config import PROJECT_ROOT
 from infrastructure.file_persistence import get_persisted_file, persist_file
-from infrastructure.graph.entity_extractor import extract_entities
 from infrastructure.ingest.epub_loader import load_epub, preview_epub
 from infrastructure.ingest.pdf_loader import load_pdf, preview_pdf
 from infrastructure.ingest.txt_loader import build_document_from_text, load_txt, preview_txt
@@ -75,7 +74,7 @@ def _list_documents() -> list[dict]:
 
 
 def _get_document_chapters(file_hash: str, services: ServicesDep) -> list[ChapterOut]:
-    """Get chapter info for a document by querying Qdrant + manifest."""
+    """Get chapter info for a document by querying PostgreSQL + manifest."""
     documents = _list_documents()
     doc_manifest = next((d for d in documents if d["file_hash"] == file_hash), None)
 
@@ -85,29 +84,25 @@ def _get_document_chapters(file_hash: str, services: ServicesDep) -> list[Chapte
             chapters_from_manifest[ch.get("index", 0)] = {
                 "title": ch.get("title", ""),
                 "sections": ch.get("sections", []),
+                "toc_href": ch.get("toc_href", ""),
             }
 
     try:
-        results = services.qdrant.search_by_file(file_hash)
-
-        chapters_data: dict[int, int] = {}
-        for chunk in results:
-            chapter = chunk.metadata.chapter_index if chunk.metadata else 0
-            chapters_data[chapter] = chapters_data.get(chapter, 0) + 1
-
-        sorted_chapters = sorted(chapters_data.items())
+        chapter_structure = services.content_store.get_chapter_structure(file_hash)
         return [
             ChapterOut(
                 number=user_chapter_num,
-                qdrant_index=actual_index,
-                title=chapters_from_manifest.get(actual_index, {}).get(
+                chapter_index=chapter_index,
+                title=chapters_from_manifest.get(chapter_index, {}).get(
                     "title", f"Chapter {user_chapter_num}"
                 ),
-                num_chunks=count,
-                sections=chapters_from_manifest.get(actual_index, {}).get("sections", []),
-                toc_href=chapters_from_manifest.get(actual_index, {}).get("toc_href", ""),
+                num_chunks=chunk_count,
+                sections=chapters_from_manifest.get(chapter_index, {}).get("sections", []),
+                toc_href=chapters_from_manifest.get(chapter_index, {}).get("toc_href", ""),
             )
-            for user_chapter_num, (actual_index, count) in enumerate(sorted_chapters, start=1)
+            for user_chapter_num, (chapter_index, chunk_count) in enumerate(
+                chapter_structure, start=1
+            )
         ]
     except Exception as e:
         logger.warning(f"Failed to get chapters for {file_hash}: {e}")
@@ -248,7 +243,7 @@ def _ingest_selected_chapters(
                 "The uploaded file may have changed."
             )
 
-        if services.qdrant.has_file(file_hash):
+        if services.content_store.has_file(file_hash):
             task.progress = "File already ingested"
             logger.info("Ingest selected: %s already ingested", filename)
             tmp_path.unlink()
@@ -284,28 +279,9 @@ def _ingest_selected_chapters(
         if not chunks:
             raise ValueError("No chunks produced - check chapter indices")
 
-        task.progress = f"Embedding {len(chunks)} chunks..."
-        logger.info("Ingest selected: embedding %d chunks", len(chunks))
-        texts = [c.text for c in chunks]
-        vectors = services.embedder.embed(texts)
-
-        if vectors:
-            services.qdrant.ensure_collection(vector_size=len(vectors[0]))
-
-        task.progress = "Upserting to Qdrant..."
-        logger.info("Ingest selected: upserting %d vectors to Qdrant", len(vectors))
-        services.qdrant.upsert(chunks, vectors)
-
-        task.progress = "Extracting entities..."
-        logger.info("Ingest selected: extracting entities from %d chunks", len(chunks))
-        services.neo4j.upsert_document(
-            doc.file_hash, doc.title, doc.source_path, doc.original_filename
-        )
-        for i, chunk in enumerate(chunks):
-            if i % 10 == 0:
-                task.progress = f"Extracting entities... {i}/{len(chunks)}"
-            entities = extract_entities(chunk.text, services.fast_llm)
-            services.neo4j.upsert_entities(entities, chunk)
+        task.progress = "Storing chunks..."
+        logger.info("Ingest selected: storing %d chunks to PostgreSQL", len(chunks))
+        services.content_store.save_chunks(file_hash, chunks)
 
         task.progress = "Writing manifest..."
         logger.info("Ingest selected: writing manifest")
@@ -313,8 +289,8 @@ def _ingest_selected_chapters(
         write_manifest(
             doc,
             chunk_count=len(chunks),
-            collection=services.config.qdrant.collection_name,
-            model=services.config.ollama.embedding_model,
+            collection="",
+            model="",
             output_dir=OUTPUT_DIR,
             num_chapters=num_stored_chapters,
             stored_chapter_indices=list(chapter_indices),
@@ -505,7 +481,7 @@ def _ingest_background(
         file_hash = _hash_file(tmp_path)
 
         # Check if already ingested
-        if services.qdrant.has_file(file_hash):
+        if services.content_store.has_file(file_hash):
             task.progress = "File already ingested"
             logger.info("Ingest: %s already ingested (hash %s)", filename, file_hash[:12])
             tmp_path.unlink()
@@ -536,32 +512,10 @@ def _ingest_background(
         chunks = splitter.split(doc)
         logger.info("Ingest: %d chunks produced", len(chunks))
 
-        # Embed
-        task.progress = f"Embedding {len(chunks)} chunks..."
-        logger.info("Ingest: embedding %d chunks", len(chunks))
-        texts = [c.text for c in chunks]
-        vectors = services.embedder.embed(texts)
-
-        # Ensure collection
-        if vectors:
-            services.qdrant.ensure_collection(vector_size=len(vectors[0]))
-
-        # Upsert vectors
-        task.progress = "Upserting to Qdrant..."
-        logger.info("Ingest: upserting %d vectors to Qdrant", len(vectors))
-        services.qdrant.upsert(chunks, vectors)
-
-        # Extract entities and store in Neo4j
-        task.progress = "Extracting entities..."
-        logger.info("Ingest: extracting entities from %d chunks", len(chunks))
-        services.neo4j.upsert_document(
-            doc.file_hash, doc.title, doc.source_path, doc.original_filename
-        )
-        for i, chunk in enumerate(chunks):
-            if i % 10 == 0:
-                task.progress = f"Extracting entities... {i}/{len(chunks)}"
-            entities = extract_entities(chunk.text, services.fast_llm)
-            services.neo4j.upsert_entities(entities, chunk)
+        # Store chunks in PostgreSQL
+        task.progress = "Storing chunks..."
+        logger.info("Ingest: storing %d chunks to PostgreSQL", len(chunks))
+        services.content_store.save_chunks(file_hash, chunks)
 
         # Write manifest
         task.progress = "Writing manifest..."
@@ -570,8 +524,8 @@ def _ingest_background(
         write_manifest(
             doc,
             chunk_count=len(chunks),
-            collection=services.config.qdrant.collection_name,
-            model=services.config.ollama.embedding_model,
+            collection="",
+            model="",
             output_dir=OUTPUT_DIR,
             num_chapters=num_chapters,
         )
@@ -641,7 +595,7 @@ async def delete_document(file_hash: str, services: ServicesDep) -> JSONResponse
 
     logger.info("Deleting document %s", file_hash[:12])
     errors = _delete_document(
-        file_hash, doc_manifest, services.qdrant, services.neo4j, services.content_store, OUTPUT_DIR
+        file_hash, doc_manifest, services.content_store, OUTPUT_DIR
     )
 
     if errors:
@@ -715,22 +669,15 @@ async def delete_chapter(
         logger.error("Failed to delete chapter %d from PostgreSQL: %s", chapter_index, e)
         errors.append(f"PostgreSQL: {e}")
 
-    # 2. Qdrant
-    vectors_deleted = 0
+    # 2. document_chunks
+    chunks_deleted = 0
     try:
-        vectors_deleted = services.qdrant.delete_by_chapter(file_hash, chapter_index)
+        services.content_store.delete_chunks_by_chapter(file_hash, chapter_index)
     except Exception as e:
-        logger.error("Failed to delete chapter %d from Qdrant: %s", chapter_index, e)
-        errors.append(f"Qdrant: {e}")
+        logger.error("Failed to delete chapter %d chunks from PostgreSQL: %s", chapter_index, e)
+        errors.append(f"Chunks: {e}")
 
-    # 3. Neo4j
-    try:
-        services.neo4j.delete_chapter(file_hash, chapter_index)
-    except Exception as e:
-        logger.error("Failed to delete chapter %d from Neo4j: %s", chapter_index, e)
-        errors.append(f"Neo4j: {e}")
-
-    # 4. Manifest
+    # 3. Manifest
     try:
         remove_chapter_from_manifest(file_hash, chapter_index, OUTPUT_DIR)
     except Exception as e:
@@ -748,7 +695,7 @@ async def delete_chapter(
 
     return ChapterDeleteResponse(
         message=f"Removed chapter {chapter_number} from document {file_hash[:12]}",
-        vectors_deleted=vectors_deleted,
+        chunks_deleted=chunks_deleted,
         summaries_deleted=summaries_deleted,
         flashcards_deleted=flashcards_deleted,
     )
@@ -761,7 +708,7 @@ async def create_document(
     """Create a custom document from pasted text."""
     file_hash = hashlib.sha256(req.content.encode("utf-8")).hexdigest()
 
-    if services.qdrant.has_file(file_hash):
+    if services.content_store.has_file(file_hash):
         raise HTTPException(
             status_code=409,
             detail="Document with identical content already exists",
@@ -817,33 +764,16 @@ def _ingest_custom_document(
         if not chunks:
             raise ValueError("No chunks produced from custom document")
 
-        task.progress = f"Embedding {len(chunks)} chunks..."
-        texts = [c.text for c in chunks]
-        vectors = services.embedder.embed(texts)
-
-        if vectors:
-            services.qdrant.ensure_collection(vector_size=len(vectors[0]))
-
-        task.progress = "Upserting to Qdrant..."
-        services.qdrant.upsert(chunks, vectors)
-
-        task.progress = "Extracting entities..."
-        services.neo4j.upsert_document(
-            doc.file_hash, doc.title, doc.source_path, doc.original_filename
-        )
-        for i, chunk in enumerate(chunks):
-            if i % 10 == 0:
-                task.progress = f"Extracting entities... {i}/{len(chunks)}"
-            entities = extract_entities(chunk.text, services.fast_llm)
-            services.neo4j.upsert_entities(entities, chunk)
+        task.progress = "Storing chunks..."
+        services.content_store.save_chunks(file_hash, chunks)
 
         task.progress = "Writing manifest..."
         num_chapters = len(set(c.metadata.chapter_index for c in chunks if c.metadata))
         write_manifest(
             doc,
             chunk_count=len(chunks),
-            collection=services.config.qdrant.collection_name,
-            model=services.config.ollama.embedding_model,
+            collection="",
+            model="",
             output_dir=OUTPUT_DIR,
             num_chapters=num_chapters,
         )
@@ -893,7 +823,7 @@ def _append_custom_document(
         task.progress = "Building new chapters..."
         temp_doc = build_document_from_text("append", new_content, file_hash)
 
-        existing_chunks = services.qdrant.search_by_file(file_hash)
+        existing_chunks = services.content_store.get_chunks_by_file(file_hash)
         if existing_chunks:
             max_index = max(c.metadata.chapter_index for c in existing_chunks if c.metadata)
             base_index = max_index + 1
@@ -915,22 +845,8 @@ def _append_custom_document(
             task.progress = "Complete (no new content to index)"
             return "No new chunks produced from appended content"
 
-        task.progress = f"Embedding {len(chunks)} new chunks..."
-        texts = [c.text for c in chunks]
-        vectors = services.embedder.embed(texts)
-
-        if vectors:
-            services.qdrant.ensure_collection(vector_size=len(vectors[0]))
-
-        task.progress = "Upserting to Qdrant..."
-        services.qdrant.upsert(chunks, vectors)
-
-        task.progress = "Extracting entities..."
-        for i, chunk in enumerate(chunks):
-            if i % 10 == 0:
-                task.progress = f"Extracting entities... {i}/{len(chunks)}"
-            entities = extract_entities(chunk.text, services.fast_llm)
-            services.neo4j.upsert_entities(entities, chunk)
+        task.progress = "Storing new chunks..."
+        services.content_store.save_chunks(file_hash, chunks)
 
         task.progress = "Updating manifest..."
         documents = _list_documents()
@@ -1021,14 +937,14 @@ async def update_document_content(
     preserved_summaries = len(old_summaries)
     preserved_flashcards = len(old_flashcards)
 
-    if services.qdrant.has_file(new_hash):
+    if services.content_store.has_file(new_hash):
         raise HTTPException(
             status_code=409,
             detail="Document with identical content already exists",
         )
 
     errors = _delete_document(
-        file_hash, doc_manifest, services.qdrant, services.neo4j, services.content_store, OUTPUT_DIR
+        file_hash, doc_manifest, services.content_store, OUTPUT_DIR
     )
     if errors:
         raise HTTPException(
@@ -1095,33 +1011,16 @@ def _ingest_updated_document(
         if not chunks:
             raise ValueError("No chunks produced from updated document")
 
-        task.progress = f"Embedding {len(chunks)} chunks..."
-        texts = [c.text for c in chunks]
-        vectors = services.embedder.embed(texts)
-
-        if vectors:
-            services.qdrant.ensure_collection(vector_size=len(vectors[0]))
-
-        task.progress = "Upserting to Qdrant..."
-        services.qdrant.upsert(chunks, vectors)
-
-        task.progress = "Extracting entities..."
-        services.neo4j.upsert_document(
-            doc.file_hash, doc.title, doc.source_path, doc.original_filename
-        )
-        for i, chunk in enumerate(chunks):
-            if i % 10 == 0:
-                task.progress = f"Extracting entities... {i}/{len(chunks)}"
-            entities = extract_entities(chunk.text, services.fast_llm)
-            services.neo4j.upsert_entities(entities, chunk)
+        task.progress = "Storing chunks..."
+        services.content_store.save_chunks(file_hash, chunks)
 
         task.progress = "Writing manifest..."
         num_chapters = len(set(c.metadata.chapter_index for c in chunks if c.metadata))
         write_manifest(
             doc,
             chunk_count=len(chunks),
-            collection=services.config.qdrant.collection_name,
-            model=services.config.ollama.embedding_model,
+            collection="",
+            model="",
             output_dir=OUTPUT_DIR,
             num_chapters=num_chapters,
         )

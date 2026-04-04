@@ -15,7 +15,7 @@ class ChapterOut(BaseModel):
     """Chapter metadata."""
 
     number: int  # User-facing sequential number (1, 2, 3...)
-    qdrant_index: int  # Actual chapter_index stored in Qdrant (may have gaps)
+    chapter_index: int  # Actual chapter_index stored in PostgreSQL (may have gaps)
     title: str | None
     num_chunks: int
     sections: list[SectionOut] = []
@@ -74,7 +74,7 @@ class ChapterDeleteResponse(BaseModel):
     """Response from chapter deletion endpoint."""
 
     message: str
-    vectors_deleted: int
+    chunks_deleted: int
     summaries_deleted: int
     flashcards_deleted: int
 

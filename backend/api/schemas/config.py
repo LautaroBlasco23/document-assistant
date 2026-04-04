@@ -9,7 +9,6 @@ class OllamaConfigOut(BaseModel):
     base_url: str
     generation_model: str
     fast_model: str | None = None
-    embedding_model: str
     timeout: int
 
 
@@ -34,21 +33,6 @@ class HuggingFaceConfigOut(BaseModel):
     wait_for_model: bool
 
 
-class QdrantConfigOut(BaseModel):
-    """Qdrant configuration."""
-
-    url: str
-    collection_name: str
-
-
-class Neo4jConfigOut(BaseModel):
-    """Neo4j configuration."""
-
-    uri: str
-    user: str
-    # password not exposed
-
-
 class ChunkingConfigOut(BaseModel):
     """Chunking configuration."""
 
@@ -63,8 +47,6 @@ class ConfigOut(BaseModel):
     ollama: OllamaConfigOut
     openrouter: OpenRouterConfigOut
     huggingface: HuggingFaceConfigOut
-    qdrant: QdrantConfigOut
-    neo4j: Neo4jConfigOut
     chunking: ChunkingConfigOut
 
 
@@ -75,6 +57,4 @@ class ConfigUpdate(BaseModel):
     ollama: OllamaConfigOut | None = None
     openrouter: OpenRouterConfigOut | None = None
     huggingface: HuggingFaceConfigOut | None = None
-    qdrant: QdrantConfigOut | None = None
-    neo4j: Neo4jConfigOut | None = None
     chunking: ChunkingConfigOut | None = None

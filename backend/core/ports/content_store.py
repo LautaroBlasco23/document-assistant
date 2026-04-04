@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 
+from core.model.chunk import Chunk
 from core.model.document_metadata import DocumentMetadata
 from core.model.exam import ExamResult
 from core.model.generated_content import Flashcard, Summary
@@ -122,3 +123,33 @@ class ContentStore(ABC):
     @abstractmethod
     def save_content(self, file_hash: str, content: str) -> None:
         """Upsert the raw text content for a document."""
+
+    # --- Chunks ---
+
+    @abstractmethod
+    def has_file(self, file_hash: str) -> bool:
+        """Return True if any chunks exist for the given file_hash (idempotency check)."""
+
+    @abstractmethod
+    def save_chunks(self, file_hash: str, chunks: list[Chunk]) -> None:
+        """Bulk-insert chunks for a document. chunk_index is the position within the chapter."""
+
+    @abstractmethod
+    def get_chunks_by_chapter(self, file_hash: str, chapter_index: int) -> list[Chunk]:
+        """Return all chunks for a specific chapter, ordered by chunk_index."""
+
+    @abstractmethod
+    def get_chunks_by_file(self, file_hash: str) -> list[Chunk]:
+        """Return all chunks for a document, ordered by chapter_index, chunk_index."""
+
+    @abstractmethod
+    def get_chapter_structure(self, file_hash: str) -> list[tuple[int, int]]:
+        """Return [(chapter_index, chunk_count), ...] sorted by chapter_index."""
+
+    @abstractmethod
+    def delete_chunks_by_file(self, file_hash: str) -> None:
+        """Delete all chunks for a document."""
+
+    @abstractmethod
+    def delete_chunks_by_chapter(self, file_hash: str, chapter_index: int) -> None:
+        """Delete all chunks for a specific chapter."""

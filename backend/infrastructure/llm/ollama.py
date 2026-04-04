@@ -4,14 +4,10 @@ from typing import Generator
 
 import requests
 
-from core.ports.embedder import Embedder
 from core.ports.llm import LLM
 from infrastructure.config import OllamaConfig
-from infrastructure.llm.embedding_cache import EmbeddingCache
 
 logger = logging.getLogger(__name__)
-
-_EMBED_BATCH_SIZE = 32
 
 
 class OllamaClient:
@@ -33,55 +29,6 @@ class OllamaClient:
         resp.raise_for_status()
         data = resp.json()
         return [m["name"] for m in data.get("models", [])]
-
-
-class OllamaEmbedder(Embedder):
-    """Implements the Embedder port using Ollama's /api/embed endpoint."""
-
-    def __init__(self, config: OllamaConfig, cache: EmbeddingCache | None = None):
-        self._base_url = config.base_url.rstrip("/")
-        self.model = config.embedding_model
-        self.timeout = config.timeout
-        self._cache = cache or EmbeddingCache()
-
-    @property
-    def base_url(self) -> str:
-        """Access to base URL."""
-        return self._base_url
-
-    def embed(self, texts: list[str]) -> list[list[float]]:
-        """Embed texts in batches of 32, using cache when available."""
-        results: list[list[float] | None] = [None] * len(texts)
-        uncached_indices: list[int] = []
-
-        for i, text in enumerate(texts):
-            cached = self._cache.get(text)
-            if cached is not None:
-                results[i] = cached
-            else:
-                uncached_indices.append(i)
-
-        # Batch the uncached texts
-        for batch_start in range(0, len(uncached_indices), _EMBED_BATCH_SIZE):
-            batch_idx = uncached_indices[batch_start : batch_start + _EMBED_BATCH_SIZE]
-            batch_texts = [texts[i] for i in batch_idx]
-
-            vectors = self._call_api(batch_texts)
-            for idx, vec in zip(batch_idx, vectors):
-                results[idx] = vec
-                self._cache.set(texts[idx], vec)
-
-        return [v for v in results if v is not None]
-
-    def _call_api(self, texts: list[str]) -> list[list[float]]:
-        resp = requests.post(
-            f"{self.base_url}/api/embed",
-            json={"model": self.model, "input": texts},
-            timeout=self.timeout,
-        )
-        resp.raise_for_status()
-        data = resp.json()
-        return data["embeddings"]
 
 
 class OllamaLLM(LLM):

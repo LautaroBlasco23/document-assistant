@@ -10,7 +10,6 @@ class OllamaConfig(BaseModel):
     base_url: str = "http://localhost:11434"
     generation_model: str = "llama3.2"
     fast_model: str | None = None
-    embedding_model: str = "nomic-embed-text"
     timeout: int = 300
 
 
@@ -19,7 +18,6 @@ class GroqConfig(BaseModel):
     base_url: str = "https://api.groq.com/openai/v1"
     model: str = "mixtral-8x7b-32768"
     fast_model: str | None = None                   # e.g. "llama-3.1-8b-instant"
-    embedding_model: str = "nomic-embed-text-v1.5"
     timeout: int = 60
     max_retries: int = 3                            # for 429 backoff
 
@@ -44,17 +42,6 @@ class HuggingFaceConfig(BaseModel):
     timeout: int = 120                                   # free tier can be slow (model loading)
     max_retries: int = 3
     wait_for_model: bool = True                          # send x-wait-for-model header
-
-
-class QdrantConfig(BaseModel):
-    url: str = "http://localhost:6333"
-    collection_name: str = "documents"
-
-
-class Neo4jConfig(BaseModel):
-    uri: str = "bolt://localhost:7687"
-    user: str = "neo4j"
-    password: str = "document_assistant_pass"
 
 
 class ChunkingConfig(BaseModel):
@@ -87,8 +74,6 @@ class AppConfig(BaseSettings):
     groq: GroqConfig = GroqConfig()
     openrouter: OpenRouterConfig = OpenRouterConfig()
     huggingface: HuggingFaceConfig = HuggingFaceConfig()
-    qdrant: QdrantConfig = QdrantConfig()
-    neo4j: Neo4jConfig = Neo4jConfig()
     chunking: ChunkingConfig = ChunkingConfig()
     postgres: PostgresConfig = PostgresConfig()
     exam: ExamConfig = ExamConfig()
@@ -140,7 +125,6 @@ def save_config(config: AppConfig, config_path: Path | None = None) -> None:
     ollama_data: dict = {
         "base_url": config.ollama.base_url,
         "generation_model": config.ollama.generation_model,
-        "embedding_model": config.ollama.embedding_model,
         "timeout": config.ollama.timeout,
     }
     if config.ollama.fast_model:
@@ -149,7 +133,6 @@ def save_config(config: AppConfig, config_path: Path | None = None) -> None:
     groq_data: dict = {
         "base_url": config.groq.base_url,
         "model": config.groq.model,
-        "embedding_model": config.groq.embedding_model,
         "timeout": config.groq.timeout,
         "max_retries": config.groq.max_retries,
     }
@@ -189,15 +172,6 @@ def save_config(config: AppConfig, config_path: Path | None = None) -> None:
         "groq": groq_data,
         "openrouter": openrouter_data,
         "huggingface": huggingface_data,
-        "qdrant": {
-            "url": config.qdrant.url,
-            "collection_name": config.qdrant.collection_name,
-        },
-        "neo4j": {
-            "uri": config.neo4j.uri,
-            "user": config.neo4j.user,
-            "password": config.neo4j.password,
-        },
         "chunking": {
             "max_tokens": config.chunking.max_tokens,
             "overlap_tokens": config.chunking.overlap_tokens,

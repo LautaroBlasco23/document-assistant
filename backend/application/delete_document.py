@@ -5,9 +5,7 @@ from pathlib import Path
 
 from core.ports.content_store import ContentStore
 from infrastructure.file_persistence import delete_persisted_file
-from infrastructure.graph.neo4j_store import Neo4jStore
 from infrastructure.output.markdown_writer import _safe_name
-from infrastructure.vectorstore.qdrant_store import QdrantStore
 
 logger = logging.getLogger(__name__)
 
@@ -15,8 +13,6 @@ logger = logging.getLogger(__name__)
 def delete_document(
     file_hash: str,
     doc_manifest: dict,
-    qdrant: QdrantStore,
-    neo4j: Neo4jStore,
     content_store: ContentStore,
     output_dir: Path,
 ) -> list[str]:
@@ -31,18 +27,6 @@ def delete_document(
             file_extension = meta.file_extension or None
     except Exception as e:
         logger.warning("Could not fetch metadata for %s before deletion: %s", file_hash, e)
-
-    try:
-        qdrant.delete_by_source_file(file_hash)
-    except Exception as e:
-        logger.error("Failed to delete %s from Qdrant: %s", file_hash, e)
-        errors.append(f"Qdrant: {e}")
-
-    try:
-        neo4j.delete_document(file_hash)
-    except Exception as e:
-        logger.error("Failed to delete %s from Neo4j: %s", file_hash, e)
-        errors.append(f"Neo4j: {e}")
 
     try:
         content_store.delete_by_document(file_hash)

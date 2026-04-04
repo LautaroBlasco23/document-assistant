@@ -10,8 +10,7 @@ class ChatMessageIn(BaseModel):
 
 class ChatRequest(BaseModel):
     document_hash: str
-    chapter: int | None = None       # 1-based; None = whole document
-    qdrant_index: int | None = None  # actual Qdrant chapter index (0-based)
+    chapter: int | None = None  # 1-based; None = whole document
     query: str
     history: list[ChatMessageIn] = []  # previous messages for multi-turn context
 

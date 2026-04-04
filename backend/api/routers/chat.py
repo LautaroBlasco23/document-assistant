@@ -15,28 +15,28 @@ router = APIRouter()
 
 @router.post("/chat", response_model=ChatResponse)
 async def chat(req: ChatRequest, services: ServicesDep) -> ChatResponse:
-    """Answer a question about a document or chapter using RAG.
+    """Answer a question about a document or chapter.
 
-    Retrieves relevant chunks via HybridRetriever, passes them to ChatAgent,
+    Fetches chunks directly from PostgreSQL, passes them to ChatAgent,
     and returns the LLM-generated answer synchronously.
     """
-    # Build Qdrant filters
-    filters: dict = {"file_hash": req.document_hash}
-    if req.qdrant_index is not None:
-        filters["chapter"] = req.qdrant_index
-    elif req.chapter is not None:
-        # Convert 1-based API chapter to 0-based Qdrant index
-        filters["chapter"] = req.chapter - 1
+    # Determine chapter_index (0-based) from 1-based API field
+    chapter_index: int | None = None
+    if req.chapter is not None:
+        chapter_index = req.chapter - 1
 
     logger.info(
-        "Chat request: doc=%s filters=%s query=%r",
+        "Chat request: doc=%s chapter_index=%s query=%r",
         req.document_hash[:12],
-        filters,
+        chapter_index,
         req.query[:80],
     )
 
-    # Retrieve relevant chunks
-    chunks = services.retriever.retrieve(req.query, k=20, filters=filters)
+    # Fetch chunks directly from PostgreSQL
+    if chapter_index is not None:
+        chunks = services.content_store.get_chunks_by_chapter(req.document_hash, chapter_index)
+    else:
+        chunks = services.content_store.get_chunks_by_file(req.document_hash)
 
     if not chunks:
         logger.info("No chunks found for chat request, returning fallback answer")

@@ -10,8 +10,6 @@ def test_load_default_config():
     config = load_config()
     assert isinstance(config, AppConfig)
     assert config.ollama.base_url == "http://localhost:11434"
-    assert config.qdrant.url == "http://localhost:6333"
-    assert config.neo4j.uri == "bolt://localhost:7687"
     assert config.chunking.max_tokens == 512
     assert config.chunking.overlap_tokens == 128
 
@@ -28,7 +26,6 @@ def test_fast_model_from_yaml():
             "base_url": "http://localhost:11434",
             "generation_model": "llama3.2",
             "fast_model": "orca-mini:3b",
-            "embedding_model": "nomic-embed-text",
             "timeout": 120,
         }
     }

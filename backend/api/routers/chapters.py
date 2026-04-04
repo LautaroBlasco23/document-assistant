@@ -52,18 +52,18 @@ def _get_document_title(document_hash: str) -> str:
 def _summarize_background(
     task: Task,
     chapter_num: int,
-    qdrant_index: int,
+    chapter_index: int,
     services: ServicesDep,
     document_hash: str,
     force: bool,
 ) -> str:
     """Background task to summarize a chapter."""
     t0 = time.perf_counter()
-    logger.info("Starting summarize for chapter %d (qdrant_index=%d)", chapter_num, qdrant_index)
+    logger.info("Starting summarize for chapter %d (chapter_index=%d)", chapter_num, chapter_index)
     try:
         # Return cached result if available and not forced
         if not force:
-            cached = services.content_store.get_summary(document_hash, qdrant_index)
+            cached = services.content_store.get_summary(document_hash, chapter_index)
             if cached:
                 _set_progress(task, 100, "Loaded from cache")
                 task.result = {
@@ -81,13 +81,13 @@ def _summarize_background(
         document_type = _metadata.document_type if _metadata else ""
 
         _set_progress(task, 10, f"Retrieving context for chapter {chapter_num}...")
-        chunks = services.qdrant.search_by_chapter(document_hash, qdrant_index)
+        chunks = services.content_store.get_chunks_by_chapter(document_hash, chapter_index)
 
         if not chunks:
             logger.error(
                 "No chunks found: file_hash=%s, chapter_index=%d (1-based chapter=%d)",
                 document_hash,
-                qdrant_index,
+                chapter_index,
                 chapter_num,
             )
             raise ValueError(f"No chunks found for chapter {chapter_num}")
@@ -102,7 +102,7 @@ def _summarize_background(
         )
         _set_progress(task, 25, f"Retrieved {len(chunks)} chunks, generating summary...")
         chapter_title = f"Chapter {chapter_num}"
-        chapter_obj = Chapter(index=qdrant_index, title=chapter_title, pages=[])
+        chapter_obj = Chapter(index=chapter_index, title=chapter_title, pages=[])
 
         def sum_progress(phase: str) -> None:
             if phase == "calling_llm":
@@ -121,13 +121,13 @@ def _summarize_background(
         services.content_store.save_summary(
             Summary(
                 document_hash=document_hash,
-                chapter_index=qdrant_index,
+                chapter_index=chapter_index,
                 content=summary["content"],
                 description=summary["description"],
                 bullets=summary["bullets"],
             )
         )
-        logger.debug("Persisted summary for doc=%s chapter=%d", document_hash[:12], qdrant_index)
+        logger.debug("Persisted summary for doc=%s chapter=%d", document_hash[:12], chapter_index)
 
         _set_progress(task, 95, "Finalizing...")
         task.result = {
@@ -147,18 +147,18 @@ def _summarize_background(
 def _generate_flashcards_background(
     task: Task,
     chapter_num: int,
-    qdrant_index: int,
+    chapter_index: int,
     services: ServicesDep,
     document_hash: str,
     force: bool,
 ) -> list[dict]:
     """Background task to generate flashcards for a chapter."""
     t0 = time.perf_counter()
-    logger.info("Starting flashcards for chapter %d (qdrant_index=%d)", chapter_num, qdrant_index)
+    logger.info("Starting flashcards for chapter %d (chapter_index=%d)", chapter_num, chapter_index)
     try:
         # Return cached result if available and not forced
         if not force:
-            cached = services.content_store.get_flashcards(document_hash, qdrant_index)
+            cached = services.content_store.get_flashcards(document_hash, chapter_index)
             if cached:
                 flashcards = [
                     {
@@ -183,13 +183,13 @@ def _generate_flashcards_background(
         chapter_title = f"Chapter {chapter_num}"
 
         _set_progress(task, 5, f"Retrieving context for chapter {chapter_num}...")
-        chunks = services.qdrant.search_by_chapter(document_hash, qdrant_index)
+        chunks = services.content_store.get_chunks_by_chapter(document_hash, chapter_index)
 
         if not chunks:
             logger.error(
                 "No chunks found: file_hash=%s, chapter_index=%d (1-based chapter=%d)",
                 document_hash,
-                qdrant_index,
+                chapter_index,
                 chapter_num,
             )
             raise ValueError(f"No chunks found for chapter {chapter_num}")
@@ -223,7 +223,7 @@ def _generate_flashcards_background(
             flashcard_llm = services.llm
 
         # Fetch existing chapter summary to give the model context
-        existing_summary = services.content_store.get_summary(document_hash, qdrant_index)
+        existing_summary = services.content_store.get_summary(document_hash, chapter_index)
         chapter_summary_text = ""
         if existing_summary:
             bullets_str = "\n".join(f"- {b}" for b in existing_summary.bullets) if existing_summary.bullets else ""
@@ -233,7 +233,7 @@ def _generate_flashcards_background(
                 "No summary found for doc=%s chapter=%d; "
                 "consider summarizing first for better flashcard quality",
                 document_hash[:12],
-                qdrant_index,
+                chapter_index,
             )
 
         cards = FlashcardGeneratorAgent(flashcard_llm).generate(
@@ -268,7 +268,7 @@ def _generate_flashcards_background(
             flashcard_models.append(
                 Flashcard(
                     document_hash=document_hash,
-                    chapter_index=qdrant_index,
+                    chapter_index=chapter_index,
                     front=card["front"],
                     back=card["back"],
                     source_page=source_page,
@@ -282,10 +282,10 @@ def _generate_flashcards_background(
             "Persisted %d flashcards (pending) for doc=%s chapter=%d",
             len(flashcard_models),
             document_hash[:12],
-            qdrant_index,
+            chapter_index,
         )
-        services.content_store.reset_exam_progress(document_hash, qdrant_index)
-        logger.debug("Reset exam progress for doc=%s chapter=%d", document_hash[:12], qdrant_index)
+        services.content_store.reset_exam_progress(document_hash, chapter_index)
+        logger.debug("Reset exam progress for doc=%s chapter=%d", document_hash[:12], chapter_index)
 
         _set_progress(task, 95, "Finalizing...")
         task.result = {
@@ -317,7 +317,7 @@ async def summarize_chapter(req: ChapterRequest, services: ServicesDep) -> TaskR
     task_id = services.task_registry.submit(
         _summarize_background,
         req.chapter,
-        req.qdrant_index,  # Pass actual Qdrant chapter_index for filtering
+        req.chapter_index,
         services,
         req.document_hash,
         req.force,
@@ -336,7 +336,7 @@ async def generate_flashcards(req: ChapterRequest, services: ServicesDep) -> Tas
     task_id = services.task_registry.submit(
         _generate_flashcards_background,
         req.chapter,
-        req.qdrant_index,  # Pass actual Qdrant chapter_index for filtering
+        req.chapter_index,
         services,
         req.document_hash,
         req.force,

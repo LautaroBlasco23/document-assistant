@@ -151,7 +151,7 @@ def _make_test_client_with_mock_services():
     # Prevent content_store calls from raising
     mock_services.content_store.get_summary.return_value = None
     mock_services.content_store.get_flashcards.return_value = []
-    mock_services.qdrant.delete_by_chapter.return_value = 0
+    mock_services.content_store.delete_chunks_by_chapter.return_value = None
 
     app.dependency_overrides[get_services_dep] = lambda: mock_services
     client = TestClient(app)

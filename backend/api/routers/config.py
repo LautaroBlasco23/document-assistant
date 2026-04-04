@@ -9,10 +9,8 @@ from api.schemas.config import (
     ChunkingConfigOut,
     ConfigOut,
     HuggingFaceConfigOut,
-    Neo4jConfigOut,
     OllamaConfigOut,
     OpenRouterConfigOut,
-    QdrantConfigOut,
 )
 
 logger = logging.getLogger(__name__)
@@ -31,7 +29,6 @@ async def get_config(services: ServicesDep) -> ConfigOut:
             base_url=config.ollama.base_url,
             generation_model=config.ollama.generation_model,
             fast_model=config.ollama.fast_model,
-            embedding_model=config.ollama.embedding_model,
             timeout=config.ollama.timeout,
         ),
         openrouter=OpenRouterConfigOut(
@@ -48,14 +45,6 @@ async def get_config(services: ServicesDep) -> ConfigOut:
             timeout=config.huggingface.timeout,
             max_retries=config.huggingface.max_retries,
             wait_for_model=config.huggingface.wait_for_model,
-        ),
-        qdrant=QdrantConfigOut(
-            url=config.qdrant.url,
-            collection_name=config.qdrant.collection_name,
-        ),
-        neo4j=Neo4jConfigOut(
-            uri=config.neo4j.uri,
-            user=config.neo4j.user,
         ),
         chunking=ChunkingConfigOut(
             max_tokens=config.chunking.max_tokens,

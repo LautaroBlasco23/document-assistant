@@ -15,12 +15,9 @@ from fastapi.testclient import TestClient
 @pytest.fixture
 def mock_services():
     services = MagicMock()
-    services.qdrant.has_file.return_value = False
-    services.qdrant.search_by_file.return_value = []
+    services.content_store.has_file.return_value = False
     services.content_store.get_custom_document.return_value = None
     services.task_registry.submit.return_value = "mock-task-id-1234"
-    services.config.qdrant.collection_name = "test_collection"
-    services.config.ollama.embedding_model = "nomic-embed-text"
     services.config.chunking.max_tokens = 512
     services.config.chunking.overlap_tokens = 128
     return services
@@ -72,7 +69,7 @@ def test_create_document_hash_matches_content(client, mock_services):
 
 
 def test_create_duplicate_returns_409(client, mock_services):
-    mock_services.qdrant.has_file.return_value = True
+    mock_services.content_store.has_file.return_value = True
     payload = {"title": "Duplicate", "content": "Existing content."}
     resp = client.post("/api/documents/create", json=payload)
     assert resp.status_code == 409

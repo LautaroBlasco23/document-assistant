@@ -4,19 +4,13 @@ import logging
 from dataclasses import dataclass
 
 from api.tasks import TaskRegistry
-from application.retriever import HybridRetriever
 from core.ports.content_store import ContentStore
-from core.ports.embedder import Embedder
 from core.ports.llm import LLM
 from infrastructure.config import AppConfig, load_config
 from infrastructure.db.content_repository import PostgresContentStore
 from infrastructure.db.postgres import PostgresPool
 from infrastructure.db.task_repository import TaskRepository
-from infrastructure.graph.entity_extractor import extract_entities
-from infrastructure.graph.neo4j_store import Neo4jStore
-from infrastructure.llm.embedding_cache import EmbeddingCache
-from infrastructure.llm.factory import create_embedder, create_fast_llm, create_llm
-from infrastructure.vectorstore.qdrant_store import QdrantStore
+from infrastructure.llm.factory import create_fast_llm, create_llm
 
 logger = logging.getLogger(__name__)
 
@@ -26,12 +20,8 @@ class Services:
     """Container for all infrastructure and application services."""
 
     config: AppConfig
-    embedder: Embedder
     llm: LLM
     fast_llm: LLM
-    qdrant: QdrantStore
-    neo4j: Neo4jStore
-    retriever: HybridRetriever
     task_registry: TaskRegistry
     content_store: ContentStore
     _pg_pool: PostgresPool
@@ -48,15 +38,9 @@ def init_services(config: AppConfig | None = None) -> Services:
     if config is None:
         config = load_config()
 
-    cache = EmbeddingCache()
-    embedder = create_embedder(config, cache=cache)
-
     llm = create_llm(config)
     fast_llm = create_fast_llm(config, llm)
 
-    qdrant = QdrantStore(config.qdrant)
-    neo4j = Neo4jStore(config.neo4j)
-    retriever = HybridRetriever(qdrant, neo4j, embedder, llm, extract_entities)
     pg_pool = PostgresPool(config.postgres)
     pg_pool.connect()
     content_store = PostgresContentStore(pg_pool)
@@ -66,29 +50,16 @@ def init_services(config: AppConfig | None = None) -> Services:
 
     _services = Services(
         config=config,
-        embedder=embedder,
         llm=llm,
         fast_llm=fast_llm,
-        qdrant=qdrant,
-        neo4j=neo4j,
-        retriever=retriever,
         task_registry=task_registry,
         content_store=content_store,
         _pg_pool=pg_pool,
     )
 
-    if config.llm_provider == "groq":
-        embed_model = config.groq.embedding_model
-    elif config.llm_provider in ("openrouter", "huggingface"):
-        embed_model = config.ollama.embedding_model  # fallback to Ollama
-    else:
-        embed_model = config.ollama.embedding_model
     logger.info(
-        "Config: provider=%s embed=%s qdrant=%s neo4j=%s postgres=%s:%d",
+        "Config: provider=%s postgres=%s:%d",
         config.llm_provider,
-        embed_model,
-        config.qdrant.url,
-        config.neo4j.uri,
         config.postgres.host,
         config.postgres.port,
     )
