@@ -14,34 +14,34 @@ class OllamaConfig(BaseModel):
 
 
 class GroqConfig(BaseModel):
-    api_key: str = ""                               # set via DOCASSIST_GROQ__API_KEY
+    api_key: str = ""  # set via DOCASSIST_GROQ__API_KEY
     base_url: str = "https://api.groq.com/openai/v1"
     model: str = "mixtral-8x7b-32768"
-    fast_model: str | None = None                   # e.g. "llama-3.1-8b-instant"
+    fast_model: str | None = None  # e.g. "llama-3.1-8b-instant"
     timeout: int = 60
-    max_retries: int = 3                            # for 429 backoff
+    max_retries: int = 3  # for 429 backoff
 
 
 class OpenRouterConfig(BaseModel):
-    api_key: str = ""                                    # set via DOCASSIST_OPENROUTER__API_KEY
+    api_key: str = ""  # set via DOCASSIST_OPENROUTER__API_KEY
     base_url: str = "https://openrouter.ai/api/v1"
     model: str = "meta-llama/llama-3.3-70b-instruct:free"
-    fast_model: str | None = None                        # e.g. "google/gemma-2-9b-it:free"
-    timeout: int = 120                                   # some models are slower
+    fast_model: str | None = None  # e.g. "google/gemma-2-9b-it:free"
+    timeout: int = 120  # some models are slower
     max_retries: int = 3
-    requests_per_minute: int = 10                        # proactive rate limiter; reduce for :free models
-    site_url: str = ""                                   # optional HTTP-Referer for OpenRouter rankings
-    site_name: str = ""                                  # optional X-Title for OpenRouter rankings
+    requests_per_minute: int = 10  # proactive rate limiter; reduce for :free models
+    site_url: str = ""  # optional HTTP-Referer for OpenRouter rankings
+    site_name: str = ""  # optional X-Title for OpenRouter rankings
 
 
 class HuggingFaceConfig(BaseModel):
-    api_key: str = ""                                    # set via DOCASSIST_HUGGINGFACE__API_KEY (hf_ token)
+    api_key: str = ""  # set via DOCASSIST_HUGGINGFACE__API_KEY (hf_ token)
     base_url: str = "https://router.huggingface.co/v1"
     model: str = "mistralai/Mistral-7B-Instruct-v0.3"
     fast_model: str | None = None
-    timeout: int = 120                                   # free tier can be slow (model loading)
+    timeout: int = 120  # free tier can be slow (model loading)
     max_retries: int = 3
-    wait_for_model: bool = True                          # send x-wait-for-model header
+    wait_for_model: bool = True  # send x-wait-for-model header
 
 
 class ChunkingConfig(BaseModel):
@@ -65,8 +65,8 @@ class ExamConfig(BaseModel):
 
 
 class EpubConfig(BaseModel):
-    chapter_depth: int = 1          # ToC depth level that defines "chapters" (1 = top-level only)
-    min_chapter_words: int = 100    # Merge items shorter than this into the previous chapter
+    chapter_depth: int = 1  # ToC depth level that defines "chapters" (1 = top-level only)
+    min_chapter_words: int = 100  # Merge items shorter than this into the previous chapter
 
 
 class AppConfig(BaseSettings):
@@ -81,7 +81,11 @@ class AppConfig(BaseSettings):
     llm_provider: str = "groq"  # "ollama" | "groq" | "openrouter" | "huggingface"
     flashcard_model: str = "main"  # "main" | "fast"
 
-    model_config = {"env_prefix": "DOCASSIST_", "env_nested_delimiter": "__"}
+    model_config = {
+        "env_prefix": "DOCASSIST_",
+        "env_nested_delimiter": "__",
+        "extra": "ignore",
+    }
 
 
 PROJECT_ROOT = Path(__file__).parent.parent.parent  # infrastructure → backend → project root
@@ -104,7 +108,7 @@ def load_config(config_path: Path | None = None) -> AppConfig:
     for key, value in os.environ.items():
         if not key.startswith(prefix):
             continue
-        parts = key[len(prefix):].lower().split("__")
+        parts = key[len(prefix) :].lower().split("__")
         node = data
         for part in parts[:-1]:
             if not isinstance(node.get(part), dict):
