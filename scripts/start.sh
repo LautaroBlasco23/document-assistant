@@ -65,8 +65,8 @@ if [ "$ENV_MODE" = "dev" ]; then
         fi
     done
 
-    echo "Starting infrastructure services (Qdrant, Neo4j, PostgreSQL)..."
-    $DOCKER_COMPOSE up -d qdrant neo4j postgres
+    echo "Starting infrastructure services (PostgreSQL)..."
+    $DOCKER_COMPOSE up -d postgres
 
     echo "Installing Python dependencies..."
     cd "$BACKEND_DIR" && uv sync && cd ..
@@ -84,7 +84,7 @@ if [ "$ENV_MODE" = "dev" ]; then
     echo "Starting backend (http://localhost:8000) and frontend (http://localhost:5173) with provider: $CHOSEN_PROVIDER..."
 
     cleanup() {
-        $DOCKER_COMPOSE stop qdrant neo4j postgres
+        $DOCKER_COMPOSE stop postgres
         pkill -f "uvicorn api.main:app" 2>/dev/null || true
         pkill -f "npm run dev" 2>/dev/null || true
     }

@@ -40,8 +40,8 @@ env-check:
 	@bash scripts/setupEnv.sh
 
 infra-deps:
-	@echo "Starting infrastructure services (Qdrant, Neo4j)..."
-	$(DOCKER_COMPOSE) up -d
+	@echo "Starting infrastructure services (PostgreSQL)..."
+	$(DOCKER_COMPOSE) up -d postgres
 	@echo "Installing Python dependencies..."
 	cd $(BACKEND_DIR) && uv sync
 	@echo "Pulling Ollama models..."
