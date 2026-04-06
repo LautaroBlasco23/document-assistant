@@ -72,9 +72,11 @@ export interface ServiceClient {
   // Knowledge Trees
   listKnowledgeTrees(): Promise<KnowledgeTree[]>
   createKnowledgeTree(title: string, description?: string): Promise<KnowledgeTree>
+  updateKnowledgeTree(id: string, title: string, description?: string): Promise<KnowledgeTree>
   deleteKnowledgeTree(id: string): Promise<void>
   getKnowledgeTreeChapters(treeId: string): Promise<KnowledgeChapter[]>
   createKnowledgeChapter(treeId: string, title: string): Promise<KnowledgeChapter>
+  updateKnowledgeChapter(treeId: string, chapterNumber: number, title: string): Promise<KnowledgeChapter>
   deleteKnowledgeChapter(treeId: string, chapterNumber: number): Promise<void>
   listKnowledgeDocuments(treeId: string, chapter?: number | null): Promise<KnowledgeDocument[]>
   createKnowledgeDocument(treeId: string, chapter: number | null, title: string, content: string, isMain?: boolean): Promise<KnowledgeDocument>

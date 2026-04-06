@@ -287,16 +287,110 @@ export class RealClient implements ServiceClient {
     return res.data
   }
 
-  // Knowledge Trees — not yet implemented in backend
-  async listKnowledgeTrees(): Promise<KnowledgeTree[]> { return [] }
-  async createKnowledgeTree(_title: string, _description?: string): Promise<KnowledgeTree> { throw new Error('Not implemented') }
-  async deleteKnowledgeTree(_id: string): Promise<void> { throw new Error('Not implemented') }
-  async getKnowledgeTreeChapters(_treeId: string): Promise<KnowledgeChapter[]> { return [] }
-  async createKnowledgeChapter(_treeId: string, _title: string): Promise<KnowledgeChapter> { throw new Error('Not implemented') }
-  async deleteKnowledgeChapter(_treeId: string, _chapterNumber: number): Promise<void> { throw new Error('Not implemented') }
-  async listKnowledgeDocuments(_treeId: string, _chapter?: number | null): Promise<KnowledgeDocument[]> { return [] }
-  async createKnowledgeDocument(_treeId: string, _chapter: number | null, _title: string, _content: string, _isMain?: boolean): Promise<KnowledgeDocument> { throw new Error('Not implemented') }
-  async updateKnowledgeDocument(_id: string, _title: string, _content: string): Promise<KnowledgeDocument> { throw new Error('Not implemented') }
-  async deleteKnowledgeDocument(_id: string): Promise<void> { throw new Error('Not implemented') }
-  async ingestFileAsKnowledgeDocument(_treeId: string, _chapter: number, _file: File): Promise<KnowledgeDocument> { throw new Error('Not implemented') }
+  // Knowledge Trees
+  async listKnowledgeTrees(): Promise<KnowledgeTree[]> {
+    const res = await httpClient.get<KnowledgeTree[]>('/knowledge-trees')
+    return res.data
+  }
+
+  async createKnowledgeTree(title: string, description?: string): Promise<KnowledgeTree> {
+    const res = await httpClient.post<KnowledgeTree>('/knowledge-trees', { title, description })
+    return res.data
+  }
+
+  async updateKnowledgeTree(id: string, title: string, description?: string): Promise<KnowledgeTree> {
+    const res = await httpClient.put<KnowledgeTree>(`/knowledge-trees/${id}`, { title, description })
+    return res.data
+  }
+
+  async deleteKnowledgeTree(id: string): Promise<void> {
+    await httpClient.delete(`/knowledge-trees/${id}`)
+  }
+
+  async getKnowledgeTreeChapters(treeId: string): Promise<KnowledgeChapter[]> {
+    const res = await httpClient.get<KnowledgeChapter[]>(`/knowledge-trees/${treeId}/chapters`)
+    return res.data
+  }
+
+  async createKnowledgeChapter(treeId: string, title: string): Promise<KnowledgeChapter> {
+    const res = await httpClient.post<KnowledgeChapter>(
+      `/knowledge-trees/${treeId}/chapters`,
+      { title }
+    )
+    return res.data
+  }
+
+  async updateKnowledgeChapter(treeId: string, chapterNumber: number, title: string): Promise<KnowledgeChapter> {
+    const res = await httpClient.put<KnowledgeChapter>(
+      `/knowledge-trees/${treeId}/chapters/${chapterNumber}`,
+      { title }
+    )
+    return res.data
+  }
+
+  async deleteKnowledgeChapter(treeId: string, chapterNumber: number): Promise<void> {
+    await httpClient.delete(`/knowledge-trees/${treeId}/chapters/${chapterNumber}`)
+  }
+
+  async listKnowledgeDocuments(treeId: string, chapter?: number | null): Promise<KnowledgeDocument[]> {
+    const params: Record<string, unknown> = {}
+    if (chapter !== undefined && chapter !== null) {
+      params.chapter_id = chapter
+    }
+    const res = await httpClient.get<KnowledgeDocument[]>(
+      `/knowledge-trees/${treeId}/documents`,
+      { params }
+    )
+    return res.data
+  }
+
+  async createKnowledgeDocument(
+    treeId: string,
+    chapter: number | null,
+    title: string,
+    content: string,
+    isMain = false
+  ): Promise<KnowledgeDocument> {
+    const res = await httpClient.post<KnowledgeDocument>(
+      `/knowledge-trees/${treeId}/documents`,
+      { title, content, chapter_id: chapter !== null ? String(chapter) : null, is_main: isMain }
+    )
+    return res.data
+  }
+
+  async updateKnowledgeDocument(id: string, title: string, content: string): Promise<KnowledgeDocument> {
+    // doc_id is used in the URL; we need the tree_id too but the interface only passes id
+    // Use a dedicated update endpoint by doc_id (tree_id placeholder via _)
+    const res = await httpClient.put<KnowledgeDocument>(
+      `/knowledge-trees/_/documents/${id}`,
+      { title, content }
+    )
+    return res.data
+  }
+
+  async deleteKnowledgeDocument(id: string): Promise<void> {
+    await httpClient.delete(`/knowledge-trees/_/documents/${id}`)
+  }
+
+  async ingestFileAsKnowledgeDocument(treeId: string, chapter: number, file: File): Promise<KnowledgeDocument> {
+    const formData = new FormData()
+    formData.append('file', file)
+    // Ingest returns a task_id; poll until done and return the document
+    const res = await httpClient.post<{ task_id: string; filename: string }>(
+      `/knowledge-trees/${treeId}/chapters/${chapter}/documents/ingest`,
+      formData,
+      { headers: { 'Content-Type': undefined } }
+    )
+    // Return a placeholder document while the task runs in the background
+    return {
+      id: res.data.task_id,
+      tree_id: treeId,
+      chapter: chapter,
+      title: res.data.filename,
+      content: '',
+      is_main: false,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }
+  }
 }

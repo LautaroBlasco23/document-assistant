@@ -317,6 +317,15 @@ export class MockClient implements ServiceClient {
     return tree
   }
 
+  async updateKnowledgeTree(id: string, title: string, description?: string): Promise<KnowledgeTree> {
+    await delay(150)
+    const tree = this.trees.find((t) => t.id === id)
+    if (!tree) throw new Error(`Tree not found: ${id}`)
+    tree.title = title
+    tree.description = description
+    return { ...tree }
+  }
+
   async deleteKnowledgeTree(id: string): Promise<void> {
     await delay(150)
     this.deletedTreeIds.add(id)
@@ -337,6 +346,15 @@ export class MockClient implements ServiceClient {
     const tree = this.trees.find((t) => t.id === treeId)
     if (tree) tree.num_chapters = number
     return chapter
+  }
+
+  async updateKnowledgeChapter(treeId: string, chapterNumber: number, title: string): Promise<KnowledgeChapter> {
+    await delay(150)
+    const chapters = this.chapters.get(treeId) ?? []
+    const chapter = chapters.find((c) => c.number === chapterNumber)
+    if (!chapter) throw new Error(`Chapter not found: ${chapterNumber}`)
+    chapter.title = title
+    return { ...chapter }
   }
 
   async deleteKnowledgeChapter(treeId: string, chapterNumber: number): Promise<void> {

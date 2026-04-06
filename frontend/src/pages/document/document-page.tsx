@@ -28,9 +28,8 @@ export function DocumentPage() {
   const [selectedChapter, setSelectedChapter] = useState<number>(1)
   const clearContent = useDocumentStore((s) => s.clearContent)
 
-  // Get the qdrant_index for the currently selected chapter
   const selectedChapterData = structure?.chapters.find((ch) => ch.number === selectedChapter)
-  const currentQdrantIndex = selectedChapterData?.qdrant_index ?? 0
+  const currentQdrantIndex = selectedChapterData?.chapter_index ?? 0
 
   const rawTab = searchParams.get('tab')
   const activeTab: Tab = isValidTab(rawTab) ? rawTab : 'summary'

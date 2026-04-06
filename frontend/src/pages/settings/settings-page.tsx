@@ -84,49 +84,7 @@ export function SettingsPage() {
             <dl>
               <ConfigEntry label="Base URL" value={config.ollama.base_url} />
               <ConfigEntry label="Model" value={config.ollama.generation_model} />
-              <ConfigEntry label="Embed Model" value={config.ollama.embedding_model} />
               <ConfigEntry label="Timeout (s)" value={config.ollama.timeout} />
-            </dl>
-          ) : (
-            <p className="text-sm text-gray-400">Unable to load configuration</p>
-          )}
-        </Card>
-
-        {/* Qdrant */}
-        <Card
-          title="Qdrant"
-          actions={<ServiceBadge serviceName="qdrant" />}
-        >
-          {loading ? (
-            <div className="flex flex-col gap-2">
-              <SkeletonLine />
-              <SkeletonLine className="w-1/2" />
-            </div>
-          ) : config ? (
-            <dl>
-              <ConfigEntry label="URL" value={config.qdrant.url} />
-              <ConfigEntry label="Collection" value={config.qdrant.collection_name} />
-            </dl>
-          ) : (
-            <p className="text-sm text-gray-400">Unable to load configuration</p>
-          )}
-        </Card>
-
-        {/* Neo4j */}
-        <Card
-          title="Neo4j"
-          actions={<ServiceBadge serviceName="neo4j" />}
-        >
-          {loading ? (
-            <div className="flex flex-col gap-2">
-              <SkeletonLine />
-              <SkeletonLine className="w-1/2" />
-            </div>
-          ) : config ? (
-            <dl>
-              <ConfigEntry label="URI" value={config.neo4j.uri} />
-              <ConfigEntry label="User" value={config.neo4j.user} />
-              <ConfigEntry label="Password" value="••••••••" />
             </dl>
           ) : (
             <p className="text-sm text-gray-400">Unable to load configuration</p>

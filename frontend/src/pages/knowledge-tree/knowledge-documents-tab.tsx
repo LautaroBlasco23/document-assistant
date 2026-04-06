@@ -35,6 +35,7 @@ export function KnowledgeDocumentsTab({
     updateDocument,
     deleteDocument,
     createChapter,
+    updateChapter,
     deleteChapter,
     ingestFileAsDocument,
   } = useKnowledgeTreeStore()
@@ -45,6 +46,7 @@ export function KnowledgeDocumentsTab({
   const [newChapterTitle, setNewChapterTitle] = React.useState('')
   const [showNewChapter, setShowNewChapter] = React.useState(false)
   const [creatingChapter, setCreatingChapter] = React.useState(false)
+  const [editingChapter, setEditingChapter] = React.useState<{ number: number; title: string } | null>(null)
   const fileInputRef = React.useRef<HTMLInputElement>(null)
 
   const key = docKey(treeId, selectedChapter)
@@ -123,6 +125,13 @@ export function KnowledgeDocumentsTab({
     }
   }
 
+  const handleRenameChapter = async (number: number, title: string) => {
+    if (!title.trim()) return
+    await updateChapter(treeId, number, title.trim())
+    setEditingChapter(null)
+    onChaptersRefresh()
+  }
+
   const handleDeleteChapter = async (chapterNumber: number) => {
     const ch = chapters.find((c) => c.number === chapterNumber)
     if (!window.confirm(`Delete chapter "${ch?.title ?? chapterNumber}"? All its documents will be removed.`)) return
@@ -155,25 +164,54 @@ export function KnowledgeDocumentsTab({
 
         {/* Chapters */}
         {chapters.map((ch) => (
-          <div key={ch.number} className="group flex items-center">
-            <button
-              onClick={() => onChapterChange(ch.number)}
-              className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm text-left flex-1 min-w-0 transition-colors ${
-                selectedChapter === ch.number
-                  ? 'bg-blue-50 text-primary font-medium border-l-2 border-primary'
-                  : 'text-gray-600 hover:bg-gray-100'
-              }`}
-            >
-              <FileText className="h-3.5 w-3.5 shrink-0" />
-              <span className="truncate">{ch.title}</span>
-            </button>
-            <button
-              onClick={() => void handleDeleteChapter(ch.number)}
-              className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-red-500 transition-opacity mr-1 rounded"
-              aria-label={`Delete chapter ${ch.title}`}
-            >
-              <Trash2 className="h-3 w-3" />
-            </button>
+          <div key={ch.number} className="group flex flex-col">
+            {editingChapter?.number === ch.number ? (
+              <form
+                onSubmit={(e) => { e.preventDefault(); void handleRenameChapter(ch.number, editingChapter.title) }}
+                className="flex gap-1 px-1 py-1"
+              >
+                <Input
+                  value={editingChapter.title}
+                  onChange={(e) => setEditingChapter({ ...editingChapter, title: e.target.value })}
+                  className="text-xs h-7 flex-1"
+                  autoFocus
+                />
+                <button type="submit" className="p-1 text-green-600 hover:text-green-700 rounded" aria-label="Save">
+                  <Check className="h-3 w-3" />
+                </button>
+                <button type="button" onClick={() => setEditingChapter(null)} className="p-1 text-gray-400 hover:text-gray-600 rounded" aria-label="Cancel">
+                  <X className="h-3 w-3" />
+                </button>
+              </form>
+            ) : (
+              <div className="flex items-center">
+                <button
+                  onClick={() => onChapterChange(ch.number)}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm text-left flex-1 min-w-0 transition-colors ${
+                    selectedChapter === ch.number
+                      ? 'bg-blue-50 text-primary font-medium border-l-2 border-primary'
+                      : 'text-gray-600 hover:bg-gray-100'
+                  }`}
+                >
+                  <FileText className="h-3.5 w-3.5 shrink-0" />
+                  <span className="truncate">{ch.title}</span>
+                </button>
+                <button
+                  onClick={() => setEditingChapter({ number: ch.number, title: ch.title })}
+                  className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-gray-700 transition-opacity rounded"
+                  aria-label={`Rename chapter ${ch.title}`}
+                >
+                  <Pencil className="h-3 w-3" />
+                </button>
+                <button
+                  onClick={() => void handleDeleteChapter(ch.number)}
+                  className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-red-500 transition-opacity mr-1 rounded"
+                  aria-label={`Delete chapter ${ch.title}`}
+                >
+                  <Trash2 className="h-3 w-3" />
+                </button>
+              </div>
+            )}
           </div>
         ))}
 

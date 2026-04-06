@@ -1,12 +1,13 @@
 import * as React from 'react'
 import { useParams, Link, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, TreePine, Layers } from 'lucide-react'
+import { ArrowLeft, TreePine, Layers, Pencil } from 'lucide-react'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../../components/ui/tabs'
 import { Badge } from '../../components/ui/badge'
 import { Button } from '../../components/ui/button'
 import { useKnowledgeTreeStore } from '../../stores/knowledge-tree-store'
 import { KnowledgeDocumentsTab } from './knowledge-documents-tab'
 import { ContentTab } from './content-tab'
+import { EditKnowledgeTreeDialog } from '../library/edit-knowledge-tree-dialog'
 import type { KnowledgeTreeTab } from '../../types/knowledge-tree'
 
 const VALID_TABS: KnowledgeTreeTab[] = ['documents', 'content']
@@ -59,6 +60,8 @@ export function KnowledgeTreePage() {
       setContentChapter(treeChapters[0].number)
     }
   }, [treeChapters, contentChapter])
+
+  const [editOpen, setEditOpen] = React.useState(false)
 
   const handleChaptersRefresh = () => {
     if (treeId) void fetchChapters(treeId)
@@ -122,7 +125,14 @@ export function KnowledgeTreePage() {
           <Layers className="h-3 w-3 mr-1" />
           {tree.num_chapters} {tree.num_chapters === 1 ? 'chapter' : 'chapters'}
         </Badge>
+        <Button variant="ghost" size="sm" onClick={() => setEditOpen(true)} aria-label="Edit tree">
+          <Pencil className="h-4 w-4" />
+        </Button>
       </div>
+
+      {editOpen && (
+        <EditKnowledgeTreeDialog tree={tree} open={editOpen} onClose={() => setEditOpen(false)} />
+      )}
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={(v) => handleTabChange(v as KnowledgeTreeTab)}>

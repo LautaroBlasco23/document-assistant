@@ -1,0 +1,46 @@
+from __future__ import annotations
+
+from typing import Protocol
+from uuid import UUID
+
+from core.model.knowledge_tree import (
+    KnowledgeChapter,
+    KnowledgeChunk,
+    KnowledgeDocument,
+    KnowledgeTree,
+)
+
+
+class KnowledgeTreeStore(Protocol):
+    def list_trees(self) -> list[KnowledgeTree]: ...
+    def create_tree(self, title: str, description: str | None) -> KnowledgeTree: ...
+    def get_tree(self, id: UUID) -> KnowledgeTree | None: ...
+    def delete_tree(self, id: UUID) -> None: ...
+
+
+class KnowledgeChapterStore(Protocol):
+    def list_chapters(self, tree_id: UUID) -> list[KnowledgeChapter]: ...
+    def create_chapter(self, tree_id: UUID, title: str) -> KnowledgeChapter: ...
+    def delete_chapter(self, tree_id: UUID, number: int) -> None: ...
+
+
+class KnowledgeDocumentStore(Protocol):
+    def list_documents(
+        self, tree_id: UUID, chapter_id: UUID | None
+    ) -> list[KnowledgeDocument]: ...
+    def create_document(
+        self,
+        tree_id: UUID,
+        chapter_id: UUID | None,
+        title: str,
+        content: str,
+        is_main: bool,
+    ) -> KnowledgeDocument: ...
+    def get_document(self, id: UUID) -> KnowledgeDocument | None: ...
+    def update_document(self, id: UUID, title: str, content: str) -> KnowledgeDocument: ...
+    def delete_document(self, id: UUID) -> None: ...
+
+
+class KnowledgeContentStore(Protocol):
+    def save_chunks(self, chunks: list[KnowledgeChunk]) -> None: ...
+    def get_chunks(self, tree_id: UUID, chapter_number: int) -> list[KnowledgeChunk]: ...

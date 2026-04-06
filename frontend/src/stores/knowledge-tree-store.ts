@@ -14,10 +14,12 @@ interface KnowledgeTreeState {
 
   fetchTrees: () => Promise<void>
   createTree: (title: string, description?: string) => Promise<KnowledgeTree>
+  updateTree: (id: string, title: string, description?: string) => Promise<KnowledgeTree>
   deleteTree: (id: string) => Promise<void>
 
   fetchChapters: (treeId: string) => Promise<void>
   createChapter: (treeId: string, title: string) => Promise<KnowledgeChapter>
+  updateChapter: (treeId: string, chapterNumber: number, title: string) => Promise<KnowledgeChapter>
   deleteChapter: (treeId: string, chapterNumber: number) => Promise<void>
 
   fetchDocuments: (treeId: string, chapter: number | null) => Promise<void>
@@ -55,6 +57,12 @@ export const useKnowledgeTreeStore = create<KnowledgeTreeState>((set, _get) => (
     return tree
   },
 
+  updateTree: async (id, title, description) => {
+    const tree = await client.updateKnowledgeTree(id, title, description)
+    set((s) => ({ trees: s.trees.map((t) => t.id === id ? tree : t) }))
+    return tree
+  },
+
   deleteTree: async (id) => {
     await client.deleteKnowledgeTree(id)
     set((s) => ({ trees: s.trees.filter((t) => t.id !== id) }))
@@ -75,6 +83,17 @@ export const useKnowledgeTreeStore = create<KnowledgeTreeState>((set, _get) => (
     set((s) => ({
       chapters: { ...s.chapters, [treeId]: [...(s.chapters[treeId] ?? []), chapter] },
       trees: s.trees.map((t) => t.id === treeId ? { ...t, num_chapters: t.num_chapters + 1 } : t),
+    }))
+    return chapter
+  },
+
+  updateChapter: async (treeId, chapterNumber, title) => {
+    const chapter = await client.updateKnowledgeChapter(treeId, chapterNumber, title)
+    set((s) => ({
+      chapters: {
+        ...s.chapters,
+        [treeId]: (s.chapters[treeId] ?? []).map((c) => c.number === chapterNumber ? chapter : c),
+      },
     }))
     return chapter
   },

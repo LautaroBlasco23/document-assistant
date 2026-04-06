@@ -110,7 +110,7 @@ export function DocumentLayout({
   // Build chapter list: use structure if available, else synthesize from count
   const chapters: ChapterOut[] = structure?.chapters ?? Array.from(
     { length: document.num_chapters },
-    (_, i) => ({ number: i + 1, qdrant_index: i, title: undefined, num_chunks: 0, sections: [] }),
+    (_, i) => ({ number: i + 1, chapter_index: i, title: undefined, num_chunks: 0, sections: [] }),
   )
 
   const selectedChapterObj = chapters.find((ch) => ch.number === selectedChapter)
