@@ -26,3 +26,57 @@ export interface KnowledgeDocument {
 }
 
 export type KnowledgeTreeTab = 'documents' | 'content'
+
+// --- Exam question types ---
+
+export interface TrueFalseQuestion {
+  type: 'true-false'
+  id: string
+  statement: string
+  answer: boolean
+  explanation?: string
+}
+
+export interface MultipleChoiceQuestion {
+  type: 'multiple-choice'
+  id: string
+  question: string
+  choices: string[]
+  correctIndex: number
+  explanation?: string
+}
+
+export interface MatchingPair {
+  term: string
+  definition: string
+}
+
+export interface MatchingQuestion {
+  type: 'matching'
+  id: string
+  prompt: string
+  pairs: MatchingPair[]
+}
+
+export interface CheckboxQuestion {
+  type: 'checkbox'
+  id: string
+  question: string
+  choices: string[]
+  correctIndices: number[]
+  explanation?: string
+}
+
+export interface FlashcardQuestion {
+  type: 'flashcard'
+  id: string
+  front: string
+  back: string
+}
+
+export type ExamQuestion =
+  | TrueFalseQuestion
+  | MultipleChoiceQuestion
+  | MatchingQuestion
+  | CheckboxQuestion
+  | FlashcardQuestion
