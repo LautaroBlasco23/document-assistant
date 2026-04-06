@@ -68,7 +68,8 @@ class HuggingFaceLLM(LLM):
     def __init__(self, config: HuggingFaceConfig):
         if not config.api_key:
             raise ValueError(
-                "HuggingFace API key required. Set DOCASSIST_HUGGINGFACE__API_KEY environment variable."
+                "HuggingFace API key required. "
+                "Set DOCASSIST_HUGGINGFACE__API_KEY environment variable."
             )
         if not config.api_key.startswith("hf_"):
             logger.warning(

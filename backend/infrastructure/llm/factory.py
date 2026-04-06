@@ -19,7 +19,8 @@ def create_llm(config: AppConfig) -> LLM:
     elif config.llm_provider == "openrouter":
         if not config.openrouter.api_key:
             raise ValueError(
-                "OpenRouter API key required. Set DOCASSIST_OPENROUTER__API_KEY environment variable."
+                "OpenRouter API key required. "
+                "Set DOCASSIST_OPENROUTER__API_KEY environment variable."
             )
         from infrastructure.llm.openrouter_llm import OpenRouterLLM
         logger.info("Using OpenRouter LLM: model=%s", config.openrouter.model)
@@ -27,7 +28,8 @@ def create_llm(config: AppConfig) -> LLM:
     elif config.llm_provider == "huggingface":
         if not config.huggingface.api_key:
             raise ValueError(
-                "HuggingFace API key required. Set DOCASSIST_HUGGINGFACE__API_KEY environment variable."
+                "HuggingFace API key required. "
+                "Set DOCASSIST_HUGGINGFACE__API_KEY environment variable."
             )
         from infrastructure.llm.huggingface_llm import HuggingFaceLLM
         logger.info("Using HuggingFace LLM: model=%s", config.huggingface.model)
@@ -57,7 +59,9 @@ def create_fast_llm(config: AppConfig, fallback: LLM) -> LLM:
     elif config.llm_provider == "huggingface":
         if config.huggingface.fast_model:
             from infrastructure.llm.huggingface_llm import HuggingFaceLLM
-            fast_cfg = config.huggingface.model_copy(update={"model": config.huggingface.fast_model})
+            fast_cfg = config.huggingface.model_copy(
+                update={"model": config.huggingface.fast_model}
+            )
             logger.info("Using HuggingFace fast LLM: model=%s", fast_cfg.model)
             return HuggingFaceLLM(fast_cfg)
         return fallback

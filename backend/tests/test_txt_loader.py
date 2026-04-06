@@ -3,8 +3,6 @@
 import tempfile
 from pathlib import Path
 
-import pytest
-
 from infrastructure.ingest.txt_loader import (
     build_document_from_text,
     load_txt,

@@ -63,7 +63,8 @@ class OpenRouterLLM(LLM):
     def __init__(self, config: OpenRouterConfig):
         if not config.api_key:
             raise ValueError(
-                "OpenRouter API key required. Set DOCASSIST_OPENROUTER__API_KEY environment variable."
+                "OpenRouter API key required. "
+                "Set DOCASSIST_OPENROUTER__API_KEY environment variable."
             )
         self._base_url = config.base_url.rstrip("/")
         self._model = config.model

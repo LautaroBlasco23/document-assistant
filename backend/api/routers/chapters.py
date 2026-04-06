@@ -211,7 +211,11 @@ def _generate_flashcards_background(
             )
 
         # Select LLM for flashcard generation based on config
-        if services.config.flashcard_model == "fast" and services.config.llm_provider == "openrouter":
+        is_fast_openrouter = (
+            services.config.flashcard_model == "fast"
+            and services.config.llm_provider == "openrouter"
+        )
+        if is_fast_openrouter:
             logger.warning(
                 "flashcard_model=fast is not viable for openrouter (model too small); "
                 "falling back to main model"
@@ -226,7 +230,11 @@ def _generate_flashcards_background(
         existing_summary = services.content_store.get_summary(document_hash, chapter_index)
         chapter_summary_text = ""
         if existing_summary:
-            bullets_str = "\n".join(f"- {b}" for b in existing_summary.bullets) if existing_summary.bullets else ""
+            bullets_str = (
+                "\n".join(f"- {b}" for b in existing_summary.bullets)
+                if existing_summary.bullets
+                else ""
+            )
             chapter_summary_text = f"{existing_summary.description}\n{bullets_str}".strip()
         else:
             logger.debug(

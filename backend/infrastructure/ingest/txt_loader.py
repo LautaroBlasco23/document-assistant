@@ -5,9 +5,8 @@ from pathlib import Path
 from core.model.document import Chapter, Document, Page, Section
 from infrastructure.ingest.normalizer import normalize
 from infrastructure.ingest.pdf_loader import (
-    SYNTHETIC_CHAPTER_SIZE,
-    ChapterPreview,
     _CHAPTER_PATTERNS,
+    ChapterPreview,
 )
 
 logger = logging.getLogger(__name__)

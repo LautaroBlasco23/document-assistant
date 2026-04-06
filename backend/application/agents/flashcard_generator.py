@@ -293,10 +293,14 @@ class FlashcardGeneratorAgent(BaseAgent):
                 continue
 
             # Skip cards where back adds minimal new information over the front
-            front_words = set(front.split()) - {"what", "is", "the", "a", "an", "how", "why", "does", "do"}
+            front_words = set(front.split()) - {
+                "what", "is", "the", "a", "an", "how", "why", "does", "do"
+            }
             back_words_set = set(back.lower().split())
             if front_words and len(front_words) <= 4:
-                new_words = back_words_set - front_words - {"is", "a", "an", "the", "that", "which", "are", "was"}
+                new_words = back_words_set - front_words - {
+                    "is", "a", "an", "the", "that", "which", "are", "was"
+                }
                 if len(new_words) < 3:
                     logger.debug("Filtered card (back restates front): %s", front[:80])
                     continue

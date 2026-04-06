@@ -6,10 +6,11 @@ They do not call any LLM -- they only inspect the string constants.
 from application.agents.flashcard_generator import _SYSTEM as _FC_SYSTEM
 from application.agents.summarizer import (
     _SYSTEM as _SUM_SYSTEM,
+)
+from application.agents.summarizer import (
     _SYSTEM_COMBINE,
     _SYSTEM_PARTIAL,
 )
-
 
 # ---------------------------------------------------------------------------
 # Flashcard prompt checks

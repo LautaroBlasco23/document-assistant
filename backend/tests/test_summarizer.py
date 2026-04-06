@@ -2,12 +2,9 @@
 import json
 from unittest.mock import MagicMock
 
-import pytest
-
-from application.agents.summarizer import SummarizerAgent, _batch_chunks, _MAX_WORDS_PER_CALL
+from application.agents.summarizer import SummarizerAgent, _batch_chunks
 from core.model.chunk import Chunk, ChunkMetadata
 from core.model.document import Chapter
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -62,7 +59,10 @@ def test_parse_valid_json_summary():
 
 def test_parse_double_encoded_json():
     """Summarizer should handle double-stringified JSON responses."""
-    inner = {"description": "The chapter covers neural plasticity.", "bullets": ["Plasticity allows rewiring."]}
+    inner = {
+        "description": "The chapter covers neural plasticity.",
+        "bullets": ["Plasticity allows rewiring."],
+    }
     response = json.dumps(json.dumps(inner))  # double-encoded
     agent = _make_agent(response)
     result = agent.summarize(_make_chapter(), [_make_chunk("some text " * 100)])

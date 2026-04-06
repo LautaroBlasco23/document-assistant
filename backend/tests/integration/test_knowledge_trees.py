@@ -5,19 +5,19 @@ Requires a running PostgreSQL instance (docker compose up -d).
 Run with:  uv run pytest -m integration
 """
 
-import pytest
-
-from infrastructure.config import PostgresConfig
-from infrastructure.db.postgres import PostgresPool
-from infrastructure.db.knowledge_tree_repository import (
-    PostgresKnowledgeTreeStore,
-    PostgresKnowledgeChapterStore,
-    PostgresKnowledgeDocumentStore,
-    PostgresKnowledgeContentStore,
-)
-from core.model.knowledge_tree import KnowledgeChunk
 from uuid import uuid4
 
+import pytest
+
+from core.model.knowledge_tree import KnowledgeChunk
+from infrastructure.config import PostgresConfig
+from infrastructure.db.knowledge_tree_repository import (
+    PostgresKnowledgeChapterStore,
+    PostgresKnowledgeContentStore,
+    PostgresKnowledgeDocumentStore,
+    PostgresKnowledgeTreeStore,
+)
+from infrastructure.db.postgres import PostgresPool
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -258,7 +258,9 @@ def test_save_and_get_chunks(tree_store, chapter_store, doc_store, content_store
 
 
 @pytest.mark.integration
-def test_cascade_delete_removes_chapters_and_docs(tree_store, chapter_store, doc_store, content_store):
+def test_cascade_delete_removes_chapters_and_docs(
+    tree_store, chapter_store, doc_store, content_store
+):
     tree = tree_store.create_tree("Cascade Test Tree", None)
     tree_id = tree.id
 

@@ -1,11 +1,10 @@
 """Unit tests for custom document creation and update API endpoints."""
 
 import hashlib
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 from fastapi.testclient import TestClient
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -26,8 +25,9 @@ def mock_services():
 @pytest.fixture
 def app(mock_services):
     from fastapi import FastAPI
-    from api.routers.documents import router
+
     from api.deps import get_services_dep
+    from api.routers.documents import router
 
     app = FastAPI()
     app.include_router(router, prefix="/api")

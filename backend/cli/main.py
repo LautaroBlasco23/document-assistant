@@ -111,7 +111,11 @@ def run_ingest(path: str, provider: str | None = None) -> int:
 
     files: list[Path] = []
     if target.is_dir():
-        files = list(target.glob("*.pdf")) + list(target.glob("*.epub")) + list(target.glob("*.txt"))
+        files = (
+            list(target.glob("*.pdf"))
+            + list(target.glob("*.epub"))
+            + list(target.glob("*.txt"))
+        )
     else:
         files = [target]
 
@@ -163,8 +167,6 @@ def run_ingest(path: str, provider: str | None = None) -> int:
             write_manifest(
                 doc,
                 chunk_count=len(chunks),
-                collection="",
-                model="",
                 output_dir=output_dir,
             )
 
@@ -207,7 +209,10 @@ def run_summarize(book_title: str, chapter_num: int, provider: str | None = None
         chunks = content_store.get_chunks_by_chapter(book_title, chapter_index)
 
         if not chunks:
-            print(f"No chunks found for book '{book_title}' chapter {chapter_num}.", file=sys.stderr)
+            print(
+                f"No chunks found for book '{book_title}' chapter {chapter_num}.",
+                file=sys.stderr,
+            )
             return 1
 
         # Build a minimal Document for the writer
@@ -301,7 +306,9 @@ def run_generate_md(book_title: str, chapter_num: int, provider: str | None = No
         summary_text = f"{summary['description']}\n" + "\n".join(
             f"- {b}" for b in summary.get("bullets", [])
         )
-        cards = FlashcardGeneratorAgent(flashcard_llm).generate(chunks, chapter_summary=summary_text)
+        cards = FlashcardGeneratorAgent(flashcard_llm).generate(
+            chunks, chapter_summary=summary_text
+        )
         p2 = write_flashcards(doc, chapter_index, cards, output_dir)
         print(f"  -> {p2}")
 
@@ -428,7 +435,9 @@ def main() -> None:
         help="LLM provider override (default: from config)",
     )
 
-    sub.add_parser("prune", help="Remove documents with no chunks in PostgreSQL (orphaned manifests)")
+    sub.add_parser(
+        "prune", help="Remove documents with no chunks in PostgreSQL (orphaned manifests)"
+    )
 
     args = parser.parse_args()
     _setup_logging(args.log_format)

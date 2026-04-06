@@ -2,16 +2,12 @@
 import json
 from unittest.mock import MagicMock
 
-import pytest
-
 from application.agents.flashcard_generator import (
     FlashcardGeneratorAgent,
     _batch_chunks,
     _jaccard_words,
-    _MAX_WORDS_PER_BATCH,
 )
 from core.model.chunk import Chunk, ChunkMetadata
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -43,8 +39,18 @@ def _valid_cards_json(cards: list[dict]) -> str:
 
 def test_parse_valid_json():
     raw = _valid_cards_json([
-        {"front": "Entropy", "back": "A measure of disorder in a system.", "category": "terminology", "source_page": 5},
-        {"front": "What is the second law of thermodynamics?", "back": "Entropy always increases in a closed system.", "category": "key_facts", "source_page": 6},
+        {
+            "front": "Entropy",
+            "back": "A measure of disorder in a system.",
+            "category": "terminology",
+            "source_page": 5,
+        },
+        {
+            "front": "What is the second law of thermodynamics?",
+            "back": "Entropy always increases in a closed system.",
+            "category": "key_facts",
+            "source_page": 6,
+        },
     ])
     cards = FlashcardGeneratorAgent._parse(raw)
     assert len(cards) == 2
@@ -56,7 +62,11 @@ def test_parse_valid_json():
 def test_parse_accepts_flashcards_key():
     """_parse should accept both 'cards' and 'flashcards' as top-level key."""
     raw = json.dumps({"flashcards": [
-        {"front": "Osmosis", "back": "Movement of water across a semipermeable membrane.", "category": "terminology"},
+        {
+            "front": "Osmosis",
+            "back": "Movement of water across a semipermeable membrane.",
+            "category": "terminology",
+        },
     ]})
     cards = FlashcardGeneratorAgent._parse(raw)
     assert len(cards) == 1
@@ -78,7 +88,12 @@ def test_parse_missing_front_skipped():
 
 def test_parse_source_page_as_string():
     raw = _valid_cards_json([
-        {"front": "Mitosis", "back": "Cell division that produces two identical daughter cells.", "category": "terminology", "source_page": "12"},
+        {
+            "front": "Mitosis",
+            "back": "Cell division that produces two identical daughter cells.",
+            "category": "terminology",
+            "source_page": "12",
+        },
     ])
     cards = FlashcardGeneratorAgent._parse(raw)
     assert cards[0]["source_page"] == 12
@@ -86,7 +101,11 @@ def test_parse_source_page_as_string():
 
 def test_parse_source_page_missing_is_omitted():
     raw = _valid_cards_json([
-        {"front": "Meiosis", "back": "Division producing four genetically unique cells.", "category": "terminology"},
+        {
+            "front": "Meiosis",
+            "back": "Division producing four genetically unique cells.",
+            "category": "terminology",
+        },
     ])
     cards = FlashcardGeneratorAgent._parse(raw)
     assert "source_page" not in cards[0]
@@ -99,8 +118,12 @@ def test_parse_source_page_missing_is_omitted():
 
 def test_filter_trivial_cards():
     cards = [
-        {"front": "What is a book?", "back": "A bound set of pages with text.", "category": "key_facts"},
-        {"front": "What is the title of this chapter?", "back": "Chapter One.", "category": "key_facts"},
+        {"front": "What is a book?", "back": "A bound set of pages.", "category": "key_facts"},
+        {
+            "front": "What is the title of this chapter?",
+            "back": "Chapter One.",
+            "category": "key_facts",
+        },
         {"front": "Who is the author?", "back": "Jane Smith.", "category": "key_facts"},
         {"front": "What page does section 2 start?", "back": "Page 14.", "category": "key_facts"},
     ]
@@ -112,12 +135,19 @@ def test_filter_preserves_good_cards():
     cards = [
         {
             "front": "What distinguishes active transport from passive diffusion?",
-            "back": "Active transport requires ATP to move molecules against a concentration gradient, while passive diffusion moves molecules along the gradient without energy input.",
+            "back": (
+                "Active transport requires ATP to move molecules against a concentration"
+                " gradient, while passive diffusion moves molecules along the gradient"
+                " without energy input."
+            ),
             "category": "concepts",
         },
         {
             "front": "Allosteric regulation",
-            "back": "A mechanism where a molecule binds to a site other than the active site, changing the enzyme's shape and activity.",
+            "back": (
+                "A mechanism where a molecule binds to a site other than the active site,"
+                " changing the enzyme's shape and activity."
+            ),
             "category": "terminology",
         },
     ]
@@ -135,7 +165,14 @@ def test_filter_short_back_removed():
 
 def test_filter_short_front_removed():
     cards = [
-        {"front": "ATP", "back": "Adenosine triphosphate is the primary energy currency of the cell, providing energy for most cellular processes.", "category": "terminology"},
+        {
+            "front": "ATP",
+            "back": (
+                "Adenosine triphosphate is the primary energy currency of the cell,"
+                " providing energy for most cellular processes."
+            ),
+            "category": "terminology",
+        },
     ]
     result = FlashcardGeneratorAgent._filter_low_quality(cards)
     assert result == []
@@ -144,7 +181,11 @@ def test_filter_short_front_removed():
 def test_filter_front_back_overlap_removed():
     """Cards where front is a substring of back should be removed."""
     cards = [
-        {"front": "photosynthesis", "back": "photosynthesis converts sunlight into sugar.", "category": "terminology"},
+        {
+            "front": "photosynthesis",
+            "back": "photosynthesis converts sunlight into sugar.",
+            "category": "terminology",
+        },
     ]
     result = FlashcardGeneratorAgent._filter_low_quality(cards)
     assert result == []
@@ -236,7 +277,7 @@ def test_jaccard_empty_string():
 
 def test_variable_card_count_parsing_3_cards():
     cards_data = [
-        {"front": f"Question {i}", "back": f"Answer number {i} with detail.", "category": "key_facts"}
+        {"front": f"Question {i}", "back": f"Answer {i} with detail.", "category": "key_facts"}
         for i in range(3)
     ]
     result = FlashcardGeneratorAgent._parse(_valid_cards_json(cards_data))
@@ -245,7 +286,7 @@ def test_variable_card_count_parsing_3_cards():
 
 def test_variable_card_count_parsing_7_cards():
     cards_data = [
-        {"front": f"Question {i}", "back": f"Answer number {i} with detail.", "category": "key_facts"}
+        {"front": f"Question {i}", "back": f"Answer {i} with detail.", "category": "key_facts"}
         for i in range(7)
     ]
     result = FlashcardGeneratorAgent._parse(_valid_cards_json(cards_data))
@@ -254,7 +295,7 @@ def test_variable_card_count_parsing_7_cards():
 
 def test_variable_card_count_parsing_12_cards():
     cards_data = [
-        {"front": f"Question {i}", "back": f"Answer number {i} with detail.", "category": "terminology"}
+        {"front": f"Question {i}", "back": f"Answer {i} with detail.", "category": "terminology"}
         for i in range(12)
     ]
     result = FlashcardGeneratorAgent._parse(_valid_cards_json(cards_data))
@@ -271,7 +312,7 @@ def test_filter_meta_referential():
     cards = [
         {
             "front": "What does the text say about metabolism?",
-            "back": "The text explains that metabolism includes anabolism and catabolism processes.",
+            "back": "The text explains that metabolism includes anabolism and catabolism.",
             "category": "key_facts",
         },
         {
@@ -281,7 +322,7 @@ def test_filter_meta_referential():
         },
         {
             "front": "According to the chapter, what is entropy?",
-            "back": "According to the chapter, entropy is a measure of disorder in a closed system.",
+            "back": "According to the chapter, entropy is a measure of disorder.",
             "category": "key_facts",
         },
     ]
@@ -312,7 +353,10 @@ def test_filter_vague_define_multi_word_not_filtered():
     cards = [
         {
             "front": "Define active transport mechanism",
-            "back": "Active transport is the movement of molecules against a concentration gradient using ATP energy.",
+            "back": (
+                "Active transport is the movement of molecules against a concentration"
+                " gradient using ATP energy."
+            ),
             "category": "terminology",
         },
     ]
@@ -328,8 +372,16 @@ def test_filter_vague_define_multi_word_not_filtered():
 def test_near_duplicate_jaccard():
     """Cards with >0.8 word overlap in fronts should be deduplicated."""
     cards = [
-        {"front": "What is the role of ATP in cellular respiration?", "back": "ATP provides energy for metabolic processes in the cell through hydrolysis.", "category": "key_facts"},
-        {"front": "What is the role of ATP in the cellular respiration?", "back": "ATP supplies energy needed by cells during the process of cellular respiration.", "category": "key_facts"},
+        {
+            "front": "What is the role of ATP in cellular respiration?",
+            "back": "ATP provides energy for metabolic processes in the cell through hydrolysis.",
+            "category": "key_facts",
+        },
+        {
+            "front": "What is the role of ATP in the cellular respiration?",
+            "back": "ATP supplies energy needed by cells during cellular respiration.",
+            "category": "key_facts",
+        },
     ]
     # Simulate the dedup logic from generate()
     deduped = []
@@ -346,8 +398,16 @@ def test_near_duplicate_jaccard():
 def test_near_duplicate_different_fronts_kept():
     """Cards with sufficiently different fronts should both be kept."""
     cards = [
-        {"front": "What is photosynthesis?", "back": "Photosynthesis is the conversion of sunlight into glucose by plants.", "category": "terminology"},
-        {"front": "What is cellular respiration?", "back": "Cellular respiration is the breakdown of glucose to produce ATP energy.", "category": "terminology"},
+        {
+            "front": "What is photosynthesis?",
+            "back": "Photosynthesis is the conversion of sunlight into glucose by plants.",
+            "category": "terminology",
+        },
+        {
+            "front": "What is cellular respiration?",
+            "back": "Cellular respiration is the breakdown of glucose to produce ATP energy.",
+            "category": "terminology",
+        },
     ]
     deduped = []
     for card in cards:
@@ -383,7 +443,10 @@ def test_filter_back_restates_front_with_enough_new_words_kept():
     cards = [
         {
             "front": "What is ATP?",
-            "back": "ATP (adenosine triphosphate) is the primary energy currency of cells, providing energy through hydrolysis to ADP.",
+            "back": (
+                "ATP (adenosine triphosphate) is the primary energy currency of cells,"
+                " providing energy through hydrolysis to ADP."
+            ),
             "category": "terminology",
         },
     ]
@@ -404,7 +467,11 @@ def test_generate_accepts_chapter_summary():
     mock_llm.chat.side_effect = lambda system, user, **kwargs: (
         captured_prompts.append(user) or
         json.dumps({"cards": [
-            {"front": "Test question about enzymes?", "back": "Enzymes are biological catalysts that speed up chemical reactions in cells.", "category": "key_facts"}
+            {
+                "front": "Test question about enzymes?",
+                "back": "Enzymes are biological catalysts that speed up chemical reactions.",
+                "category": "key_facts",
+            }
         ]})
     )
 
