@@ -332,10 +332,10 @@ export class RealClient implements ServiceClient {
     await httpClient.delete(`/knowledge-trees/${treeId}/chapters/${chapterNumber}`)
   }
 
-  async listKnowledgeDocuments(treeId: string, chapter?: number | null): Promise<KnowledgeDocument[]> {
+  async listKnowledgeDocuments(treeId: string, chapterId?: string | null): Promise<KnowledgeDocument[]> {
     const params: Record<string, unknown> = {}
-    if (chapter !== undefined && chapter !== null) {
-      params.chapter_id = chapter
+    if (chapterId !== undefined && chapterId !== null) {
+      params.chapter_id = chapterId
     }
     const res = await httpClient.get<KnowledgeDocument[]>(
       `/knowledge-trees/${treeId}/documents`,
@@ -370,6 +370,20 @@ export class RealClient implements ServiceClient {
 
   async deleteKnowledgeDocument(id: string): Promise<void> {
     await httpClient.delete(`/knowledge-trees/_/documents/${id}`)
+  }
+
+  async createKnowledgeTreeFromFile(file: File, title?: string): Promise<{ task_id: string }> {
+    const formData = new FormData()
+    formData.append('file', file)
+    if (title) {
+      formData.append('title', title)
+    }
+    const res = await httpClient.post<{ task_id: string; filename: string }>(
+      '/knowledge-trees/import',
+      formData,
+      { headers: { 'Content-Type': undefined } }
+    )
+    return { task_id: res.data.task_id }
   }
 
   async ingestFileAsKnowledgeDocument(treeId: string, chapter: number, file: File): Promise<KnowledgeDocument> {

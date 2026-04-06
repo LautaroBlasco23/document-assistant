@@ -7,7 +7,7 @@ import time
 from pathlib import Path
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 
 from api.deps import ServicesDep
 from api.schemas.knowledge_tree import (
@@ -108,6 +108,153 @@ async def create_tree(req: CreateTreeRequest, services: ServicesDep) -> Knowledg
     """Create a new knowledge tree."""
     tree = services.kt_tree_store.create_tree(req.title, req.description)
     return _tree_out(tree, 0)
+
+
+@router.post("/knowledge-trees/import", status_code=202)
+async def import_tree_from_document(
+    services: ServicesDep,
+    file: UploadFile = File(...),
+    title: str = Form(""),
+) -> dict:
+    """Create a knowledge tree from a PDF or EPUB, auto-creating chapters."""
+    filename = file.filename or "upload"
+    suffix = Path(filename).suffix.lower()
+    if suffix not in (".pdf", ".epub"):
+        raise HTTPException(
+            status_code=422, detail="Only PDF and EPUB files are supported"
+        )
+
+    tree_title = title.strip() or Path(filename).stem
+    file_bytes = await file.read()
+    task_id = services.task_registry.submit(
+        _create_tree_from_document_background,
+        file_bytes,
+        filename,
+        tree_title,
+        services,
+        task_type="kt_create_from_file",
+        filename=filename,
+    )
+    return {"task_id": task_id, "filename": filename}
+
+
+def _create_tree_from_document_background(
+    task: Task,
+    file_bytes: bytes,
+    filename: str,
+    tree_title: str,
+    services: ServicesDep,
+) -> dict:
+    """Background task: parse file, create tree with chapters and knowledge documents."""
+    t0 = time.perf_counter()
+    try:
+        _set_progress(task, 5, "Saving uploaded file...")
+        suffix = Path(filename).suffix.lower()
+
+        with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+            tmp.write(file_bytes)
+            tmp_path = Path(tmp.name)
+
+        try:
+            _set_progress(task, 10, "Parsing document...")
+            file_hash = hashlib.sha256(file_bytes).hexdigest()
+
+            if suffix == ".pdf":
+                from infrastructure.ingest.pdf_loader import load_pdf as _load_pdf
+                doc = _load_pdf(tmp_path, file_hash, filename)
+            elif suffix in (".epub",):
+                from infrastructure.ingest.epub_loader import load_epub as _load_epub
+                doc = _load_epub(tmp_path, file_hash, filename)
+            else:
+                raise ValueError(f"Unsupported file type: {suffix}")
+
+            _set_progress(task, 20, "Creating knowledge tree...")
+            tree = services.kt_tree_store.create_tree(tree_title, None)
+            tree_uid = tree.id
+
+            chapters_to_process = doc.chapters
+            chapter_count = len(chapters_to_process)
+            if chapter_count == 0:
+                _set_progress(task, 100, "Done (no chapters found)")
+                return {"tree_id": str(tree_uid), "chapter_count": 0}
+
+            from core.model.document import Document as _Document
+            splitter = ChapterAwareSplitter()
+            all_kt_chunks = []
+
+            for i, chapter in enumerate(chapters_to_process):
+                chapter_number = i + 1  # 1-based
+                pct_base = 25 + int(70 * i / chapter_count)
+                chapter_title = chapter.title or f"Chapter {chapter_number}"
+                _set_progress(
+                    task, pct_base,
+                    f"Processing chapter {chapter_number}/{chapter_count}: {chapter_title}..."
+                )
+
+                # Create knowledge chapter
+                kt_chapter = services.kt_chapter_store.create_chapter(
+                    tree_uid, chapter_title
+                )
+                chapter_uid = kt_chapter.id
+
+                # Build a single-chapter Document for chunking
+                single_chapter_doc = _Document(
+                    source_path=doc.source_path,
+                    title=doc.title,
+                    file_hash=file_hash,
+                    original_filename=filename,
+                    chapters=[chapter],
+                )
+
+                chunks = splitter.split(single_chapter_doc)
+
+                # Full chapter text for the knowledge document
+                if chunks:
+                    full_text = "\n\n".join(c.text for c in chunks)
+                else:
+                    # Fallback: concatenate page text directly
+                    full_text = "\n\n".join(p.text for p in chapter.pages)
+
+                # Store one KnowledgeDocument per chapter
+                kt_doc = services.kt_doc_store.create_document(
+                    tree_uid, chapter_uid, chapter_title, full_text, is_main=False
+                )
+                doc_uid = kt_doc.id
+
+                # Build KnowledgeChunk records for this chapter
+                for j, c in enumerate(chunks):
+                    all_kt_chunks.append(
+                        KnowledgeChunk(
+                            id=UUID(c.id) if c.id else uuid4(),
+                            tree_id=tree_uid,
+                            chapter_id=chapter_uid,
+                            doc_id=doc_uid,
+                            chunk_index=j,
+                            text=c.text,
+                            token_count=c.token_count,
+                        )
+                    )
+
+            _set_progress(task, 90, "Storing content chunks...")
+            if all_kt_chunks:
+                services.kt_content_store.save_chunks(all_kt_chunks)
+
+            elapsed = time.perf_counter() - t0
+            _set_progress(task, 100, "Done")
+            logger.info(
+                "Created knowledge tree %s from %s in %.1fs (%d chapters, %d chunks)",
+                str(tree_uid),
+                filename,
+                elapsed,
+                chapter_count,
+                len(all_kt_chunks),
+            )
+            return {"tree_id": str(tree_uid), "chapter_count": chapter_count}
+        finally:
+            tmp_path.unlink(missing_ok=True)
+    except Exception as e:
+        logger.error("Knowledge tree creation from file failed: %s", e)
+        raise
 
 
 @router.get("/knowledge-trees/{tree_id}", response_model=KnowledgeTreeOut)

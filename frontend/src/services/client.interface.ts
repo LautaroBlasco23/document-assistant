@@ -78,11 +78,12 @@ export interface ServiceClient {
   createKnowledgeChapter(treeId: string, title: string): Promise<KnowledgeChapter>
   updateKnowledgeChapter(treeId: string, chapterNumber: number, title: string): Promise<KnowledgeChapter>
   deleteKnowledgeChapter(treeId: string, chapterNumber: number): Promise<void>
-  listKnowledgeDocuments(treeId: string, chapter?: number | null): Promise<KnowledgeDocument[]>
+  listKnowledgeDocuments(treeId: string, chapterId?: string | null): Promise<KnowledgeDocument[]>
   createKnowledgeDocument(treeId: string, chapter: number | null, title: string, content: string, isMain?: boolean): Promise<KnowledgeDocument>
   updateKnowledgeDocument(id: string, title: string, content: string): Promise<KnowledgeDocument>
   deleteKnowledgeDocument(id: string): Promise<void>
   ingestFileAsKnowledgeDocument(treeId: string, chapter: number, file: File): Promise<KnowledgeDocument>
+  createKnowledgeTreeFromFile(file: File, title?: string): Promise<{ task_id: string }>
 }
 
 export type { ServiceClient as ServiceClientType }

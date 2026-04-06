@@ -368,13 +368,15 @@ export class MockClient implements ServiceClient {
     if (tree) tree.num_chapters = Math.max(0, tree.num_chapters - 1)
   }
 
-  async listKnowledgeDocuments(treeId: string, chapter?: number | null): Promise<KnowledgeDocument[]> {
+  async listKnowledgeDocuments(treeId: string, chapterId?: string | null): Promise<KnowledgeDocument[]> {
     await delay(100)
-    return this.documents.filter((d) => {
-      if (d.tree_id !== treeId) return false
-      if (chapter === undefined) return true
-      return d.chapter === chapter
-    })
+    if (chapterId === undefined || chapterId === null) {
+      return this.documents.filter((d) => d.tree_id === treeId)
+    }
+    const treeChapters = this.chapters.get(treeId) ?? []
+    const chapter = treeChapters.find((c) => c.id === chapterId)
+    if (!chapter) return []
+    return this.documents.filter((d) => d.tree_id === treeId && d.chapter === chapter.number)
   }
 
   async createKnowledgeDocument(
@@ -419,5 +421,12 @@ export class MockClient implements ServiceClient {
     const extractedContent = `[Extracted from ${file.name}]\n\nThis is simulated text content extracted from the uploaded ${file.type || 'file'}. In a real implementation, the backend would parse the PDF or EPUB and return the full text here.\n\nFile size: ${(file.size / 1024).toFixed(1)} KB`
     const title = file.name.replace(/\.(pdf|epub)$/i, '')
     return this.createKnowledgeDocument(treeId, chapter, title, extractedContent)
+  }
+
+  async createKnowledgeTreeFromFile(file: File, title?: string): Promise<{ task_id: string }> {
+    console.log('[MockClient] createKnowledgeTreeFromFile', file.name, title)
+    await delay(200)
+    const taskId = `mock-task-${Math.random().toString(36).slice(2, 10)}`
+    return { task_id: taskId }
   }
 }

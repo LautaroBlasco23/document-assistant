@@ -9,6 +9,7 @@ export interface KnowledgeTree {
 }
 
 export interface KnowledgeChapter {
+  id: string
   number: number
   title: string
   tree_id: string

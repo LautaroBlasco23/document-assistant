@@ -22,11 +22,12 @@ interface KnowledgeTreeState {
   updateChapter: (treeId: string, chapterNumber: number, title: string) => Promise<KnowledgeChapter>
   deleteChapter: (treeId: string, chapterNumber: number) => Promise<void>
 
-  fetchDocuments: (treeId: string, chapter: number | null) => Promise<void>
+  fetchDocuments: (treeId: string, chapter: number | null, chapterId: string | null) => Promise<void>
   createDocument: (treeId: string, chapter: number | null, title: string, content: string, isMain?: boolean) => Promise<KnowledgeDocument>
   updateDocument: (id: string, title: string, content: string, treeId: string, chapter: number | null) => Promise<KnowledgeDocument>
   deleteDocument: (id: string, treeId: string, chapter: number | null) => Promise<void>
   ingestFileAsDocument: (treeId: string, chapter: number, file: File) => Promise<KnowledgeDocument>
+  createTreeFromFile: (file: File, title?: string) => Promise<string>
 }
 
 function docKey(treeId: string, chapter: number | null) {
@@ -109,11 +110,11 @@ export const useKnowledgeTreeStore = create<KnowledgeTreeState>((set, _get) => (
     }))
   },
 
-  fetchDocuments: async (treeId, chapter) => {
+  fetchDocuments: async (treeId, chapter, chapterId) => {
     const key = docKey(treeId, chapter)
     set((s) => ({ documentsLoading: { ...s.documentsLoading, [key]: true } }))
     try {
-      const docs = await client.listKnowledgeDocuments(treeId, chapter)
+      const docs = await client.listKnowledgeDocuments(treeId, chapterId)
       set((s) => ({ documents: { ...s.documents, [key]: docs } }))
     } finally {
       set((s) => ({ documentsLoading: { ...s.documentsLoading, [key]: false } }))
@@ -155,6 +156,11 @@ export const useKnowledgeTreeStore = create<KnowledgeTreeState>((set, _get) => (
     const key = docKey(treeId, chapter)
     set((s) => ({ documents: { ...s.documents, [key]: [...(s.documents[key] ?? []), doc] } }))
     return doc
+  },
+
+  createTreeFromFile: async (file, title) => {
+    const { task_id } = await client.createKnowledgeTreeFromFile(file, title)
+    return task_id
   },
 }))
 

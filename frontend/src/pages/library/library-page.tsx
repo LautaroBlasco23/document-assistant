@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { TreePine, Plus } from 'lucide-react'
+import { TreePine, Plus, Upload } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { Button } from '../../components/ui/button'
 import { SkeletonCard } from '../../components/ui/skeleton'
@@ -7,10 +7,12 @@ import { EmptyState } from '../../components/ui/empty-state'
 import { useKnowledgeTreeStore } from '../../stores/knowledge-tree-store'
 import { KnowledgeTreeCard } from './knowledge-tree-card'
 import { CreateKnowledgeTreeDialog } from './create-knowledge-tree-dialog'
+import { ImportTreeDialog } from './import-tree-dialog'
 
 export function LibraryPage() {
   const { trees, treesLoading, fetchTrees, deleteTree } = useKnowledgeTreeStore()
   const [showCreateDialog, setShowCreateDialog] = React.useState(false)
+  const [showImportDialog, setShowImportDialog] = React.useState(false)
 
   React.useEffect(() => {
     void fetchTrees()
@@ -24,7 +26,14 @@ export function LibraryPage() {
         {trees.length > 0 && (
           <Badge variant="neutral">{trees.length}</Badge>
         )}
-        <div className="ml-auto">
+        <div className="ml-auto flex gap-2">
+          <Button
+            variant="secondary"
+            onClick={() => setShowImportDialog(true)}
+          >
+            <Upload className="w-4 h-4 mr-1" />
+            Import from Document
+          </Button>
           <Button
             variant="secondary"
             onClick={() => setShowCreateDialog(true)}
@@ -38,6 +47,12 @@ export function LibraryPage() {
       <CreateKnowledgeTreeDialog
         open={showCreateDialog}
         onClose={() => setShowCreateDialog(false)}
+      />
+
+      <ImportTreeDialog
+        open={showImportDialog}
+        onOpenChange={setShowImportDialog}
+        onSuccess={() => { /* navigation handled inside dialog */ }}
       />
 
       {treesLoading ? (

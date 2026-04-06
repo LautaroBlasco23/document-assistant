@@ -53,9 +53,13 @@ export function KnowledgeDocumentsTab({
   const docs = docsByKey[key] ?? []
   const loading = documentsLoading[key] ?? false
 
+  const selectedChapterId = selectedChapter !== null
+    ? chapters.find((c) => c.number === selectedChapter)?.id ?? null
+    : null
+
   React.useEffect(() => {
-    void fetchDocuments(treeId, selectedChapter)
-  }, [treeId, selectedChapter, fetchDocuments])
+    void fetchDocuments(treeId, selectedChapter, selectedChapterId)
+  }, [treeId, selectedChapter, selectedChapterId, fetchDocuments])
 
   const handleOpenCreate = () => {
     setEditor({ id: null, title: '', content: '' })
