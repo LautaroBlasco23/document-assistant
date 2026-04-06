@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Plus, Pencil, Trash2, Check, X, FileText, BookMarked } from 'lucide-react'
+import { Plus, Pencil, Trash2, Check, X, FileText, BookMarked, Upload } from 'lucide-react'
 import { Button } from '../../components/ui/button'
 import { Input } from '../../components/ui/input'
 import { Badge } from '../../components/ui/badge'
@@ -36,13 +36,16 @@ export function KnowledgeDocumentsTab({
     deleteDocument,
     createChapter,
     deleteChapter,
+    ingestFileAsDocument,
   } = useKnowledgeTreeStore()
 
   const [editor, setEditor] = React.useState<DocumentEditorState | null>(null)
   const [saving, setSaving] = React.useState(false)
+  const [ingesting, setIngesting] = React.useState(false)
   const [newChapterTitle, setNewChapterTitle] = React.useState('')
   const [showNewChapter, setShowNewChapter] = React.useState(false)
   const [creatingChapter, setCreatingChapter] = React.useState(false)
+  const fileInputRef = React.useRef<HTMLInputElement>(null)
 
   const key = docKey(treeId, selectedChapter)
   const docs = docsByKey[key] ?? []
@@ -76,6 +79,19 @@ export function KnowledgeDocumentsTab({
       setEditor(null)
     } finally {
       setSaving(false)
+    }
+  }
+
+  const handleIngestFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || selectedChapter === null) return
+    // Reset input so the same file can be re-selected if needed
+    e.target.value = ''
+    setIngesting(true)
+    try {
+      await ingestFileAsDocument(treeId, selectedChapter, file)
+    } finally {
+      setIngesting(false)
     }
   }
 
@@ -213,10 +229,33 @@ export function KnowledgeDocumentsTab({
                 <p className="text-xs text-gray-400">{docs.length} {docs.length === 1 ? 'document' : 'documents'}</p>
               </div>
               {editor === null && (
-                <Button variant="secondary" size="sm" onClick={handleOpenCreate}>
-                  <Plus className="h-3.5 w-3.5 mr-1" />
-                  Add Document
-                </Button>
+                <div className="flex items-center gap-2">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".pdf,.epub"
+                    className="hidden"
+                    onChange={(e) => void handleIngestFile(e)}
+                  />
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={ingesting}
+                    title="Import from PDF or EPUB"
+                  >
+                    {ingesting ? (
+                      <div className="h-3.5 w-3.5 rounded-full border-2 border-primary border-t-transparent animate-spin mr-1" />
+                    ) : (
+                      <Upload className="h-3.5 w-3.5 mr-1" />
+                    )}
+                    {ingesting ? 'Importing...' : 'Import from PDF/EPUB'}
+                  </Button>
+                  <Button variant="secondary" size="sm" onClick={handleOpenCreate}>
+                    <Plus className="h-3.5 w-3.5 mr-1" />
+                    Add Document
+                  </Button>
+                </div>
               )}
             </div>
 

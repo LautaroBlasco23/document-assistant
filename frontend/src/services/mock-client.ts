@@ -394,4 +394,12 @@ export class MockClient implements ServiceClient {
     await delay(100)
     this.documents = this.documents.filter((d) => d.id !== id)
   }
+
+  async ingestFileAsKnowledgeDocument(treeId: string, chapter: number, file: File): Promise<KnowledgeDocument> {
+    // Simulate text extraction delay
+    await delay(1500)
+    const extractedContent = `[Extracted from ${file.name}]\n\nThis is simulated text content extracted from the uploaded ${file.type || 'file'}. In a real implementation, the backend would parse the PDF or EPUB and return the full text here.\n\nFile size: ${(file.size / 1024).toFixed(1)} KB`
+    const title = file.name.replace(/\.(pdf|epub)$/i, '')
+    return this.createKnowledgeDocument(treeId, chapter, title, extractedContent)
+  }
 }

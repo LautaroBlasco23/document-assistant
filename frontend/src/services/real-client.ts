@@ -298,4 +298,5 @@ export class RealClient implements ServiceClient {
   async createKnowledgeDocument(_treeId: string, _chapter: number | null, _title: string, _content: string, _isMain?: boolean): Promise<KnowledgeDocument> { throw new Error('Not implemented') }
   async updateKnowledgeDocument(_id: string, _title: string, _content: string): Promise<KnowledgeDocument> { throw new Error('Not implemented') }
   async deleteKnowledgeDocument(_id: string): Promise<void> { throw new Error('Not implemented') }
+  async ingestFileAsKnowledgeDocument(_treeId: string, _chapter: number, _file: File): Promise<KnowledgeDocument> { throw new Error('Not implemented') }
 }

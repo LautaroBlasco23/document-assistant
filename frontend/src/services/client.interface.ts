@@ -80,6 +80,7 @@ export interface ServiceClient {
   createKnowledgeDocument(treeId: string, chapter: number | null, title: string, content: string, isMain?: boolean): Promise<KnowledgeDocument>
   updateKnowledgeDocument(id: string, title: string, content: string): Promise<KnowledgeDocument>
   deleteKnowledgeDocument(id: string): Promise<void>
+  ingestFileAsKnowledgeDocument(treeId: string, chapter: number, file: File): Promise<KnowledgeDocument>
 }
 
 export type { ServiceClient as ServiceClientType }
