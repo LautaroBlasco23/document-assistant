@@ -1,7 +1,11 @@
 import * as React from 'react'
-import { Sparkles, BookOpen, Zap, ChevronDown, ChevronUp } from 'lucide-react'
+import { Sparkles, BookOpen, Zap, ChevronDown, ChevronUp, GraduationCap } from 'lucide-react'
 import { Button } from '../../components/ui/button'
 import { Badge } from '../../components/ui/badge'
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '../../components/ui/tabs'
+import { ExamSession } from '../document/exam-session'
+import { useExamStore } from '../../stores/exam-store'
+import { mockFlashcards } from '../../mocks/flashcards'
 import type { KnowledgeChapter } from '../../types/knowledge-tree'
 
 interface ContentTabProps {
@@ -21,17 +25,24 @@ Key takeaways:
 • Practical implementation requires adapting theory to real-world constraints
 • Regular review and iteration leads to mastery`
 
-const MOCK_FLASHCARDS = [
+const MOCK_FLASHCARD_LIST = [
   { front: 'What is the core principle of this topic?', back: 'The fundamental idea that drives all related concepts and provides the theoretical foundation for practical applications.' },
   { front: 'What are the main trade-offs to consider?', back: 'Speed vs. accuracy, simplicity vs. flexibility, and short-term vs. long-term maintainability.' },
   { front: 'How does theory translate to practice?', back: 'By adapting core principles to the specific constraints and requirements of the real-world environment, iterating based on feedback.' },
   { front: 'What is the most common pitfall?', back: 'Over-engineering: adding unnecessary complexity before validating the simpler solution works.' },
 ]
 
-export function ContentTab({ treeId: _treeId, selectedChapter, chapters, onChapterChange }: ContentTabProps) {
+// Use the first available mock flashcard set for the exam
+const EXAM_CARDS = Object.values(mockFlashcards)[0] ?? []
+
+export function ContentTab({ treeId, selectedChapter, chapters, onChapterChange }: ContentTabProps) {
   const [summaryStatus, setSummaryStatus] = React.useState<GenerateStatus>('idle')
   const [flashcardsStatus, setFlashcardsStatus] = React.useState<GenerateStatus>('idle')
   const [expandedCard, setExpandedCard] = React.useState<number | null>(null)
+  const [activeSubTab, setActiveSubTab] = React.useState<'summary' | 'flashcards' | 'exam'>('summary')
+
+  const activeExam = useExamStore((state) => state.activeExam)
+  const startExam = useExamStore((state) => state.startExam)
 
   const currentChapter = chapters.find((c) => c.number === selectedChapter)
 
@@ -52,6 +63,8 @@ export function ContentTab({ treeId: _treeId, selectedChapter, chapters, onChapt
     setFlashcardsStatus('idle')
     setExpandedCard(null)
   }
+
+  const isExamActive = activeExam?.docHash === treeId && activeExam?.chapter === selectedChapter
 
   return (
     <div className="flex flex-col gap-5">
@@ -87,88 +100,164 @@ export function ContentTab({ treeId: _treeId, selectedChapter, chapters, onChapt
             Make sure you've added documents in the Knowledge Documents tab first.
           </p>
 
-          {/* Generation actions */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {/* Summary card */}
-            <div className="border border-gray-200 rounded-lg p-4 flex flex-col gap-3">
-              <div className="flex items-center gap-2">
-                <BookOpen className="h-4 w-4 text-blue-500" />
-                <span className="text-sm font-semibold text-gray-800">Summary</span>
-                {summaryStatus === 'done' && <Badge variant="success">Generated</Badge>}
-              </div>
-              <p className="text-xs text-gray-500">
-                A structured summary of the chapter based on knowledge documents.
-              </p>
-              {summaryStatus === 'idle' && (
-                <Button variant="secondary" size="sm" onClick={() => void handleGenerateSummary()}>
-                  <Sparkles className="h-3.5 w-3.5 mr-1" />
-                  Generate Summary
-                </Button>
-              )}
-              {summaryStatus === 'loading' && (
-                <div className="flex items-center gap-2 text-xs text-gray-400">
-                  <div className="h-3.5 w-3.5 rounded-full border-2 border-primary border-t-transparent animate-spin" />
-                  Generating from knowledge documents...
-                </div>
-              )}
-              {summaryStatus === 'done' && (
-                <div className="bg-gray-50 rounded-md p-3 text-xs text-gray-700 leading-relaxed whitespace-pre-line">
-                  {MOCK_SUMMARY}
-                </div>
-              )}
-            </div>
+          {/* Sub-tabs */}
+          <Tabs value={activeSubTab} onValueChange={(v) => setActiveSubTab(v as typeof activeSubTab)}>
+            <TabsList>
+              <TabsTrigger value="summary">
+                <BookOpen className="h-3.5 w-3.5 mr-1.5 inline-block" />
+                Summary
+              </TabsTrigger>
+              <TabsTrigger value="flashcards">
+                <Zap className="h-3.5 w-3.5 mr-1.5 inline-block" />
+                Flashcards
+              </TabsTrigger>
+              <TabsTrigger value="exam">
+                <GraduationCap className="h-3.5 w-3.5 mr-1.5 inline-block" />
+                Exam
+              </TabsTrigger>
+            </TabsList>
 
-            {/* Flashcards card */}
-            <div className="border border-gray-200 rounded-lg p-4 flex flex-col gap-3">
-              <div className="flex items-center gap-2">
-                <Zap className="h-4 w-4 text-yellow-500" />
-                <span className="text-sm font-semibold text-gray-800">Flashcards</span>
-                {flashcardsStatus === 'done' && <Badge variant="success">{MOCK_FLASHCARDS.length} cards</Badge>}
-              </div>
-              <p className="text-xs text-gray-500">
-                Q&A flashcards extracted from key concepts in the documents.
-              </p>
-              {flashcardsStatus === 'idle' && (
-                <Button variant="secondary" size="sm" onClick={() => void handleGenerateFlashcards()}>
-                  <Sparkles className="h-3.5 w-3.5 mr-1" />
-                  Generate Flashcards
-                </Button>
-              )}
-              {flashcardsStatus === 'loading' && (
-                <div className="flex items-center gap-2 text-xs text-gray-400">
-                  <div className="h-3.5 w-3.5 rounded-full border-2 border-yellow-400 border-t-transparent animate-spin" />
-                  Extracting concepts...
-                </div>
-              )}
-              {flashcardsStatus === 'done' && (
-                <div className="flex flex-col gap-2">
-                  {MOCK_FLASHCARDS.map((card, i) => (
-                    <div
-                      key={i}
-                      className="border border-gray-200 rounded-md overflow-hidden cursor-pointer"
-                      onClick={() => setExpandedCard(expandedCard === i ? null : i)}
-                    >
-                      <div className="flex items-center justify-between px-3 py-2 bg-white hover:bg-gray-50">
-                        <span className="text-xs font-medium text-gray-700 flex-1 pr-2">{card.front}</span>
-                        {expandedCard === i ? (
-                          <ChevronUp className="h-3.5 w-3.5 text-gray-400 shrink-0" />
-                        ) : (
-                          <ChevronDown className="h-3.5 w-3.5 text-gray-400 shrink-0" />
-                        )}
-                      </div>
-                      {expandedCard === i && (
-                        <div className="px-3 py-2 bg-blue-50 border-t border-gray-200">
-                          <p className="text-xs text-gray-600">{card.back}</p>
-                        </div>
-                      )}
+            {/* Summary sub-tab */}
+            <TabsContent value="summary">
+              <div className="flex flex-col gap-3">
+                {summaryStatus === 'idle' && (
+                  <>
+                    <p className="text-sm text-gray-500">
+                      A structured summary of this chapter based on its knowledge documents.
+                    </p>
+                    <Button variant="secondary" size="sm" onClick={() => void handleGenerateSummary()} className="self-start">
+                      <Sparkles className="h-3.5 w-3.5 mr-1" />
+                      Generate Summary
+                    </Button>
+                  </>
+                )}
+                {summaryStatus === 'loading' && (
+                  <div className="flex items-center gap-2 text-sm text-gray-400 py-4">
+                    <div className="h-4 w-4 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+                    Generating from knowledge documents...
+                  </div>
+                )}
+                {summaryStatus === 'done' && (
+                  <>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="success">Generated</Badge>
                     </div>
-                  ))}
-                </div>
+                    <div className="bg-gray-50 rounded-md p-4 text-sm text-gray-700 leading-relaxed whitespace-pre-line border border-gray-200">
+                      {MOCK_SUMMARY}
+                    </div>
+                    <Button variant="ghost" size="sm" onClick={() => setSummaryStatus('idle')} className="self-start text-gray-400">
+                      Regenerate
+                    </Button>
+                  </>
+                )}
+              </div>
+            </TabsContent>
+
+            {/* Flashcards sub-tab */}
+            <TabsContent value="flashcards">
+              <div className="flex flex-col gap-3">
+                {flashcardsStatus === 'idle' && (
+                  <>
+                    <p className="text-sm text-gray-500">
+                      Q&A flashcards extracted from key concepts in this chapter's documents.
+                    </p>
+                    <Button variant="secondary" size="sm" onClick={() => void handleGenerateFlashcards()} className="self-start">
+                      <Sparkles className="h-3.5 w-3.5 mr-1" />
+                      Generate Flashcards
+                    </Button>
+                  </>
+                )}
+                {flashcardsStatus === 'loading' && (
+                  <div className="flex items-center gap-2 text-sm text-gray-400 py-4">
+                    <div className="h-4 w-4 rounded-full border-2 border-yellow-400 border-t-transparent animate-spin" />
+                    Extracting concepts...
+                  </div>
+                )}
+                {flashcardsStatus === 'done' && (
+                  <>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="success">{MOCK_FLASHCARD_LIST.length} cards</Badge>
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      {MOCK_FLASHCARD_LIST.map((card, i) => (
+                        <div
+                          key={i}
+                          className="border border-gray-200 rounded-md overflow-hidden cursor-pointer"
+                          onClick={() => setExpandedCard(expandedCard === i ? null : i)}
+                        >
+                          <div className="flex items-center justify-between px-3 py-2 bg-white hover:bg-gray-50">
+                            <span className="text-sm font-medium text-gray-700 flex-1 pr-2">{card.front}</span>
+                            {expandedCard === i ? (
+                              <ChevronUp className="h-3.5 w-3.5 text-gray-400 shrink-0" />
+                            ) : (
+                              <ChevronDown className="h-3.5 w-3.5 text-gray-400 shrink-0" />
+                            )}
+                          </div>
+                          {expandedCard === i && (
+                            <div className="px-3 py-2 bg-blue-50 border-t border-gray-200">
+                              <p className="text-sm text-gray-600">{card.back}</p>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                    <Button variant="ghost" size="sm" onClick={() => setFlashcardsStatus('idle')} className="self-start text-gray-400">
+                      Regenerate
+                    </Button>
+                  </>
+                )}
+              </div>
+            </TabsContent>
+
+            {/* Exam sub-tab */}
+            <TabsContent value="exam">
+              {isExamActive ? (
+                <ExamSession />
+              ) : (
+                <KnowledgeExamReady
+                  treeId={treeId}
+                  chapter={selectedChapter}
+                  onStart={() => startExam(treeId, selectedChapter, EXAM_CARDS)}
+                />
               )}
-            </div>
-          </div>
+            </TabsContent>
+          </Tabs>
         </>
       )}
+    </div>
+  )
+}
+
+interface KnowledgeExamReadyProps {
+  treeId: string
+  chapter: number
+  onStart: () => void
+}
+
+function KnowledgeExamReady({ treeId: _treeId, chapter: _chapter, onStart }: KnowledgeExamReadyProps) {
+  if (EXAM_CARDS.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12 text-center">
+        <GraduationCap className="h-8 w-8 text-gray-300 mb-3" />
+        <p className="text-sm font-medium text-gray-500">No flashcards available</p>
+        <p className="text-xs text-gray-400 mt-1">
+          Generate flashcards first from the Flashcards tab to take an exam.
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex flex-col gap-6">
+      <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 flex flex-col gap-3">
+        <p className="text-sm text-gray-600">
+          This exam has <span className="font-semibold text-gray-800">{EXAM_CARDS.length}</span>{' '}
+          {EXAM_CARDS.length === 1 ? 'question' : 'questions'}. You must answer all correctly to pass.
+        </p>
+        <Button variant="primary" size="sm" onClick={onStart} className="self-start">
+          Start Exam
+        </Button>
+      </div>
     </div>
   )
 }
