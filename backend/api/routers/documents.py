@@ -289,8 +289,6 @@ def _ingest_selected_chapters(
         write_manifest(
             doc,
             chunk_count=len(chunks),
-            collection="",
-            model="",
             output_dir=OUTPUT_DIR,
             num_chapters=num_stored_chapters,
             stored_chapter_indices=list(chapter_indices),
@@ -524,8 +522,6 @@ def _ingest_background(
         write_manifest(
             doc,
             chunk_count=len(chunks),
-            collection="",
-            model="",
             output_dir=OUTPUT_DIR,
             num_chapters=num_chapters,
         )
@@ -772,8 +768,6 @@ def _ingest_custom_document(
         write_manifest(
             doc,
             chunk_count=len(chunks),
-            collection="",
-            model="",
             output_dir=OUTPUT_DIR,
             num_chapters=num_chapters,
         )
@@ -1019,8 +1013,6 @@ def _ingest_updated_document(
         write_manifest(
             doc,
             chunk_count=len(chunks),
-            collection="",
-            model="",
             output_dir=OUTPUT_DIR,
             num_chapters=num_chapters,
         )

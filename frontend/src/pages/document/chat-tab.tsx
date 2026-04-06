@@ -10,11 +10,11 @@ import type { DocumentStructureOut } from '../../types/api'
 interface ChatTabProps {
   docHash: string
   chapter: number
-  qdrantIndex: number
+  chapterIndex: number
   structure: DocumentStructureOut | null
 }
 
-export function ChatTab({ docHash, chapter, qdrantIndex }: ChatTabProps) {
+export function ChatTab({ docHash, chapter, chapterIndex }: ChatTabProps) {
   const conversationKey = `${docHash}-${chapter}`
 
   const conversations = useChatStore((s) => s.conversations)
@@ -50,7 +50,7 @@ export function ChatTab({ docHash, chapter, qdrantIndex }: ChatTabProps) {
       .map((msg) => ({ role: msg.role, content: msg.content }))
 
     try {
-      const response = await client.chat(docHash, trimmed, chapter, qdrantIndex, history)
+      const response = await client.chat(docHash, trimmed, chapter, chapterIndex, history)
       addAssistantMessage(docHash, chapter, response.answer, response.sources)
     } catch {
       addAssistantMessage(

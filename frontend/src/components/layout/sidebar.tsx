@@ -110,9 +110,8 @@ function ServiceHealthDots({ collapsed }: ServiceHealthDotsProps) {
     serviceHealth?.services.length
       ? serviceHealth.services
       : [
-          { name: 'Ollama', healthy: true },
-          { name: 'Qdrant', healthy: true },
-          { name: 'Neo4j', healthy: true },
+          { name: 'LLM', healthy: true },
+          { name: 'PostgreSQL', healthy: true },
         ]
 
   return (

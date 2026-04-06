@@ -10,7 +10,7 @@ import type { FlashcardOut } from '../../types/api'
 interface FlashcardReviewProps {
   docHash: string
   chapter: number
-  qdrantIndex: number
+  chapterIndex: number
   pendingDeck: FlashcardDeck
   onDone: () => void
 }
@@ -18,7 +18,7 @@ interface FlashcardReviewProps {
 export function FlashcardReview({
   docHash,
   chapter,
-  qdrantIndex,
+  chapterIndex,
   pendingDeck,
   onDone,
 }: FlashcardReviewProps) {
@@ -50,9 +50,9 @@ export function FlashcardReview({
     setLoading(true)
     setError(null)
     try {
-      await client.approveAllFlashcards(docHash, chapter, qdrantIndex)
+      await client.approveAllFlashcards(docHash, chapter, chapterIndex)
       // Reload approved cards and show them in normal view
-      const approved = await client.getStoredFlashcards(docHash, chapter, qdrantIndex)
+      const approved = await client.getStoredFlashcards(docHash, chapter, chapterIndex)
       const deck: FlashcardDeck = {
         documentHash: docHash,
         chapter,
@@ -89,7 +89,7 @@ export function FlashcardReview({
       const remaining = useFlashcardStore.getState().pendingDecks[`${docHash}-${chapter}`]
       if (!remaining || remaining.cards.length === 0) {
         // All cards processed -- reload approved and close
-        const approved = await client.getStoredFlashcards(docHash, chapter, qdrantIndex)
+        const approved = await client.getStoredFlashcards(docHash, chapter, chapterIndex)
         if (approved.length > 0) {
           const deck: FlashcardDeck = {
             documentHash: docHash,

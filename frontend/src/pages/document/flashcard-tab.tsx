@@ -19,11 +19,11 @@ type CategoryFilter = 'all' | 'terminology' | 'key_facts' | 'concepts'
 interface FlashcardTabProps {
   docHash: string
   chapter: number
-  qdrantIndex: number
+  chapterIndex: number
   structure: DocumentStructureOut | null
 }
 
-export function FlashcardTab({ docHash, chapter, qdrantIndex, structure: _structure }: FlashcardTabProps) {
+export function FlashcardTab({ docHash, chapter, chapterIndex, structure: _structure }: FlashcardTabProps) {
   const decks = useFlashcardStore((state) => state.decks)
   const pendingDecks = useFlashcardStore((state) => state.pendingDecks)
   const addDeck = useFlashcardStore((state) => state.addDeck)
@@ -50,7 +50,7 @@ export function FlashcardTab({ docHash, chapter, qdrantIndex, structure: _struct
       if ((existingDecks && existingDecks.length > 0) || existingPending) return
 
       // Check for pending cards first (review screen takes priority)
-      const pending = await client.getPendingFlashcards(docHash, chapter, qdrantIndex)
+      const pending = await client.getPendingFlashcards(docHash, chapter, chapterIndex)
       if (cancelled) return
 
       if (pending.length > 0) {
@@ -73,7 +73,7 @@ export function FlashcardTab({ docHash, chapter, qdrantIndex, structure: _struct
       }
 
       // No pending cards -- load approved ones
-      const stored = await client.getStoredFlashcards(docHash, chapter, qdrantIndex)
+      const stored = await client.getStoredFlashcards(docHash, chapter, chapterIndex)
       if (cancelled || stored.length === 0) return
       const deck: FlashcardDeck = {
         documentHash: docHash,
@@ -93,7 +93,7 @@ export function FlashcardTab({ docHash, chapter, qdrantIndex, structure: _struct
 
     void loadCards()
     return () => { cancelled = true }
-  }, [docHash, chapter, qdrantIndex, addDeck, setPendingDeck, deckKey])
+  }, [docHash, chapter, chapterIndex, addDeck, setPendingDeck, deckKey])
 
   // Subscribe to the task for this specific (docHash, chapter, type) context
   const task = useTaskStore((state) =>
@@ -134,7 +134,7 @@ export function FlashcardTab({ docHash, chapter, qdrantIndex, structure: _struct
 
   const handleGenerate = async () => {
     try {
-      const response = await client.generateFlashcards(chapter, qdrantIndex, bookTitle, docHash, true)
+      const response = await client.generateFlashcards(chapter, chapterIndex, bookTitle, docHash, true)
       useTaskStore.getState().submitTask({
         taskId: response.task_id,
         type: 'flashcards',
@@ -153,7 +153,7 @@ export function FlashcardTab({ docHash, chapter, qdrantIndex, structure: _struct
       <FlashcardReview
         docHash={docHash}
         chapter={chapter}
-        qdrantIndex={qdrantIndex}
+        chapterIndex={chapterIndex}
         pendingDeck={pendingDeck}
         onDone={() => {/* store is updated inside FlashcardReview */}}
       />

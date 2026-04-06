@@ -28,8 +28,6 @@ def _make_manifest(file_hash: str, chapters: list[dict]) -> dict:
         "title": "My Book",
         "source_path": "/tmp/book.pdf",
         "original_filename": "book.pdf",
-        "model": "nomic-embed-text",
-        "collection": "documents",
         "timestamp": "2026-01-01T00:00:00+00:00",
         "chunk_count": 100,
         "num_chapters": len(chapters),

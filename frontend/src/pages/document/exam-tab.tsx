@@ -10,7 +10,7 @@ import type { DocumentStructureOut } from '../../types/api'
 interface ExamTabProps {
   docHash: string
   chapter: number
-  qdrantIndex: number
+  chapterIndex: number
   structure: DocumentStructureOut | null
 }
 
@@ -65,7 +65,7 @@ function formatCountdown(ms: number): string {
   return `${seconds}s`
 }
 
-export function ExamTab({ docHash, chapter, qdrantIndex: _qdrantIndex, structure: _structure }: ExamTabProps) {
+export function ExamTab({ docHash, chapter, chapterIndex: _chapterIndex, structure: _structure }: ExamTabProps) {
   const decks = useFlashcardStore((state) => state.decks)
   const activeExam = useExamStore((state) => state.activeExam)
   const chapterStatus = useExamStore((state) => state.chapterStatus)

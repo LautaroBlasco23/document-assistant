@@ -54,7 +54,7 @@ done < "$EXAMPLE_FILE"
 
 echo "Checking secrets..."
 
-for secret_key in POSTGRES_PASSWORD NEO4J_PASSWORD; do
+for secret_key in POSTGRES_PASSWORD; do
     current=$(get_val "$ENV_FILE" "$secret_key")
     if [ -z "$current" ]; then
         write_val "$secret_key" "$(gen_password)"
@@ -68,10 +68,6 @@ done
 # backend (started outside Docker) uses the same credential as the container.
 pg_pass=$(get_val "$ENV_FILE" "POSTGRES_PASSWORD")
 write_val "DOCASSIST_POSTGRES__PASSWORD" "$pg_pass"
-
-# Keep DOCASSIST_NEO4J__PASSWORD in sync with NEO4J_PASSWORD.
-neo4j_pass=$(get_val "$ENV_FILE" "NEO4J_PASSWORD")
-write_val "DOCASSIST_NEO4J__PASSWORD" "$neo4j_pass"
 
 # ── Compute ALLOWED_ORIGINS from DOMAIN + NGINX_PORT ──────────────────────────
 

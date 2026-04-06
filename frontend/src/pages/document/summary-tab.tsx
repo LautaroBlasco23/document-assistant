@@ -11,7 +11,7 @@ import type { DocumentStructureOut } from '../../types/api'
 interface SummaryTabProps {
   docHash: string
   chapter: number
-  qdrantIndex: number
+  chapterIndex: number
   structure: DocumentStructureOut | null
 }
 
@@ -68,7 +68,7 @@ function parseSummaryData(
   return null
 }
 
-export function SummaryTab({ docHash, chapter, qdrantIndex, structure: _structure }: SummaryTabProps) {
+export function SummaryTab({ docHash, chapter, chapterIndex, structure: _structure }: SummaryTabProps) {
   const [summaryData, setSummaryData] = useState<SummaryData | null>(null)
   const [isLoadingStored, setIsLoadingStored] = useState(false)
 
@@ -81,7 +81,7 @@ export function SummaryTab({ docHash, chapter, qdrantIndex, structure: _structur
     let cancelled = false
     setIsLoadingStored(true)
     setSummaryData(null)
-    void client.getStoredSummary(docHash, chapter, qdrantIndex).then((stored) => {
+    void client.getStoredSummary(docHash, chapter, chapterIndex).then((stored) => {
       if (cancelled) return
       setIsLoadingStored(false)
       if (stored) {
@@ -94,7 +94,7 @@ export function SummaryTab({ docHash, chapter, qdrantIndex, structure: _structur
       if (!cancelled) setIsLoadingStored(false)
     })
     return () => { cancelled = true }
-  }, [docHash, chapter, qdrantIndex])
+  }, [docHash, chapter, chapterIndex])
 
   // Subscribe to the task for this specific (docHash, chapter, type) context
   const task = useTaskStore((state) =>
@@ -124,7 +124,7 @@ export function SummaryTab({ docHash, chapter, qdrantIndex, structure: _structur
   const handleGenerate = async () => {
     setSummaryData(null)
     try {
-      const response = await client.summarizeChapter(chapter, qdrantIndex, bookTitle, docHash, true)
+      const response = await client.summarizeChapter(chapter, chapterIndex, bookTitle, docHash, true)
       useTaskStore.getState().submitTask({
         taskId: response.task_id,
         type: 'summary',
@@ -139,7 +139,7 @@ export function SummaryTab({ docHash, chapter, qdrantIndex, structure: _structur
 
   const handleClear = async () => {
     try {
-      await client.deleteSummary(docHash, chapter, qdrantIndex)
+      await client.deleteSummary(docHash, chapter, chapterIndex)
       setSummaryData(null)
     } catch {
       // Ignore errors (e.g. 404 if already gone)

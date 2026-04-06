@@ -29,7 +29,7 @@ export function DocumentPage() {
   const clearContent = useDocumentStore((s) => s.clearContent)
 
   const selectedChapterData = structure?.chapters.find((ch) => ch.number === selectedChapter)
-  const currentQdrantIndex = selectedChapterData?.chapter_index ?? 0
+  const currentChapterIndex = selectedChapterData?.chapter_index ?? 0
 
   const rawTab = searchParams.get('tab')
   const activeTab: Tab = isValidTab(rawTab) ? rawTab : 'summary'
@@ -106,13 +106,13 @@ export function DocumentPage() {
   const renderTabContent = () => {
     switch (activeTab) {
       case 'flashcards':
-        return <FlashcardTab docHash={hash} chapter={selectedChapter} qdrantIndex={currentQdrantIndex} structure={structure} />
+        return <FlashcardTab docHash={hash} chapter={selectedChapter} chapterIndex={currentChapterIndex} structure={structure} />
       case 'summary':
-        return <SummaryTab docHash={hash} chapter={selectedChapter} qdrantIndex={currentQdrantIndex} structure={structure} />
+        return <SummaryTab docHash={hash} chapter={selectedChapter} chapterIndex={currentChapterIndex} structure={structure} />
       case 'exam':
-        return <ExamTab docHash={hash} chapter={selectedChapter} qdrantIndex={currentQdrantIndex} structure={structure} />
+        return <ExamTab docHash={hash} chapter={selectedChapter} chapterIndex={currentChapterIndex} structure={structure} />
       case 'chat':
-        return <ChatTab docHash={hash} chapter={selectedChapter} qdrantIndex={currentQdrantIndex} structure={structure} />
+        return <ChatTab docHash={hash} chapter={selectedChapter} chapterIndex={currentChapterIndex} structure={structure} />
       default:
         return null
     }

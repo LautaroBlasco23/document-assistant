@@ -73,7 +73,6 @@ if [ "$ENV_MODE" = "dev" ]; then
 
     echo "Pulling Ollama models..."
     ollama pull llama3.2
-    ollama pull nomic-embed-text
 
     if [ ! -d "frontend/node_modules" ]; then
         echo "Installing frontend dependencies..."

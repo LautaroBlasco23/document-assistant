@@ -47,7 +47,7 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
-      # Bind-mount data/ so documents and the embedding cache persist on the host
+      # Bind-mount data/ so documents and manifests persist on the host
       - ./data:/app/data
       # Mount config as read-only so you can edit default.yml without rebuilding
       - ./config:/config:ro

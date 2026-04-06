@@ -13,8 +13,6 @@ logger = logging.getLogger(__name__)
 def write_manifest(
     doc: Document,
     chunk_count: int,
-    collection: str,
-    model: str,
     output_dir: Path,
     num_chapters: int = 0,
     stored_chapter_indices: list[int] | None = None,
@@ -57,8 +55,6 @@ def write_manifest(
         "title": doc.title,
         "source_path": doc.source_path,
         "original_filename": doc.original_filename,
-        "model": model,
-        "collection": collection,
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "chunk_count": chunk_count,
         "num_chapters": num_chapters,

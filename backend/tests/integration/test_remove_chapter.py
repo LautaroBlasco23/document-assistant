@@ -10,7 +10,6 @@ import pytest
 
 from infrastructure.output.manifest import remove_chapter_from_manifest, write_manifest
 
-
 # ---------------------------------------------------------------------------
 # Manifest: remove_chapter_from_manifest (file I/O)
 # ---------------------------------------------------------------------------
@@ -40,8 +39,6 @@ def test_manifest_round_trip():
         write_manifest(
             doc,
             chunk_count=30,
-            collection="documents",
-            model="nomic-embed-text",
             output_dir=output_dir,
             num_chapters=3,
         )
