@@ -1,5 +1,6 @@
 """Knowledge Tree endpoints."""
 
+import functools
 import hashlib
 import logging
 import tempfile
@@ -10,6 +11,7 @@ from uuid import UUID, uuid4
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 
 from api.deps import ServicesDep
+from api.schemas.documents import ChapterPreviewOut, DocumentPreviewOut
 from api.schemas.knowledge_tree import (
     CreateChapterRequest,
     CreateDocumentRequest,
@@ -25,11 +27,14 @@ from api.schemas.knowledge_tree import (
 from api.tasks import Task
 from application.agents.flashcard_generator import FlashcardGeneratorAgent
 from application.agents.summarizer import SummarizerAgent
+from application.ingest import preview_file
 from core.model.chunk import Chunk, ChunkMetadata
 from core.model.document import Chapter
 from core.model.generated_content import Flashcard, Summary
 from core.model.knowledge_tree import KnowledgeChunk
 from infrastructure.chunking.splitter import ChapterAwareSplitter
+from infrastructure.ingest.epub_loader import preview_epub
+from infrastructure.ingest.pdf_loader import preview_pdf
 
 logger = logging.getLogger(__name__)
 
@@ -110,19 +115,90 @@ async def create_tree(req: CreateTreeRequest, services: ServicesDep) -> Knowledg
     return _tree_out(tree, 0)
 
 
-@router.post("/knowledge-trees/import", status_code=202)
-async def import_tree_from_document(
+@router.post("/knowledge-trees/preview", response_model=DocumentPreviewOut)
+async def preview_tree_document(
     services: ServicesDep,
     file: UploadFile = File(...),
-    title: str = Form(""),
-) -> dict:
-    """Create a knowledge tree from a PDF or EPUB, auto-creating chapters."""
+) -> DocumentPreviewOut:
+    """Preview chapter structure of a PDF or EPUB without creating a tree."""
     filename = file.filename or "upload"
     suffix = Path(filename).suffix.lower()
     if suffix not in (".pdf", ".epub"):
         raise HTTPException(
             status_code=422, detail="Only PDF and EPUB files are supported"
         )
+
+    content = await file.read()
+    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+        tmp.write(content)
+        tmp_path = Path(tmp.name)
+
+    try:
+        preview = preview_file(
+            tmp_path,
+            {
+                ".pdf": preview_pdf,
+                ".epub": functools.partial(preview_epub, epub_config=services.config.epub),
+            },
+        )
+        if preview is None:
+            raise HTTPException(
+                status_code=400,
+                detail="Unsupported file type or failed to parse document",
+            )
+        return DocumentPreviewOut(
+            file_hash=preview.file_hash,
+            filename=preview.filename,
+            num_chapters=len(preview.chapters),
+            chapters=[
+                ChapterPreviewOut(
+                    index=c.index,
+                    title=c.title,
+                    page_start=c.page_start,
+                    page_end=c.page_end,
+                )
+                for c in preview.chapters
+            ],
+        )
+    finally:
+        tmp_path.unlink(missing_ok=True)
+
+
+@router.post("/knowledge-trees/import", status_code=202)
+async def import_tree_from_document(
+    services: ServicesDep,
+    file: UploadFile = File(...),
+    title: str = Form(""),
+    chapter_indices: str | None = Form(None),
+) -> dict:
+    """Create a knowledge tree from a PDF or EPUB, auto-creating chapters.
+
+    Optionally pass ``chapter_indices`` as a comma-separated string of 0-based
+    integers to import only those chapters (e.g. ``"0,2,3"``).  Omit the field
+    to import all chapters (default behaviour).
+    """
+    filename = file.filename or "upload"
+    suffix = Path(filename).suffix.lower()
+    if suffix not in (".pdf", ".epub"):
+        raise HTTPException(
+            status_code=422, detail="Only PDF and EPUB files are supported"
+        )
+
+    parsed_indices: list[int] | None = None
+    if chapter_indices is not None:
+        tokens = [t.strip() for t in chapter_indices.split(",") if t.strip()]
+        try:
+            parsed_indices = [int(t) for t in tokens]
+        except ValueError:
+            raise HTTPException(
+                status_code=400,
+                detail="chapter_indices must be a comma-separated list of integers",
+            )
+        if not parsed_indices:
+            raise HTTPException(
+                status_code=400,
+                detail="chapter_indices must contain at least one chapter",
+            )
 
     tree_title = title.strip() or Path(filename).stem
     file_bytes = await file.read()
@@ -132,6 +208,7 @@ async def import_tree_from_document(
         filename,
         tree_title,
         services,
+        parsed_indices,
         task_type="kt_create_from_file",
         filename=filename,
     )
@@ -144,8 +221,14 @@ def _create_tree_from_document_background(
     filename: str,
     tree_title: str,
     services: ServicesDep,
+    chapter_indices: list[int] | None = None,
 ) -> dict:
-    """Background task: parse file, create tree with chapters and knowledge documents."""
+    """Background task: parse file, create tree with chapters and knowledge documents.
+
+    Args:
+        chapter_indices: 0-based indices of chapters to import.  ``None`` means
+            all chapters (default behaviour).
+    """
     t0 = time.perf_counter()
     try:
         _set_progress(task, 5, "Saving uploaded file...")
@@ -172,7 +255,12 @@ def _create_tree_from_document_background(
             tree = services.kt_tree_store.create_tree(tree_title, None)
             tree_uid = tree.id
 
-            chapters_to_process = doc.chapters
+            if chapter_indices is not None:
+                selected = set(chapter_indices)
+                chapters_to_process = [ch for ch in doc.chapters if ch.index in selected]
+            else:
+                chapters_to_process = doc.chapters
+
             chapter_count = len(chapters_to_process)
             if chapter_count == 0:
                 _set_progress(task, 100, "Done (no chapters found)")

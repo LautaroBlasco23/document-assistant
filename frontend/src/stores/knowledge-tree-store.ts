@@ -27,7 +27,7 @@ interface KnowledgeTreeState {
   updateDocument: (id: string, title: string, content: string, treeId: string, chapter: number | null) => Promise<KnowledgeDocument>
   deleteDocument: (id: string, treeId: string, chapter: number | null) => Promise<void>
   ingestFileAsDocument: (treeId: string, chapter: number, file: File) => Promise<KnowledgeDocument>
-  createTreeFromFile: (file: File, title?: string) => Promise<string>
+  createTreeFromFile: (file: File, title?: string, chapterIndices?: number[]) => Promise<string>
 }
 
 function docKey(treeId: string, chapter: number | null) {
@@ -158,8 +158,8 @@ export const useKnowledgeTreeStore = create<KnowledgeTreeState>((set, _get) => (
     return doc
   },
 
-  createTreeFromFile: async (file, title) => {
-    const { task_id } = await client.createKnowledgeTreeFromFile(file, title)
+  createTreeFromFile: async (file, title, chapterIndices) => {
+    const { task_id } = await client.createKnowledgeTreeFromFile(file, title, chapterIndices)
     return task_id
   },
 }))

@@ -372,11 +372,23 @@ export class RealClient implements ServiceClient {
     await httpClient.delete(`/knowledge-trees/_/documents/${id}`)
   }
 
-  async createKnowledgeTreeFromFile(file: File, title?: string): Promise<{ task_id: string }> {
+  async previewKnowledgeTreeFile(file: File): Promise<DocumentPreviewOut> {
+    const formData = new FormData()
+    formData.append('file', file)
+    const res = await httpClient.post<DocumentPreviewOut>('/knowledge-trees/preview', formData, {
+      headers: { 'Content-Type': undefined },
+    })
+    return res.data
+  }
+
+  async createKnowledgeTreeFromFile(file: File, title?: string, chapterIndices?: number[]): Promise<{ task_id: string }> {
     const formData = new FormData()
     formData.append('file', file)
     if (title) {
       formData.append('title', title)
+    }
+    if (chapterIndices !== undefined && chapterIndices.length > 0) {
+      formData.append('chapter_indices', chapterIndices.join(','))
     }
     const res = await httpClient.post<{ task_id: string; filename: string }>(
       '/knowledge-trees/import',

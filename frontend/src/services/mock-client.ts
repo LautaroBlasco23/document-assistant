@@ -340,7 +340,7 @@ export class MockClient implements ServiceClient {
     await delay(150)
     const existing = this.chapters.get(treeId) ?? []
     const number = existing.length + 1
-    const chapter: KnowledgeChapter = { number, title, tree_id: treeId }
+    const chapter: KnowledgeChapter = { id: crypto.randomUUID(), number, title, tree_id: treeId }
     this.chapters.set(treeId, [...existing, chapter])
     // Update tree chapter count
     const tree = this.trees.find((t) => t.id === treeId)
@@ -423,8 +423,24 @@ export class MockClient implements ServiceClient {
     return this.createKnowledgeDocument(treeId, chapter, title, extractedContent)
   }
 
-  async createKnowledgeTreeFromFile(file: File, title?: string): Promise<{ task_id: string }> {
-    console.log('[MockClient] createKnowledgeTreeFromFile', file.name, title)
+  async previewKnowledgeTreeFile(file: File): Promise<DocumentPreviewOut> {
+    console.log('[MockClient] previewKnowledgeTreeFile', file.name)
+    await delay(600)
+    return {
+      file_hash: `mock-hash-${Math.random().toString(36).slice(2, 18)}`,
+      filename: file.name,
+      num_chapters: 4,
+      chapters: [
+        { index: 0, title: 'Introduction', page_start: 1, page_end: 15 },
+        { index: 1, title: 'Chapter 1: Foundations', page_start: 16, page_end: 45 },
+        { index: 2, title: 'Chapter 2: Advanced Topics', page_start: 46, page_end: 90 },
+        { index: 3, title: 'Conclusion', page_start: 91, page_end: 100 },
+      ],
+    }
+  }
+
+  async createKnowledgeTreeFromFile(file: File, title?: string, chapterIndices?: number[]): Promise<{ task_id: string }> {
+    console.log('[MockClient] createKnowledgeTreeFromFile', file.name, title, chapterIndices)
     await delay(200)
     const taskId = `mock-task-${Math.random().toString(36).slice(2, 10)}`
     return { task_id: taskId }
