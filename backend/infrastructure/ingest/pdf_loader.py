@@ -6,7 +6,7 @@ from pathlib import Path
 import fitz  # PyMuPDF
 
 from core.model.document import Chapter, Document, Page, Section
-from infrastructure.ingest.normalizer import normalize
+from infrastructure.ingest.normalizer import clean_text, normalize
 
 logger = logging.getLogger(__name__)
 
@@ -162,7 +162,24 @@ def load_pdf(path: Path, file_hash: str, original_filename: str = "") -> Documen
 
     normalized = normalize(raw_pages)
 
-    pages = [Page(number=i + 1, text=text) for i, text in enumerate(normalized)]
+    # Cross-page paragraph reflow: join all pages with a double-newline-padded
+    # PAGE marker so _rebuild_paragraphs() keeps the marker as its own block,
+    # then run clean_text() to join hyphenated line breaks across page boundaries
+    # and normalize paragraph structure. Re-split on the marker afterwards to
+    # recover per-page text while keeping page numbers accurate.
+    _PAGE_BOUNDARY = "---PAGE---"
+    joined = f"\n\n{_PAGE_BOUNDARY}\n\n".join(normalized)
+    reflowed = clean_text(joined, dehyphenate=True)
+    # Split back into per-page texts; the marker is preserved by _rebuild_paragraphs
+    # because it lives in its own double-newline-delimited block.
+    page_texts = [t.strip() for t in reflowed.split(_PAGE_BOUNDARY)]
+    # Guard: if the split produced fewer or more parts than original pages
+    # (e.g. adjacent empty pages collapsed), pad/trim to match original count.
+    while len(page_texts) < len(normalized):
+        page_texts.append("")
+    page_texts = page_texts[: len(normalized)]
+
+    pages = [Page(number=i + 1, text=text) for i, text in enumerate(page_texts)]
 
     # Try ToC-based detection first, then heuristic, then synthetic
     chapters = (

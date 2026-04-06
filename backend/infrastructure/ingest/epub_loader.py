@@ -8,7 +8,7 @@ from lxml import etree
 
 from core.model.document import Chapter, Document, Page
 from infrastructure.config import EpubConfig
-from infrastructure.ingest.normalizer import normalize
+from infrastructure.ingest.normalizer import clean_text, normalize
 
 logger = logging.getLogger(__name__)
 
@@ -300,7 +300,8 @@ def load_epub(
             continue
 
         normalized = normalize([text])
-        page = Page(number=1, text=normalized[0])
+        cleaned = clean_text(normalized[0], dehyphenate=False)
+        page = Page(number=1, text=cleaned)
         chapters.append(
             Chapter(
                 index=idx,
