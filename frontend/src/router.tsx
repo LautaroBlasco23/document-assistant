@@ -6,6 +6,9 @@ import { SkeletonBlock } from './components/ui/skeleton'
 const LibraryPage = React.lazy(() =>
   import('./pages/library/library-page').then((m) => ({ default: m.LibraryPage }))
 )
+const KnowledgeTreePage = React.lazy(() =>
+  import('./pages/knowledge-tree/knowledge-tree-page').then((m) => ({ default: m.KnowledgeTreePage }))
+)
 const DocumentPage = React.lazy(() =>
   import('./pages/document/document-page').then((m) => ({ default: m.DocumentPage }))
 )
@@ -35,6 +38,14 @@ export const router = createBrowserRouter([
         element: (
           <Suspense fallback={<PageFallback />}>
             <LibraryPage />
+          </Suspense>
+        ),
+      },
+      {
+        path: 'trees/:treeId',
+        element: (
+          <Suspense fallback={<PageFallback />}>
+            <KnowledgeTreePage />
           </Suspense>
         ),
       },

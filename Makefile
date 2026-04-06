@@ -1,4 +1,4 @@
-.PHONY: start stop dev-kill check clean prune help env-check dev-deps infra-deps
+.PHONY: start mock stop dev-kill check clean prune help env-check dev-deps infra-deps
 
 DOCKER_COMPOSE := docker compose
 BACKEND_DIR := backend
@@ -15,6 +15,7 @@ help:
 	@echo "    make start PROVIDER=ollama          Use local Ollama"
 	@echo "    make start PROVIDER=openrouter      Use OpenRouter"
 	@echo "    make start PROVIDER=huggingface     Use HuggingFace"
+	@echo "    make mock                           Frontend only, no backend (mock data)"
 	@echo ""
 	@echo "  \033[1;32mServices\033[0m"
 	@echo "    make stop                           Stop all services"
@@ -30,6 +31,10 @@ help:
 
 start: env-check
 	@PROVIDER=$(PROVIDER) bash scripts/start.sh
+
+mock: dev-deps
+	@echo "Starting frontend in mock mode (no backend required)..."
+	@cd frontend && VITE_MOCK=true npm run dev
 
 env-check:
 	@bash scripts/setupEnv.sh

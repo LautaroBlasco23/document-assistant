@@ -21,6 +21,7 @@ import type {
   DocumentContentResponse,
   UpdateContentResponse,
 } from '../types/api'
+import type { KnowledgeTree, KnowledgeChapter, KnowledgeDocument } from '../types/knowledge-tree'
 
 export interface ServiceClient {
   health(): Promise<HealthOut>
@@ -67,6 +68,18 @@ export interface ServiceClient {
   appendContent(docHash: string, content: string): Promise<AppendContentResponse>
   getDocumentContent(docHash: string): Promise<DocumentContentResponse>
   updateDocumentContent(docHash: string, content: string): Promise<UpdateContentResponse>
+
+  // Knowledge Trees
+  listKnowledgeTrees(): Promise<KnowledgeTree[]>
+  createKnowledgeTree(title: string, description?: string): Promise<KnowledgeTree>
+  deleteKnowledgeTree(id: string): Promise<void>
+  getKnowledgeTreeChapters(treeId: string): Promise<KnowledgeChapter[]>
+  createKnowledgeChapter(treeId: string, title: string): Promise<KnowledgeChapter>
+  deleteKnowledgeChapter(treeId: string, chapterNumber: number): Promise<void>
+  listKnowledgeDocuments(treeId: string, chapter?: number | null): Promise<KnowledgeDocument[]>
+  createKnowledgeDocument(treeId: string, chapter: number | null, title: string, content: string, isMain?: boolean): Promise<KnowledgeDocument>
+  updateKnowledgeDocument(id: string, title: string, content: string): Promise<KnowledgeDocument>
+  deleteKnowledgeDocument(id: string): Promise<void>
 }
 
 export type { ServiceClient as ServiceClientType }

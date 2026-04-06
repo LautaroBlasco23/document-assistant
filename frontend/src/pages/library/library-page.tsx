@@ -1,33 +1,28 @@
 import * as React from 'react'
-import { FileUp, Plus } from 'lucide-react'
+import { TreePine, Plus } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { Button } from '../../components/ui/button'
 import { SkeletonCard } from '../../components/ui/skeleton'
 import { EmptyState } from '../../components/ui/empty-state'
-import { useDocuments } from '../../hooks/use-documents'
-import { useDocumentStore } from '../../stores/document-store'
-import { useUploadStore } from '../../stores/upload-store'
-import { UploadZone } from './upload-zone'
-import { DocumentCard } from './document-card'
-import { UploadingDocumentCard } from './uploading-document-card'
-import { CreateDocumentDialog } from '../../components/dialogs/create-document-dialog'
+import { useKnowledgeTreeStore } from '../../stores/knowledge-tree-store'
+import { KnowledgeTreeCard } from './knowledge-tree-card'
+import { CreateKnowledgeTreeDialog } from './create-knowledge-tree-dialog'
 
 export function LibraryPage() {
-  const { documents, loading } = useDocuments()
-  const removeDocument = useDocumentStore((state) => state.removeDocument)
-  const uploads = useUploadStore((state) => state.uploads)
-  const dismissUpload = useUploadStore((state) => state.dismissUpload)
+  const { trees, treesLoading, fetchTrees, deleteTree } = useKnowledgeTreeStore()
   const [showCreateDialog, setShowCreateDialog] = React.useState(false)
 
-  const hasContent = documents.length > 0 || uploads.length > 0
+  React.useEffect(() => {
+    void fetchTrees()
+  }, [fetchTrees])
 
   return (
     <div className="p-6 max-w-6xl mx-auto">
       {/* Header */}
       <div className="flex items-center gap-3 mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Library</h1>
-        {documents.length > 0 && (
-          <Badge variant="neutral">{documents.length}</Badge>
+        <h1 className="text-2xl font-bold text-gray-900">Knowledge Trees</h1>
+        {trees.length > 0 && (
+          <Badge variant="neutral">{trees.length}</Badge>
         )}
         <div className="ml-auto">
           <Button
@@ -35,46 +30,35 @@ export function LibraryPage() {
             onClick={() => setShowCreateDialog(true)}
           >
             <Plus className="w-4 h-4 mr-1" />
-            Create Document
+            New Tree
           </Button>
         </div>
       </div>
 
-      {/* Upload zone */}
-      <UploadZone />
-
-      <CreateDocumentDialog
+      <CreateKnowledgeTreeDialog
         open={showCreateDialog}
         onClose={() => setShowCreateDialog(false)}
       />
 
-      {/* Document grid */}
-      {loading ? (
+      {treesLoading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {Array.from({ length: 6 }).map((_, i) => (
+          {Array.from({ length: 4 }).map((_, i) => (
             <SkeletonCard key={i} />
           ))}
         </div>
-      ) : !hasContent ? (
+      ) : trees.length === 0 ? (
         <EmptyState
-          icon={FileUp}
-          title="No documents yet"
-          description="Upload a PDF, EPUB, or text file to get started"
+          icon={TreePine}
+          title="No knowledge trees yet"
+          description="Create a knowledge tree to organize documents by chapters and generate content from them."
         />
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {uploads.map((upload) => (
-            <UploadingDocumentCard
-              key={upload.id}
-              upload={upload}
-              onDismiss={dismissUpload}
-            />
-          ))}
-          {documents.map((doc) => (
-            <DocumentCard
-              key={doc.file_hash}
-              document={doc}
-              onDelete={(hash) => void removeDocument(hash)}
+          {trees.map((tree) => (
+            <KnowledgeTreeCard
+              key={tree.id}
+              tree={tree}
+              onDelete={(id) => void deleteTree(id)}
             />
           ))}
         </div>

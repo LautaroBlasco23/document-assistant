@@ -1,0 +1,419 @@
+import * as React from 'react'
+import { Plus, Pencil, Trash2, Check, X, FileText, BookMarked } from 'lucide-react'
+import { Button } from '../../components/ui/button'
+import { Input } from '../../components/ui/input'
+import { Badge } from '../../components/ui/badge'
+import { useKnowledgeTreeStore, docKey } from '../../stores/knowledge-tree-store'
+import type { KnowledgeChapter, KnowledgeDocument } from '../../types/knowledge-tree'
+
+interface KnowledgeDocumentsTabProps {
+  treeId: string
+  selectedChapter: number | null  // null = tree-level (main doc)
+  chapters: KnowledgeChapter[]
+  onChapterChange: (chapter: number | null) => void
+  onChaptersRefresh: () => void
+}
+
+interface DocumentEditorState {
+  id: string | null  // null = creating new
+  title: string
+  content: string
+}
+
+export function KnowledgeDocumentsTab({
+  treeId,
+  selectedChapter,
+  chapters,
+  onChapterChange,
+  onChaptersRefresh,
+}: KnowledgeDocumentsTabProps) {
+  const {
+    documents: docsByKey,
+    documentsLoading,
+    fetchDocuments,
+    createDocument,
+    updateDocument,
+    deleteDocument,
+    createChapter,
+    deleteChapter,
+  } = useKnowledgeTreeStore()
+
+  const [editor, setEditor] = React.useState<DocumentEditorState | null>(null)
+  const [saving, setSaving] = React.useState(false)
+  const [newChapterTitle, setNewChapterTitle] = React.useState('')
+  const [showNewChapter, setShowNewChapter] = React.useState(false)
+  const [creatingChapter, setCreatingChapter] = React.useState(false)
+
+  const key = docKey(treeId, selectedChapter)
+  const docs = docsByKey[key] ?? []
+  const loading = documentsLoading[key] ?? false
+
+  React.useEffect(() => {
+    void fetchDocuments(treeId, selectedChapter)
+  }, [treeId, selectedChapter, fetchDocuments])
+
+  const handleOpenCreate = () => {
+    setEditor({ id: null, title: '', content: '' })
+  }
+
+  const handleOpenEdit = (doc: KnowledgeDocument) => {
+    setEditor({ id: doc.id, title: doc.title, content: doc.content })
+  }
+
+  const handleCancelEditor = () => {
+    setEditor(null)
+  }
+
+  const handleSave = async () => {
+    if (!editor || !editor.title.trim()) return
+    setSaving(true)
+    try {
+      if (editor.id === null) {
+        await createDocument(treeId, selectedChapter, editor.title.trim(), editor.content, false)
+      } else {
+        await updateDocument(editor.id, editor.title.trim(), editor.content, treeId, selectedChapter)
+      }
+      setEditor(null)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleDelete = async (doc: KnowledgeDocument) => {
+    if (!window.confirm(`Delete "${doc.title}"? This cannot be undone.`)) return
+    await deleteDocument(doc.id, treeId, selectedChapter)
+  }
+
+  const handleSaveMainDoc = async (doc: KnowledgeDocument, newContent: string) => {
+    setSaving(true)
+    try {
+      await updateDocument(doc.id, doc.title, newContent, treeId, null)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleCreateChapter = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!newChapterTitle.trim()) return
+    setCreatingChapter(true)
+    try {
+      await createChapter(treeId, newChapterTitle.trim())
+      setNewChapterTitle('')
+      setShowNewChapter(false)
+      onChaptersRefresh()
+    } finally {
+      setCreatingChapter(false)
+    }
+  }
+
+  const handleDeleteChapter = async (chapterNumber: number) => {
+    const ch = chapters.find((c) => c.number === chapterNumber)
+    if (!window.confirm(`Delete chapter "${ch?.title ?? chapterNumber}"? All its documents will be removed.`)) return
+    await deleteChapter(treeId, chapterNumber)
+    onChapterChange(null)
+    onChaptersRefresh()
+  }
+
+  const isMain = selectedChapter === null
+  const mainDoc = isMain ? docs.find((d) => d.is_main) : undefined
+
+  return (
+    <div className="flex gap-4 min-h-0">
+      {/* Chapter sidebar */}
+      <aside className="w-52 shrink-0 flex flex-col gap-1">
+        <p className="text-xs font-medium text-gray-400 uppercase tracking-wide px-2 mb-1">Sections</p>
+
+        {/* Tree-level (main doc) */}
+        <button
+          onClick={() => onChapterChange(null)}
+          className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm text-left w-full transition-colors ${
+            selectedChapter === null
+              ? 'bg-blue-50 text-primary font-medium border-l-2 border-primary'
+              : 'text-gray-600 hover:bg-gray-100'
+          }`}
+        >
+          <BookMarked className="h-3.5 w-3.5 shrink-0" />
+          <span className="truncate">Overview</span>
+        </button>
+
+        {/* Chapters */}
+        {chapters.map((ch) => (
+          <div key={ch.number} className="group flex items-center">
+            <button
+              onClick={() => onChapterChange(ch.number)}
+              className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm text-left flex-1 min-w-0 transition-colors ${
+                selectedChapter === ch.number
+                  ? 'bg-blue-50 text-primary font-medium border-l-2 border-primary'
+                  : 'text-gray-600 hover:bg-gray-100'
+              }`}
+            >
+              <FileText className="h-3.5 w-3.5 shrink-0" />
+              <span className="truncate">{ch.title}</span>
+            </button>
+            <button
+              onClick={() => void handleDeleteChapter(ch.number)}
+              className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-red-500 transition-opacity mr-1 rounded"
+              aria-label={`Delete chapter ${ch.title}`}
+            >
+              <Trash2 className="h-3 w-3" />
+            </button>
+          </div>
+        ))}
+
+        {/* New chapter */}
+        {showNewChapter ? (
+          <form onSubmit={(e) => void handleCreateChapter(e)} className="flex flex-col gap-1 px-1 pt-1">
+            <Input
+              value={newChapterTitle}
+              onChange={(e) => setNewChapterTitle(e.target.value)}
+              placeholder="Chapter title"
+              autoFocus
+              className="text-xs h-7"
+            />
+            <div className="flex gap-1">
+              <Button type="submit" size="sm" variant="primary" disabled={creatingChapter || !newChapterTitle.trim()} className="flex-1 h-6 text-xs">
+                Add
+              </Button>
+              <Button type="button" size="sm" variant="ghost" onClick={() => setShowNewChapter(false)} className="h-6 text-xs">
+                <X className="h-3 w-3" />
+              </Button>
+            </div>
+          </form>
+        ) : (
+          <button
+            onClick={() => setShowNewChapter(true)}
+            className="flex items-center gap-2 px-3 py-2 rounded-md text-sm text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors w-full text-left"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            New Chapter
+          </button>
+        )}
+      </aside>
+
+      {/* Main content area */}
+      <div className="flex-1 flex flex-col gap-3 min-w-0">
+        {loading ? (
+          <div className="text-sm text-gray-400 mt-4">Loading documents...</div>
+        ) : isMain ? (
+          /* Tree-level: single main document (editable inline) */
+          <MainDocEditor
+            doc={mainDoc ?? null}
+            saving={saving}
+            onSave={handleSaveMainDoc}
+          />
+        ) : (
+          /* Chapter level: list of docs */
+          <>
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-semibold text-gray-800">
+                  {chapters.find((c) => c.number === selectedChapter)?.title ?? `Chapter ${selectedChapter}`}
+                </h3>
+                <p className="text-xs text-gray-400">{docs.length} {docs.length === 1 ? 'document' : 'documents'}</p>
+              </div>
+              {editor === null && (
+                <Button variant="secondary" size="sm" onClick={handleOpenCreate}>
+                  <Plus className="h-3.5 w-3.5 mr-1" />
+                  Add Document
+                </Button>
+              )}
+            </div>
+
+            {/* Inline create form */}
+            {editor !== null && editor.id === null && (
+              <DocumentEditorCard
+                editor={editor}
+                saving={saving}
+                onChange={setEditor}
+                onSave={() => void handleSave()}
+                onCancel={handleCancelEditor}
+                isNew
+              />
+            )}
+
+            {/* Documents list */}
+            {docs.length === 0 && editor === null ? (
+              <div className="flex flex-col items-center justify-center py-12 text-center">
+                <FileText className="h-8 w-8 text-gray-300 mb-3" />
+                <p className="text-sm text-gray-500 font-medium">No documents yet</p>
+                <p className="text-xs text-gray-400 mt-1">
+                  Add knowledge documents for this chapter. They will be used to generate summaries and flashcards.
+                </p>
+              </div>
+            ) : (
+              docs.map((doc) => (
+                editor !== null && editor.id === doc.id ? (
+                  <DocumentEditorCard
+                    key={doc.id}
+                    editor={editor}
+                    saving={saving}
+                    onChange={setEditor}
+                    onSave={() => void handleSave()}
+                    onCancel={handleCancelEditor}
+                    isNew={false}
+                  />
+                ) : (
+                  <DocumentCard
+                    key={doc.id}
+                    doc={doc}
+                    onEdit={() => handleOpenEdit(doc)}
+                    onDelete={() => void handleDelete(doc)}
+                  />
+                )
+              ))
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ─── Sub-components ───────────────────────────────────────────────────────────
+
+interface MainDocEditorProps {
+  doc: KnowledgeDocument | null
+  saving: boolean
+  onSave: (doc: KnowledgeDocument, content: string) => Promise<void>
+}
+
+function MainDocEditor({ doc, saving, onSave }: MainDocEditorProps) {
+  const [content, setContent] = React.useState(doc?.content ?? '')
+  const [dirty, setDirty] = React.useState(false)
+
+  // Sync when doc changes
+  React.useEffect(() => {
+    setContent(doc?.content ?? '')
+    setDirty(false)
+  }, [doc?.id])
+
+  const handleChange = (val: string) => {
+    setContent(val)
+    setDirty(val !== (doc?.content ?? ''))
+  }
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-sm font-semibold text-gray-800">Overview Document</h3>
+          <p className="text-xs text-gray-400">Describes the overall scope of this knowledge tree.</p>
+        </div>
+        {dirty && (
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => doc && void onSave(doc, content)}
+            disabled={saving || !doc}
+          >
+            <Check className="h-3.5 w-3.5 mr-1" />
+            {saving ? 'Saving...' : 'Save'}
+          </Button>
+        )}
+      </div>
+      <textarea
+        className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm text-gray-700 placeholder-gray-400 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary resize-none font-mono leading-relaxed"
+        rows={18}
+        placeholder="Write an overview of this knowledge tree. Describe the main topics, goals, and structure..."
+        value={content}
+        onChange={(e) => handleChange(e.target.value)}
+      />
+      <p className="text-xs text-gray-400">
+        This document describes the overall scope. The AI will use it to provide context when generating content for each chapter.
+      </p>
+    </div>
+  )
+}
+
+interface DocumentCardProps {
+  doc: KnowledgeDocument
+  onEdit: () => void
+  onDelete: () => void
+}
+
+function DocumentCard({ doc, onEdit, onDelete }: DocumentCardProps) {
+  const preview = doc.content.trim().slice(0, 200)
+
+  return (
+    <div className="border border-gray-200 rounded-lg p-4 flex flex-col gap-2 bg-white hover:border-gray-300 transition-colors">
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <FileText className="h-3.5 w-3.5 text-gray-400 shrink-0" />
+          <span className="text-sm font-medium text-gray-800 truncate">{doc.title}</span>
+        </div>
+        <div className="flex gap-1 shrink-0">
+          <Button variant="ghost" size="sm" onClick={onEdit} className="h-7 px-2 text-gray-400 hover:text-gray-700">
+            <Pencil className="h-3.5 w-3.5" />
+          </Button>
+          <Button variant="ghost" size="sm" onClick={onDelete} className="h-7 px-2 text-red-400 hover:text-red-600 hover:bg-red-50">
+            <Trash2 className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+      </div>
+      {preview && (
+        <p className="text-xs text-gray-500 line-clamp-3 leading-relaxed font-mono">
+          {preview}{doc.content.length > 200 ? '...' : ''}
+        </p>
+      )}
+      <div className="flex items-center gap-2 pt-1">
+        <Badge variant="neutral" className="text-xs">
+          {doc.content.trim().split(/\s+/).filter(Boolean).length} words
+        </Badge>
+      </div>
+    </div>
+  )
+}
+
+interface DocumentEditorCardProps {
+  editor: DocumentEditorState
+  saving: boolean
+  isNew: boolean
+  onChange: (state: DocumentEditorState) => void
+  onSave: () => void
+  onCancel: () => void
+}
+
+interface DocumentEditorState {
+  id: string | null
+  title: string
+  content: string
+}
+
+function DocumentEditorCard({ editor, saving, isNew, onChange, onSave, onCancel }: DocumentEditorCardProps) {
+  return (
+    <div className="border border-primary/40 rounded-lg p-4 flex flex-col gap-3 bg-blue-50/30">
+      <div className="flex items-center gap-2">
+        <Input
+          placeholder="Document title"
+          value={editor.title}
+          onChange={(e) => onChange({ ...editor, title: e.target.value })}
+          className="flex-1"
+          autoFocus={isNew}
+        />
+      </div>
+      <textarea
+        className="w-full rounded-md border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-700 placeholder-gray-400 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary resize-none font-mono leading-relaxed"
+        rows={10}
+        placeholder="Write the knowledge document content here..."
+        value={editor.content}
+        onChange={(e) => onChange({ ...editor, content: e.target.value })}
+      />
+      <div className="flex gap-2 justify-end">
+        <Button variant="ghost" size="sm" onClick={onCancel} disabled={saving}>
+          <X className="h-3.5 w-3.5 mr-1" />
+          Cancel
+        </Button>
+        <Button
+          variant="primary"
+          size="sm"
+          onClick={onSave}
+          disabled={saving || !editor.title.trim()}
+        >
+          <Check className="h-3.5 w-3.5 mr-1" />
+          {saving ? 'Saving...' : isNew ? 'Create' : 'Save'}
+        </Button>
+      </div>
+    </div>
+  )
+}

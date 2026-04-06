@@ -1,6 +1,8 @@
 import { mockHealth } from '../mocks/health'
 import { mockDocuments, mockDocumentStructures } from '../mocks/documents'
 import { mockConfig } from '../mocks/config'
+import { mockKnowledgeTrees, mockKnowledgeChapters, mockKnowledgeDocuments } from '../mocks/knowledge-trees'
+import type { KnowledgeTree, KnowledgeChapter, KnowledgeDocument } from '../types/knowledge-tree'
 import type {
   HealthOut,
   DocumentOut,
@@ -32,6 +34,14 @@ export class MockClient implements ServiceClient {
   private deletedHashes = new Set<string>()
   private taskCallCounts = new Map<string, number>()
   private metadataStore = new Map<string, { description: string; document_type: string }>()
+
+  // Knowledge Tree in-memory state
+  private trees: KnowledgeTree[] = [...mockKnowledgeTrees]
+  private chapters: Map<string, KnowledgeChapter[]> = new Map(
+    Object.entries(mockKnowledgeChapters).map(([k, v]) => [k, [...v]])
+  )
+  private documents: KnowledgeDocument[] = [...mockKnowledgeDocuments]
+  private deletedTreeIds = new Set<string>()
 
   async health(): Promise<HealthOut> {
     await delay(100)
@@ -272,5 +282,116 @@ export class MockClient implements ServiceClient {
       task_id: `mock-task-${Math.random().toString(36).slice(2, 10)}`,
       preserved: { summaries: 2, flashcards: 15 },
     }
+  }
+
+  // Knowledge Trees
+
+  async listKnowledgeTrees(): Promise<KnowledgeTree[]> {
+    await delay(150)
+    return this.trees.filter((t) => !this.deletedTreeIds.has(t.id))
+  }
+
+  async createKnowledgeTree(title: string, description?: string): Promise<KnowledgeTree> {
+    await delay(200)
+    const id = `tree-${Math.random().toString(36).slice(2, 10)}`
+    const tree: KnowledgeTree = {
+      id,
+      title,
+      description,
+      num_chapters: 0,
+      created_at: new Date().toISOString(),
+    }
+    this.trees.push(tree)
+    this.chapters.set(id, [])
+    const mainDoc: KnowledgeDocument = {
+      id: `doc-${id}-main`,
+      tree_id: id,
+      chapter: null,
+      is_main: true,
+      title: 'Overview',
+      content: '',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }
+    this.documents.push(mainDoc)
+    return tree
+  }
+
+  async deleteKnowledgeTree(id: string): Promise<void> {
+    await delay(150)
+    this.deletedTreeIds.add(id)
+  }
+
+  async getKnowledgeTreeChapters(treeId: string): Promise<KnowledgeChapter[]> {
+    await delay(100)
+    return this.chapters.get(treeId) ?? []
+  }
+
+  async createKnowledgeChapter(treeId: string, title: string): Promise<KnowledgeChapter> {
+    await delay(150)
+    const existing = this.chapters.get(treeId) ?? []
+    const number = existing.length + 1
+    const chapter: KnowledgeChapter = { number, title, tree_id: treeId }
+    this.chapters.set(treeId, [...existing, chapter])
+    // Update tree chapter count
+    const tree = this.trees.find((t) => t.id === treeId)
+    if (tree) tree.num_chapters = number
+    return chapter
+  }
+
+  async deleteKnowledgeChapter(treeId: string, chapterNumber: number): Promise<void> {
+    await delay(150)
+    const existing = this.chapters.get(treeId) ?? []
+    this.chapters.set(treeId, existing.filter((c) => c.number !== chapterNumber))
+    this.documents = this.documents.filter(
+      (d) => !(d.tree_id === treeId && d.chapter === chapterNumber)
+    )
+    const tree = this.trees.find((t) => t.id === treeId)
+    if (tree) tree.num_chapters = Math.max(0, tree.num_chapters - 1)
+  }
+
+  async listKnowledgeDocuments(treeId: string, chapter?: number | null): Promise<KnowledgeDocument[]> {
+    await delay(100)
+    return this.documents.filter((d) => {
+      if (d.tree_id !== treeId) return false
+      if (chapter === undefined) return true
+      return d.chapter === chapter
+    })
+  }
+
+  async createKnowledgeDocument(
+    treeId: string,
+    chapter: number | null,
+    title: string,
+    content: string,
+    isMain = false,
+  ): Promise<KnowledgeDocument> {
+    await delay(150)
+    const doc: KnowledgeDocument = {
+      id: `doc-${Math.random().toString(36).slice(2, 12)}`,
+      tree_id: treeId,
+      chapter,
+      is_main: isMain,
+      title,
+      content,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }
+    this.documents.push(doc)
+    return doc
+  }
+
+  async updateKnowledgeDocument(id: string, title: string, content: string): Promise<KnowledgeDocument> {
+    await delay(150)
+    const idx = this.documents.findIndex((d) => d.id === id)
+    if (idx === -1) throw new Error(`Document not found: ${id}`)
+    const updated = { ...this.documents[idx], title, content, updated_at: new Date().toISOString() }
+    this.documents[idx] = updated
+    return updated
+  }
+
+  async deleteKnowledgeDocument(id: string): Promise<void> {
+    await delay(100)
+    this.documents = this.documents.filter((d) => d.id !== id)
   }
 }

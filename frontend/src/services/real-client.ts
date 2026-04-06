@@ -24,6 +24,7 @@ import type {
   UpdateContentResponse,
 } from '../types/api'
 import type { ServiceClient } from './client.interface'
+import type { KnowledgeTree, KnowledgeChapter, KnowledgeDocument } from '../types/knowledge-tree'
 
 const httpClient: AxiosInstance = axios.create({
   baseURL: '/api',
@@ -285,4 +286,16 @@ export class RealClient implements ServiceClient {
     const res = await httpClient.put<UpdateContentResponse>(`/documents/${docHash}/content`, { content })
     return res.data
   }
+
+  // Knowledge Trees — not yet implemented in backend
+  async listKnowledgeTrees(): Promise<KnowledgeTree[]> { return [] }
+  async createKnowledgeTree(_title: string, _description?: string): Promise<KnowledgeTree> { throw new Error('Not implemented') }
+  async deleteKnowledgeTree(_id: string): Promise<void> { throw new Error('Not implemented') }
+  async getKnowledgeTreeChapters(_treeId: string): Promise<KnowledgeChapter[]> { return [] }
+  async createKnowledgeChapter(_treeId: string, _title: string): Promise<KnowledgeChapter> { throw new Error('Not implemented') }
+  async deleteKnowledgeChapter(_treeId: string, _chapterNumber: number): Promise<void> { throw new Error('Not implemented') }
+  async listKnowledgeDocuments(_treeId: string, _chapter?: number | null): Promise<KnowledgeDocument[]> { return [] }
+  async createKnowledgeDocument(_treeId: string, _chapter: number | null, _title: string, _content: string, _isMain?: boolean): Promise<KnowledgeDocument> { throw new Error('Not implemented') }
+  async updateKnowledgeDocument(_id: string, _title: string, _content: string): Promise<KnowledgeDocument> { throw new Error('Not implemented') }
+  async deleteKnowledgeDocument(_id: string): Promise<void> { throw new Error('Not implemented') }
 }
