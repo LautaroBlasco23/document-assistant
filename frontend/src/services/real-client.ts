@@ -16,7 +16,6 @@ import type {
   DocumentPreviewOut,
   ExamResultOut,
   ChapterExamStatusOut,
-  ChatResponse,
   CreateDocumentRequest,
   CreateDocumentResponse,
   AppendContentResponse,
@@ -239,23 +238,6 @@ export class RealClient implements ServiceClient {
 
   async getExamStatusForChapter(docHash: string, chapter: number): Promise<ChapterExamStatusOut> {
     const res = await httpClient.get<ChapterExamStatusOut>(`/documents/${docHash}/exam-status/${chapter}`)
-    return res.data
-  }
-
-  async chat(
-    docHash: string,
-    query: string,
-    chapter: number | null,
-    chapterIndex: number | null,
-    history: Array<{ role: 'user' | 'assistant'; content: string }>
-  ): Promise<ChatResponse> {
-    const res = await httpClient.post<ChatResponse>('/chat', {
-      document_hash: docHash,
-      chapter,
-      chapter_index: chapterIndex,
-      query,
-      history,
-    })
     return res.data
   }
 

@@ -1,5 +1,4 @@
 """Unit tests for GroqLLM adapter."""
-import json
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -104,34 +103,7 @@ def test_chat_with_json_format():
 
 
 # ---------------------------------------------------------------------------
-# Test 4: chat_stream() yields tokens from SSE lines
-# ---------------------------------------------------------------------------
-
-def test_chat_stream_yields_tokens():
-    config = _make_config()
-    llm = GroqLLM(config)
-
-    # Build SSE lines as bytes (as iter_lines would return)
-    sse_lines = [
-        b'data: ' + json.dumps({"choices": [{"delta": {"content": "Hello"}}]}).encode(),
-        b'data: ' + json.dumps({"choices": [{"delta": {"content": " world"}}]}).encode(),
-        b'data: [DONE]',
-    ]
-
-    mock_resp = MagicMock(spec=requests.Response)
-    mock_resp.status_code = 200
-    mock_resp.raise_for_status = MagicMock()
-    mock_resp.headers = {}
-    mock_resp.iter_lines.return_value = iter(sse_lines)
-
-    with patch("requests.post", return_value=mock_resp):
-        tokens = list(llm.chat_stream("system", "user"))
-
-    assert tokens == ["Hello", " world"]
-
-
-# ---------------------------------------------------------------------------
-# Test 5: retry on HTTP 429
+# Test 4: retry on HTTP 429
 # ---------------------------------------------------------------------------
 
 def test_retry_on_429():

@@ -21,12 +21,4 @@ export interface ExamSession {
   isComplete: boolean
 }
 
-export type Tab = 'flashcards' | 'summary' | 'exam' | 'chat'
-
-export interface ChatMessage {
-  id: string
-  role: 'user' | 'assistant'
-  content: string
-  sources?: Array<{ page_number: number | null; text_preview: string }>
-  timestamp: number
-}
+export type Tab = 'flashcards' | 'summary' | 'exam'

@@ -185,16 +185,6 @@ export interface ChapterExamStatusOut {
   can_take_exam: boolean
 }
 
-export interface ChatSourceOut {
-  page_number: number | null
-  text_preview: string
-}
-
-export interface ChatResponse {
-  answer: string
-  sources: ChatSourceOut[]
-}
-
 export interface CreateDocumentRequest {
   title: string
   content: string

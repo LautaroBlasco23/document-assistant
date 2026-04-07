@@ -1,9 +1,7 @@
-import json
 import logging
 import threading
 import time
 from collections import deque
-from typing import Generator
 
 import requests
 
@@ -108,34 +106,6 @@ class OpenRouterLLM(LLM):
         }
         resp = self._request(payload)
         return resp.json()["choices"][0]["message"]["content"]
-
-    def chat_stream(self, system: str, user: str) -> Generator[str, None, None]:
-        """Stream chat response tokens via SSE."""
-        payload = {
-            "model": self._model,
-            "messages": [
-                {"role": "system", "content": system},
-                {"role": "user", "content": user},
-            ],
-            "stream": True,
-        }
-        resp = self._request(payload, stream=True)
-        for line in resp.iter_lines():
-            if not line:
-                continue
-            if isinstance(line, bytes):
-                line = line.decode("utf-8")
-            if line == "data: [DONE]":
-                break
-            if not line.startswith("data: "):
-                continue
-            try:
-                data = json.loads(line[len("data: "):])
-            except json.JSONDecodeError:
-                continue
-            content = data.get("choices", [{}])[0].get("delta", {}).get("content")
-            if content:
-                yield content
 
     def _request(self, payload: dict, stream: bool = False) -> requests.Response:
         """POST to OpenRouter with retry logic for 429s."""

@@ -19,7 +19,6 @@ import type {
   DocumentPreviewOut,
   ExamResultOut,
   ChapterExamStatusOut,
-  ChatResponse,
   CreateDocumentRequest,
   CreateDocumentResponse,
   AppendContentResponse,
@@ -241,14 +240,6 @@ export class MockClient implements ServiceClient {
       last_exam_at: null,
       cooldown_until: null,
       can_take_exam: true,
-    }
-  }
-
-  async chat(): Promise<ChatResponse> {
-    await delay(1500)
-    return {
-      answer: 'This is a mock answer. In production, the LLM would generate a response based on the document context.',
-      sources: [{ page_number: 1, text_preview: 'Mock source text preview...' }],
     }
   }
 

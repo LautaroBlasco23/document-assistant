@@ -8,12 +8,11 @@ import { Button } from '../../components/ui/button'
 import { FlashcardTab } from './flashcard-tab'
 import { SummaryTab } from './summary-tab'
 import { ExamTab } from './exam-tab'
-import { ChatTab } from './chat-tab'
 import type { Tab } from '../../types/domain'
 import { useState } from 'react'
 import { useDocumentStore } from '../../stores/document-store'
 
-const VALID_TABS: Tab[] = ['flashcards', 'summary', 'exam', 'chat']
+const VALID_TABS: Tab[] = ['flashcards', 'summary', 'exam']
 
 function isValidTab(value: string | null): value is Tab {
   return VALID_TABS.includes(value as Tab)
@@ -111,8 +110,6 @@ export function DocumentPage() {
         return <SummaryTab docHash={hash} chapter={selectedChapter} chapterIndex={currentChapterIndex} structure={structure} />
       case 'exam':
         return <ExamTab docHash={hash} chapter={selectedChapter} chapterIndex={currentChapterIndex} structure={structure} />
-      case 'chat':
-        return <ChatTab docHash={hash} chapter={selectedChapter} chapterIndex={currentChapterIndex} structure={structure} />
       default:
         return null
     }

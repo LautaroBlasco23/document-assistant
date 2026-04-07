@@ -14,7 +14,6 @@ import type {
   DocumentPreviewOut,
   ExamResultOut,
   ChapterExamStatusOut,
-  ChatResponse,
   CreateDocumentRequest,
   CreateDocumentResponse,
   AppendContentResponse,
@@ -55,13 +54,6 @@ export interface ServiceClient {
   submitExamResult(docHash: string, chapter: number, totalCards: number, correctCount: number): Promise<ExamResultOut>
   getExamStatus(docHash: string): Promise<ChapterExamStatusOut[]>
   getExamStatusForChapter(docHash: string, chapter: number): Promise<ChapterExamStatusOut>
-  chat(
-    docHash: string,
-    query: string,
-    chapter: number | null,
-    chapterIndex: number | null,
-    history: Array<{ role: 'user' | 'assistant'; content: string }>
-  ): Promise<ChatResponse>
   getDocumentFileUrl(docHash: string): string
   getChapterPdfUrl(docHash: string, chapter: number): string
   createDocument(req: CreateDocumentRequest): Promise<CreateDocumentResponse>

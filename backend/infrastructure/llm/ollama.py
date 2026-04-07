@@ -1,6 +1,4 @@
-import json
 import logging
-from typing import Generator
 
 import requests
 
@@ -79,31 +77,3 @@ class OllamaLLM(LLM):
         resp.raise_for_status()
         return resp.json()["message"]["content"]
 
-    def chat_stream(self, system: str, user: str) -> Generator[str, None, None]:
-        """Stream chat response tokens from Ollama one at a time."""
-        resp = requests.post(
-            f"{self.base_url}/api/chat",
-            json={
-                "model": self.model,
-                "messages": [
-                    {"role": "system", "content": system},
-                    {"role": "user", "content": user},
-                ],
-                "stream": True,
-            },
-            timeout=self.timeout,
-            stream=True,
-        )
-        resp.raise_for_status()
-        for line in resp.iter_lines():
-            if not line:
-                continue
-            try:
-                parsed = json.loads(line)
-            except json.JSONDecodeError:
-                continue
-            if parsed.get("done") is True:
-                break
-            content = parsed.get("message", {}).get("content", "")
-            if content:
-                yield content

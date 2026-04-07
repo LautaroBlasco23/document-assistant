@@ -36,7 +36,6 @@ const TAB_LABELS: Record<Tab, string> = {
   flashcards: 'Flashcards',
   summary: 'Summary',
   exam: 'Exam',
-  chat: 'Chat',
 }
 
 const LEVEL_SUFFIXES: Record<number, string> = {
