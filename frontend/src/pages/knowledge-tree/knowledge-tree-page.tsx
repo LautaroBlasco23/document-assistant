@@ -1,14 +1,15 @@
 import * as React from 'react'
 import { useParams, Link, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, TreePine, Layers, Pencil } from 'lucide-react'
+import { ArrowLeft, TreePine, Layers, Pencil, Plus, FileText, BookMarked, Check, X, Trash2 } from 'lucide-react'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../../components/ui/tabs'
 import { Badge } from '../../components/ui/badge'
 import { Button } from '../../components/ui/button'
+import { Input } from '../../components/ui/input'
 import { useKnowledgeTreeStore } from '../../stores/knowledge-tree-store'
 import { KnowledgeDocumentsTab } from './knowledge-documents-tab'
 import { ContentTab } from './content-tab'
 import { EditKnowledgeTreeDialog } from '../library/edit-knowledge-tree-dialog'
-import type { KnowledgeTreeTab } from '../../types/knowledge-tree'
+import type { KnowledgeChapter, KnowledgeTreeTab } from '../../types/knowledge-tree'
 
 const VALID_TABS: KnowledgeTreeTab[] = ['documents', 'content']
 
@@ -21,15 +22,170 @@ const TAB_LABELS: Record<KnowledgeTreeTab, string> = {
   content: 'Content',
 }
 
+// ─── Sections sidebar ─────────────────────────────────────────────────────────
+
+interface SectionsSidebarProps {
+  treeId: string
+  chapters: KnowledgeChapter[]
+  selectedChapter: number | null
+  onChapterChange: (chapter: number | null) => void
+  onChaptersRefresh: () => void
+}
+
+function SectionsSidebar({
+  treeId,
+  chapters,
+  selectedChapter,
+  onChapterChange,
+  onChaptersRefresh,
+}: SectionsSidebarProps) {
+  const { createChapter, updateChapter, deleteChapter } = useKnowledgeTreeStore()
+
+  const [editingChapter, setEditingChapter] = React.useState<{ number: number; title: string } | null>(null)
+  const [showNewChapter, setShowNewChapter] = React.useState(false)
+  const [newChapterTitle, setNewChapterTitle] = React.useState('')
+  const [creatingChapter, setCreatingChapter] = React.useState(false)
+
+  const handleCreateChapter = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!newChapterTitle.trim()) return
+    setCreatingChapter(true)
+    try {
+      await createChapter(treeId, newChapterTitle.trim())
+      setNewChapterTitle('')
+      setShowNewChapter(false)
+      onChaptersRefresh()
+    } finally {
+      setCreatingChapter(false)
+    }
+  }
+
+  const handleRenameChapter = async (number: number, title: string) => {
+    if (!title.trim()) return
+    await updateChapter(treeId, number, title.trim())
+    setEditingChapter(null)
+    onChaptersRefresh()
+  }
+
+  const handleDeleteChapter = async (chapterNumber: number) => {
+    const ch = chapters.find((c) => c.number === chapterNumber)
+    if (!window.confirm(`Delete chapter "${ch?.title ?? chapterNumber}"? All its documents will be removed.`)) return
+    await deleteChapter(treeId, chapterNumber)
+    onChapterChange(null)
+    onChaptersRefresh()
+  }
+
+  return (
+    <aside className="w-52 shrink-0 flex flex-col gap-1">
+      <p className="text-xs font-medium text-gray-400 uppercase tracking-wide px-2 mb-1">Sections</p>
+
+      {/* Tree-level (overview) */}
+      <button
+        onClick={() => onChapterChange(null)}
+        className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm text-left w-full transition-colors ${
+          selectedChapter === null
+            ? 'bg-blue-50 text-primary font-medium border-l-2 border-primary'
+            : 'text-gray-600 hover:bg-gray-100'
+        }`}
+      >
+        <BookMarked className="h-3.5 w-3.5 shrink-0" />
+        <span className="truncate">Overview</span>
+      </button>
+
+      {/* Chapters */}
+      {chapters.map((ch) => (
+        <div key={ch.number} className="group flex flex-col">
+          {editingChapter?.number === ch.number ? (
+            <form
+              onSubmit={(e) => { e.preventDefault(); void handleRenameChapter(ch.number, editingChapter.title) }}
+              className="flex gap-1 px-1 py-1"
+            >
+              <Input
+                value={editingChapter.title}
+                onChange={(e) => setEditingChapter({ ...editingChapter, title: e.target.value })}
+                className="text-xs h-7 flex-1"
+                autoFocus
+              />
+              <button type="submit" className="p-1 text-green-600 hover:text-green-700 rounded" aria-label="Save">
+                <Check className="h-3 w-3" />
+              </button>
+              <button type="button" onClick={() => setEditingChapter(null)} className="p-1 text-gray-400 hover:text-gray-600 rounded" aria-label="Cancel">
+                <X className="h-3 w-3" />
+              </button>
+            </form>
+          ) : (
+            <div className="flex items-center">
+              <button
+                onClick={() => onChapterChange(ch.number)}
+                className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm text-left flex-1 min-w-0 transition-colors ${
+                  selectedChapter === ch.number
+                    ? 'bg-blue-50 text-primary font-medium border-l-2 border-primary'
+                    : 'text-gray-600 hover:bg-gray-100'
+                }`}
+              >
+                <FileText className="h-3.5 w-3.5 shrink-0" />
+                <span className="truncate">{ch.title}</span>
+              </button>
+              <button
+                onClick={() => setEditingChapter({ number: ch.number, title: ch.title })}
+                className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-gray-700 transition-opacity rounded"
+                aria-label={`Rename chapter ${ch.title}`}
+              >
+                <Pencil className="h-3 w-3" />
+              </button>
+              <button
+                onClick={() => void handleDeleteChapter(ch.number)}
+                className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-red-500 transition-opacity mr-1 rounded"
+                aria-label={`Delete chapter ${ch.title}`}
+              >
+                <Trash2 className="h-3 w-3" />
+              </button>
+            </div>
+          )}
+        </div>
+      ))}
+
+      {/* New chapter */}
+      {showNewChapter ? (
+        <form onSubmit={(e) => void handleCreateChapter(e)} className="flex flex-col gap-1 px-1 pt-1">
+          <Input
+            value={newChapterTitle}
+            onChange={(e) => setNewChapterTitle(e.target.value)}
+            placeholder="Chapter title"
+            autoFocus
+            className="text-xs h-7"
+          />
+          <div className="flex gap-1">
+            <Button type="submit" size="sm" variant="primary" disabled={creatingChapter || !newChapterTitle.trim()} className="flex-1 h-6 text-xs">
+              Add
+            </Button>
+            <Button type="button" size="sm" variant="ghost" onClick={() => setShowNewChapter(false)} className="h-6 text-xs">
+              <X className="h-3 w-3" />
+            </Button>
+          </div>
+        </form>
+      ) : (
+        <button
+          onClick={() => setShowNewChapter(true)}
+          className="flex items-center gap-2 px-3 py-2 rounded-md text-sm text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors w-full text-left"
+        >
+          <Plus className="h-3.5 w-3.5" />
+          New Chapter
+        </button>
+      )}
+    </aside>
+  )
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
 export function KnowledgeTreePage() {
   const { treeId } = useParams<{ treeId: string }>()
   const [searchParams, setSearchParams] = useSearchParams()
   const { trees, treesLoading, fetchTrees, chapters, fetchChapters } = useKnowledgeTreeStore()
 
-  // Selected chapter for the documents tab (null = tree-level/overview)
-  const [docsChapter, setDocsChapter] = React.useState<number | null>(null)
-  // Selected chapter for the content tab (1-based, default to 1)
-  const [contentChapter, setContentChapter] = React.useState<number>(1)
+  // Single shared chapter selection (null = Overview)
+  const [selectedChapter, setSelectedChapter] = React.useState<number | null>(null)
 
   const rawTab = searchParams.get('tab')
   const activeTab: KnowledgeTreeTab = isValidTab(rawTab) ? rawTab : 'documents'
@@ -53,13 +209,6 @@ export function KnowledgeTreePage() {
   }, [treeId, fetchChapters])
 
   const treeChapters = treeId ? (chapters[treeId] ?? []) : []
-
-  // Reset content chapter to first available when chapters load
-  React.useEffect(() => {
-    if (treeChapters.length > 0 && !treeChapters.find((c) => c.number === contentChapter)) {
-      setContentChapter(treeChapters[0].number)
-    }
-  }, [treeChapters, contentChapter])
 
   const [editOpen, setEditOpen] = React.useState(false)
 
@@ -134,35 +283,44 @@ export function KnowledgeTreePage() {
         <EditKnowledgeTreeDialog tree={tree} open={editOpen} onClose={() => setEditOpen(false)} />
       )}
 
-      {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={(v) => handleTabChange(v as KnowledgeTreeTab)}>
-        <TabsList>
-          {VALID_TABS.map((tab) => (
-            <TabsTrigger key={tab} value={tab}>
-              {TAB_LABELS[tab]}
-            </TabsTrigger>
-          ))}
-        </TabsList>
+      {/* Sidebar + Tabs layout */}
+      <div className="flex gap-4 min-h-0">
+        <SectionsSidebar
+          treeId={treeId}
+          chapters={treeChapters}
+          selectedChapter={selectedChapter}
+          onChapterChange={setSelectedChapter}
+          onChaptersRefresh={handleChaptersRefresh}
+        />
 
-        <TabsContent value="documents">
-          <KnowledgeDocumentsTab
-            treeId={treeId}
-            selectedChapter={docsChapter}
-            chapters={treeChapters}
-            onChapterChange={setDocsChapter}
-            onChaptersRefresh={handleChaptersRefresh}
-          />
-        </TabsContent>
+        <div className="flex-1 min-w-0">
+          <Tabs value={activeTab} onValueChange={(v) => handleTabChange(v as KnowledgeTreeTab)}>
+            <TabsList>
+              {VALID_TABS.map((tab) => (
+                <TabsTrigger key={tab} value={tab}>
+                  {TAB_LABELS[tab]}
+                </TabsTrigger>
+              ))}
+            </TabsList>
 
-        <TabsContent value="content">
-          <ContentTab
-            treeId={treeId}
-            selectedChapter={contentChapter}
-            chapters={treeChapters}
-            onChapterChange={setContentChapter}
-          />
-        </TabsContent>
-      </Tabs>
+            <TabsContent value="documents">
+              <KnowledgeDocumentsTab
+                treeId={treeId}
+                selectedChapter={selectedChapter}
+                chapters={treeChapters}
+              />
+            </TabsContent>
+
+            <TabsContent value="content">
+              <ContentTab
+                treeId={treeId}
+                selectedChapter={selectedChapter}
+                chapters={treeChapters}
+              />
+            </TabsContent>
+          </Tabs>
+        </div>
+      </div>
     </div>
   )
 }

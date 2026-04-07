@@ -89,9 +89,8 @@ type SubTab = 'summary' | 'flashcards' | 'questions' | 'exam'
 
 interface ContentTabProps {
   treeId: string
-  selectedChapter: number
+  selectedChapter: number | null
   chapters: KnowledgeChapter[]
-  onChapterChange: (chapter: number) => void
 }
 
 // ---------------------------------------------------------------------------
@@ -362,7 +361,7 @@ function KnowledgeExamReady({ typeCounts, totalCount, onStart }: KnowledgeExamRe
 // Main content tab
 // ---------------------------------------------------------------------------
 
-export function ContentTab({ treeId: _treeId, selectedChapter, chapters, onChapterChange }: ContentTabProps) {
+export function ContentTab({ treeId: _treeId, selectedChapter, chapters }: ContentTabProps) {
   const [activeSubTab, setActiveSubTab] = React.useState<SubTab>('summary')
 
   // Summary
@@ -390,6 +389,22 @@ export function ContentTab({ treeId: _treeId, selectedChapter, chapters, onChapt
   const [examActive, setExamActive] = React.useState(false)
 
   const currentChapter = chapters.find((c) => c.number === selectedChapter)
+
+  // Reset generated content when chapter changes
+  React.useEffect(() => {
+    handleChapterReset()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedChapter])
+
+  if (selectedChapter === null) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 text-center gap-3">
+        <Sparkles className="h-10 w-10 text-gray-200" />
+        <p className="text-sm font-medium text-gray-500">Select a chapter</p>
+        <p className="text-xs text-gray-400">Choose a chapter from the sidebar to generate content.</p>
+      </div>
+    )
+  }
 
   // Combined exam questions from all generated types
   const examQuestions: ExamQuestion[] = [
@@ -452,25 +467,6 @@ export function ContentTab({ treeId: _treeId, selectedChapter, chapters, onChapt
 
   return (
     <div className="flex flex-col gap-5">
-      {/* Chapter selector */}
-      <div className="flex flex-col gap-1.5">
-        <label className="text-xs font-medium text-gray-500">Chapter</label>
-        <select
-          value={selectedChapter}
-          onChange={(e) => {
-            onChapterChange(Number(e.target.value))
-            handleChapterReset()
-          }}
-          className="w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-        >
-          {chapters.map((ch) => (
-            <option key={ch.number} value={ch.number}>
-              {ch.title}
-            </option>
-          ))}
-        </select>
-      </div>
-
       {chapters.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-center">
           <Sparkles className="h-10 w-10 text-gray-200 mb-4" />

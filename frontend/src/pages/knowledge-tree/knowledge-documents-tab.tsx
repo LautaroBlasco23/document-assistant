@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Plus, Pencil, Trash2, Check, X, FileText, BookMarked, Upload } from 'lucide-react'
+import { Plus, Pencil, Trash2, Check, X, FileText, Upload } from 'lucide-react'
 import { Button } from '../../components/ui/button'
 import { Input } from '../../components/ui/input'
 import { Badge } from '../../components/ui/badge'
@@ -10,8 +10,6 @@ interface KnowledgeDocumentsTabProps {
   treeId: string
   selectedChapter: number | null  // null = tree-level (main doc)
   chapters: KnowledgeChapter[]
-  onChapterChange: (chapter: number | null) => void
-  onChaptersRefresh: () => void
 }
 
 interface DocumentEditorState {
@@ -24,8 +22,6 @@ export function KnowledgeDocumentsTab({
   treeId,
   selectedChapter,
   chapters,
-  onChapterChange,
-  onChaptersRefresh,
 }: KnowledgeDocumentsTabProps) {
   const {
     documents: docsByKey,
@@ -34,19 +30,12 @@ export function KnowledgeDocumentsTab({
     createDocument,
     updateDocument,
     deleteDocument,
-    createChapter,
-    updateChapter,
-    deleteChapter,
     ingestFileAsDocument,
   } = useKnowledgeTreeStore()
 
   const [editor, setEditor] = React.useState<DocumentEditorState | null>(null)
   const [saving, setSaving] = React.useState(false)
   const [ingesting, setIngesting] = React.useState(false)
-  const [newChapterTitle, setNewChapterTitle] = React.useState('')
-  const [showNewChapter, setShowNewChapter] = React.useState(false)
-  const [creatingChapter, setCreatingChapter] = React.useState(false)
-  const [editingChapter, setEditingChapter] = React.useState<{ number: number; title: string } | null>(null)
   const fileInputRef = React.useRef<HTMLInputElement>(null)
 
   const key = docKey(treeId, selectedChapter)
@@ -115,142 +104,11 @@ export function KnowledgeDocumentsTab({
     }
   }
 
-  const handleCreateChapter = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!newChapterTitle.trim()) return
-    setCreatingChapter(true)
-    try {
-      await createChapter(treeId, newChapterTitle.trim())
-      setNewChapterTitle('')
-      setShowNewChapter(false)
-      onChaptersRefresh()
-    } finally {
-      setCreatingChapter(false)
-    }
-  }
-
-  const handleRenameChapter = async (number: number, title: string) => {
-    if (!title.trim()) return
-    await updateChapter(treeId, number, title.trim())
-    setEditingChapter(null)
-    onChaptersRefresh()
-  }
-
-  const handleDeleteChapter = async (chapterNumber: number) => {
-    const ch = chapters.find((c) => c.number === chapterNumber)
-    if (!window.confirm(`Delete chapter "${ch?.title ?? chapterNumber}"? All its documents will be removed.`)) return
-    await deleteChapter(treeId, chapterNumber)
-    onChapterChange(null)
-    onChaptersRefresh()
-  }
-
   const isMain = selectedChapter === null
   const mainDoc = isMain ? docs.find((d) => d.is_main) : undefined
 
   return (
-    <div className="flex gap-4 min-h-0">
-      {/* Chapter sidebar */}
-      <aside className="w-52 shrink-0 flex flex-col gap-1">
-        <p className="text-xs font-medium text-gray-400 uppercase tracking-wide px-2 mb-1">Sections</p>
-
-        {/* Tree-level (main doc) */}
-        <button
-          onClick={() => onChapterChange(null)}
-          className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm text-left w-full transition-colors ${
-            selectedChapter === null
-              ? 'bg-blue-50 text-primary font-medium border-l-2 border-primary'
-              : 'text-gray-600 hover:bg-gray-100'
-          }`}
-        >
-          <BookMarked className="h-3.5 w-3.5 shrink-0" />
-          <span className="truncate">Overview</span>
-        </button>
-
-        {/* Chapters */}
-        {chapters.map((ch) => (
-          <div key={ch.number} className="group flex flex-col">
-            {editingChapter?.number === ch.number ? (
-              <form
-                onSubmit={(e) => { e.preventDefault(); void handleRenameChapter(ch.number, editingChapter.title) }}
-                className="flex gap-1 px-1 py-1"
-              >
-                <Input
-                  value={editingChapter.title}
-                  onChange={(e) => setEditingChapter({ ...editingChapter, title: e.target.value })}
-                  className="text-xs h-7 flex-1"
-                  autoFocus
-                />
-                <button type="submit" className="p-1 text-green-600 hover:text-green-700 rounded" aria-label="Save">
-                  <Check className="h-3 w-3" />
-                </button>
-                <button type="button" onClick={() => setEditingChapter(null)} className="p-1 text-gray-400 hover:text-gray-600 rounded" aria-label="Cancel">
-                  <X className="h-3 w-3" />
-                </button>
-              </form>
-            ) : (
-              <div className="flex items-center">
-                <button
-                  onClick={() => onChapterChange(ch.number)}
-                  className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm text-left flex-1 min-w-0 transition-colors ${
-                    selectedChapter === ch.number
-                      ? 'bg-blue-50 text-primary font-medium border-l-2 border-primary'
-                      : 'text-gray-600 hover:bg-gray-100'
-                  }`}
-                >
-                  <FileText className="h-3.5 w-3.5 shrink-0" />
-                  <span className="truncate">{ch.title}</span>
-                </button>
-                <button
-                  onClick={() => setEditingChapter({ number: ch.number, title: ch.title })}
-                  className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-gray-700 transition-opacity rounded"
-                  aria-label={`Rename chapter ${ch.title}`}
-                >
-                  <Pencil className="h-3 w-3" />
-                </button>
-                <button
-                  onClick={() => void handleDeleteChapter(ch.number)}
-                  className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-red-500 transition-opacity mr-1 rounded"
-                  aria-label={`Delete chapter ${ch.title}`}
-                >
-                  <Trash2 className="h-3 w-3" />
-                </button>
-              </div>
-            )}
-          </div>
-        ))}
-
-        {/* New chapter */}
-        {showNewChapter ? (
-          <form onSubmit={(e) => void handleCreateChapter(e)} className="flex flex-col gap-1 px-1 pt-1">
-            <Input
-              value={newChapterTitle}
-              onChange={(e) => setNewChapterTitle(e.target.value)}
-              placeholder="Chapter title"
-              autoFocus
-              className="text-xs h-7"
-            />
-            <div className="flex gap-1">
-              <Button type="submit" size="sm" variant="primary" disabled={creatingChapter || !newChapterTitle.trim()} className="flex-1 h-6 text-xs">
-                Add
-              </Button>
-              <Button type="button" size="sm" variant="ghost" onClick={() => setShowNewChapter(false)} className="h-6 text-xs">
-                <X className="h-3 w-3" />
-              </Button>
-            </div>
-          </form>
-        ) : (
-          <button
-            onClick={() => setShowNewChapter(true)}
-            className="flex items-center gap-2 px-3 py-2 rounded-md text-sm text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors w-full text-left"
-          >
-            <Plus className="h-3.5 w-3.5" />
-            New Chapter
-          </button>
-        )}
-      </aside>
-
-      {/* Main content area */}
-      <div className="flex-1 flex flex-col gap-3 min-w-0">
+    <div className="flex flex-col gap-3 min-w-0">
         {loading ? (
           <div className="text-sm text-gray-400 mt-4">Loading documents...</div>
         ) : isMain ? (
@@ -346,7 +204,6 @@ export function KnowledgeDocumentsTab({
             )}
           </>
         )}
-      </div>
     </div>
   )
 }
