@@ -2,6 +2,7 @@ import json
 import logging
 import threading
 from datetime import datetime, timezone
+from uuid import UUID
 
 import psycopg
 from psycopg.pq import TransactionStatus
@@ -10,6 +11,7 @@ from core.model.chunk import Chunk, ChunkMetadata
 from core.model.document_metadata import DocumentMetadata
 from core.model.exam import ExamResult
 from core.model.generated_content import Flashcard, Summary
+from core.model.question import Question, QuestionType
 from core.ports.content_store import ContentStore
 from infrastructure.db.postgres import PostgresPool
 
@@ -704,6 +706,85 @@ class PostgresContentStore(ContentStore):
         logger.debug(
             "Deleted chunks for doc=%s chapter=%d", file_hash[:12], chapter_index
         )
+
+    # --- Knowledge tree questions ---
+
+    def save_questions(self, questions: list[Question]) -> None:
+        if not questions:
+            return
+        with self._lock:
+            conn = self._conn()
+            self._rollback_if_failed(conn)
+            with conn.transaction():
+                with conn.cursor() as cur:
+                    for q in questions:
+                        cur.execute(
+                            "INSERT INTO knowledge_tree_questions"
+                            " (id, tree_id, chapter_id, question_type, question_data, created_at)"
+                            " VALUES (%s, %s, %s, %s, %s::jsonb, %s)"
+                            " ON CONFLICT (id) DO NOTHING",
+                            (
+                                q.id,
+                                q.tree_id,
+                                q.chapter_id,
+                                q.question_type,
+                                json.dumps(q.question_data),
+                                q.created_at,
+                            ),
+                        )
+        logger.debug(
+            "Saved %d questions for tree=%s", len(questions), str(questions[0].tree_id)[:12]
+        )
+
+    def get_questions(
+        self,
+        tree_id: UUID,
+        chapter_id: UUID,
+        question_type: QuestionType | None = None,
+    ) -> list[Question]:
+        conn = self._conn()
+        self._rollback_if_failed(conn)
+        with conn.cursor() as cur:
+            if question_type is not None:
+                cur.execute(
+                    "SELECT id, tree_id, chapter_id, question_type, question_data, created_at"
+                    " FROM knowledge_tree_questions"
+                    " WHERE tree_id = %s AND chapter_id = %s AND question_type = %s"
+                    " ORDER BY created_at ASC, id ASC",
+                    (tree_id, chapter_id, question_type),
+                )
+            else:
+                cur.execute(
+                    "SELECT id, tree_id, chapter_id, question_type, question_data, created_at"
+                    " FROM knowledge_tree_questions"
+                    " WHERE tree_id = %s AND chapter_id = %s"
+                    " ORDER BY created_at ASC, id ASC",
+                    (tree_id, chapter_id),
+                )
+            rows = cur.fetchall()
+        return [
+            Question(
+                id=row["id"],
+                tree_id=row["tree_id"],
+                chapter_id=row["chapter_id"],
+                question_type=row["question_type"],
+                question_data=row["question_data"],
+                created_at=_ensure_naive(row["created_at"]),
+            )
+            for row in rows
+        ]
+
+    def delete_question(self, question_id: UUID) -> None:
+        with self._lock:
+            conn = self._conn()
+            self._rollback_if_failed(conn)
+            with conn.transaction():
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "DELETE FROM knowledge_tree_questions WHERE id = %s",
+                        (question_id,),
+                    )
+        logger.debug("Deleted question id=%s", str(question_id))
 
 
 def _ensure_naive(dt: datetime) -> datetime:

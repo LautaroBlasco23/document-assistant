@@ -24,14 +24,17 @@ from api.schemas.knowledge_tree import (
     UpdateDocumentRequest,
     UpdateTreeRequest,
 )
+from api.schemas.question import GenerateQuestionsRequest, QuestionOut
 from api.tasks import Task
 from application.agents.flashcard_generator import FlashcardGeneratorAgent
+from application.agents.question_generator import QuestionGeneratorAgent
 from application.agents.summarizer import SummarizerAgent
 from application.ingest import preview_file
 from core.model.chunk import Chunk, ChunkMetadata
 from core.model.document import Chapter
 from core.model.generated_content import Flashcard, Summary
 from core.model.knowledge_tree import KnowledgeChunk
+from core.model.question import Question, QuestionType
 from infrastructure.chunking.splitter import ChapterAwareSplitter
 from infrastructure.ingest.epub_loader import preview_epub
 from infrastructure.ingest.pdf_loader import preview_pdf
@@ -918,3 +921,184 @@ async def get_chapter_content(
         )
         for kc in kt_chunks
     ]
+
+
+# ---------------------------------------------------------------------------
+# Questions for a chapter
+# ---------------------------------------------------------------------------
+
+
+def _questions_background(
+    task: Task,
+    tree_id: UUID,
+    chapter_id: UUID,
+    chapter_number: int,
+    services: ServicesDep,
+    requested_types: list[QuestionType] | None,
+) -> dict:
+    """Background task: generate questions for a knowledge chapter."""
+    t0 = time.perf_counter()
+    try:
+        _set_progress(task, 5, f"Retrieving chunks for chapter {chapter_number}...")
+        kt_chunks = services.kt_content_store.get_chunks(tree_id, chapter_number)
+        if not kt_chunks:
+            raise ValueError(f"No content found for chapter {chapter_number}")
+
+        chunks = [
+            Chunk(
+                text=kc.text,
+                token_count=kc.token_count,
+                metadata=ChunkMetadata(
+                    source_file=str(kc.tree_id),
+                    chapter_index=chapter_number - 1,
+                    page_number=0,
+                    start_char=0,
+                    end_char=0,
+                ),
+            )
+            for kc in kt_chunks
+        ]
+
+        _set_progress(task, 15, "Starting question generation...")
+        agent = QuestionGeneratorAgent(services.fast_llm)
+
+        # Divide progress range 20-85 evenly across requested types
+        types_to_generate: list[QuestionType] = requested_types or [
+            "true_false", "multiple_choice", "matching", "checkbox"
+        ]
+        num_types = len(types_to_generate)
+        progress_per_type = (85 - 20) // num_types if num_types > 0 else 65
+
+        # Track progress per type using a mutable container
+        type_progress_base = [20]
+
+        def on_progress(qtype: QuestionType, batch_i: int, total_batches: int) -> None:
+            base = type_progress_base[0]
+            within = int((batch_i / total_batches) * progress_per_type) if total_batches > 0 else 0
+            _set_progress(
+                task,
+                base + within,
+                f"Generating {qtype.replace('_', ' ')} questions... "
+                f"batch {batch_i}/{total_batches}",
+            )
+
+        all_questions: list[Question] = []
+        counts: dict[str, int] = {}
+
+        for i, qtype in enumerate(types_to_generate):
+            type_progress_base[0] = 20 + i * progress_per_type
+            _set_progress(
+                task,
+                type_progress_base[0],
+                f"Generating {qtype.replace('_', ' ')} questions...",
+            )
+
+            result = agent.generate(chunks, question_types=[qtype], on_progress=on_progress)
+            items = result.get(qtype, [])
+
+            for item in items:
+                all_questions.append(
+                    Question(
+                        tree_id=tree_id,
+                        chapter_id=chapter_id,
+                        question_type=qtype,
+                        question_data=item,
+                    )
+                )
+            counts[qtype] = len(items)
+
+        _set_progress(task, 90, f"Saving {len(all_questions)} questions...")
+        if all_questions:
+            services.content_store.save_questions(all_questions)
+
+        _set_progress(task, 100, "Done")
+        elapsed = time.perf_counter() - t0
+        logger.info(
+            "Generated questions for knowledge chapter %d in %.1fs: %s",
+            chapter_number,
+            elapsed,
+            counts,
+        )
+        return {"chapter": chapter_number, "counts": counts}
+    except Exception as e:
+        logger.error("Knowledge question generation failed: %s", e)
+        raise
+
+
+@router.post(
+    "/knowledge-trees/{tree_id}/chapters/{number}/questions",
+    status_code=202,
+)
+async def generate_questions(
+    tree_id: str,
+    number: int,
+    services: ServicesDep,
+    req: GenerateQuestionsRequest | None = None,
+) -> dict:
+    """Start background question generation for a knowledge chapter."""
+    uid = _parse_uuid(tree_id, "tree_id")
+    tree = services.kt_tree_store.get_tree(uid)
+    if tree is None:
+        raise HTTPException(status_code=404, detail="Knowledge tree not found")
+
+    chapters = services.kt_chapter_store.list_chapters(uid)
+    chapter = next((c for c in chapters if c.number == number), None)
+    if chapter is None:
+        raise HTTPException(status_code=404, detail=f"Chapter {number} not found")
+
+    requested_types = req.question_types if req else None
+
+    task_id = services.task_registry.submit(
+        _questions_background,
+        uid,
+        chapter.id,
+        number,
+        services,
+        requested_types,
+        task_type="kt_questions",
+    )
+    return {"task_id": task_id, "task_type": "kt_questions"}
+
+
+@router.get(
+    "/knowledge-trees/{tree_id}/chapters/{number}/questions",
+    response_model=list[QuestionOut],
+)
+async def get_chapter_questions(
+    tree_id: str,
+    number: int,
+    services: ServicesDep,
+    type: QuestionType | None = None,
+) -> list[QuestionOut]:
+    """Get stored questions for a knowledge chapter."""
+    uid = _parse_uuid(tree_id, "tree_id")
+    chapters = services.kt_chapter_store.list_chapters(uid)
+    chapter = next((c for c in chapters if c.number == number), None)
+    if chapter is None:
+        raise HTTPException(status_code=404, detail=f"Chapter {number} not found")
+
+    questions = services.content_store.get_questions(uid, chapter.id, question_type=type)
+    return [
+        QuestionOut(
+            id=q.id,
+            question_type=q.question_type,
+            question_data=q.question_data,
+            created_at=q.created_at,
+        )
+        for q in questions
+    ]
+
+
+@router.delete(
+    "/knowledge-trees/{tree_id}/chapters/{number}/questions/{question_id}",
+    status_code=204,
+)
+async def delete_question(
+    tree_id: str,
+    number: int,
+    question_id: str,
+    services: ServicesDep,
+) -> None:
+    """Delete a single question by ID."""
+    q_uid = _parse_uuid(question_id, "question_id")
+    services.content_store.delete_question(q_uid)

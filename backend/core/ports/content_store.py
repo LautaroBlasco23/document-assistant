@@ -1,9 +1,11 @@
 from abc import ABC, abstractmethod
+from uuid import UUID
 
 from core.model.chunk import Chunk
 from core.model.document_metadata import DocumentMetadata
 from core.model.exam import ExamResult
 from core.model.generated_content import Flashcard, Summary
+from core.model.question import Question, QuestionType
 
 
 class ContentStore(ABC):
@@ -153,3 +155,22 @@ class ContentStore(ABC):
     @abstractmethod
     def delete_chunks_by_chapter(self, file_hash: str, chapter_index: int) -> None:
         """Delete all chunks for a specific chapter."""
+
+    # --- Knowledge tree questions ---
+
+    @abstractmethod
+    def save_questions(self, questions: list[Question]) -> None:
+        """Append questions. Uses INSERT ... ON CONFLICT (id) DO NOTHING for idempotency."""
+
+    @abstractmethod
+    def get_questions(
+        self,
+        tree_id: UUID,
+        chapter_id: UUID,
+        question_type: QuestionType | None = None,
+    ) -> list[Question]:
+        """Return questions ordered by created_at ASC, id ASC. Optionally filter by type."""
+
+    @abstractmethod
+    def delete_question(self, question_id: UUID) -> None:
+        """Delete a single question by id."""
