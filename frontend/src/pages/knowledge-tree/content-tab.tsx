@@ -13,6 +13,7 @@ import {
   Check,
   RefreshCw,
   Trash2,
+  BookMarked,
 } from 'lucide-react'
 import { Button } from '../../components/ui/button'
 import { Badge } from '../../components/ui/badge'
@@ -597,42 +598,6 @@ export function ContentTab({ treeId, selectedChapter, chapters }: ContentTabProp
 
   const currentChapter = chapters.find((c) => c.number === selectedChapter)
 
-  // Fetch existing questions and reset local state when chapter changes
-  React.useEffect(() => {
-    handleChapterReset()
-    if (selectedChapter !== null) {
-      void store.fetchQuestions(treeId, selectedChapter)
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedChapter, treeId])
-
-  if (selectedChapter === null) {
-    return (
-      <div className="flex flex-col items-center justify-center py-16 text-center gap-3">
-        <Sparkles className="h-10 w-10 text-gray-200" />
-        <p className="text-sm font-medium text-gray-500">Select a chapter</p>
-        <p className="text-xs text-gray-400">Choose a chapter from the sidebar to generate content.</p>
-      </div>
-    )
-  }
-
-  // Combined exam questions from all generated types + flashcards
-  const examQuestions: ExamQuestion[] = [
-    ...tfQuestions,
-    ...mcQuestions,
-    ...matchingQuestions,
-    ...cbQuestions,
-    ...flashcardQuestions,
-  ]
-
-  const typeCounts: ExamTypeCount[] = [
-    { label: 'True / False', count: tfQuestions.length },
-    { label: 'Multiple Choice', count: mcQuestions.length },
-    { label: 'Matching', count: matchingQuestions.length },
-    { label: 'Checkbox', count: cbQuestions.length },
-    { label: 'Flashcards', count: flashcardQuestions.length },
-  ]
-
   const handleGenerateSummary = async () => {
     setSummaryStatus('loading')
     await new Promise<void>((resolve) => setTimeout(resolve, 2000))
@@ -658,6 +623,20 @@ export function ContentTab({ treeId, selectedChapter, chapters }: ContentTabProp
     // Trigger a re-render after fetch completes (store update handles the data)
   }
 
+  const examQuestions: ExamQuestion[] = selectedChapter !== null
+    ? [...tfQuestions, ...mcQuestions, ...matchingQuestions, ...cbQuestions, ...flashcardQuestions]
+    : []
+
+  const typeCounts: ExamTypeCount[] = selectedChapter !== null
+    ? [
+        { label: 'True / False', count: tfQuestions.length },
+        { label: 'Multiple Choice', count: mcQuestions.length },
+        { label: 'Matching', count: matchingQuestions.length },
+        { label: 'Checkbox', count: cbQuestions.length },
+        { label: 'Flashcards', count: flashcardQuestions.length },
+      ]
+    : []
+
   return (
     <div className="flex flex-col gap-5">
       {chapters.length === 0 ? (
@@ -670,13 +649,21 @@ export function ContentTab({ treeId, selectedChapter, chapters }: ContentTabProp
         </div>
       ) : (
         <>
-          <p className="text-xs text-gray-500">
-            Content is generated from the knowledge documents in{' '}
-            <span className="font-medium text-gray-700">{currentChapter?.title}</span>.
-            Make sure you&apos;ve added documents in the Knowledge Documents tab first.
-          </p>
+          {selectedChapter === null ? (
+            <div className="flex flex-col items-center justify-center py-16 text-center gap-3">
+              <BookMarked className="h-10 w-10 text-gray-200" />
+              <p className="text-sm font-medium text-gray-500">Select a chapter</p>
+              <p className="text-xs text-gray-400">Choose a chapter from the sidebar to generate content.</p>
+            </div>
+          ) : (
+            <>
+              <p className="text-xs text-gray-500">
+                Content is generated from the knowledge documents in{' '}
+                <span className="font-medium text-gray-700">{currentChapter?.title}</span>.
+                Make sure you&apos;s added documents in the Knowledge Documents tab first.
+              </p>
 
-          <Tabs value={activeSubTab} onValueChange={(v) => setActiveSubTab(v as SubTab)}>
+              <Tabs value={activeSubTab} onValueChange={(v) => setActiveSubTab(v as SubTab)}>
             <TabsList>
               <TabsTrigger value="summary">
                 <BookOpen className="h-3.5 w-3.5 mr-1.5 inline-block" />
@@ -886,8 +873,10 @@ export function ContentTab({ treeId, selectedChapter, chapters }: ContentTabProp
                   onStart={() => setExamActive(true)}
                 />
               )}
-            </TabsContent>
-          </Tabs>
+              </TabsContent>
+            </Tabs>
+            </>
+          )}
         </>
       )}
     </div>
