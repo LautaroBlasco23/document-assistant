@@ -1,6 +1,5 @@
 """Knowledge Tree endpoints."""
 
-import functools
 import hashlib
 import logging
 import tempfile
@@ -11,11 +10,12 @@ from uuid import UUID, uuid4
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 
 from api.deps import ServicesDep
-from api.schemas.documents import ChapterPreviewOut, DocumentPreviewOut
 from api.schemas.knowledge_tree import (
+    ChapterPreviewOut,
     CreateChapterRequest,
     CreateDocumentRequest,
     CreateTreeRequest,
+    DocumentPreviewOut,
     KnowledgeChapterOut,
     KnowledgeChunkOut,
     KnowledgeDocumentOut,
@@ -26,13 +26,8 @@ from api.schemas.knowledge_tree import (
 )
 from api.schemas.question import GenerateQuestionsRequest, QuestionOut
 from api.tasks import Task
-from application.agents.flashcard_generator import FlashcardGeneratorAgent
 from application.agents.question_generator import QuestionGeneratorAgent
-from application.agents.summarizer import SummarizerAgent
-from application.ingest import preview_file
 from core.model.chunk import Chunk, ChunkMetadata
-from core.model.document import Chapter
-from core.model.generated_content import Flashcard, Summary
 from core.model.knowledge_tree import KnowledgeChunk
 from core.model.question import Question, QuestionType
 from infrastructure.chunking.splitter import ChapterAwareSplitter
@@ -95,6 +90,35 @@ def _set_progress(task: Task, pct: int, message: str) -> None:
     logger.debug("Progress [%d%%]: %s", task.progress_pct, message)
 
 
+def _preview_file(
+    tmp_path: Path, suffix: str, file_bytes: bytes, epub_config
+) -> "DocumentPreviewOut | None":
+    """Preview a PDF or EPUB file and return chapter structure."""
+    file_hash = hashlib.sha256(file_bytes).hexdigest()
+    if suffix == ".pdf":
+        doc, chapters = preview_pdf(tmp_path, file_hash)
+    elif suffix == ".epub":
+        doc, chapters = preview_epub(tmp_path, file_hash, epub_config)
+    else:
+        return None
+    if doc is None:
+        return None
+    return DocumentPreviewOut(
+        file_hash=doc.file_hash,
+        filename=doc.original_filename,
+        num_chapters=len(chapters),
+        chapters=[
+            ChapterPreviewOut(
+                index=c.index,
+                title=c.title,
+                page_start=c.page_start,
+                page_end=c.page_end,
+            )
+            for c in chapters
+        ],
+    )
+
+
 # ---------------------------------------------------------------------------
 # Trees
 # ---------------------------------------------------------------------------
@@ -127,9 +151,7 @@ async def preview_tree_document(
     filename = file.filename or "upload"
     suffix = Path(filename).suffix.lower()
     if suffix not in (".pdf", ".epub"):
-        raise HTTPException(
-            status_code=422, detail="Only PDF and EPUB files are supported"
-        )
+        raise HTTPException(status_code=422, detail="Only PDF and EPUB files are supported")
 
     content = await file.read()
     with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
@@ -137,32 +159,13 @@ async def preview_tree_document(
         tmp_path = Path(tmp.name)
 
     try:
-        preview = preview_file(
-            tmp_path,
-            {
-                ".pdf": preview_pdf,
-                ".epub": functools.partial(preview_epub, epub_config=services.config.epub),
-            },
-        )
+        preview = _preview_file(tmp_path, suffix, content, services.config.epub)
         if preview is None:
             raise HTTPException(
                 status_code=400,
                 detail="Unsupported file type or failed to parse document",
             )
-        return DocumentPreviewOut(
-            file_hash=preview.file_hash,
-            filename=preview.filename,
-            num_chapters=len(preview.chapters),
-            chapters=[
-                ChapterPreviewOut(
-                    index=c.index,
-                    title=c.title,
-                    page_start=c.page_start,
-                    page_end=c.page_end,
-                )
-                for c in preview.chapters
-            ],
-        )
+        return preview
     finally:
         tmp_path.unlink(missing_ok=True)
 
@@ -183,9 +186,7 @@ async def import_tree_from_document(
     filename = file.filename or "upload"
     suffix = Path(filename).suffix.lower()
     if suffix not in (".pdf", ".epub"):
-        raise HTTPException(
-            status_code=422, detail="Only PDF and EPUB files are supported"
-        )
+        raise HTTPException(status_code=422, detail="Only PDF and EPUB files are supported")
 
     parsed_indices: list[int] | None = None
     if chapter_indices is not None:
@@ -247,9 +248,11 @@ def _create_tree_from_document_background(
 
             if suffix == ".pdf":
                 from infrastructure.ingest.pdf_loader import load_pdf as _load_pdf
+
                 doc = _load_pdf(tmp_path, file_hash, filename)
             elif suffix in (".epub",):
                 from infrastructure.ingest.epub_loader import load_epub as _load_epub
+
                 doc = _load_epub(tmp_path, file_hash, filename)
             else:
                 raise ValueError(f"Unsupported file type: {suffix}")
@@ -270,6 +273,7 @@ def _create_tree_from_document_background(
                 return {"tree_id": str(tree_uid), "chapter_count": 0}
 
             from core.model.document import Document as _Document
+
             splitter = ChapterAwareSplitter()
             all_kt_chunks = []
 
@@ -278,14 +282,13 @@ def _create_tree_from_document_background(
                 pct_base = 25 + int(70 * i / chapter_count)
                 chapter_title = chapter.title or f"Chapter {chapter_number}"
                 _set_progress(
-                    task, pct_base,
-                    f"Processing chapter {chapter_number}/{chapter_count}: {chapter_title}..."
+                    task,
+                    pct_base,
+                    f"Processing chapter {chapter_number}/{chapter_count}: {chapter_title}...",
                 )
 
                 # Create knowledge chapter
-                kt_chapter = services.kt_chapter_store.create_chapter(
-                    tree_uid, chapter_title
-                )
+                kt_chapter = services.kt_chapter_store.create_chapter(tree_uid, chapter_title)
                 chapter_uid = kt_chapter.id
 
                 # Build a single-chapter Document for chunking
@@ -392,9 +395,7 @@ async def delete_tree(tree_id: str, services: ServicesDep) -> None:
     "/knowledge-trees/{tree_id}/chapters",
     response_model=list[KnowledgeChapterOut],
 )
-async def list_chapters(
-    tree_id: str, services: ServicesDep
-) -> list[KnowledgeChapterOut]:
+async def list_chapters(tree_id: str, services: ServicesDep) -> list[KnowledgeChapterOut]:
     """List chapters for a knowledge tree."""
     uid = _parse_uuid(tree_id, "tree_id")
     chapters = services.kt_chapter_store.list_chapters(uid)
@@ -438,9 +439,7 @@ async def update_chapter(
     "/knowledge-trees/{tree_id}/chapters/{number}",
     status_code=204,
 )
-async def delete_chapter(
-    tree_id: str, number: int, services: ServicesDep
-) -> None:
+async def delete_chapter(tree_id: str, number: int, services: ServicesDep) -> None:
     """Delete a chapter (1-based number) and its documents/content."""
     uid = _parse_uuid(tree_id, "tree_id")
     services.kt_chapter_store.delete_chapter(uid, number)
@@ -482,9 +481,7 @@ async def create_document(
     chap_uid: UUID | None = None
     if req.chapter_id is not None:
         chap_uid = _parse_uuid(req.chapter_id, "chapter_id")
-    doc = services.kt_doc_store.create_document(
-        uid, chap_uid, req.title, req.content, req.is_main
-    )
+    doc = services.kt_doc_store.create_document(uid, chap_uid, req.title, req.content, req.is_main)
     return _doc_out(doc)
 
 
@@ -511,9 +508,7 @@ async def update_document(
     "/knowledge-trees/{tree_id}/documents/{doc_id}",
     status_code=204,
 )
-async def delete_document(
-    tree_id: str, doc_id: str, services: ServicesDep
-) -> None:
+async def delete_document(tree_id: str, doc_id: str, services: ServicesDep) -> None:
     """Delete a knowledge document."""
     doc_uid = _parse_uuid(doc_id, "doc_id")
     services.kt_doc_store.delete_document(doc_uid)
@@ -549,9 +544,11 @@ def _ingest_file_background(
 
             if suffix == ".pdf":
                 from infrastructure.ingest.pdf_loader import load_pdf as _load_pdf
+
                 doc = _load_pdf(tmp_path, file_hash, filename)
             elif suffix in (".epub",):
                 from infrastructure.ingest.epub_loader import load_epub as _load_epub
+
                 doc = _load_epub(tmp_path, file_hash, filename)
             else:
                 raise ValueError(f"Unsupported file type: {suffix}")
@@ -629,9 +626,7 @@ async def ingest_document(
     filename = file.filename or "upload"
     suffix = Path(filename).suffix.lower()
     if suffix not in (".pdf", ".epub"):
-        raise HTTPException(
-            status_code=422, detail="Only PDF and EPUB files are supported"
-        )
+        raise HTTPException(status_code=422, detail="Only PDF and EPUB files are supported")
 
     file_bytes = await file.read()
     task_id = services.task_registry.submit(
@@ -647,259 +642,9 @@ async def ingest_document(
     return {"task_id": task_id, "filename": filename}
 
 
-
 # ---------------------------------------------------------------------------
-# Summarize a chapter
+# Get chunks for a chapter
 # ---------------------------------------------------------------------------
-
-
-def _summarize_background(
-    task: Task,
-    tree_id: UUID,
-    chapter_number: int,
-    services: ServicesDep,
-) -> dict:
-    """Background task: summarize all chunks in a knowledge chapter."""
-    t0 = time.perf_counter()
-    try:
-        _set_progress(task, 10, f"Retrieving chunks for chapter {chapter_number}...")
-        kt_chunks = services.kt_content_store.get_chunks(tree_id, chapter_number)
-        if not kt_chunks:
-            raise ValueError(f"No content found for chapter {chapter_number}")
-
-        # Convert KnowledgeChunks to domain Chunk objects for the agent
-        chunks = [
-            Chunk(
-                text=kc.text,
-                token_count=kc.token_count,
-                metadata=ChunkMetadata(
-                    source_file=str(kc.tree_id),
-                    chapter_index=chapter_number - 1,
-                    page_number=0,
-                    start_char=0,
-                    end_char=0,
-                ),
-            )
-            for kc in kt_chunks
-        ]
-
-        _set_progress(task, 25, "Generating summary...")
-        chapter_obj = Chapter(index=chapter_number - 1, title=f"Chapter {chapter_number}", pages=[])
-
-        def on_progress(phase: str) -> None:
-            if phase == "calling_llm":
-                _set_progress(task, 40, "LLM is generating summary...")
-
-        result = SummarizerAgent(services.fast_llm).summarize(
-            chapter_obj,
-            chunks,
-            on_progress=on_progress,
-        )
-
-        _set_progress(task, 85, "Saving summary...")
-        # Store using tree_id as document_hash placeholder and chapter_index_kt for column
-        # We use a synthetic document_hash derived from tree_id + chapter_number
-        synthetic_hash = f"kt_{str(tree_id).replace('-', '')}_{chapter_number}"[:64]
-        chapter_index_0based = chapter_number - 1
-        services.content_store.save_summary(
-            Summary(
-                document_hash=synthetic_hash,
-                chapter_index=chapter_index_0based,
-                content=result["content"],
-                description=result["description"],
-                bullets=result["bullets"],
-            )
-        )
-
-        _set_progress(task, 100, "Done")
-        elapsed = time.perf_counter() - t0
-        logger.info(
-            "Summarized knowledge chapter %d in %.1fs", chapter_number, elapsed
-        )
-        return {
-            "chapter": chapter_number,
-            "description": result["description"],
-            "bullets": result["bullets"],
-        }
-    except Exception as e:
-        logger.error("Knowledge summarization failed: %s", e)
-        raise
-
-
-@router.post(
-    "/knowledge-trees/{tree_id}/chapters/{number}/summarize",
-    status_code=202,
-)
-async def summarize_chapter(
-    tree_id: str, number: int, services: ServicesDep
-) -> dict:
-    """Start background summarization task for a knowledge chapter."""
-    uid = _parse_uuid(tree_id, "tree_id")
-    tree = services.kt_tree_store.get_tree(uid)
-    if tree is None:
-        raise HTTPException(status_code=404, detail="Knowledge tree not found")
-
-    task_id = services.task_registry.submit(
-        _summarize_background,
-        uid,
-        number,
-        services,
-        task_type="kt_summarize",
-    )
-    return {"task_id": task_id, "task_type": "kt_summarize"}
-
-
-# ---------------------------------------------------------------------------
-# Flashcards for a chapter
-# ---------------------------------------------------------------------------
-
-
-def _flashcards_background(
-    task: Task,
-    tree_id: UUID,
-    chapter_number: int,
-    services: ServicesDep,
-) -> dict:
-    """Background task: generate flashcards for a knowledge chapter."""
-    t0 = time.perf_counter()
-    try:
-        _set_progress(task, 5, f"Retrieving chunks for chapter {chapter_number}...")
-        kt_chunks = services.kt_content_store.get_chunks(tree_id, chapter_number)
-        if not kt_chunks:
-            raise ValueError(f"No content found for chapter {chapter_number}")
-
-        chunks = [
-            Chunk(
-                text=kc.text,
-                token_count=kc.token_count,
-                metadata=ChunkMetadata(
-                    source_file=str(kc.tree_id),
-                    chapter_index=chapter_number - 1,
-                    page_number=0,
-                    start_char=0,
-                    end_char=0,
-                ),
-            )
-            for kc in kt_chunks
-        ]
-
-        _set_progress(task, 20, "Generating flashcards...")
-
-        def on_progress(batch: int, total: int, cards_so_far: int) -> None:
-            pct = 20 + int((batch / total) * 60)
-            _set_progress(
-                task, pct, f"Building flashcards... batch {batch}/{total} ({cards_so_far} cards)"
-            )
-
-        cards = FlashcardGeneratorAgent(services.fast_llm).generate(
-            chunks,
-            on_progress=on_progress,
-            chapter_title=f"Chapter {chapter_number}",
-        )
-
-        _set_progress(task, 85, "Saving flashcards...")
-        synthetic_hash = f"kt_{str(tree_id).replace('-', '')}_{chapter_number}"[:64]
-        chapter_index_0based = chapter_number - 1
-        flashcard_models = [
-            Flashcard(
-                document_hash=synthetic_hash,
-                chapter_index=chapter_index_0based,
-                front=card["front"],
-                back=card["back"],
-                source_page=card.get("source_page"),
-                source_chunk_id="",
-                source_text="",
-                status="pending",
-            )
-            for card in cards
-        ]
-        services.content_store.save_flashcards(flashcard_models)
-
-        _set_progress(task, 100, "Done")
-        elapsed = time.perf_counter() - t0
-        logger.info(
-            "Generated %d flashcards for knowledge chapter %d in %.1fs",
-            len(cards),
-            chapter_number,
-            elapsed,
-        )
-        return {"chapter": chapter_number, "count": len(cards)}
-    except Exception as e:
-        logger.error("Knowledge flashcard generation failed: %s", e)
-        raise
-
-
-@router.post(
-    "/knowledge-trees/{tree_id}/chapters/{number}/flashcards",
-    status_code=202,
-)
-async def generate_flashcards(
-    tree_id: str, number: int, services: ServicesDep
-) -> dict:
-    """Start background flashcard generation for a knowledge chapter."""
-    uid = _parse_uuid(tree_id, "tree_id")
-    tree = services.kt_tree_store.get_tree(uid)
-    if tree is None:
-        raise HTTPException(status_code=404, detail="Knowledge tree not found")
-
-    task_id = services.task_registry.submit(
-        _flashcards_background,
-        uid,
-        number,
-        services,
-        task_type="kt_flashcards",
-    )
-    return {"task_id": task_id, "task_type": "kt_flashcards"}
-
-
-# ---------------------------------------------------------------------------
-# Get summaries / flashcards / chunks for a chapter
-# ---------------------------------------------------------------------------
-
-
-@router.get(
-    "/knowledge-trees/{tree_id}/chapters/{number}/summaries",
-)
-async def get_chapter_summary(
-    tree_id: str, number: int, services: ServicesDep
-) -> dict:
-    """Get stored summary for a knowledge chapter."""
-    uid = _parse_uuid(tree_id, "tree_id")
-    synthetic_hash = f"kt_{str(uid).replace('-', '')}_{number}"[:64]
-    chapter_index_0based = number - 1
-    summary = services.content_store.get_summary(synthetic_hash, chapter_index_0based)
-    if summary is None:
-        raise HTTPException(status_code=404, detail="No summary found for this chapter")
-    return {
-        "chapter": number,
-        "content": summary.content,
-        "description": summary.description,
-        "bullets": summary.bullets,
-    }
-
-
-@router.get(
-    "/knowledge-trees/{tree_id}/chapters/{number}/flashcards",
-)
-async def get_chapter_flashcards(
-    tree_id: str, number: int, services: ServicesDep
-) -> list[dict]:
-    """Get stored flashcards for a knowledge chapter."""
-    uid = _parse_uuid(tree_id, "tree_id")
-    synthetic_hash = f"kt_{str(uid).replace('-', '')}_{number}"[:64]
-    chapter_index_0based = number - 1
-    flashcards = services.content_store.get_flashcards(
-        synthetic_hash, chapter_index_0based, status=None
-    )
-    return [
-        {
-            "id": f.id,
-            "front": f.front,
-            "back": f.back,
-            "status": f.status,
-        }
-        for f in flashcards
-    ]
 
 
 @router.get(
@@ -964,7 +709,10 @@ def _questions_background(
 
         # Divide progress range 20-85 evenly across requested types
         types_to_generate: list[QuestionType] = requested_types or [
-            "true_false", "multiple_choice", "matching", "checkbox"
+            "true_false",
+            "multiple_choice",
+            "matching",
+            "checkbox",
         ]
         num_types = len(types_to_generate)
         progress_per_type = (85 - 20) // num_types if num_types > 0 else 65
@@ -1009,7 +757,7 @@ def _questions_background(
 
         _set_progress(task, 90, f"Saving {len(all_questions)} questions...")
         if all_questions:
-            services.content_store.save_questions(all_questions)
+            services.kt_question_store.save_questions(all_questions)
 
         _set_progress(task, 100, "Done")
         elapsed = time.perf_counter() - t0
@@ -1077,7 +825,7 @@ async def get_chapter_questions(
     if chapter is None:
         raise HTTPException(status_code=404, detail=f"Chapter {number} not found")
 
-    questions = services.content_store.get_questions(uid, chapter.id, question_type=type)
+    questions = services.kt_question_store.get_questions(uid, chapter.id, question_type=type)
     return [
         QuestionOut(
             id=q.id,
@@ -1101,4 +849,4 @@ async def delete_question(
 ) -> None:
     """Delete a single question by ID."""
     q_uid = _parse_uuid(question_id, "question_id")
-    services.content_store.delete_question(q_uid)
+    services.kt_question_store.delete_question(q_uid)

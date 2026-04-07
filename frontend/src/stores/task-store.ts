@@ -3,14 +3,14 @@ import { client } from '../services'
 
 const pollingIntervals = new Map<string, ReturnType<typeof setInterval>>()
 
-export type GenerationTaskType = 'summary' | 'qa' | 'flashcards'
+export type GenerationTaskType = 'kt_questions' | 'kt_ingest' | 'kt_create_from_file'
 
 export interface GenerationTask {
   taskId: string
   type: GenerationTaskType
-  docHash: string
+  entityId: string
   chapter: number
-  bookTitle: string
+  entityTitle: string
   status: 'pending' | 'running' | 'completed' | 'failed'
   progress: string | null
   progressPct: number | null
@@ -23,22 +23,22 @@ interface TaskState {
   submitTask: (params: {
     taskId: string
     type: GenerationTaskType
-    docHash: string
+    entityId: string
     chapter: number
-    bookTitle: string
+    entityTitle: string
   }) => void
   clearTask: (taskId: string) => void
   rehydrateFromBackend: () => Promise<void>
 }
 
-const SESSION_KEY = 'docassist_active_tasks'
+const SESSION_KEY = 'docassist_kt_tasks'
 
 type PersistedTask = {
   taskId: string
   type: GenerationTaskType
-  docHash: string
+  entityId: string
   chapter: number
-  bookTitle: string
+  entityTitle: string
 }
 
 function persistToSession(entry: PersistedTask) {
@@ -104,7 +104,6 @@ function _startPolling(taskId: string) {
       pollingIntervals.delete(taskId)
       removeFromSession(taskId)
       if (is404) {
-        // Task no longer exists on the server (e.g. server restarted) — drop silently
         useTaskStore.setState((state) => {
           const updated: Record<string, GenerationTask> = {}
           for (const key of Object.keys(state.tasks)) {
@@ -130,7 +129,7 @@ function _startPolling(taskId: string) {
   pollingIntervals.set(taskId, interval)
 }
 
-function _addTask(taskId: string, type: GenerationTaskType, docHash: string, chapter: number, bookTitle: string) {
+function _addTask(taskId: string, type: GenerationTaskType, entityId: string, chapter: number, entityTitle: string) {
   useTaskStore.setState((state) => {
     if (state.tasks[taskId]) return state
     return {
@@ -139,9 +138,9 @@ function _addTask(taskId: string, type: GenerationTaskType, docHash: string, cha
         [taskId]: {
           taskId,
           type,
-          docHash,
+          entityId,
           chapter,
-          bookTitle,
+          entityTitle,
           status: 'pending',
           progress: null,
           progressPct: null,
@@ -151,16 +150,16 @@ function _addTask(taskId: string, type: GenerationTaskType, docHash: string, cha
       },
     }
   })
-  persistToSession({ taskId, type, docHash, chapter, bookTitle })
+  persistToSession({ taskId, type, entityId, chapter, entityTitle })
   _startPolling(taskId)
 }
 
 export const useTaskStore = create<TaskState>((set) => ({
   tasks: {},
 
-  submitTask: ({ taskId, type, docHash, chapter, bookTitle }) => {
+  submitTask: ({ taskId, type, entityId, chapter, entityTitle }) => {
     if (pollingIntervals.has(taskId)) return
-    _addTask(taskId, type, docHash, chapter, bookTitle)
+    _addTask(taskId, type, entityId, chapter, entityTitle)
   },
 
   clearTask: (taskId: string) => {
@@ -180,15 +179,15 @@ export const useTaskStore = create<TaskState>((set) => ({
   },
 
   rehydrateFromBackend: async () => {
+    // Clear old legacy session storage key to avoid stale entries
     try {
-      const { tasks: activeTasks } = await client.listActiveTasks()
-      for (const t of activeTasks) {
-        if (t.task_type === 'summarize') {
-          _addTask(t.task_id, 'summary', t.doc_hash, t.chapter, t.book_title)
-        } else if (t.task_type === 'flashcards') {
-          _addTask(t.task_id, 'flashcards', t.doc_hash, t.chapter, t.book_title)
-        }
-      }
+      sessionStorage.removeItem('docassist_active_tasks')
+    } catch {
+      // ignore
+    }
+    try {
+      await client.listActiveTasks()
+      // KT tasks are transient; no rehydration needed from backend
     } catch {
       // ignore network errors during rehydration
     }
@@ -201,15 +200,14 @@ function _rehydrateFromSession() {
     if (!raw) return
     const entries = JSON.parse(raw) as PersistedTask[]
     for (const entry of entries) {
-      _addTask(entry.taskId, entry.type, entry.docHash, entry.chapter, entry.bookTitle)
+      _addTask(entry.taskId, entry.type, entry.entityId, entry.chapter, entry.entityTitle)
     }
   } catch {
     sessionStorage.removeItem(SESSION_KEY)
   }
 }
 
-// Rehydrate from backend to avoid polling for tasks that may not exist
-// (e.g., after server restart). Fallback to sessionStorage if backend is unreachable.
+// Rehydrate from backend; fallback to sessionStorage if backend is unreachable.
 useTaskStore.getState().rehydrateFromBackend().catch(() => {
   _rehydrateFromSession()
 })

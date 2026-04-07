@@ -133,7 +133,8 @@ FLASHCARDS_SYSTEM = (
 
 QUESTIONS_TRUE_FALSE = (
     "You are an expert educator creating true/false questions for active recall practice.\n\n"
-    "Analyze the provided text and generate true/false questions that test substantive understanding.\n\n"
+    "Analyze the provided text and generate true/false questions that test substantive "
+    "understanding.\n\n"
     "RULES:\n"
     "- Each statement must be a complete, self-contained fact from the text.\n"
     "- Do NOT prefix statements with 'True or False:' — write the statement directly.\n"
@@ -169,7 +170,8 @@ QUESTIONS_MULTIPLE_CHOICE = (
 
 QUESTIONS_MATCHING = (
     "You are an expert educator creating matching questions for active recall practice.\n\n"
-    "Analyze the provided text and generate matching questions that link related terms and definitions.\n\n"
+    "Analyze the provided text and generate matching questions that link related terms and "
+    "definitions.\n\n"
     "RULES:\n"
     "- Each matching question has a prompt and a list of term-definition pairs.\n"
     "- Each question must have between 3 and 6 pairs.\n"
@@ -187,7 +189,8 @@ QUESTIONS_MATCHING = (
 
 QUESTIONS_CHECKBOX = (
     "You are an expert educator creating 'select all that apply' questions for active recall.\n\n"
-    "Analyze the provided text and generate checkbox questions where multiple answers are correct.\n\n"
+    "Analyze the provided text and generate checkbox questions where multiple answers are "
+    "correct.\n\n"
     "RULES:\n"
     "- Each question must have between 4 and 6 choices.\n"
     "- Between 2 and 4 choices must be correct (listed in correct_indices).\n"

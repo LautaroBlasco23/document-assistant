@@ -9,9 +9,6 @@ const LibraryPage = React.lazy(() =>
 const KnowledgeTreePage = React.lazy(() =>
   import('./pages/knowledge-tree/knowledge-tree-page').then((m) => ({ default: m.KnowledgeTreePage }))
 )
-const DocumentPage = React.lazy(() =>
-  import('./pages/document/document-page').then((m) => ({ default: m.DocumentPage }))
-)
 const SettingsPage = React.lazy(() =>
   import('./pages/settings/settings-page').then((m) => ({ default: m.SettingsPage }))
 )
@@ -46,14 +43,6 @@ export const router = createBrowserRouter([
         element: (
           <Suspense fallback={<PageFallback />}>
             <KnowledgeTreePage />
-          </Suspense>
-        ),
-      },
-      {
-        path: 'documents/:hash',
-        element: (
-          <Suspense fallback={<PageFallback />}>
-            <DocumentPage />
           </Suspense>
         ),
       },

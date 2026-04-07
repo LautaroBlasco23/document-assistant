@@ -4,14 +4,13 @@ import logging
 from dataclasses import dataclass
 
 from api.tasks import TaskRegistry
-from core.ports.content_store import ContentStore
 from core.ports.llm import LLM
 from infrastructure.config import AppConfig, load_config
-from infrastructure.db.content_repository import PostgresContentStore
 from infrastructure.db.knowledge_tree_repository import (
     PostgresKnowledgeChapterStore,
     PostgresKnowledgeContentStore,
     PostgresKnowledgeDocumentStore,
+    PostgresKnowledgeQuestionStore,
     PostgresKnowledgeTreeStore,
 )
 from infrastructure.db.postgres import PostgresPool
@@ -29,11 +28,11 @@ class Services:
     llm: LLM
     fast_llm: LLM
     task_registry: TaskRegistry
-    content_store: ContentStore
     kt_tree_store: PostgresKnowledgeTreeStore
     kt_chapter_store: PostgresKnowledgeChapterStore
     kt_doc_store: PostgresKnowledgeDocumentStore
     kt_content_store: PostgresKnowledgeContentStore
+    kt_question_store: PostgresKnowledgeQuestionStore
     _pg_pool: PostgresPool
 
 
@@ -53,7 +52,6 @@ def init_services(config: AppConfig | None = None) -> Services:
 
     pg_pool = PostgresPool(config.postgres)
     pg_pool.connect()
-    content_store = PostgresContentStore(pg_pool)
     task_repo = TaskRepository(pg_pool)
     task_repo.fail_orphaned()
     task_registry = TaskRegistry(max_workers=2, repo=task_repo)
@@ -62,17 +60,18 @@ def init_services(config: AppConfig | None = None) -> Services:
     kt_chapter_store = PostgresKnowledgeChapterStore(pg_pool)
     kt_doc_store = PostgresKnowledgeDocumentStore(pg_pool)
     kt_content_store = PostgresKnowledgeContentStore(pg_pool)
+    kt_question_store = PostgresKnowledgeQuestionStore(pg_pool)
 
     _services = Services(
         config=config,
         llm=llm,
         fast_llm=fast_llm,
         task_registry=task_registry,
-        content_store=content_store,
         kt_tree_store=kt_tree_store,
         kt_chapter_store=kt_chapter_store,
         kt_doc_store=kt_doc_store,
         kt_content_store=kt_content_store,
+        kt_question_store=kt_question_store,
         _pg_pool=pg_pool,
     )
 

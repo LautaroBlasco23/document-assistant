@@ -1,2 +1,0 @@
-ALTER TABLE document_metadata
-  ADD COLUMN IF NOT EXISTS document_type VARCHAR(50) NOT NULL DEFAULT '';

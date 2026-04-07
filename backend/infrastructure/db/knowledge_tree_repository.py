@@ -1,5 +1,6 @@
 """PostgreSQL implementations for Knowledge Tree stores."""
 
+import json
 import logging
 import threading
 from datetime import datetime, timezone
@@ -14,6 +15,7 @@ from core.model.knowledge_tree import (
     KnowledgeDocument,
     KnowledgeTree,
 )
+from core.model.question import Question, QuestionType
 from infrastructure.db.postgres import PostgresPool
 
 logger = logging.getLogger(__name__)
@@ -370,6 +372,84 @@ class PostgresKnowledgeContentStore(_BaseKnowledgeRepo):
             )
             for row in rows
         ]
+
+
+class PostgresKnowledgeQuestionStore(_BaseKnowledgeRepo):
+    """CRUD for knowledge_tree_questions table."""
+
+    def save_questions(self, questions: list[Question]) -> None:
+        if not questions:
+            return
+        with self._lock:
+            conn = self._conn()
+            with conn.transaction():
+                with conn.cursor() as cur:
+                    for q in questions:
+                        cur.execute(
+                            "INSERT INTO knowledge_tree_questions"
+                            " (id, tree_id, chapter_id, question_type, question_data, created_at)"
+                            " VALUES (%s, %s, %s, %s, %s::jsonb, %s)"
+                            " ON CONFLICT (id) DO NOTHING",
+                            (
+                                q.id,
+                                q.tree_id,
+                                q.chapter_id,
+                                q.question_type,
+                                json.dumps(q.question_data),
+                                q.created_at,
+                            ),
+                        )
+        logger.debug(
+            "Saved %d questions for tree=%s", len(questions), str(questions[0].tree_id)[:12]
+        )
+
+    def get_questions(
+        self,
+        tree_id: UUID,
+        chapter_id: UUID,
+        question_type: QuestionType | None = None,
+    ) -> list[Question]:
+        conn = self._conn()
+        with conn.cursor() as cur:
+            if question_type is not None:
+                cur.execute(
+                    "SELECT id, tree_id, chapter_id, question_type, question_data, created_at"
+                    " FROM knowledge_tree_questions"
+                    " WHERE tree_id = %s AND chapter_id = %s AND question_type = %s"
+                    " ORDER BY created_at ASC, id ASC",
+                    (tree_id, chapter_id, question_type),
+                )
+            else:
+                cur.execute(
+                    "SELECT id, tree_id, chapter_id, question_type, question_data, created_at"
+                    " FROM knowledge_tree_questions"
+                    " WHERE tree_id = %s AND chapter_id = %s"
+                    " ORDER BY created_at ASC, id ASC",
+                    (tree_id, chapter_id),
+                )
+            rows = cur.fetchall()
+        return [
+            Question(
+                id=row["id"],
+                tree_id=row["tree_id"],
+                chapter_id=row["chapter_id"],
+                question_type=row["question_type"],
+                question_data=row["question_data"],
+                created_at=_ensure_naive(row["created_at"]),
+            )
+            for row in rows
+        ]
+
+    def delete_question(self, question_id: UUID) -> None:
+        with self._lock:
+            conn = self._conn()
+            with conn.transaction():
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "DELETE FROM knowledge_tree_questions WHERE id = %s",
+                        (question_id,),
+                    )
+        logger.debug("Deleted question id=%s", str(question_id))
 
 
 def _row_to_doc(row: dict) -> KnowledgeDocument:

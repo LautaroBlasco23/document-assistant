@@ -1,3 +1,5 @@
+> NOTE: Legacy document flow removed. This file is out of date — re-run docs agent to refresh.
+
 # Document Assistant
 
 Local document reader and knowledge-tree learning platform with PostgreSQL persistence.

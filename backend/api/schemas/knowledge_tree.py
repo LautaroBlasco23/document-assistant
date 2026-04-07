@@ -70,3 +70,21 @@ class KnowledgeChunkOut(BaseModel):
     chunk_index: int
     text: str
     token_count: int
+
+
+class ChapterPreviewOut(BaseModel):
+    """Chapter metadata for preview/selection."""
+
+    index: int
+    title: str
+    page_start: int
+    page_end: int
+
+
+class DocumentPreviewOut(BaseModel):
+    """Response from preview endpoint - chapter structure without storage."""
+
+    file_hash: str
+    filename: str
+    num_chapters: int
+    chapters: list[ChapterPreviewOut]

@@ -2,25 +2,10 @@ import axios, { type AxiosInstance } from 'axios'
 import { useAppStore } from '../stores/app-store'
 import type {
   HealthOut,
-  DocumentOut,
-  DocumentStructureOut,
-  IngestTaskOut,
   ConfigOut,
   TaskStatusOut,
-  TaskResponseOut,
-  SummaryResponse,
-  FlashcardResponse,
-  MetadataResponse,
-  ChapterDeleteResponse,
   ActiveTasksOut,
   DocumentPreviewOut,
-  ExamResultOut,
-  ChapterExamStatusOut,
-  CreateDocumentRequest,
-  CreateDocumentResponse,
-  AppendContentResponse,
-  DocumentContentResponse,
-  UpdateContentResponse,
   KnowledgeTreeQuestionType,
   KnowledgeTreeQuestionOut,
 } from '../types/api'
@@ -56,71 +41,6 @@ export class RealClient implements ServiceClient {
     return res.data
   }
 
-  async listDocuments(): Promise<DocumentOut[]> {
-    const res = await httpClient.get<DocumentOut[]>('/documents')
-    return res.data
-  }
-
-  async documentStructure(hash: string): Promise<DocumentStructureOut> {
-    const res = await httpClient.get<DocumentStructureOut>(`/documents/${hash}/structure`)
-    return res.data
-  }
-
-  async deleteDocument(hash: string): Promise<void> {
-    await httpClient.delete(`/documents/${hash}`)
-  }
-
-  async deleteChapter(docHash: string, chapterNumber: number): Promise<ChapterDeleteResponse> {
-    const res = await httpClient.delete<ChapterDeleteResponse>(
-      `/documents/${docHash}/chapters/${chapterNumber}`
-    )
-    return res.data
-  }
-
-  async ingestDocument(formData: FormData): Promise<IngestTaskOut> {
-    const res = await httpClient.post<IngestTaskOut>('/documents/ingest', formData, {
-      headers: {
-        'Content-Type': undefined,
-      },
-    })
-    return res.data
-  }
-
-  async previewDocument(file: File): Promise<DocumentPreviewOut> {
-    const formData = new FormData()
-    formData.append('file', file)
-    const res = await httpClient.post<DocumentPreviewOut>('/documents/preview', formData, {
-      headers: {
-        'Content-Type': undefined,
-      },
-    })
-    return res.data
-  }
-
-  async ingestDocumentChapters(
-    fileHash: string,
-    file: File,
-    chapterIndices: number[],
-    documentType = '',
-    description = ''
-  ): Promise<IngestTaskOut> {
-    const formData = new FormData()
-    formData.append('file', file)
-    formData.append('chapter_indices', JSON.stringify(chapterIndices))
-    formData.append('document_type', documentType)
-    formData.append('description', description)
-    const res = await httpClient.post<IngestTaskOut>(
-      `/documents/${fileHash}/ingest`,
-      formData,
-      {
-        headers: {
-          'Content-Type': undefined,
-        },
-      }
-    )
-    return res.data
-  }
-
   async getConfig(): Promise<ConfigOut> {
     const res = await httpClient.get<ConfigOut>('/config')
     return res.data
@@ -133,141 +53,6 @@ export class RealClient implements ServiceClient {
 
   async listActiveTasks(): Promise<ActiveTasksOut> {
     const res = await httpClient.get<ActiveTasksOut>('/tasks/active')
-    return res.data
-  }
-
-  async summarizeChapter(chapter: number, chapterIndex: number, bookTitle: string, documentHash: string, force = false): Promise<TaskResponseOut> {
-    const res = await httpClient.post<TaskResponseOut>('/chapters/summarize', {
-      chapter,
-      chapter_index: chapterIndex,
-      book_title: bookTitle,
-      document_hash: documentHash,
-      force,
-    })
-    return res.data
-  }
-
-  async generateFlashcards(chapter: number, chapterIndex: number, bookTitle: string, documentHash: string, force = false): Promise<TaskResponseOut> {
-    const res = await httpClient.post<TaskResponseOut>('/chapters/flashcards', {
-      chapter,
-      chapter_index: chapterIndex,
-      book_title: bookTitle,
-      document_hash: documentHash,
-      force,
-    })
-    return res.data
-  }
-
-  async getStoredSummary(docHash: string, chapter: number, chapterIndex?: number): Promise<SummaryResponse | null> {
-    // Use chapter_index if provided (0-based), convert to 1-based for API
-    const chapterParam = chapterIndex !== undefined ? chapterIndex + 1 : chapter
-    const res = await httpClient.get<SummaryResponse>(`/documents/${docHash}/summaries/${chapterParam}`, {
-      validateStatus: (s) => s === 200 || s === 404,
-    })
-    return res.status === 404 ? null : res.data
-  }
-
-  async deleteSummary(docHash: string, chapter: number, chapterIndex?: number): Promise<void> {
-    const chapterParam = chapterIndex !== undefined ? chapterIndex + 1 : chapter
-    await httpClient.delete(`/documents/${docHash}/summaries/${chapterParam}`)
-  }
-
-  async getStoredFlashcards(docHash: string, chapter: number, chapterIndex?: number): Promise<FlashcardResponse[]> {
-    // Use chapter_index if provided (0-based), convert to 1-based for API
-    const chapterParam = chapterIndex !== undefined ? chapterIndex + 1 : chapter
-    const res = await httpClient.get<FlashcardResponse[]>(`/documents/${docHash}/flashcards`, {
-      params: { chapter: chapterParam, status: 'approved' },
-    })
-    return res.data
-  }
-
-  async getPendingFlashcards(docHash: string, chapter?: number, chapterIndex?: number): Promise<FlashcardResponse[]> {
-    const params: Record<string, unknown> = { status: 'pending' }
-    if (chapter !== undefined) {
-      params.chapter = chapterIndex !== undefined ? chapterIndex + 1 : chapter
-    }
-    const res = await httpClient.get<FlashcardResponse[]>(`/documents/${docHash}/flashcards`, {
-      params,
-    })
-    return res.data
-  }
-
-  async approveFlashcards(docHash: string, flashcardIds: string[]): Promise<void> {
-    await httpClient.patch(`/documents/${docHash}/flashcards/approve`, { flashcard_ids: flashcardIds })
-  }
-
-  async rejectFlashcards(docHash: string, flashcardIds: string[]): Promise<void> {
-    await httpClient.delete(`/documents/${docHash}/flashcards/reject`, {
-      data: { flashcard_ids: flashcardIds },
-    })
-  }
-
-  async approveAllFlashcards(docHash: string, chapter?: number, chapterIndex?: number): Promise<void> {
-    const params: Record<string, unknown> = {}
-    if (chapter !== undefined) {
-      params.chapter = chapterIndex !== undefined ? chapterIndex + 1 : chapter
-    }
-    await httpClient.post(`/documents/${docHash}/flashcards/approve-all`, null, { params })
-  }
-
-  async getMetadata(docHash: string): Promise<MetadataResponse> {
-    const res = await httpClient.get<MetadataResponse>(`/documents/${docHash}/metadata`)
-    return res.data
-  }
-
-  async saveMetadata(docHash: string, description: string, documentType = ''): Promise<MetadataResponse> {
-    const res = await httpClient.put<MetadataResponse>(`/documents/${docHash}/metadata`, {
-      description,
-      document_type: documentType,
-    })
-    return res.data
-  }
-
-  async submitExamResult(docHash: string, chapter: number, totalCards: number, correctCount: number): Promise<ExamResultOut> {
-    const res = await httpClient.post<ExamResultOut>('/exams', {
-      document_hash: docHash,
-      chapter,
-      total_cards: totalCards,
-      correct_count: correctCount,
-    })
-    return res.data
-  }
-
-  async getExamStatus(docHash: string): Promise<ChapterExamStatusOut[]> {
-    const res = await httpClient.get<ChapterExamStatusOut[]>(`/documents/${docHash}/exam-status`)
-    return res.data
-  }
-
-  async getExamStatusForChapter(docHash: string, chapter: number): Promise<ChapterExamStatusOut> {
-    const res = await httpClient.get<ChapterExamStatusOut>(`/documents/${docHash}/exam-status/${chapter}`)
-    return res.data
-  }
-
-  getDocumentFileUrl(docHash: string): string {
-    return `/api/documents/${docHash}/file`
-  }
-
-  getChapterPdfUrl(docHash: string, chapter: number): string {
-    return `/api/documents/${docHash}/chapters/${chapter}/pdf`
-  }
-
-  async createDocument(req: CreateDocumentRequest): Promise<CreateDocumentResponse> {
-    const res = await httpClient.post<CreateDocumentResponse>('/documents/create', req)
-    return res.data
-  }
-
-  async appendContent(docHash: string, content: string): Promise<AppendContentResponse> {
-    const res = await httpClient.post<AppendContentResponse>(`/documents/${docHash}/append`, { content })
-    return res.data
-  }
-
-  async getDocumentContent(docHash: string): Promise<DocumentContentResponse> {
-    const res = await httpClient.get<DocumentContentResponse>(`/documents/${docHash}/content`)
-    return res.data
-  }
-
-  async updateDocumentContent(docHash: string, content: string): Promise<UpdateContentResponse> {
-    const res = await httpClient.put<UpdateContentResponse>(`/documents/${docHash}/content`, { content })
     return res.data
   }
 
@@ -343,8 +128,6 @@ export class RealClient implements ServiceClient {
   }
 
   async updateKnowledgeDocument(id: string, title: string, content: string): Promise<KnowledgeDocument> {
-    // doc_id is used in the URL; we need the tree_id too but the interface only passes id
-    // Use a dedicated update endpoint by doc_id (tree_id placeholder via _)
     const res = await httpClient.put<KnowledgeDocument>(
       `/knowledge-trees/_/documents/${id}`,
       { title, content }
@@ -382,35 +165,27 @@ export class RealClient implements ServiceClient {
     return { task_id: res.data.task_id }
   }
 
-  async generateKTSummary(treeId: string, chapter: number): Promise<{ task_id: string }> {
-    const res = await httpClient.post<{ task_id: string }>(
-      `/knowledge-trees/${treeId}/chapters/${chapter}/summarize`
+  async ingestFileAsKnowledgeDocument(treeId: string, chapter: number, file: File): Promise<KnowledgeDocument> {
+    const formData = new FormData()
+    formData.append('file', file)
+    const res = await httpClient.post<{ task_id: string; filename: string }>(
+      `/knowledge-trees/${treeId}/chapters/${chapter}/documents/ingest`,
+      formData,
+      { headers: { 'Content-Type': undefined } }
     )
-    return res.data
+    return {
+      id: res.data.task_id,
+      tree_id: treeId,
+      chapter: chapter,
+      title: res.data.filename,
+      content: '',
+      is_main: false,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }
   }
 
-  async getKTSummary(treeId: string, chapter: number): Promise<{ chapter: number; content: string; description: string; bullets: string[] } | null> {
-    const res = await httpClient.get<{ chapter: number; content: string; description: string; bullets: string[] }>(
-      `/knowledge-trees/${treeId}/chapters/${chapter}/summaries`,
-      { validateStatus: (s) => s === 200 || s === 404 }
-    )
-    return res.status === 404 ? null : res.data
-  }
-
-  async generateKTFlashcards(treeId: string, chapter: number): Promise<{ task_id: string }> {
-    const res = await httpClient.post<{ task_id: string }>(
-      `/knowledge-trees/${treeId}/chapters/${chapter}/flashcards`
-    )
-    return res.data
-  }
-
-  async getKTFlashcards(treeId: string, chapter: number): Promise<{ id: string; front: string; back: string; status: string }[]> {
-    const res = await httpClient.get<{ id: string; front: string; back: string; status: string }[]>(
-      `/knowledge-trees/${treeId}/chapters/${chapter}/flashcards`
-    )
-    return res.data
-  }
-
+  // Knowledge Tree Questions
   async generateKnowledgeTreeQuestions(
     treeId: string,
     chapter: number,
@@ -444,27 +219,5 @@ export class RealClient implements ServiceClient {
     await httpClient.delete(
       `/knowledge-trees/${treeId}/chapters/${chapter}/questions/${questionId}`
     )
-  }
-
-  async ingestFileAsKnowledgeDocument(treeId: string, chapter: number, file: File): Promise<KnowledgeDocument> {
-    const formData = new FormData()
-    formData.append('file', file)
-    // Ingest returns a task_id; poll until done and return the document
-    const res = await httpClient.post<{ task_id: string; filename: string }>(
-      `/knowledge-trees/${treeId}/chapters/${chapter}/documents/ingest`,
-      formData,
-      { headers: { 'Content-Type': undefined } }
-    )
-    // Return a placeholder document while the task runs in the background
-    return {
-      id: res.data.task_id,
-      tree_id: treeId,
-      chapter: chapter,
-      title: res.data.filename,
-      content: '',
-      is_main: false,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    }
   }
 }
