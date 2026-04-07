@@ -80,6 +80,14 @@ export interface ServiceClient {
   previewKnowledgeTreeFile(file: File): Promise<DocumentPreviewOut>
   createKnowledgeTreeFromFile(file: File, title?: string, chapterIndices?: number[]): Promise<{ task_id: string }>
 
+  // Knowledge Tree Summary
+  generateKTSummary(treeId: string, chapter: number): Promise<{ task_id: string }>
+  getKTSummary(treeId: string, chapter: number): Promise<{ chapter: number; content: string; description: string; bullets: string[] } | null>
+
+  // Knowledge Tree Flashcards
+  generateKTFlashcards(treeId: string, chapter: number): Promise<{ task_id: string }>
+  getKTFlashcards(treeId: string, chapter: number): Promise<{ id: string; front: string; back: string; status: string }[]>
+
   // Knowledge Tree Questions
   generateKnowledgeTreeQuestions(
     treeId: string,

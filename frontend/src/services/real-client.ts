@@ -382,6 +382,35 @@ export class RealClient implements ServiceClient {
     return { task_id: res.data.task_id }
   }
 
+  async generateKTSummary(treeId: string, chapter: number): Promise<{ task_id: string }> {
+    const res = await httpClient.post<{ task_id: string }>(
+      `/knowledge-trees/${treeId}/chapters/${chapter}/summarize`
+    )
+    return res.data
+  }
+
+  async getKTSummary(treeId: string, chapter: number): Promise<{ chapter: number; content: string; description: string; bullets: string[] } | null> {
+    const res = await httpClient.get<{ chapter: number; content: string; description: string; bullets: string[] }>(
+      `/knowledge-trees/${treeId}/chapters/${chapter}/summaries`,
+      { validateStatus: (s) => s === 200 || s === 404 }
+    )
+    return res.status === 404 ? null : res.data
+  }
+
+  async generateKTFlashcards(treeId: string, chapter: number): Promise<{ task_id: string }> {
+    const res = await httpClient.post<{ task_id: string }>(
+      `/knowledge-trees/${treeId}/chapters/${chapter}/flashcards`
+    )
+    return res.data
+  }
+
+  async getKTFlashcards(treeId: string, chapter: number): Promise<{ id: string; front: string; back: string; status: string }[]> {
+    const res = await httpClient.get<{ id: string; front: string; back: string; status: string }[]>(
+      `/knowledge-trees/${treeId}/chapters/${chapter}/flashcards`
+    )
+    return res.data
+  }
+
   async generateKnowledgeTreeQuestions(
     treeId: string,
     chapter: number,

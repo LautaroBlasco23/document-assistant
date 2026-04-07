@@ -10,7 +10,6 @@ import { EmptyState } from '../../components/ui/empty-state'
 import { TaskProgress } from './task-progress'
 import { FlashcardCard } from './flashcard-card'
 import { FlashcardReview } from './flashcard-review'
-import { mockFlashcards } from '../../mocks/flashcards'
 import type { DocumentStructureOut, FlashcardOut } from '../../types/api'
 import type { FlashcardDeck } from '../../types/domain'
 
@@ -110,7 +109,7 @@ export function FlashcardTab({ docHash, chapter, chapterIndex, structure: _struc
     if (!task || task.status !== 'completed') return
 
     const flashcards = (task.result?.flashcards as FlashcardOut[] | undefined) ?? []
-    const cards = flashcards.length > 0 ? flashcards : (mockFlashcards[docHash] ?? [])
+    const cards = flashcards.length > 0 ? flashcards : []
 
     const deck: FlashcardDeck = {
       documentHash: docHash,
@@ -124,7 +123,7 @@ export function FlashcardTab({ docHash, chapter, chapterIndex, structure: _struc
     useTaskStore.getState().clearTask(task.taskId)
     // Clear exam status cache since flashcards were regenerated
     useExamStore.getState().clearChapterStatus(docHash, chapter)
-  }, [task?.status, task?.taskId, docHash, chapter, addDeck, setPendingDeck])
+  }, [task?.status, task?.taskId, docHash, chapter, task?.result, setPendingDeck])
 
   const filteredCards = currentDeck
     ? categoryFilter === 'all'
@@ -133,6 +132,10 @@ export function FlashcardTab({ docHash, chapter, chapterIndex, structure: _struc
     : []
 
   const handleGenerate = async () => {
+    // Clear any previous failed task so the new one takes over immediately
+    if (task?.status === 'failed') {
+      useTaskStore.getState().clearTask(task.taskId)
+    }
     try {
       const response = await client.generateFlashcards(chapter, chapterIndex, bookTitle, docHash, true)
       useTaskStore.getState().submitTask({

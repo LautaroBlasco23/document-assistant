@@ -440,6 +440,26 @@ export class MockClient implements ServiceClient {
     return { task_id: taskId }
   }
 
+  async generateKTSummary(_treeId: string, _chapter: number): Promise<{ task_id: string }> {
+    await delay(200)
+    return { task_id: `kt-sum-task-${Math.random().toString(36).slice(2, 10)}` }
+  }
+
+  async getKTSummary(_treeId: string, _chapter: number): Promise<{ chapter: number; content: string; description: string; bullets: string[] } | null> {
+    await delay(100)
+    return null
+  }
+
+  async generateKTFlashcards(_treeId: string, _chapter: number): Promise<{ task_id: string }> {
+    await delay(200)
+    return { task_id: `kt-fc-task-${Math.random().toString(36).slice(2, 10)}` }
+  }
+
+  async getKTFlashcards(_treeId: string, _chapter: number): Promise<{ id: string; front: string; back: string; status: string }[]> {
+    await delay(100)
+    return []
+  }
+
   async generateKnowledgeTreeQuestions(
     _treeId: string,
     _chapter: number,

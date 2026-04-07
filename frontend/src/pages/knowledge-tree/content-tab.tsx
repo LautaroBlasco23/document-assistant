@@ -28,49 +28,11 @@ import type {
   MultipleChoiceQuestion,
   MatchingQuestion,
   CheckboxQuestion,
-  FlashcardQuestion,
   ExamQuestion,
 } from '../../types/knowledge-tree'
 import type { KnowledgeTreeQuestionType } from '../../types/api'
 
-// ---------------------------------------------------------------------------
-// Mock summary / flashcard data (still used until those are wired to backend)
-// ---------------------------------------------------------------------------
 
-const MOCK_SUMMARY = `This chapter covers the foundational concepts and key principles that underpin the topic. The main areas explored include the theoretical basis, practical applications, and common pitfalls to avoid.
-
-Key takeaways:
-• The core principle drives all other concepts in this domain
-• Understanding the trade-offs between different approaches is critical
-• Practical implementation requires adapting theory to real-world constraints
-• Regular review and iteration leads to mastery`
-
-const MOCK_FLASHCARD_LIST: FlashcardQuestion[] = [
-  {
-    type: 'flashcard',
-    id: 'fc-gen-1',
-    front: 'What is the core principle of this topic?',
-    back: 'The fundamental idea that drives all related concepts and provides the theoretical foundation for practical applications.',
-  },
-  {
-    type: 'flashcard',
-    id: 'fc-gen-2',
-    front: 'What are the main trade-offs to consider?',
-    back: 'Speed vs. accuracy, simplicity vs. flexibility, and short-term vs. long-term maintainability.',
-  },
-  {
-    type: 'flashcard',
-    id: 'fc-gen-3',
-    front: 'How does theory translate to practice?',
-    back: 'By adapting core principles to the specific constraints and requirements of the real-world environment, iterating based on feedback.',
-  },
-  {
-    type: 'flashcard',
-    id: 'fc-gen-4',
-    front: 'What is the most common pitfall?',
-    back: 'Over-engineering: adding unnecessary complexity before validating the simpler solution works.',
-  },
-]
 
 // ---------------------------------------------------------------------------
 // Types
@@ -570,15 +532,32 @@ function QuestionGenerator({
 // Main content tab
 // ---------------------------------------------------------------------------
 
+interface KTSummary {
+  chapter: number
+  content: string
+  description: string
+  bullets: string[]
+}
+
+interface KTFlashcard {
+  id: string
+  front: string
+  back: string
+  status: string
+}
+
 export function ContentTab({ treeId, selectedChapter, chapters }: ContentTabProps) {
   const [activeSubTab, setActiveSubTab] = React.useState<SubTab>('summary')
 
   // Summary
-  const [summaryStatus, setSummaryStatus] = React.useState<GenerateStatus>('idle')
+  const [summaryTaskId, setSummaryTaskId] = React.useState<string | null>(null)
+  const [ktSummary, setKtSummary] = React.useState<KTSummary | null>(null)
+  const [summaryError, setSummaryError] = React.useState<string | null>(null)
 
   // Flashcards
-  const [flashcardsStatus, setFlashcardsStatus] = React.useState<GenerateStatus>('idle')
-  const [flashcardQuestions, setFlashcardQuestions] = React.useState<FlashcardQuestion[]>([])
+  const [flashcardTaskId, setFlashcardTaskId] = React.useState<string | null>(null)
+  const [ktFlashcards, setKtFlashcards] = React.useState<KTFlashcard[]>([])
+  const [flashcardError, setFlashcardError] = React.useState<string | null>(null)
   const [expandedCard, setExpandedCard] = React.useState<number | null>(null)
 
   // Exam
@@ -598,25 +577,85 @@ export function ContentTab({ treeId, selectedChapter, chapters }: ContentTabProp
 
   const currentChapter = chapters.find((c) => c.number === selectedChapter)
 
+  // Polling hook for summary task
+  const { isPolling: isSummaryPolling, progressMsg: summaryProgressMsg } =
+    useQuestionGenerationTask({
+      taskId: summaryTaskId,
+      onComplete: async () => {
+        if (selectedChapter === null) return
+        try {
+          const summary = await client.getKTSummary(treeId, selectedChapter)
+          setKtSummary(summary)
+          setSummaryTaskId(null)
+        } catch {
+          setSummaryError('Failed to load summary after generation')
+          setSummaryTaskId(null)
+        }
+      },
+      onFail: (err) => {
+        setSummaryError(err)
+        setSummaryTaskId(null)
+      },
+    })
+
+  // Polling hook for flashcard task
+  const { isPolling: isFlashcardPolling, progressMsg: flashcardProgressMsg } =
+    useQuestionGenerationTask({
+      taskId: flashcardTaskId,
+      onComplete: async () => {
+        if (selectedChapter === null) return
+        try {
+          const cards = await client.getKTFlashcards(treeId, selectedChapter)
+          setKtFlashcards(cards)
+          setFlashcardTaskId(null)
+        } catch {
+          setFlashcardError('Failed to load flashcards after generation')
+          setFlashcardTaskId(null)
+        }
+      },
+      onFail: (err) => {
+        setFlashcardError(err)
+        setFlashcardTaskId(null)
+      },
+    })
+
+  // Load existing summary/flashcards when chapter changes
+  React.useEffect(() => {
+    if (selectedChapter === null) return
+    setKtSummary(null)
+    setKtFlashcards([])
+    setSummaryError(null)
+    setFlashcardError(null)
+
+    client.getKTSummary(treeId, selectedChapter).then((s) => {
+      if (s) setKtSummary(s)
+    })
+
+    client.getKTFlashcards(treeId, selectedChapter).then((cards) => {
+      if (cards.length > 0) setKtFlashcards(cards)
+    })
+  }, [treeId, selectedChapter])
+
   const handleGenerateSummary = async () => {
-    setSummaryStatus('loading')
-    await new Promise<void>((resolve) => setTimeout(resolve, 2000))
-    setSummaryStatus('done')
+    if (selectedChapter === null) return
+    setSummaryError(null)
+    try {
+      const { task_id } = await client.generateKTSummary(treeId, selectedChapter)
+      setSummaryTaskId(task_id)
+    } catch {
+      setSummaryError('Failed to start summary generation')
+    }
   }
 
   const handleGenerateFlashcards = async () => {
-    setFlashcardsStatus('loading')
-    await new Promise<void>((resolve) => setTimeout(resolve, 2500))
-    setFlashcardQuestions(MOCK_FLASHCARD_LIST)
-    setFlashcardsStatus('done')
-  }
-
-  const handleChapterReset = () => {
-    setSummaryStatus('idle')
-    setFlashcardsStatus('idle')
-    setExpandedCard(null)
-    setFlashcardQuestions([])
-    setExamActive(false)
+    if (selectedChapter === null) return
+    setFlashcardError(null)
+    try {
+      const { task_id } = await client.generateKTFlashcards(treeId, selectedChapter)
+      setFlashcardTaskId(task_id)
+    } catch {
+      setFlashcardError('Failed to start flashcard generation')
+    }
   }
 
   const handleQuestionsUpdated = () => {
@@ -624,7 +663,7 @@ export function ContentTab({ treeId, selectedChapter, chapters }: ContentTabProp
   }
 
   const examQuestions: ExamQuestion[] = selectedChapter !== null
-    ? [...tfQuestions, ...mcQuestions, ...matchingQuestions, ...cbQuestions, ...flashcardQuestions]
+    ? [...tfQuestions, ...mcQuestions, ...matchingQuestions, ...cbQuestions, ...ktFlashcards.map((c) => ({ type: 'flashcard', ...c } as ExamQuestion))]
     : []
 
   const typeCounts: ExamTypeCount[] = selectedChapter !== null
@@ -633,7 +672,7 @@ export function ContentTab({ treeId, selectedChapter, chapters }: ContentTabProp
         { label: 'Multiple Choice', count: mcQuestions.length },
         { label: 'Matching', count: matchingQuestions.length },
         { label: 'Checkbox', count: cbQuestions.length },
-        { label: 'Flashcards', count: flashcardQuestions.length },
+        { label: 'Flashcards', count: ktFlashcards.length },
       ]
     : []
 
@@ -686,7 +725,7 @@ export function ContentTab({ treeId, selectedChapter, chapters }: ContentTabProp
             {/* Summary */}
             <TabsContent value="summary">
               <div className="flex flex-col gap-3">
-                {summaryStatus === 'idle' && (
+                {!isSummaryPolling && !ktSummary && !summaryError && (
                   <>
                     <p className="text-sm text-gray-500">
                       A structured summary of this chapter based on its knowledge documents.
@@ -702,24 +741,49 @@ export function ContentTab({ treeId, selectedChapter, chapters }: ContentTabProp
                     </Button>
                   </>
                 )}
-                {summaryStatus === 'loading' && (
+                {isSummaryPolling && (
                   <div className="flex items-center gap-2 text-sm text-gray-400 py-4">
                     <div className="h-4 w-4 rounded-full border-2 border-primary border-t-transparent animate-spin" />
-                    Generating from knowledge documents...
+                    {summaryProgressMsg ?? 'Generating from knowledge documents...'}
                   </div>
                 )}
-                {summaryStatus === 'done' && (
+                {summaryError && (
+                  <div className="flex flex-col gap-2">
+                    <p className="text-sm text-red-500">{summaryError}</p>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => void handleGenerateSummary()}
+                      className="self-start"
+                    >
+                      <Sparkles className="h-3.5 w-3.5 mr-1" />
+                      Retry
+                    </Button>
+                  </div>
+                )}
+                {ktSummary && !isSummaryPolling && (
                   <>
                     <Badge variant="success">Generated</Badge>
                     <div className="bg-gray-50 rounded-md p-4 text-sm text-gray-700 leading-relaxed whitespace-pre-line border border-gray-200">
-                      {MOCK_SUMMARY}
+                      {ktSummary.description}
+                      {ktSummary.bullets.length > 0 && (
+                        <ul className="mt-3 space-y-1 list-none pl-0">
+                          {ktSummary.bullets.map((b, i) => (
+                            <li key={i} className="flex items-start gap-2">
+                              <span className="text-blue-500 font-bold shrink-0">•</span>
+                              <span>{b}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
                     </div>
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => setSummaryStatus('idle')}
+                      onClick={() => void handleGenerateSummary()}
                       className="self-start text-gray-400"
                     >
+                      <RefreshCw className="h-3 w-3 mr-1" />
                       Regenerate
                     </Button>
                   </>
@@ -730,7 +794,7 @@ export function ContentTab({ treeId, selectedChapter, chapters }: ContentTabProp
             {/* Flashcards */}
             <TabsContent value="flashcards">
               <div className="flex flex-col gap-3">
-                {flashcardsStatus === 'idle' && (
+                {!isFlashcardPolling && ktFlashcards.length === 0 && !flashcardError && (
                   <>
                     <p className="text-sm text-gray-500">
                       Q&amp;A flashcards extracted from key concepts in this chapter&apos;s documents.
@@ -746,17 +810,31 @@ export function ContentTab({ treeId, selectedChapter, chapters }: ContentTabProp
                     </Button>
                   </>
                 )}
-                {flashcardsStatus === 'loading' && (
+                {isFlashcardPolling && (
                   <div className="flex items-center gap-2 text-sm text-gray-400 py-4">
                     <div className="h-4 w-4 rounded-full border-2 border-yellow-400 border-t-transparent animate-spin" />
-                    Extracting concepts...
+                    {flashcardProgressMsg ?? 'Extracting concepts...'}
                   </div>
                 )}
-                {flashcardsStatus === 'done' && (
+                {flashcardError && (
+                  <div className="flex flex-col gap-2">
+                    <p className="text-sm text-red-500">{flashcardError}</p>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => void handleGenerateFlashcards()}
+                      className="self-start"
+                    >
+                      <Sparkles className="h-3.5 w-3.5 mr-1" />
+                      Retry
+                    </Button>
+                  </div>
+                )}
+                {ktFlashcards.length > 0 && !isFlashcardPolling && (
                   <>
-                    <Badge variant="success">{flashcardQuestions.length} cards</Badge>
+                    <Badge variant="success">{ktFlashcards.length} cards</Badge>
                     <div className="flex flex-col gap-2">
-                      {flashcardQuestions.map((card, i) => (
+                      {ktFlashcards.map((card, i) => (
                         <div
                           key={card.id}
                           className="border border-gray-200 rounded-md overflow-hidden cursor-pointer"
@@ -783,9 +861,10 @@ export function ContentTab({ treeId, selectedChapter, chapters }: ContentTabProp
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => { setFlashcardsStatus('idle'); setFlashcardQuestions([]) }}
+                      onClick={() => { setKtFlashcards([]); void handleGenerateFlashcards() }}
                       className="self-start text-gray-400"
                     >
+                      <RefreshCw className="h-3 w-3 mr-1" />
                       Regenerate
                     </Button>
                   </>

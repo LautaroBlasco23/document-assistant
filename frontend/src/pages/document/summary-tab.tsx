@@ -148,6 +148,7 @@ export function SummaryTab({ docHash, chapter, chapterIndex, structure: _structu
   }
 
   const isGenerating = task !== undefined && (task.status === 'pending' || task.status === 'running')
+  const hasFailed = task?.status === 'failed'
   const isLoading = isLoadingStored || isGenerating
 
   const generateButton = (
@@ -155,10 +156,10 @@ export function SummaryTab({ docHash, chapter, chapterIndex, structure: _structu
       variant="primary"
       size="sm"
       onClick={() => void handleGenerate()}
-      disabled={isLoading}
+      disabled={isGenerating}
       loading={isGenerating}
     >
-      {summaryData ? 'Regenerate' : 'Generate'}
+      {summaryData || hasFailed ? 'Regenerate' : 'Generate'}
     </Button>
   )
 
@@ -185,6 +186,13 @@ export function SummaryTab({ docHash, chapter, chapterIndex, structure: _structu
           message={task?.progress ?? null}
           fallbackMessage="Generating summary..."
         />
+      )}
+
+      {/* Error state */}
+      {hasFailed && !isGenerating && (
+        <p className="text-sm text-red-500">
+          {task?.error ?? 'Generation failed. Please try again.'}
+        </p>
       )}
 
       {/* Summary content */}
