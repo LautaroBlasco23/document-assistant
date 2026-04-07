@@ -4,6 +4,7 @@ import re
 from typing import Callable
 
 from application.agents.base import BaseAgent
+from application.prompts import FLASHCARDS_SYSTEM
 from core.model.chunk import Chunk
 
 logger = logging.getLogger(__name__)
@@ -24,8 +25,10 @@ _TRIVIAL_PATTERNS = [
 ]
 
 
-def _batch_chunks(chunks: list[Chunk], max_words: int) -> list[list[Chunk]]:
-    """Group chunks into batches that stay within max_words."""
+
+
+def _batch_chunks_list(chunks: list[Chunk], max_words: int) -> list[list[Chunk]]:
+    """Group chunks into batches that stay within max_words, preserving chunk objects."""
     batches: list[list[Chunk]] = []
     current: list[Chunk] = []
     current_words = 0
@@ -40,61 +43,6 @@ def _batch_chunks(chunks: list[Chunk], max_words: int) -> list[list[Chunk]]:
     if current:
         batches.append(current)
     return batches
-
-_SYSTEM = (
-    "You are an expert educator creating flashcards for spaced repetition study.\n\n"
-    "Your goal is to create flashcards that test UNDERSTANDING, not trivial recall. "
-    "Every card must be worth a student's time to study.\n\n"
-    "QUALITY RULES (follow strictly):\n"
-    "- SKIP: metadata, page numbers, chapter references, author names (unless the "
-    "author's identity is the subject matter), publication dates, section headings, "
-    "table of contents information, and any boilerplate text.\n"
-    "- SKIP: facts that are obvious, self-evident, or could be answered without "
-    "reading the text (e.g., 'What is a book?' or 'Who is the reader?').\n"
-    "- FOCUS: concepts that require understanding to answer correctly. A good test: "
-    "if a student could answer the question by guessing or common sense alone, "
-    "the card is too easy.\n"
-    "- Each card should test a SINGLE idea. Do not combine multiple concepts.\n"
-    "- Backs should be precise and complete, not vague summaries.\n\n"
-    "Generate between 3 and 12 flashcards based on the density and importance of the content.\n\n"
-    "- If the text is mostly structural, transitional, or repetitive: generate 3-5 cards "
-    "focusing only on genuinely important content.\n"
-    "- If the text is dense with new concepts, facts, and arguments: generate 8-12 cards.\n"
-    "- Do NOT pad with low-quality cards to reach a minimum. "
-    "Fewer good cards is always better than more mediocre ones.\n\n"
-    "Categorize each card as one of: \"terminology\", \"key_facts\", or \"concepts\".\n"
-    "Choose the category that best fits -- do not force equal distribution across categories.\n\n"
-    "### TERMINOLOGY\n"
-    "Test definitions of domain-specific terms introduced in the text. "
-    "Do NOT include everyday words or terms the reader would already know.\n"
-    "- Front: The technical term or concept name.\n"
-    "- Back: A precise definition in 1-2 sentences using context from the text. "
-    "Include an example if the text provides one.\n\n"
-    "### KEY FACTS\n"
-    "Test specific, non-obvious facts that a reader needs to remember. "
-    "Focus on facts that are surprising, counterintuitive, or essential to the argument.\n"
-    "- Front: A specific question that cannot be answered by common knowledge.\n"
-    "- Back: The precise answer with supporting detail from the text.\n\n"
-    "### CONCEPTS\n"
-    "Test understanding of relationships, causes, processes, or arguments. "
-    "These should require analysis or synthesis, not just recall.\n"
-    "- Front: A 'why' or 'how' question about a process, relationship, or argument.\n"
-    "- Back: A clear explanation in 2-3 sentences that demonstrates understanding.\n\n"
-    "SELF-CHECK before including each card:\n"
-    "1. Would a student who skimmed the chapter already know this? If yes, skip it.\n"
-    "2. Is this testing understanding or just recognition? Prefer understanding.\n"
-    "3. Is the answer specific to this text, or generic knowledge? Prefer text-specific.\n\n"
-    "Rules:\n"
-    "- Every card MUST be answerable from the provided text alone.\n"
-    "- Keep fronts short and precise (one question or term per card).\n"
-    "- Keep backs concise but complete.\n"
-    "- Do NOT create cards about study exercises, glossary sections, or instructional "
-    "material embedded in the text.\n\n"
-    'Respond with a JSON object: {"cards": [{"front": ..., "back": ..., '
-    '"category": ..., "source_page": ...}]}\n'
-    'Valid categories: "terminology", "key_facts", "concepts"\n'
-    "For source_page: use the page number from the [p.N] prefix. If unknown, omit."
-)
 
 
 def _jaccard_words(a: str, b: str) -> float:
@@ -130,7 +78,7 @@ class FlashcardGeneratorAgent(BaseAgent):
             chapter_summary: Optional summary of the chapter to help prioritize concepts.
         """
         all_cards = []
-        batches = _batch_chunks(chunks, _MAX_WORDS_PER_BATCH)
+        batches = _batch_chunks_list(chunks, _MAX_WORDS_PER_BATCH)
         total_batches = len(batches)
 
         # Build context header
@@ -173,7 +121,7 @@ class FlashcardGeneratorAgent(BaseAgent):
                 total_batches,
                 len(batch),
             )
-            raw = self._call_json_with_retry(_SYSTEM, user)
+            raw = self._call_json_with_retry(FLASHCARDS_SYSTEM, user)
             logger.debug(
                 "Batch %d/%d: LLM returned %d chars",
                 batch_number,
