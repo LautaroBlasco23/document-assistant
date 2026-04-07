@@ -26,7 +26,7 @@ class OpenRouterConfig(BaseModel):
     api_key: str = ""  # set via DOCASSIST_OPENROUTER__API_KEY
     base_url: str = "https://openrouter.ai/api/v1"
     model: str = "meta-llama/llama-3.3-70b-instruct:free"
-    fast_model: str | None = None  # e.g. "google/gemma-2-9b-it:free"
+    fast_model: str | None = "qwen/qwen2.5-7b-instruct:free"
     timeout: int = 120  # some models are slower
     max_retries: int = 3
     requests_per_minute: int = 10  # proactive rate limiter; reduce for :free models
@@ -37,9 +37,9 @@ class OpenRouterConfig(BaseModel):
 class HuggingFaceConfig(BaseModel):
     api_key: str = ""  # set via DOCASSIST_HUGGINGFACE__API_KEY (hf_ token)
     base_url: str = "https://router.huggingface.co/v1"
-    model: str = "mistralai/Mistral-7B-Instruct-v0.3"
+    model: str = "Qwen/Qwen2.5-72B-Instruct"
     fast_model: str | None = None
-    timeout: int = 120  # free tier can be slow (model loading)
+    timeout: int = 180  # free tier can be slow (model loading)
     max_retries: int = 3
     wait_for_model: bool = True  # send x-wait-for-model header
 

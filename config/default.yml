@@ -18,8 +18,8 @@ groq:
 openrouter:
   # api_key: set via DOCASSIST_OPENROUTER__API_KEY env var (never commit keys here)
   base_url: "https://openrouter.ai/api/v1"
-  model: "qwen/qwen3-next-80b-a3b-instruct:free"
-  fast_model: "liquid/lfm-2.5-1.2b-thinking:free"
+  model: "meta-llama/llama-3.3-70b-instruct:free"
+  fast_model: "qwen/qwen2.5-7b-instruct:free"
   timeout: 120
   max_retries: 3
   requests_per_minute: 10  # proactive rate limit; reduce further for :free models if 429s persist
@@ -27,8 +27,8 @@ openrouter:
 huggingface:
   # api_key: set via DOCASSIST_HUGGINGFACE__API_KEY env var (never commit keys here)
   base_url: "https://router.huggingface.co/v1"
-  model: "mistralai/Mistral-7B-Instruct-v0.3"
-  timeout: 120
+  model: "Qwen/Qwen2.5-72B-Instruct"
+  timeout: 180
   max_retries: 3
   wait_for_model: true
 
