@@ -2,6 +2,7 @@ import { mockHealth } from '../mocks/health'
 import { mockDocuments, mockDocumentStructures } from '../mocks/documents'
 import { mockConfig } from '../mocks/config'
 import { mockKnowledgeTrees, mockKnowledgeChapters, mockKnowledgeDocuments } from '../mocks/knowledge-trees'
+import { mockExamQuestions } from '../mocks/knowledge-exam'
 import type { KnowledgeTree, KnowledgeChapter, KnowledgeDocument } from '../types/knowledge-tree'
 import type {
   HealthOut,
@@ -24,6 +25,8 @@ import type {
   AppendContentResponse,
   DocumentContentResponse,
   UpdateContentResponse,
+  KnowledgeTreeQuestionType,
+  KnowledgeTreeQuestionOut,
 } from '../types/api'
 import type { ServiceClient } from './client.interface'
 
@@ -435,5 +438,103 @@ export class MockClient implements ServiceClient {
     await delay(200)
     const taskId = `mock-task-${Math.random().toString(36).slice(2, 10)}`
     return { task_id: taskId }
+  }
+
+  async generateKnowledgeTreeQuestions(
+    _treeId: string,
+    _chapter: number,
+    _questionTypes?: KnowledgeTreeQuestionType[]
+  ): Promise<{ task_id: string }> {
+    await delay(150)
+    return { task_id: 'mock-task-id' }
+  }
+
+  async getKnowledgeTreeQuestions(
+    _treeId: string,
+    _chapter: number,
+    type?: KnowledgeTreeQuestionType
+  ): Promise<KnowledgeTreeQuestionOut[]> {
+    await delay(100)
+    const typeMap: Record<KnowledgeTreeQuestionType, KnowledgeTreeQuestionOut[]> = {
+      true_false: mockExamQuestions
+        .filter((q) => q.type === 'true-false')
+        .map((q) => {
+          const tf = q as { type: string; id: string; statement: string; answer: boolean; explanation?: string }
+          return {
+            id: tf.id,
+            question_type: 'true_false' as KnowledgeTreeQuestionType,
+            question_data: {
+              statement: tf.statement,
+              answer: tf.answer,
+              explanation: tf.explanation,
+            },
+            created_at: new Date().toISOString(),
+          }
+        }),
+      multiple_choice: mockExamQuestions
+        .filter((q) => q.type === 'multiple-choice')
+        .map((q) => {
+          const mc = q as { type: string; id: string; question: string; choices: string[]; correctIndex: number; explanation?: string }
+          return {
+            id: mc.id,
+            question_type: 'multiple_choice' as KnowledgeTreeQuestionType,
+            question_data: {
+              question: mc.question,
+              choices: mc.choices,
+              correct_index: mc.correctIndex,
+              explanation: mc.explanation,
+            },
+            created_at: new Date().toISOString(),
+          }
+        }),
+      matching: mockExamQuestions
+        .filter((q) => q.type === 'matching')
+        .map((q) => {
+          const m = q as { type: string; id: string; prompt: string; pairs: Array<{ term: string; definition: string }> }
+          return {
+            id: m.id,
+            question_type: 'matching' as KnowledgeTreeQuestionType,
+            question_data: {
+              prompt: m.prompt,
+              pairs: m.pairs,
+            },
+            created_at: new Date().toISOString(),
+          }
+        }),
+      checkbox: mockExamQuestions
+        .filter((q) => q.type === 'checkbox')
+        .map((q) => {
+          const cb = q as { type: string; id: string; question: string; choices: string[]; correctIndices: number[]; explanation?: string }
+          return {
+            id: cb.id,
+            question_type: 'checkbox' as KnowledgeTreeQuestionType,
+            question_data: {
+              question: cb.question,
+              choices: cb.choices,
+              correct_indices: cb.correctIndices,
+              explanation: cb.explanation,
+            },
+            created_at: new Date().toISOString(),
+          }
+        }),
+    }
+
+    if (type) {
+      return typeMap[type] ?? []
+    }
+    return [
+      ...typeMap.true_false,
+      ...typeMap.multiple_choice,
+      ...typeMap.matching,
+      ...typeMap.checkbox,
+    ]
+  }
+
+  async deleteKnowledgeTreeQuestion(
+    _treeId: string,
+    _chapter: number,
+    _questionId: string
+  ): Promise<void> {
+    await delay(100)
   }
 }

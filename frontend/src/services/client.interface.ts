@@ -19,6 +19,8 @@ import type {
   AppendContentResponse,
   DocumentContentResponse,
   UpdateContentResponse,
+  KnowledgeTreeQuestionType,
+  KnowledgeTreeQuestionOut,
 } from '../types/api'
 import type { KnowledgeTree, KnowledgeChapter, KnowledgeDocument } from '../types/knowledge-tree'
 
@@ -77,6 +79,25 @@ export interface ServiceClient {
   ingestFileAsKnowledgeDocument(treeId: string, chapter: number, file: File): Promise<KnowledgeDocument>
   previewKnowledgeTreeFile(file: File): Promise<DocumentPreviewOut>
   createKnowledgeTreeFromFile(file: File, title?: string, chapterIndices?: number[]): Promise<{ task_id: string }>
+
+  // Knowledge Tree Questions
+  generateKnowledgeTreeQuestions(
+    treeId: string,
+    chapter: number,
+    questionTypes?: KnowledgeTreeQuestionType[]
+  ): Promise<{ task_id: string }>
+
+  getKnowledgeTreeQuestions(
+    treeId: string,
+    chapter: number,
+    type?: KnowledgeTreeQuestionType
+  ): Promise<KnowledgeTreeQuestionOut[]>
+
+  deleteKnowledgeTreeQuestion(
+    treeId: string,
+    chapter: number,
+    questionId: string
+  ): Promise<void>
 }
 
 export type { ServiceClient as ServiceClientType }

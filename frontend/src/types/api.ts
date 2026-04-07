@@ -218,3 +218,16 @@ export interface UpdateContentResponse {
   task_id?: string
   preserved?: { summaries: number; flashcards: number }
 }
+
+export type KnowledgeTreeQuestionType =
+  | 'true_false'
+  | 'multiple_choice'
+  | 'matching'
+  | 'checkbox'
+
+export interface KnowledgeTreeQuestionOut {
+  id: string
+  question_type: KnowledgeTreeQuestionType
+  question_data: Record<string, unknown>
+  created_at: string
+}

@@ -81,3 +81,62 @@ export type ExamQuestion =
   | MatchingQuestion
   | CheckboxQuestion
   | FlashcardQuestion
+
+// ---------------------------------------------------------------------------
+// API mapper — converts backend snake_case shapes to frontend camelCase types
+// ---------------------------------------------------------------------------
+
+import type { KnowledgeTreeQuestionOut } from './api'
+
+export function mapApiQuestionToExamQuestion(q: KnowledgeTreeQuestionOut): ExamQuestion | null {
+  const d = q.question_data
+  switch (q.question_type) {
+    case 'true_false':
+      if (typeof d.statement !== 'string' || typeof d.answer !== 'boolean') return null
+      return {
+        type: 'true-false',
+        id: q.id,
+        statement: d.statement,
+        answer: d.answer,
+        explanation: typeof d.explanation === 'string' ? d.explanation : undefined,
+      }
+    case 'multiple_choice':
+      if (
+        typeof d.question !== 'string' ||
+        !Array.isArray(d.choices) ||
+        typeof d.correct_index !== 'number'
+      ) return null
+      return {
+        type: 'multiple-choice',
+        id: q.id,
+        question: d.question as string,
+        choices: d.choices as string[],
+        correctIndex: d.correct_index as number,
+        explanation: typeof d.explanation === 'string' ? d.explanation : undefined,
+      }
+    case 'matching':
+      if (typeof d.prompt !== 'string' || !Array.isArray(d.pairs)) return null
+      return {
+        type: 'matching',
+        id: q.id,
+        prompt: d.prompt as string,
+        pairs: d.pairs as MatchingPair[],
+      }
+    case 'checkbox':
+      if (
+        typeof d.question !== 'string' ||
+        !Array.isArray(d.choices) ||
+        !Array.isArray(d.correct_indices)
+      ) return null
+      return {
+        type: 'checkbox',
+        id: q.id,
+        question: d.question as string,
+        choices: d.choices as string[],
+        correctIndices: d.correct_indices as number[],
+        explanation: typeof d.explanation === 'string' ? d.explanation : undefined,
+      }
+    default:
+      return null
+  }
+}

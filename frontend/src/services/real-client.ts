@@ -21,6 +21,8 @@ import type {
   AppendContentResponse,
   DocumentContentResponse,
   UpdateContentResponse,
+  KnowledgeTreeQuestionType,
+  KnowledgeTreeQuestionOut,
 } from '../types/api'
 import type { ServiceClient } from './client.interface'
 import type { KnowledgeTree, KnowledgeChapter, KnowledgeDocument } from '../types/knowledge-tree'
@@ -378,6 +380,41 @@ export class RealClient implements ServiceClient {
       { headers: { 'Content-Type': undefined } }
     )
     return { task_id: res.data.task_id }
+  }
+
+  async generateKnowledgeTreeQuestions(
+    treeId: string,
+    chapter: number,
+    questionTypes?: KnowledgeTreeQuestionType[]
+  ): Promise<{ task_id: string }> {
+    const body = questionTypes ? { question_types: questionTypes } : {}
+    const res = await httpClient.post<{ task_id: string }>(
+      `/knowledge-trees/${treeId}/chapters/${chapter}/questions`,
+      body
+    )
+    return res.data
+  }
+
+  async getKnowledgeTreeQuestions(
+    treeId: string,
+    chapter: number,
+    type?: KnowledgeTreeQuestionType
+  ): Promise<KnowledgeTreeQuestionOut[]> {
+    const params = type ? `?type=${type}` : ''
+    const res = await httpClient.get<KnowledgeTreeQuestionOut[]>(
+      `/knowledge-trees/${treeId}/chapters/${chapter}/questions${params}`
+    )
+    return res.data
+  }
+
+  async deleteKnowledgeTreeQuestion(
+    treeId: string,
+    chapter: number,
+    questionId: string
+  ): Promise<void> {
+    await httpClient.delete(
+      `/knowledge-trees/${treeId}/chapters/${chapter}/questions/${questionId}`
+    )
   }
 
   async ingestFileAsKnowledgeDocument(treeId: string, chapter: number, file: File): Promise<KnowledgeDocument> {

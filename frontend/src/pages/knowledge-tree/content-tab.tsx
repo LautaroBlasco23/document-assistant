@@ -12,12 +12,15 @@ import {
   CheckSquare,
   Check,
   RefreshCw,
+  Trash2,
 } from 'lucide-react'
 import { Button } from '../../components/ui/button'
 import { Badge } from '../../components/ui/badge'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../../components/ui/tabs'
 import { KnowledgeExamSession } from './knowledge-exam-session'
-import { mockExamQuestions } from '../../mocks/knowledge-exam'
+import { useKnowledgeTreeStore } from '../../stores/knowledge-tree-store'
+import { useTaskStore } from '../../stores/task-store'
+import { client } from '../../services'
 import type {
   KnowledgeChapter,
   TrueFalseQuestion,
@@ -27,23 +30,11 @@ import type {
   FlashcardQuestion,
   ExamQuestion,
 } from '../../types/knowledge-tree'
+import type { KnowledgeTreeQuestionType } from '../../types/api'
 
 // ---------------------------------------------------------------------------
-// Mock generation helpers — filters the shared mock data by type
+// Mock summary / flashcard data (still used until those are wired to backend)
 // ---------------------------------------------------------------------------
-
-const MOCK_TF = mockExamQuestions.filter(
-  (q): q is TrueFalseQuestion => q.type === 'true-false',
-)
-const MOCK_MC = mockExamQuestions.filter(
-  (q): q is MultipleChoiceQuestion => q.type === 'multiple-choice',
-)
-const MOCK_MATCHING = mockExamQuestions.filter(
-  (q): q is MatchingQuestion => q.type === 'matching',
-)
-const MOCK_CB = mockExamQuestions.filter(
-  (q): q is CheckboxQuestion => q.type === 'checkbox',
-)
 
 const MOCK_SUMMARY = `This chapter covers the foundational concepts and key principles that underpin the topic. The main areas explored include the theoretical basis, practical applications, and common pitfalls to avoid.
 
@@ -94,6 +85,62 @@ interface ContentTabProps {
 }
 
 // ---------------------------------------------------------------------------
+// Task polling hook for knowledge tree question generation
+// ---------------------------------------------------------------------------
+
+/**
+ * Polls a task_id until it completes or fails, then calls onComplete.
+ * Returns { isPolling, progressPct, progressMsg } so the caller can show state.
+ */
+function useQuestionGenerationTask(params: {
+  taskId: string | null
+  onComplete: () => void
+  onFail?: (error: string) => void
+}) {
+  const { taskId, onComplete, onFail } = params
+  const [isPolling, setIsPolling] = React.useState(false)
+  const [progressPct, setProgressPct] = React.useState<number | null>(null)
+  const [progressMsg, setProgressMsg] = React.useState<string | null>(null)
+
+  React.useEffect(() => {
+    if (!taskId) return
+
+    setIsPolling(true)
+    setProgressPct(null)
+    setProgressMsg(null)
+
+    const interval = setInterval(async () => {
+      try {
+        const status = await client.getTaskStatus(taskId)
+        setProgressPct(status.progress_pct ?? null)
+        setProgressMsg(status.progress ?? null)
+
+        if (status.status === 'completed') {
+          clearInterval(interval)
+          setIsPolling(false)
+          onComplete()
+        } else if (status.status === 'failed') {
+          clearInterval(interval)
+          setIsPolling(false)
+          onFail?.(status.error ?? 'Generation failed')
+        }
+      } catch {
+        clearInterval(interval)
+        setIsPolling(false)
+        onFail?.('Lost connection to server')
+      }
+    }, 1500)
+
+    return () => {
+      clearInterval(interval)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [taskId])
+
+  return { isPolling, progressPct, progressMsg }
+}
+
+// ---------------------------------------------------------------------------
 // Shared generator section shell
 // ---------------------------------------------------------------------------
 
@@ -104,8 +151,9 @@ interface GeneratorSectionProps {
   status: GenerateStatus
   count: number
   spinnerColor?: string
+  progressMsg?: string | null
   onGenerate: () => void
-  children: React.ReactNode // rendered when status === 'done'
+  children: React.ReactNode
 }
 
 function GeneratorSection({
@@ -115,6 +163,7 @@ function GeneratorSection({
   status,
   count,
   spinnerColor = 'border-primary',
+  progressMsg,
   onGenerate,
   children,
 }: GeneratorSectionProps) {
@@ -163,7 +212,7 @@ function GeneratorSection({
             <div
               className={`h-3.5 w-3.5 rounded-full border-2 ${spinnerColor} border-t-transparent animate-spin`}
             />
-            Generating from knowledge documents...
+            {progressMsg ?? 'Generating from knowledge documents...'}
           </div>
         )}
         {status === 'done' && children}
@@ -173,10 +222,16 @@ function GeneratorSection({
 }
 
 // ---------------------------------------------------------------------------
-// Question preview lists
+// Question preview lists (with delete button)
 // ---------------------------------------------------------------------------
 
-function TrueFalseList({ questions }: { questions: TrueFalseQuestion[] }) {
+function TrueFalseList({
+  questions,
+  onDelete,
+}: {
+  questions: TrueFalseQuestion[]
+  onDelete?: (id: string) => void
+}) {
   return (
     <ul className="flex flex-col gap-1.5">
       {questions.map((q) => (
@@ -193,14 +248,29 @@ function TrueFalseList({ questions }: { questions: TrueFalseQuestion[] }) {
           >
             {q.answer ? 'True' : 'False'}
           </span>
-          <span className="text-gray-700 leading-relaxed">{q.statement}</span>
+          <span className="text-gray-700 leading-relaxed flex-1">{q.statement}</span>
+          {onDelete && (
+            <button
+              onClick={() => onDelete(q.id)}
+              className="ml-1 shrink-0 text-gray-300 hover:text-red-400 transition-colors"
+              aria-label="Delete question"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          )}
         </li>
       ))}
     </ul>
   )
 }
 
-function MultipleChoiceList({ questions }: { questions: MultipleChoiceQuestion[] }) {
+function MultipleChoiceList({
+  questions,
+  onDelete,
+}: {
+  questions: MultipleChoiceQuestion[]
+  onDelete?: (id: string) => void
+}) {
   return (
     <ul className="flex flex-col gap-2">
       {questions.map((q) => (
@@ -208,7 +278,18 @@ function MultipleChoiceList({ questions }: { questions: MultipleChoiceQuestion[]
           key={q.id}
           className="rounded-md border border-gray-100 bg-gray-50 px-3 py-2"
         >
-          <p className="text-xs font-medium text-gray-700 mb-1.5">{q.question}</p>
+          <div className="flex items-start justify-between mb-1.5">
+            <p className="text-xs font-medium text-gray-700">{q.question}</p>
+            {onDelete && (
+              <button
+                onClick={() => onDelete(q.id)}
+                className="ml-2 shrink-0 text-gray-300 hover:text-red-400 transition-colors"
+                aria-label="Delete question"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
           <ul className="flex flex-col gap-0.5">
             {q.choices.map((choice, i) => (
               <li
@@ -234,12 +315,29 @@ function MultipleChoiceList({ questions }: { questions: MultipleChoiceQuestion[]
   )
 }
 
-function MatchingList({ questions }: { questions: MatchingQuestion[] }) {
+function MatchingList({
+  questions,
+  onDelete,
+}: {
+  questions: MatchingQuestion[]
+  onDelete?: (id: string) => void
+}) {
   return (
     <ul className="flex flex-col gap-2">
       {questions.map((q) => (
         <li key={q.id} className="rounded-md border border-gray-100 bg-gray-50 px-3 py-2">
-          <p className="text-xs font-medium text-gray-600 mb-1.5">{q.prompt}</p>
+          <div className="flex items-start justify-between mb-1.5">
+            <p className="text-xs font-medium text-gray-600">{q.prompt}</p>
+            {onDelete && (
+              <button
+                onClick={() => onDelete(q.id)}
+                className="ml-2 shrink-0 text-gray-300 hover:text-red-400 transition-colors"
+                aria-label="Delete question"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
           <table className="w-full text-xs border-collapse">
             <tbody>
               {q.pairs.map((pair, i) => (
@@ -260,12 +358,29 @@ function MatchingList({ questions }: { questions: MatchingQuestion[] }) {
   )
 }
 
-function CheckboxList({ questions }: { questions: CheckboxQuestion[] }) {
+function CheckboxList({
+  questions,
+  onDelete,
+}: {
+  questions: CheckboxQuestion[]
+  onDelete?: (id: string) => void
+}) {
   return (
     <ul className="flex flex-col gap-2">
       {questions.map((q) => (
         <li key={q.id} className="rounded-md border border-gray-100 bg-gray-50 px-3 py-2">
-          <p className="text-xs font-medium text-gray-700 mb-1.5">{q.question}</p>
+          <div className="flex items-start justify-between mb-1.5">
+            <p className="text-xs font-medium text-gray-700">{q.question}</p>
+            {onDelete && (
+              <button
+                onClick={() => onDelete(q.id)}
+                className="ml-2 shrink-0 text-gray-300 hover:text-red-400 transition-colors"
+                aria-label="Delete question"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
           <ul className="flex flex-col gap-0.5">
             {q.choices.map((choice, i) => {
               const correct = q.correctIndices.includes(i)
@@ -358,10 +473,103 @@ function KnowledgeExamReady({ typeCounts, totalCount, onStart }: KnowledgeExamRe
 }
 
 // ---------------------------------------------------------------------------
+// Per-question-type generator with task polling
+// ---------------------------------------------------------------------------
+
+interface QuestionGeneratorProps {
+  treeId: string
+  chapter: number
+  questionType: KnowledgeTreeQuestionType
+  icon: React.ReactNode
+  title: string
+  description: string
+  spinnerColor?: string
+  onQuestionsUpdated: () => void
+  children: (onDelete: (id: string) => void) => React.ReactNode
+  questionCount: number
+}
+
+function QuestionGenerator({
+  treeId,
+  chapter,
+  questionType,
+  icon,
+  title,
+  description,
+  spinnerColor,
+  onQuestionsUpdated,
+  children,
+  questionCount,
+}: QuestionGeneratorProps) {
+  const [taskId, setTaskId] = React.useState<string | null>(null)
+  const [status, setStatus] = React.useState<GenerateStatus>('idle')
+
+  const store = useKnowledgeTreeStore()
+
+  // When questions exist in the store, show 'done' status
+  React.useEffect(() => {
+    if (questionCount > 0 && status === 'idle') {
+      setStatus('done')
+    }
+  }, [questionCount, status])
+
+  const { isPolling, progressMsg } = useQuestionGenerationTask({
+    taskId,
+    onComplete: () => {
+      void store.fetchQuestions(treeId, chapter).then(() => {
+        onQuestionsUpdated()
+        setStatus('done')
+        setTaskId(null)
+      })
+    },
+    onFail: () => {
+      setStatus('idle')
+      setTaskId(null)
+    },
+  })
+
+  // Keep status in sync with polling state
+  React.useEffect(() => {
+    if (isPolling && status !== 'loading') {
+      setStatus('loading')
+    }
+  }, [isPolling, status])
+
+  const handleGenerate = async () => {
+    setStatus('loading')
+    try {
+      const id = await store.generateQuestions(treeId, chapter, questionType)
+      setTaskId(id)
+    } catch {
+      setStatus('idle')
+    }
+  }
+
+  const handleDelete = async (questionId: string) => {
+    await store.deleteQuestion(treeId, chapter, questionId)
+  }
+
+  return (
+    <GeneratorSection
+      icon={icon}
+      title={title}
+      description={description}
+      status={status}
+      count={questionCount}
+      spinnerColor={spinnerColor}
+      progressMsg={progressMsg}
+      onGenerate={() => void handleGenerate()}
+    >
+      {children(handleDelete)}
+    </GeneratorSection>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Main content tab
 // ---------------------------------------------------------------------------
 
-export function ContentTab({ treeId: _treeId, selectedChapter, chapters }: ContentTabProps) {
+export function ContentTab({ treeId, selectedChapter, chapters }: ContentTabProps) {
   const [activeSubTab, setActiveSubTab] = React.useState<SubTab>('summary')
 
   // Summary
@@ -372,29 +580,31 @@ export function ContentTab({ treeId: _treeId, selectedChapter, chapters }: Conte
   const [flashcardQuestions, setFlashcardQuestions] = React.useState<FlashcardQuestion[]>([])
   const [expandedCard, setExpandedCard] = React.useState<number | null>(null)
 
-  // Question types
-  const [tfStatus, setTfStatus] = React.useState<GenerateStatus>('idle')
-  const [tfQuestions, setTfQuestions] = React.useState<TrueFalseQuestion[]>([])
-
-  const [mcStatus, setMcStatus] = React.useState<GenerateStatus>('idle')
-  const [mcQuestions, setMcQuestions] = React.useState<MultipleChoiceQuestion[]>([])
-
-  const [matchingStatus, setMatchingStatus] = React.useState<GenerateStatus>('idle')
-  const [matchingQuestions, setMatchingQuestions] = React.useState<MatchingQuestion[]>([])
-
-  const [cbStatus, setCbStatus] = React.useState<GenerateStatus>('idle')
-  const [cbQuestions, setCbQuestions] = React.useState<CheckboxQuestion[]>([])
-
   // Exam
   const [examActive, setExamActive] = React.useState(false)
 
+  // Questions from store
+  const store = useKnowledgeTreeStore()
+  useTaskStore() // subscribe to task store for re-renders when tasks update
+
+  const chapterKey = selectedChapter !== null ? `${treeId}:${selectedChapter}` : null
+  const questionsByType = chapterKey ? (store.questionsByType[chapterKey] ?? {}) : {}
+
+  const tfQuestions = (questionsByType['true_false'] ?? []) as TrueFalseQuestion[]
+  const mcQuestions = (questionsByType['multiple_choice'] ?? []) as MultipleChoiceQuestion[]
+  const matchingQuestions = (questionsByType['matching'] ?? []) as MatchingQuestion[]
+  const cbQuestions = (questionsByType['checkbox'] ?? []) as CheckboxQuestion[]
+
   const currentChapter = chapters.find((c) => c.number === selectedChapter)
 
-  // Reset generated content when chapter changes
+  // Fetch existing questions and reset local state when chapter changes
   React.useEffect(() => {
     handleChapterReset()
+    if (selectedChapter !== null) {
+      void store.fetchQuestions(treeId, selectedChapter)
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedChapter])
+  }, [selectedChapter, treeId])
 
   if (selectedChapter === null) {
     return (
@@ -406,7 +616,7 @@ export function ContentTab({ treeId: _treeId, selectedChapter, chapters }: Conte
     )
   }
 
-  // Combined exam questions from all generated types
+  // Combined exam questions from all generated types + flashcards
   const examQuestions: ExamQuestion[] = [
     ...tfQuestions,
     ...mcQuestions,
@@ -423,46 +633,29 @@ export function ContentTab({ treeId: _treeId, selectedChapter, chapters }: Conte
     { label: 'Flashcards', count: flashcardQuestions.length },
   ]
 
-  // -- generators (mock: simulate async generation) --
-
-  const generate = async <T,>(
-    setter: React.Dispatch<React.SetStateAction<GenerateStatus>>,
-    dataSetter: React.Dispatch<React.SetStateAction<T[]>>,
-    data: T[],
-    delay = 2000,
-  ) => {
-    setter('loading')
-    await new Promise<void>((resolve) => setTimeout(resolve, delay))
-    dataSetter(data)
-    setter('done')
-  }
-
-  const handleGenerateTF = () =>
-    void generate(setTfStatus, setTfQuestions, MOCK_TF)
-  const handleGenerateMC = () =>
-    void generate(setMcStatus, setMcQuestions, MOCK_MC, 2200)
-  const handleGenerateMatching = () =>
-    void generate(setMatchingStatus, setMatchingQuestions, MOCK_MATCHING, 2400)
-  const handleGenerateCB = () =>
-    void generate(setCbStatus, setCbQuestions, MOCK_CB, 2100)
   const handleGenerateSummary = async () => {
     setSummaryStatus('loading')
     await new Promise<void>((resolve) => setTimeout(resolve, 2000))
     setSummaryStatus('done')
   }
-  const handleGenerateFlashcards = () =>
-    void generate(setFlashcardsStatus, setFlashcardQuestions, MOCK_FLASHCARD_LIST, 2500)
+
+  const handleGenerateFlashcards = async () => {
+    setFlashcardsStatus('loading')
+    await new Promise<void>((resolve) => setTimeout(resolve, 2500))
+    setFlashcardQuestions(MOCK_FLASHCARD_LIST)
+    setFlashcardsStatus('done')
+  }
 
   const handleChapterReset = () => {
     setSummaryStatus('idle')
     setFlashcardsStatus('idle')
     setExpandedCard(null)
-    setTfStatus('idle'); setTfQuestions([])
-    setMcStatus('idle'); setMcQuestions([])
-    setMatchingStatus('idle'); setMatchingQuestions([])
-    setCbStatus('idle'); setCbQuestions([])
     setFlashcardQuestions([])
     setExamActive(false)
+  }
+
+  const handleQuestionsUpdated = () => {
+    // Trigger a re-render after fetch completes (store update handles the data)
   }
 
   return (
@@ -514,7 +707,7 @@ export function ContentTab({ treeId: _treeId, selectedChapter, chapters }: Conte
                     <Button
                       variant="secondary"
                       size="sm"
-                      onClick={handleGenerateSummary}
+                      onClick={() => void handleGenerateSummary()}
                       className="self-start"
                     >
                       <Sparkles className="h-3.5 w-3.5 mr-1" />
@@ -558,7 +751,7 @@ export function ContentTab({ treeId: _treeId, selectedChapter, chapters }: Conte
                     <Button
                       variant="secondary"
                       size="sm"
-                      onClick={handleGenerateFlashcards}
+                      onClick={() => void handleGenerateFlashcards()}
                       className="self-start"
                     >
                       <Sparkles className="h-3.5 w-3.5 mr-1" />
@@ -621,53 +814,61 @@ export function ContentTab({ treeId: _treeId, selectedChapter, chapters }: Conte
                   available in the Exam tab.
                 </p>
 
-                <GeneratorSection
+                <QuestionGenerator
+                  treeId={treeId}
+                  chapter={selectedChapter}
+                  questionType="true_false"
                   icon={<ToggleLeft className="h-4 w-4 text-indigo-400" />}
                   title="True / False"
                   description="Statements the student must evaluate as true or false, with explanations."
-                  status={tfStatus}
-                  count={tfQuestions.length}
                   spinnerColor="border-indigo-400"
-                  onGenerate={handleGenerateTF}
+                  onQuestionsUpdated={handleQuestionsUpdated}
+                  questionCount={tfQuestions.length}
                 >
-                  <TrueFalseList questions={tfQuestions} />
-                </GeneratorSection>
+                  {(onDelete) => <TrueFalseList questions={tfQuestions} onDelete={onDelete} />}
+                </QuestionGenerator>
 
-                <GeneratorSection
+                <QuestionGenerator
+                  treeId={treeId}
+                  chapter={selectedChapter}
+                  questionType="multiple_choice"
                   icon={<ListChecks className="h-4 w-4 text-violet-400" />}
                   title="Multiple Choice"
                   description="Questions with four options where only one is correct."
-                  status={mcStatus}
-                  count={mcQuestions.length}
                   spinnerColor="border-violet-400"
-                  onGenerate={handleGenerateMC}
+                  onQuestionsUpdated={handleQuestionsUpdated}
+                  questionCount={mcQuestions.length}
                 >
-                  <MultipleChoiceList questions={mcQuestions} />
-                </GeneratorSection>
+                  {(onDelete) => <MultipleChoiceList questions={mcQuestions} onDelete={onDelete} />}
+                </QuestionGenerator>
 
-                <GeneratorSection
+                <QuestionGenerator
+                  treeId={treeId}
+                  chapter={selectedChapter}
+                  questionType="matching"
                   icon={<Link2 className="h-4 w-4 text-amber-400" />}
                   title="Matching"
                   description="Term-to-definition pairs the student must connect correctly."
-                  status={matchingStatus}
-                  count={matchingQuestions.length}
                   spinnerColor="border-amber-400"
-                  onGenerate={handleGenerateMatching}
+                  onQuestionsUpdated={handleQuestionsUpdated}
+                  questionCount={matchingQuestions.length}
                 >
-                  <MatchingList questions={matchingQuestions} />
-                </GeneratorSection>
+                  {(onDelete) => <MatchingList questions={matchingQuestions} onDelete={onDelete} />}
+                </QuestionGenerator>
 
-                <GeneratorSection
+                <QuestionGenerator
+                  treeId={treeId}
+                  chapter={selectedChapter}
+                  questionType="checkbox"
                   icon={<CheckSquare className="h-4 w-4 text-teal-400" />}
                   title="Checkbox (Select All That Apply)"
                   description="Questions where multiple answers may be correct."
-                  status={cbStatus}
-                  count={cbQuestions.length}
                   spinnerColor="border-teal-400"
-                  onGenerate={handleGenerateCB}
+                  onQuestionsUpdated={handleQuestionsUpdated}
+                  questionCount={cbQuestions.length}
                 >
-                  <CheckboxList questions={cbQuestions} />
-                </GeneratorSection>
+                  {(onDelete) => <CheckboxList questions={cbQuestions} onDelete={onDelete} />}
+                </QuestionGenerator>
               </div>
             </TabsContent>
 
