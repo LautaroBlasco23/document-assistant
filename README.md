@@ -19,6 +19,8 @@ Uses Docker (PostgreSQL), Groq API for LLM inference (or Ollama locally), and a 
 - Vite web SPA — Library, Document detail (summary / flashcards / exam tabs), Settings
 - Groq as default LLM — fast inference via Groq API with built-in rate limiter; optional fast model for bulk generation tasks
 - JSON retry — agents retry once with a correction prompt when the LLM returns malformed JSON
+- Multi-provider support — Groq, Ollama, OpenRouter, and HuggingFace Inference Endpoints via `config/default.yml`
+- Prompts centralized in `application/prompts.py` — all agent system prompts in one place
 
 ## Prerequisites
 
@@ -129,6 +131,7 @@ document-assistant/
 │   │   └── ports/               # LLM, ContentStore ABCs
 │   ├── application/
 │   │   ├── agents/              # SummarizerAgent, FlashcardGeneratorAgent
+│   │   ├── prompts.py            # All agent system prompts (LLM instructions)
 │   │   └── ingest.py            # ingest_file() use case
 │   ├── infrastructure/
 │   │   ├── config.py            # Pydantic-settings config loader + save_config()
@@ -185,11 +188,29 @@ export DOCASSIST_OLLAMA__BASE_URL=http://other-host:11434
 export DOCASSIST_POSTGRES__HOST=db-host
 ```
 
+The config file (`config/default.yml`) also defines which models to use per provider. See [LLM models and prompts](#llm-models-and-prompts) below.
+
 To use Ollama for LLM inference instead of Groq (fully offline):
 
 ```bash
 cd backend && uv run python -m cli.main summarize "book" 1 --provider ollama
 ```
+
+### LLM models and prompts
+
+All LLM models are configured in `config/default.yml` under the provider sections (`groq`, `ollama`, `openrouter`, `huggingface`). Each provider has a **main model** for quality and a **fast model** for bulk tasks.
+
+| Provider | Main model | Fast model |
+|----------|-----------|------------|
+| Groq | `llama-3.3-70b-versatile` | `llama-3.1-8b-instant` |
+| Ollama | `qwen2.5:14b-instruct` | `qwen2.5:3b-instruct` |
+| OpenRouter | `qwen/qwen3-next-80b-a3b-instruct:free` | `liquid/lfm-2.5-1.2b-thinking:free` |
+| HuggingFace | `mistralai/Mistral-7B-Instruct-v0.3` | — |
+
+Agent system prompts live in `backend/application/prompts.py`:
+- `SUMMARY_SYSTEM` / `SUMMARY_SYSTEM_COMBINE` / `SUMMARY_SYSTEM_PARTIAL` — summarizer agent
+- `FLASHCARDS_SYSTEM` — flashcard generator agent
+- `QUESTIONS_TRUE_FALSE` / `QUESTIONS_MULTIPLE_CHOICE` / `QUESTIONS_MATCHING` / `QUESTIONS_CHECKBOX` — question generator agent
 
 ## Development
 
