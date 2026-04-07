@@ -162,34 +162,29 @@ def load_pdf(path: Path, file_hash: str, original_filename: str = "") -> Documen
 
     normalized = normalize(raw_pages)
 
-    # Cross-page paragraph reflow: join all pages with a double-newline-padded
-    # PAGE marker so _rebuild_paragraphs() keeps the marker as its own block,
-    # then run clean_text() to join hyphenated line breaks across page boundaries
-    # and normalize paragraph structure. Re-split on the marker afterwards to
-    # recover per-page text while keeping page numbers accurate.
-    _PAGE_BOUNDARY = "---PAGE---"
-    joined = f"\n\n{_PAGE_BOUNDARY}\n\n".join(normalized)
-    reflowed = clean_text(joined, dehyphenate=True)
-    # Split back into per-page texts; the marker is preserved by _rebuild_paragraphs
-    # because it lives in its own double-newline-delimited block.
-    page_texts = [t.strip() for t in reflowed.split(_PAGE_BOUNDARY)]
-    # Guard: if the split produced fewer or more parts than original pages
-    # (e.g. adjacent empty pages collapsed), pad/trim to match original count.
-    while len(page_texts) < len(normalized):
-        page_texts.append("")
-    page_texts = page_texts[: len(normalized)]
+    # Convert to Page objects for chapter detection
+    pages = [Page(number=i + 1, text=text) for i, text in enumerate(normalized)]
 
-    pages = [Page(number=i + 1, text=text) for i, text in enumerate(page_texts)]
-
-    # Try ToC-based detection first, then heuristic, then synthetic
+    # Detect chapters BEFORE cross-page reflow to preserve page boundaries accurately
     chapters = (
         _detect_chapters_from_toc(doc, pages)
         or _detect_chapters(pages)
         or _synthetic_chapters(pages)
     )
+
+    # Now apply text normalization to each chapter's content
+    for chapter in chapters:
+        cleaned_pages = []
+        for page in chapter.pages:
+            cleaned_text = clean_text(page.text, dehyphenate=False)
+            cleaned_pages.append(Page(number=page.number, text=cleaned_text))
+        chapter.pages = cleaned_pages
+
     doc.close()
 
-    logger.info("Loaded PDF %s: %d pages, %d chapters", display_name, len(pages), len(chapters))
+    logger.info(
+        "Loaded PDF %s: %d pages, %d chapters", display_name, len(normalized), len(chapters)
+    )
 
     return Document(
         source_path=str(path),
