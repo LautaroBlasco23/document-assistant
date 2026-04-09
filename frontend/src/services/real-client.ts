@@ -12,8 +12,16 @@ import type {
 import type { ServiceClient } from './client.interface'
 import type { KnowledgeTree, KnowledgeChapter, KnowledgeDocument } from '../types/knowledge-tree'
 
+// Detect if running in Electron
+const isElectron = typeof window !== 'undefined' && !!(window as Window & { desktopAPI?: unknown }).desktopAPI
+
+// Determine the base URL for API calls
+// In Electron production, use full URL since we're served from file://
+// In dev (Vite dev server), use relative URL which gets proxied
+const baseURL = isElectron ? 'http://127.0.0.1:8000/api' : '/api'
+
 const httpClient: AxiosInstance = axios.create({
-  baseURL: '/api',
+  baseURL,
   timeout: 30000,
   headers: {
     'Content-Type': 'application/json',
