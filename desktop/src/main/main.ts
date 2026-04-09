@@ -1,16 +1,13 @@
 import { app, BrowserWindow } from 'electron'
 import path from 'path'
 import log from 'electron-log'
-import { BackendManager } from './backend-manager'
 import { WindowManager } from './window-manager'
-import { setupBackendIpc } from './ipc-handlers'
 
 // Configure logging
 log.transports.file.level = 'info'
 log.transports.console.level = 'debug'
 
-// Initialize managers
-let backendManager: BackendManager | null = null
+// Initialize window manager
 let windowManager: WindowManager | null = null
 
 // Environment detection
@@ -25,43 +22,21 @@ function createWindow(): BrowserWindow {
 
 async function initializeApp() {
   log.info('App starting...', { version: app.getVersion(), platform: process.platform })
+  log.info('Mode: Client-only (connects to external backend at localhost:8000)')
 
-  // Create backend manager
-  backendManager = new BackendManager()
-
-  // Create window manager and setup IPC
+  // Create window manager
   windowManager = new WindowManager()
   windowManager.setupIpcHandlers()
-  setupBackendIpc(backendManager)
 
   // Create main window
   createWindow()
-
-  // Start backend automatically
-  try {
-    log.info('Auto-starting backend...')
-    await backendManager.start()
-  } catch (error) {
-    log.error('Failed to auto-start backend:', error)
-    // Don't quit - let the user see the error in the UI
-  }
 }
 
 // App event handlers
 app.whenReady().then(initializeApp)
 
-app.on('window-all-closed', async () => {
+app.on('window-all-closed', () => {
   log.info('All windows closed')
-
-  // Stop backend when app is quitting
-  if (backendManager) {
-    try {
-      await backendManager.stop()
-    } catch (error) {
-      log.error('Error stopping backend:', error)
-    }
-  }
-
   if (process.platform !== 'darwin') {
     app.quit()
   }
@@ -70,20 +45,6 @@ app.on('window-all-closed', async () => {
 app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) {
     createWindow()
-  }
-})
-
-app.on('before-quit', async (event) => {
-  log.info('App before-quit event')
-
-  if (backendManager) {
-    event.preventDefault()
-    try {
-      await backendManager.stop()
-    } catch (error) {
-      log.error('Error stopping backend during quit:', error)
-    }
-    app.quit()
   }
 })
 

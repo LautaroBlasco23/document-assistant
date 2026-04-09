@@ -40,17 +40,7 @@
       "build/**/*",
       "../frontend/dist/**/*"
     ],
-    "extraResources": [
-      {
-        "from": "../backend",
-        "to": "backend",
-        "filter": ["**/*", "!.venv", "!tests", "!**/__pycache__", "!**/*.pyc"]
-      },
-      {
-        "from": "../config",
-        "to": "config"
-      }
-    ],
+    "extraResources": [],
     "mac": {
       "category": "public.app-category.productivity",
       "target": ["dmg", "zip"]

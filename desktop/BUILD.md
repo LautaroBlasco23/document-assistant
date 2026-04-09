@@ -1,22 +1,45 @@
 # Desktop App Build Guide
 
-This guide covers building the Document Assistant desktop application for different platforms.
+This guide covers building the Document Assistant desktop application.
+
+## Architecture
+
+The desktop app is an **Electron client** that connects to a separately-running backend:
+
+```
+┌─────────────────┐      HTTP      ┌─────────────────┐
+│  Electron App   │ ◄────────────► │  Backend (Port  │
+│  (Frontend UI)  │   localhost    │   8000)         │
+└─────────────────┘                └─────────────────┘
+```
+
+**Important:** The desktop app does NOT bundle or start the backend. You must run the backend separately.
 
 ## Prerequisites
 
 - Node.js 18+
 - npm
 - Docker (for Windows builds on Linux/WSL)
+- Backend running on `localhost:8000`
 
-## Development
+## Development Workflow
 
-```bash
-make desktop-dev
-```
+1. **Start the backend** (in a separate terminal):
+   ```bash
+   make start
+   # or
+   docker compose up -d postgres
+   cd backend && uv run uvicorn api.main:app --port 8000
+   ```
 
-This starts the Electron app in development mode with hot reload.
+2. **Start the desktop app**:
+   ```bash
+   make desktop-dev
+   ```
 
-## Building for Linux
+## Building for Production
+
+### Linux
 
 ```bash
 make desktop-dist
@@ -26,90 +49,87 @@ Creates:
 - `desktop/dist/*.AppImage` - Portable Linux app
 - `desktop/dist/*.deb` - Debian package
 
-## Building for Windows
+### Windows
 
-### Option 1: Docker (Recommended)
-
-This is the most reliable method, especially on WSL2:
+**Recommended: Docker build (avoids Wine issues on WSL)**
 
 ```bash
 make desktop-exe-docker
 ```
 
-This uses the official `electronuserland/builder:wine` Docker image which has Wine properly configured.
-
-**Requirements:**
-- Docker installed and running
-
-### Option 2: Native Wine (Alternative)
-
-If you have Wine properly configured:
+**Alternative: Native Wine (if properly configured)**
 
 ```bash
 make desktop-exe
 ```
 
-**Note:** Wine on WSL2 often has issues with `kernel32.dll` as you experienced. If you see this error, use the Docker method instead.
-
-**To fix Wine on Ubuntu/WSL:**
-```bash
-sudo dpkg --add-architecture i386
-sudo apt update
-sudo apt install -y wine64 wine32
-winecfg  # Initialize Wine
-```
-
-### Windows Build Output
-
 Creates in `desktop/dist/`:
 - `Document Assistant Setup 1.0.0.exe` - Installer with setup wizard
 - `Document Assistant 1.0.0.exe` - Portable executable
 
-## App Icon
+## Installation & Usage
 
-The app icon is located at `desktop/build/icon.ico`. 
+### For End Users
 
-A placeholder SVG icon is provided at `desktop/build/icon.svg`. To convert it to ICO format:
+1. **Install the app** using the setup wizard, or run the portable version directly
+2. **Start the backend** on your server or local machine
+3. **Launch the desktop app** - it will automatically connect to `http://localhost:8000/api`
 
-1. Use an online converter like [convertio.co](https://convertio.co/svg-ico/)
-2. Or install ImageMagick: `sudo apt install imagemagick` then:
-   ```bash
-   convert -background transparent desktop/build/icon.svg -define icon:auto-resize=256,128,64,48,32,16 desktop/build/icon.ico
-   ```
+### Windows Security Warnings
 
-## Code Signing (Optional but Recommended)
+Since the app is unsigned, Windows SmartScreen may show warnings:
 
-Without code signing, Windows will show a security warning when users run your app.
+1. Click **"More info"**
+2. Click **"Run anyway"**
 
-To sign your Windows executable:
-1. Purchase a code signing certificate from a provider like DigiCert, Sectigo, or SSL.com
+Or right-click the `.exe` → **Properties** → Check **"Unblock"** → **OK**
+
+## Configuration
+
+The desktop app expects the backend at:
+- **URL:** `http://127.0.0.1:8000/api`
+- **Health check:** `http://127.0.0.1:8000/api/health`
+
+To use a different backend URL, modify `frontend/src/services/real-client.ts`:
+
+```typescript
+const baseURL = isElectron ? 'http://your-server:8000/api' : '/api'
+```
+
+## Troubleshooting
+
+### "Cannot connect to backend"
+
+- Ensure backend is running on port 8000
+- Check firewall settings
+- Verify `http://localhost:8000/api/health` returns `{"status":"ok"}`
+
+### App shows blank screen
+
+- Check backend is accessible from the machine
+- Open DevTools (Ctrl+Shift+I) to see console errors
+- Check the Network tab for failed API calls
+
+### "wine: could not load kernel32.dll"
+
+Use Docker build: `make desktop-exe-docker`
+
+## Code Signing (Optional)
+
+For production distribution without security warnings:
+
+1. Purchase a code signing certificate (~$200-700/year)
 2. Set environment variables:
    ```bash
    export WIN_CSC_LINK=/path/to/certificate.p12
    export WIN_CSC_KEY_PASSWORD=your_password
    ```
-3. Build with: `make desktop-exe-docker`
-
-For EV (Extended Validation) certificates that avoid SmartScreen warnings, consider using a CI/CD service like GitHub Actions with a Windows runner.
-
-## Troubleshooting
-
-### "wine: could not load kernel32.dll"
-
-Use the Docker build method: `make desktop-exe-docker`
-
-### "author is missed in the package.json"
-
-Fixed - the author field is now set in `package.json`.
-
-### "default Electron icon is used"
-
-Create `desktop/build/icon.ico` from the provided SVG or your own icon.
+3. Build with `make desktop-exe-docker`
 
 ## Build Configuration
 
-Build settings are in `desktop/package.json` under the `"build"` section:
+Settings are in `desktop/package.json` under `"build"`:
 
-- **Windows targets:** NSIS installer + Portable executable
-- **Linux targets:** AppImage + Debian package  
-- **Mac targets:** DMG + ZIP (requires macOS or CI/CD)
+- **appId:** Unique application identifier
+- **productName:** Display name
+- **extraResources:** Additional files to bundle (empty for client-only mode)
