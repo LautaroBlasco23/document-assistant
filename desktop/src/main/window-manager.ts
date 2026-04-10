@@ -1,6 +1,11 @@
 import { BrowserWindow, screen, ipcMain, dialog } from 'electron'
 import path from 'path'
+import { fileURLToPath } from 'url'
+import { createRequire } from 'module'
 import log from 'electron-log'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const require = createRequire(import.meta.url)
 
 export class WindowManager {
   private mainWindow: BrowserWindow | null = null
@@ -42,6 +47,7 @@ export class WindowManager {
 
     if (isDev) {
       // In dev mode, load from Vite dev server
+      log.info('Loading from dev server: http://localhost:5173')
       this.mainWindow?.loadURL('http://localhost:5173')
       this.mainWindow?.webContents.openDevTools()
     } else {

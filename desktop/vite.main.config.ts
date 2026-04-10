@@ -11,7 +11,7 @@ export default defineConfig({
     outDir: 'build/main',
     emptyOutDir: true,
     rollupOptions: {
-      external: ['electron', 'electron-log', 'child_process', 'path', 'fs', 'os', 'util'],
+      external: ['electron', 'electron-log', 'child_process', 'path', 'fs', 'os', 'util', 'url', 'module'],
     },
   },
   resolve: {
