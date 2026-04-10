@@ -1,4 +1,4 @@
-.PHONY: start mock stop dev-kill check clean prune help env-check dev-deps infra-deps desktop-dev desktop-build desktop-dist desktop-exe desktop-exe-docker
+.PHONY: start dev-backend mock stop dev-kill check clean prune help env-check dev-deps infra-deps desktop-dev desktop-build desktop-dist desktop-exe desktop-exe-docker
 
 DOCKER_COMPOSE := docker compose
 BACKEND_DIR := backend
@@ -16,6 +16,8 @@ help:
 	@echo "    make start PROVIDER=ollama          Use local Ollama"
 	@echo "    make start PROVIDER=openrouter      Use OpenRouter"
 	@echo "    make start PROVIDER=huggingface     Use HuggingFace"
+	@echo "    make dev-backend                    Start backend only (with PostgreSQL, default: groq)"
+	@echo "    make dev-backend PROVIDER=ollama    Start backend only with specific provider"
 	@echo "    make mock                           Frontend only, no backend (mock data)"
 	@echo ""
 	@echo "  \033[1;32mServices\033[0m"
@@ -39,6 +41,16 @@ help:
 
 start: env-check
 	@PROVIDER=$(PROVIDER) bash scripts/start.sh
+
+dev-backend: env-check
+	@echo "Starting backend only..."
+	@echo "Starting PostgreSQL..."
+	$(DOCKER_COMPOSE) up -d postgres
+	@echo "Installing Python dependencies..."
+	cd $(BACKEND_DIR) && uv sync
+	@echo "Starting backend on port 8000..."
+	@set -a; [ -f .env ] && . ./.env; set +a; \
+	cd $(BACKEND_DIR) && DOCASSIST_LLM_PROVIDER="${PROVIDER:-groq}" uv run uvicorn api.main:app --port 8000 --reload
 
 mock: dev-deps
 	@echo "Starting frontend in mock mode (no backend required)..."
