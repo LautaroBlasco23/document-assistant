@@ -10,6 +10,7 @@ type QuestionChapterKey = string
 interface KnowledgeTreeState {
   trees: KnowledgeTree[]
   treesLoading: boolean
+  treesFetched: boolean
 
   chapters: Record<string, KnowledgeChapter[]>
   chaptersLoading: Record<string, boolean>
@@ -60,6 +61,7 @@ function questionTaskKey(treeId: string, chapter: number, questionType: Knowledg
 export const useKnowledgeTreeStore = create<KnowledgeTreeState>((set, get) => ({
   trees: [],
   treesLoading: false,
+  treesFetched: false,
   chapters: {},
   chaptersLoading: {},
   documents: {},
@@ -72,7 +74,7 @@ export const useKnowledgeTreeStore = create<KnowledgeTreeState>((set, get) => ({
     set({ treesLoading: true })
     try {
       const trees = await client.listKnowledgeTrees()
-      set({ trees })
+      set({ trees, treesFetched: true })
     } finally {
       set({ treesLoading: false })
     }

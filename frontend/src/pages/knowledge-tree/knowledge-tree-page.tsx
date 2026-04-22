@@ -1,11 +1,12 @@
 import * as React from 'react'
-import { useParams, Link, useSearchParams } from 'react-router-dom'
+import { useParams, Link, useSearchParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, TreePine, Layers, Pencil, Plus, FileText, BookMarked, Check, X, Trash2 } from 'lucide-react'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../../components/ui/tabs'
 import { Badge } from '../../components/ui/badge'
 import { Button } from '../../components/ui/button'
 import { Input } from '../../components/ui/input'
 import { useKnowledgeTreeStore } from '../../stores/knowledge-tree-store'
+import { useAppStore } from '../../stores/app-store'
 import { KnowledgeDocumentsTab } from './knowledge-documents-tab'
 import { ContentTab } from './content-tab'
 import { EditKnowledgeTreeDialog } from '../library/edit-knowledge-tree-dialog'
@@ -182,7 +183,9 @@ function SectionsSidebar({
 export function KnowledgeTreePage() {
   const { treeId } = useParams<{ treeId: string }>()
   const [searchParams, setSearchParams] = useSearchParams()
-  const { trees, treesLoading, fetchTrees, chapters, fetchChapters } = useKnowledgeTreeStore()
+  const navigate = useNavigate()
+  const addError = useAppStore((s) => s.addError)
+  const { trees, treesLoading, treesFetched, fetchTrees, chapters, fetchChapters } = useKnowledgeTreeStore()
 
   // Single shared chapter selection (null = Overview)
   const [selectedChapter, setSelectedChapter] = React.useState<number | null>(null)
@@ -196,10 +199,10 @@ export function KnowledgeTreePage() {
 
   // Load trees if not yet loaded
   React.useEffect(() => {
-    if (trees.length === 0 && !treesLoading) {
+    if (!treesFetched && !treesLoading) {
       void fetchTrees()
     }
-  }, [trees.length, treesLoading, fetchTrees])
+  }, [treesFetched, treesLoading, fetchTrees])
 
   // Load chapters whenever treeId changes
   React.useEffect(() => {
@@ -209,6 +212,15 @@ export function KnowledgeTreePage() {
   }, [treeId, fetchChapters])
 
   const treeChapters = treeId ? (chapters[treeId] ?? []) : []
+
+  const tree = trees.find((t) => t.id === treeId)
+
+  React.useEffect(() => {
+    if (treesFetched && !treesLoading && !tree) {
+      addError('Knowledge tree not found.')
+      void navigate('/')
+    }
+  }, [treesFetched, treesLoading, tree, addError, navigate])
 
   const [editOpen, setEditOpen] = React.useState(false)
 
@@ -227,8 +239,6 @@ export function KnowledgeTreePage() {
     )
   }
 
-  const tree = trees.find((t) => t.id === treeId)
-
   if (treesLoading) {
     return (
       <div className="flex flex-col gap-4 animate-pulse">
@@ -240,19 +250,7 @@ export function KnowledgeTreePage() {
     )
   }
 
-  if (!tree) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[50vh] gap-4">
-        <TreePine className="h-10 w-10 text-gray-300" />
-        <p className="text-gray-600 font-medium">Knowledge tree not found</p>
-        <Link to="/">
-          <Button variant="secondary" size="sm">
-            <ArrowLeft className="h-4 w-4 mr-1" /> Back to Library
-          </Button>
-        </Link>
-      </div>
-    )
-  }
+  if (!tree) return null
 
   return (
     <div className="flex flex-col gap-4">
