@@ -1,6 +1,13 @@
 #!/usr/bin/env bash
 set -uo pipefail
 
+# Get the directory where this script is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# Change to project root
+cd "$PROJECT_ROOT"
+
 # Load .env
 set -a
 [ -f .env ] && . ./.env
@@ -69,14 +76,16 @@ if [ "$ENV_MODE" = "dev" ]; then
     $DOCKER_COMPOSE up -d postgres
 
     echo "Installing Python dependencies..."
-    cd "$BACKEND_DIR" && uv sync && cd ..
+    (cd "$BACKEND_DIR" && uv sync) || { echo "Failed to install Python dependencies. Is 'uv' installed?"; exit 1; }
 
-    echo "Pulling Ollama models..."
-    ollama pull llama3.2
+    if [ "$CHOSEN_PROVIDER" = "ollama" ]; then
+        echo "Pulling Ollama models..."
+        ollama pull llama3.2 || echo "Warning: Failed to pull Ollama models. Is Ollama installed?"
+    fi
 
     if [ ! -d "frontend/node_modules" ]; then
         echo "Installing frontend dependencies..."
-        cd frontend && npm install && cd ..
+        (cd frontend && npm install) || { echo "Failed to install frontend dependencies. Is 'npm' installed?"; exit 1; }
     fi
 
     echo ""
@@ -108,7 +117,7 @@ if [ "$ENV_MODE" = "dev" ]; then
         exit 1
     fi
 
-    cd frontend && VITE_MOCK=false npm run dev 2>&1 | sed 's/^/[web] /'
+    (cd frontend && VITE_MOCK=false npm run dev 2>&1 | sed 's/^/[web] /')
     wait "$BACKEND_PID"
 
 # ── Full-docker mode ───────────────────────────────────────────────────────────
