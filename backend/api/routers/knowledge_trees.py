@@ -559,6 +559,13 @@ def _ingest_file_background(
 
             # Combine all chunks into a single text for the knowledge document
             full_text = "\n\n".join(c.text for c in chunks)
+
+            if not full_text.strip():
+                raise ValueError(
+                    f"No text could be extracted from '{filename}'. "
+                    "The file may be a scanned image, password-protected, or corrupt."
+                )
+
             title = Path(filename).stem
 
             _set_progress(task, 60, "Storing document...")

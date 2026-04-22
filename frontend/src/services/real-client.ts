@@ -173,7 +173,7 @@ export class RealClient implements ServiceClient {
     return { task_id: res.data.task_id }
   }
 
-  async ingestFileAsKnowledgeDocument(treeId: string, chapter: number, file: File): Promise<KnowledgeDocument> {
+  async ingestFileAsKnowledgeDocument(treeId: string, chapter: number, file: File): Promise<{ task_id: string }> {
     const formData = new FormData()
     formData.append('file', file)
     const res = await httpClient.post<{ task_id: string; filename: string }>(
@@ -181,16 +181,7 @@ export class RealClient implements ServiceClient {
       formData,
       { headers: { 'Content-Type': undefined } }
     )
-    return {
-      id: res.data.task_id,
-      tree_id: treeId,
-      chapter: chapter,
-      title: res.data.filename,
-      content: '',
-      is_main: false,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    }
+    return { task_id: res.data.task_id }
   }
 
   // Knowledge Tree Questions

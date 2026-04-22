@@ -4,6 +4,8 @@ import { Button } from '../../components/ui/button'
 import { Input } from '../../components/ui/input'
 import { Badge } from '../../components/ui/badge'
 import { useKnowledgeTreeStore, docKey } from '../../stores/knowledge-tree-store'
+import { useAppStore } from '../../stores/app-store'
+import { client } from '../../services'
 import type { KnowledgeChapter, KnowledgeDocument } from '../../types/knowledge-tree'
 
 interface KnowledgeDocumentsTabProps {
@@ -32,6 +34,7 @@ export function KnowledgeDocumentsTab({
     deleteDocument,
     ingestFileAsDocument,
   } = useKnowledgeTreeStore()
+  const addError = useAppStore((s) => s.addError)
 
   const [editor, setEditor] = React.useState<DocumentEditorState | null>(null)
   const [saving, setSaving] = React.useState(false)
@@ -80,15 +83,48 @@ export function KnowledgeDocumentsTab({
   const handleIngestFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file || selectedChapter === null) return
-    // Reset input so the same file can be re-selected if needed
     e.target.value = ''
     setIngesting(true)
     try {
-      await ingestFileAsDocument(treeId, selectedChapter, file)
-    } finally {
+      const { task_id } = await ingestFileAsDocument(treeId, selectedChapter, file)
+      await pollIngestTask(task_id, treeId, selectedChapter, selectedChapterId)
+    } catch {
+      addError('Failed to start file import. Please try again.')
       setIngesting(false)
     }
   }
+
+  const pollIngestTask = (
+    taskId: string,
+    tid: string,
+    chapter: number,
+    chapterId: string | null,
+  ) =>
+    new Promise<void>((resolve) => {
+      const interval = setInterval(() => {
+        void (async () => {
+          try {
+            const status = await client.getTaskStatus(taskId)
+            if (status.status === 'completed') {
+              clearInterval(interval)
+              await fetchDocuments(tid, chapter, chapterId)
+              setIngesting(false)
+              resolve()
+            } else if (status.status === 'failed') {
+              clearInterval(interval)
+              addError(status.error ?? 'File import failed. The document was not added.')
+              setIngesting(false)
+              resolve()
+            }
+          } catch {
+            clearInterval(interval)
+            addError('Lost connection while importing file.')
+            setIngesting(false)
+            resolve()
+          }
+        })()
+      }, 1500)
+    })
 
   const handleDelete = async (doc: KnowledgeDocument) => {
     if (!window.confirm(`Delete "${doc.title}"? This cannot be undone.`)) return

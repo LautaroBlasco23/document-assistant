@@ -196,11 +196,13 @@ export class MockClient implements ServiceClient {
     this.documents = this.documents.filter((d) => d.id !== id)
   }
 
-  async ingestFileAsKnowledgeDocument(treeId: string, chapter: number, file: File): Promise<KnowledgeDocument> {
+  async ingestFileAsKnowledgeDocument(treeId: string, chapter: number, file: File): Promise<{ task_id: string }> {
     await delay(1500)
     const extractedContent = `[Extracted from ${file.name}]\n\nSimulated text content from ${file.type || 'file'}.\n\nFile size: ${(file.size / 1024).toFixed(1)} KB`
     const title = file.name.replace(/\.(pdf|epub)$/i, '')
-    return this.createKnowledgeDocument(treeId, chapter, title, extractedContent)
+    const chapterId = (this.chapters.get(treeId) ?? []).find((c) => c.number === chapter)?.id ?? null
+    await this.createKnowledgeDocument(treeId, chapterId, title, extractedContent)
+    return { task_id: `mock-task-${Math.random().toString(36).slice(2, 10)}` }
   }
 
   async previewKnowledgeTreeFile(file: File): Promise<DocumentPreviewOut> {
