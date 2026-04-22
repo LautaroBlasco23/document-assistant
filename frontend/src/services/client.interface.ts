@@ -25,10 +25,10 @@ export interface ServiceClient {
   updateKnowledgeChapter(treeId: string, chapterNumber: number, title: string): Promise<KnowledgeChapter>
   deleteKnowledgeChapter(treeId: string, chapterNumber: number): Promise<void>
   listKnowledgeDocuments(treeId: string, chapterId?: string | null): Promise<KnowledgeDocument[]>
-  createKnowledgeDocument(treeId: string, chapter: number | null, title: string, content: string, isMain?: boolean): Promise<KnowledgeDocument>
+  createKnowledgeDocument(treeId: string, chapterId: string | null, title: string, content: string, isMain?: boolean): Promise<KnowledgeDocument>
   updateKnowledgeDocument(id: string, title: string, content: string): Promise<KnowledgeDocument>
   deleteKnowledgeDocument(id: string): Promise<void>
-  ingestFileAsKnowledgeDocument(treeId: string, chapter: number, file: File): Promise<KnowledgeDocument>
+  ingestFileAsKnowledgeDocument(treeId: string, chapter: number, file: File): Promise<{ task_id: string }>
   previewKnowledgeTreeFile(file: File): Promise<DocumentPreviewOut>
   createKnowledgeTreeFromFile(file: File, title?: string, chapterIndices?: number[]): Promise<{ task_id: string }>
 

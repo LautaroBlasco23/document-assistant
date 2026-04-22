@@ -123,14 +123,14 @@ export class RealClient implements ServiceClient {
 
   async createKnowledgeDocument(
     treeId: string,
-    chapter: number | null,
+    chapterId: string | null,
     title: string,
     content: string,
     isMain = false
   ): Promise<KnowledgeDocument> {
     const res = await httpClient.post<KnowledgeDocument>(
       `/knowledge-trees/${treeId}/documents`,
-      { title, content, chapter_id: chapter !== null ? String(chapter) : null, is_main: isMain }
+      { title, content, chapter_id: chapterId, is_main: isMain }
     )
     return res.data
   }

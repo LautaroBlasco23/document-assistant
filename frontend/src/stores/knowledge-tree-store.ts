@@ -150,7 +150,10 @@ export const useKnowledgeTreeStore = create<KnowledgeTreeState>((set, get) => ({
   },
 
   createDocument: async (treeId, chapter, title, content, isMain) => {
-    const doc = await client.createKnowledgeDocument(treeId, chapter, title, content, isMain)
+    const chapterId = chapter !== null
+      ? (get().chapters[treeId] ?? []).find((c) => c.number === chapter)?.id ?? null
+      : null
+    const doc = await client.createKnowledgeDocument(treeId, chapterId, title, content, isMain)
     const key = docKey(treeId, chapter)
     set((s) => ({ documents: { ...s.documents, [key]: [...(s.documents[key] ?? []), doc] } }))
     return doc

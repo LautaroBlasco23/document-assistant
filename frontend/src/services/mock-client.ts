@@ -159,12 +159,15 @@ export class MockClient implements ServiceClient {
 
   async createKnowledgeDocument(
     treeId: string,
-    chapter: number | null,
+    chapterId: string | null,
     title: string,
     content: string,
     isMain = false,
   ): Promise<KnowledgeDocument> {
     await delay(150)
+    const chapter = chapterId !== null
+      ? (this.chapters.get(treeId) ?? []).find((c) => c.id === chapterId)?.number ?? null
+      : null
     const doc: KnowledgeDocument = {
       id: `doc-${Math.random().toString(36).slice(2, 12)}`,
       tree_id: treeId,
