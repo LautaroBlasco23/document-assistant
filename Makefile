@@ -1,4 +1,4 @@
-.PHONY: start dev-backend mock stop dev-kill check clean prune help env-check dev-deps infra-deps
+.PHONY: start dev-backend mock stop dev-kill check clean prune help env-check dev-deps infra-deps tools
 
 DOCKER_COMPOSE := docker compose
 BACKEND_DIR := backend
@@ -8,6 +8,10 @@ help:
 	@echo "\033[1;36mDocument Assistant - Infrastructure Management\033[0m"
 	@echo ""
 	@echo "\033[1mAvailable commands:\033[0m"
+	@echo ""
+	@echo "  \033[1;32mSetup\033[0m"
+	@echo "    make tools                          Check/install required development tools"
+	@echo "    make tools install                  Install missing tools (auto-installs uv)"
 	@echo ""
 	@echo "  \033[1;32mStartup\033[0m"
 	@echo "    make start                          Interactive menu for environment & provider"
@@ -31,10 +35,25 @@ help:
 	@echo "  \033[1;32mHelp\033[0m"
 	@echo "    make help                           Show this help message"
 
-start: env-check
+tools-check:
+	@bash scripts/check-tools.sh check || { \
+		echo ""; \
+		echo "\033[1;31mSome required tools are missing.\033[0m"; \
+		echo ""; \
+		echo "Please run \033[1;32mmake tools\033[0m to check and install the required tools"; \
+		echo "before using \033[1;32mmake start\033[0m."; \
+		echo ""; \
+		echo "For more details, see: make tools help"; \
+		exit 1; \
+	}
+
+tools:
+	@bash scripts/check-tools.sh install
+
+start: env-check tools-check
 	@PROVIDER=$(PROVIDER) bash scripts/start.sh
 
-dev-backend: env-check
+dev-backend: env-check tools-check
 	@echo "Starting backend only..."
 	@echo "Starting PostgreSQL..."
 	$(DOCKER_COMPOSE) up -d postgres
@@ -44,14 +63,14 @@ dev-backend: env-check
 	@set -a; [ -f .env ] && . ./.env; set +a; \
 	cd $(BACKEND_DIR) && DOCASSIST_LLM_PROVIDER="${PROVIDER:-groq}" uv run uvicorn api.main:app --port 8000 --reload
 
-mock: dev-deps
+mock: tools-check dev-deps
 	@echo "Starting frontend in mock mode (no backend required)..."
 	@cd frontend && VITE_MOCK=true npm run dev
 
 env-check:
 	@bash scripts/setupEnv.sh
 
-infra-deps:
+infra-deps: tools-check
 	@echo "Starting infrastructure services (PostgreSQL)..."
 	$(DOCKER_COMPOSE) up -d postgres
 	@echo "Installing Python dependencies..."
