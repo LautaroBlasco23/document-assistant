@@ -4,11 +4,16 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import fitz  # PyMuPDF
+from pdfminer.high_level import extract_pages
+from pdfminer.layout import LTAnno, LTChar, LTTextContainer
 
 from core.model.document import Chapter, Document, Page, Section
 from infrastructure.ingest.normalizer import clean_text, normalize
 
 logger = logging.getLogger(__name__)
+
+# Pages averaging fewer non-whitespace chars than this trigger the pdfminer fallback.
+_SPARSE_CHARS_PER_PAGE = 50
 
 # Written-out ordinals for chapter headings (ONE through FIFTY, with compound forms)
 _ORDINAL_WORDS = (
@@ -149,16 +154,147 @@ def _synthetic_chapter_structure(total_pages: int) -> list[ChapterPreview]:
     ]
 
 
+def _nonws_chars(pages: list[str]) -> int:
+    """Count total non-whitespace characters across all pages."""
+    return sum(len(p.replace(" ", "").replace("\n", "").replace("\t", "")) for p in pages)
+
+
+def _avg_nonws_per_page(pages: list[str]) -> float:
+    if not pages:
+        return 0.0
+    return _nonws_chars(pages) / len(pages)
+
+
+def _is_sparse(pages: list[str], threshold: int = _SPARSE_CHARS_PER_PAGE) -> bool:
+    """Return True if average non-whitespace chars per page is below threshold."""
+    return _avg_nonws_per_page(pages) < threshold
+
+
+def _sample(pages: list[str], max_chars: int = 120) -> str:
+    """Return the first max_chars of non-empty content across pages."""
+    for p in pages:
+        stripped = p.strip()
+        if stripped:
+            return repr(stripped[:max_chars])
+    return "(empty)"
+
+
+def _extract_pages_pymupdf(doc: fitz.Document) -> list[str]:
+    """Extract per-page text using PyMuPDF default text mode."""
+    return [page.get_text() for page in doc]
+
+
+def _extract_pages_pymupdf_blocks(doc: fitz.Document) -> list[str]:
+    """Extract per-page text using PyMuPDF blocks mode.
+
+    Uses a different internal layout pass than the default text mode —
+    sometimes recovers text that the default mode misses.
+    """
+    pages = []
+    for page in doc:
+        blocks = page.get_text("blocks")  # list of (x0,y0,x1,y1,text,block_no,block_type)
+        text = "\n".join(b[4] for b in sorted(blocks, key=lambda b: (b[1], b[0])) if b[6] == 0)
+        pages.append(text)
+    return pages
+
+
+def _extract_pages_pdfminer(path: Path) -> list[str]:
+    """Extract per-page text using pdfminer.six.
+
+    Handles PDFs where PyMuPDF fails due to missing ToUnicode CMap or
+    non-standard font encodings. Iterates over layout elements directly
+    to capture all LTChar/LTAnno objects in reading order.
+    """
+    pages: list[str] = []
+    for page_layout in extract_pages(str(path)):
+        buf: list[str] = []
+        for element in page_layout:
+            if isinstance(element, LTTextContainer):
+                for text_line in element:
+                    for char in text_line:
+                        if isinstance(char, LTChar):
+                            buf.append(char.get_text())
+                        elif isinstance(char, LTAnno):
+                            buf.append(char.get_text())
+        pages.append("".join(buf))
+    return pages
+
+
+def _best_extraction(
+    candidates: list[tuple[str, list[str]]],
+    display_name: str,
+) -> list[str]:
+    """Run each extractor in order; return the first non-sparse result.
+
+    candidates: list of (label, pages) already extracted.
+    Logs a per-extractor summary to make failures easy to diagnose.
+    """
+    best_label, best_pages = candidates[0]
+    best_avg = _avg_nonws_per_page(best_pages)
+
+    for label, pages in candidates:
+        avg = _avg_nonws_per_page(pages)
+        logger.info(
+            "[%s] %s — %d page(s), %.0f non-ws chars/page, sample: %s",
+            label,
+            display_name,
+            len(pages),
+            avg,
+            _sample(pages),
+        )
+        if avg > best_avg:
+            best_avg = avg
+            best_label = label
+            best_pages = pages
+        if not _is_sparse(pages):
+            logger.info("Using extractor '%s' for %s", label, display_name)
+            return pages
+
+    logger.warning(
+        "All extractors sparse for %s — best was '%s' (%.0f non-ws chars/page). "
+        "File may be image-based, encrypted, or use unsupported fonts.",
+        display_name,
+        best_label,
+        best_avg,
+    )
+    return best_pages
+
+
 def load_pdf(path: Path, file_hash: str, original_filename: str = "") -> Document:
-    """Extract a Document from a PDF file using PyMuPDF."""
+    """Extract a Document from a PDF file.
+
+    Tries three extraction strategies in order, picking the first that
+    yields enough text:
+      1. PyMuPDF default  (fast, works for most PDFs)
+      2. PyMuPDF blocks   (different layout pass, sometimes recovers missed text)
+      3. pdfminer.six     (independent parser, best for CID/encoding edge cases)
+    """
     doc = fitz.open(str(path))
     display_name = original_filename or path.name
     title = doc.metadata.get("title") or Path(display_name).stem
     author = doc.metadata.get("author", "")
 
-    raw_pages: list[str] = []
-    for page in doc:
-        raw_pages.append(page.get_text())
+    pymupdf_pages = _extract_pages_pymupdf(doc)
+
+    if _is_sparse(pymupdf_pages):
+        blocks_pages = _extract_pages_pymupdf_blocks(doc)
+        pdfminer_pages = _extract_pages_pdfminer(path)
+        raw_pages = _best_extraction(
+            [
+                ("pymupdf-text", pymupdf_pages),
+                ("pymupdf-blocks", blocks_pages),
+                ("pdfminer", pdfminer_pages),
+            ],
+            display_name,
+        )
+    else:
+        logger.info(
+            "pymupdf-text extracted %s: %d page(s), %.0f non-ws chars/page",
+            display_name,
+            len(pymupdf_pages),
+            _avg_nonws_per_page(pymupdf_pages),
+        )
+        raw_pages = pymupdf_pages
 
     normalized = normalize(raw_pages)
 
