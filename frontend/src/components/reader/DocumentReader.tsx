@@ -5,8 +5,8 @@ import ePub from 'epubjs'
 import { client } from '../../services'
 import type { KnowledgeDocument } from '../../types/knowledge-tree'
 
-import 'react-pdf/dist/esm/Page/AnnotationLayer.css'
-import 'react-pdf/dist/esm/Page/TextLayer.css'
+import 'react-pdf/dist/Page/AnnotationLayer.css'
+import 'react-pdf/dist/Page/TextLayer.css'
 
 interface DocumentReaderProps {
   doc: KnowledgeDocument
