@@ -34,7 +34,8 @@ export const mockKnowledgeDocuments: KnowledgeDocument[] = [
   {
     id: 'doc-ml-main',
     tree_id: 'tree-ml',
-    chapter: null,
+    chapter_id: null,
+    chapter_number: null,
     is_main: true,
     title: 'ML Overview',
     content: `Machine Learning is a subset of Artificial Intelligence that enables systems to learn and improve from experience without being explicitly programmed.
@@ -52,7 +53,8 @@ Key themes:
   {
     id: 'doc-ml-1-linear',
     tree_id: 'tree-ml',
-    chapter: 1,
+    chapter_id: 'ch-ml-1',
+    chapter_number: 1,
     is_main: false,
     title: 'Linear Regression',
     content: `Linear regression models the relationship between a dependent variable and one or more independent variables.
@@ -70,7 +72,8 @@ Key concepts:
   {
     id: 'doc-ml-1-classification',
     tree_id: 'tree-ml',
-    chapter: 1,
+    chapter_id: 'ch-ml-1',
+    chapter_number: 1,
     is_main: false,
     title: 'Classification Algorithms',
     content: `Classification assigns input data to predefined categories.
@@ -89,7 +92,8 @@ Evaluation metrics: accuracy, precision, recall, F1-score, ROC-AUC`,
   {
     id: 'doc-ml-2-clustering',
     tree_id: 'tree-ml',
-    chapter: 2,
+    chapter_id: 'ch-ml-2',
+    chapter_number: 2,
     is_main: false,
     title: 'Clustering Methods',
     content: `Unsupervised learning finds structure in unlabeled data.
@@ -113,7 +117,8 @@ DBSCAN:
   {
     id: 'doc-ca-main',
     tree_id: 'tree-clean-arch',
-    chapter: null,
+    chapter_id: null,
+    chapter_number: null,
     is_main: true,
     title: 'Architecture Overview',
     content: `Clean Architecture is a software design philosophy that emphasizes separation of concerns and independence of frameworks, UI, databases, and external agencies.
@@ -128,7 +133,8 @@ This knowledge tree explores the principles behind clean architecture, covering 
   {
     id: 'doc-ca-1-solid',
     tree_id: 'tree-clean-arch',
-    chapter: 1,
+    chapter_id: 'ch-ca-1',
+    chapter_number: 1,
     is_main: false,
     title: 'SOLID Principles',
     content: `SOLID is an acronym for five design principles aimed at making software more maintainable and extensible.

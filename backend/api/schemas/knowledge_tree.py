@@ -58,6 +58,7 @@ class KnowledgeDocumentOut(BaseModel):
     id: str
     tree_id: str
     chapter_id: str | None
+    chapter_number: int | None = None
     title: str
     content: str
     is_main: bool
@@ -65,6 +66,8 @@ class KnowledgeDocumentOut(BaseModel):
     updated_at: str
     source_file_path: str | None = None
     source_file_name: str | None = None
+    page_start: int | None = None
+    page_end: int | None = None
 
 
 class KnowledgeChunkOut(BaseModel):

@@ -75,6 +75,7 @@ def _doc_out(doc) -> KnowledgeDocumentOut:
         id=str(doc.id),
         tree_id=str(doc.tree_id),
         chapter_id=str(doc.chapter_id) if doc.chapter_id else None,
+        chapter_number=doc.chapter_number,
         title=doc.title,
         content=doc.content,
         is_main=doc.is_main,
@@ -82,6 +83,8 @@ def _doc_out(doc) -> KnowledgeDocumentOut:
         updated_at=doc.updated_at.isoformat(),
         source_file_path=doc.source_file_path,
         source_file_name=doc.source_file_name,
+        page_start=doc.page_start,
+        page_end=doc.page_end,
     )
 
 
@@ -323,7 +326,9 @@ def _create_tree_from_document_background(
 
                 # Store one KnowledgeDocument per chapter
                 kt_doc = services.kt_doc_store.create_document(
-                    tree_uid, chapter_uid, chapter_title, full_text, is_main=False
+                    tree_uid, chapter_uid, chapter_title, full_text, is_main=False,
+                    page_start=chapter.page_start,
+                    page_end=chapter.page_end,
                 )
                 doc_uid = kt_doc.id
                 services.kt_doc_store.update_document_source_file(

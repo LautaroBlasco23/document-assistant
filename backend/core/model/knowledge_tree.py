@@ -34,6 +34,9 @@ class KnowledgeDocument:
     updated_at: datetime
     source_file_path: str | None = None
     source_file_name: str | None = None
+    chapter_number: int | None = None
+    page_start: int | None = None
+    page_end: int | None = None
 
 
 @dataclass

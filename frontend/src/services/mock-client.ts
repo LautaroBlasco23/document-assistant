@@ -85,7 +85,8 @@ export class MockClient implements ServiceClient {
     const mainDoc: KnowledgeDocument = {
       id: `doc-${id}-main`,
       tree_id: id,
-      chapter: null,
+      chapter_id: null,
+      chapter_number: null,
       is_main: true,
       title: 'Overview',
       content: '',
@@ -140,7 +141,7 @@ export class MockClient implements ServiceClient {
     const existing = this.chapters.get(treeId) ?? []
     this.chapters.set(treeId, existing.filter((c) => c.number !== chapterNumber))
     this.documents = this.documents.filter(
-      (d) => !(d.tree_id === treeId && d.chapter === chapterNumber)
+      (d) => !(d.tree_id === treeId && d.chapter_number === chapterNumber)
     )
     const tree = this.trees.find((t) => t.id === treeId)
     if (tree) tree.num_chapters = Math.max(0, tree.num_chapters - 1)
@@ -154,7 +155,7 @@ export class MockClient implements ServiceClient {
     const treeChapters = this.chapters.get(treeId) ?? []
     const chapter = treeChapters.find((c) => c.id === chapterId)
     if (!chapter) return []
-    return this.documents.filter((d) => d.tree_id === treeId && d.chapter === chapter.number)
+    return this.documents.filter((d) => d.tree_id === treeId && d.chapter_number === chapter.number)
   }
 
   async createKnowledgeDocument(
@@ -165,13 +166,14 @@ export class MockClient implements ServiceClient {
     isMain = false,
   ): Promise<KnowledgeDocument> {
     await delay(150)
-    const chapter = chapterId !== null
+    const chapterNum = chapterId !== null
       ? (this.chapters.get(treeId) ?? []).find((c) => c.id === chapterId)?.number ?? null
       : null
     const doc: KnowledgeDocument = {
       id: `doc-${Math.random().toString(36).slice(2, 12)}`,
       tree_id: treeId,
-      chapter,
+      chapter_id: chapterId,
+      chapter_number: chapterNum,
       is_main: isMain,
       title,
       content,
@@ -228,7 +230,7 @@ export class MockClient implements ServiceClient {
   }
 
   // Document Reader
-  getDocumentFileUrl(docId: string): string {
+  getDocumentFileUrl(_treeId: string, docId: string): string {
     return `#mock-file-${docId}`
   }
 

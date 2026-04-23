@@ -18,7 +18,8 @@ export interface KnowledgeChapter {
 export interface KnowledgeDocument {
   id: string
   tree_id: string
-  chapter: number | null  // null = tree-level (main doc)
+  chapter_id: string | null
+  chapter_number: number | null  // null = tree-level (main doc)
   title: string
   content: string
   is_main: boolean
@@ -26,9 +27,11 @@ export interface KnowledgeDocument {
   updated_at: string
   source_file_path?: string
   source_file_name?: string
+  page_start?: number
+  page_end?: number
 }
 
-export type KnowledgeTreeTab = 'documents' | 'content'
+export type KnowledgeTreeTab = 'documents' | 'content' | 'all-documents'
 
 // --- Exam question types ---
 

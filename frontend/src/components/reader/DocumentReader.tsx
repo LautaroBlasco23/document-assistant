@@ -19,15 +19,18 @@ type FlashcardStatus = 'idle' | 'sending' | 'sent'
 
 export function DocumentReader({ doc, treeId, chapter, onClose }: DocumentReaderProps) {
   const [numPages, setNumPages] = React.useState<number>(0)
-  const [pageNumber, setPageNumber] = React.useState<number>(1)
+  const [pageNumber, setPageNumber] = React.useState<number>(doc.page_start ?? 1)
   const [flashcardStatus, setFlashcardStatus] = React.useState<FlashcardStatus>('idle')
+
+  const firstPage = doc.page_start ?? 1
+  const lastPage = doc.page_end ?? numPages
   const [contextMenu, setContextMenu] = React.useState<{ x: number; y: number; text: string } | null>(null)
   const epubContainerRef = React.useRef<HTMLDivElement>(null)
   const readerRef = React.useRef<HTMLDivElement>(null)
 
   const isPdf = doc.source_file_name?.toLowerCase().endsWith('.pdf') || doc.source_file_path?.toLowerCase().endsWith('.pdf')
 
-  const fileUrl = client.getDocumentFileUrl(doc.id)
+  const fileUrl = client.getDocumentFileUrl(treeId, doc.id)
 
   // EPUB rendering
   React.useEffect(() => {
@@ -46,8 +49,8 @@ export function DocumentReader({ doc, treeId, chapter, onClose }: DocumentReader
     }
   }, [fileUrl, isPdf])
 
-  const goToPrevPage = () => setPageNumber((p) => Math.max(1, p - 1))
-  const goToNextPage = () => setPageNumber((p) => Math.min(numPages, p + 1))
+  const goToPrevPage = () => setPageNumber((p) => Math.max(firstPage, p - 1))
+  const goToNextPage = () => setPageNumber((p) => Math.min(lastPage, p + 1))
 
   const handleContextMenu = (e: React.MouseEvent) => {
     const selection = window.getSelection()
@@ -148,18 +151,18 @@ export function DocumentReader({ doc, treeId, chapter, onClose }: DocumentReader
         <div className="flex items-center justify-center gap-3 px-4 py-2 bg-white border-t border-gray-200 shrink-0">
           <button
             onClick={goToPrevPage}
-            disabled={pageNumber <= 1}
+            disabled={pageNumber <= firstPage}
             className="p-1 text-gray-600 hover:text-gray-900 disabled:text-gray-300 transition-colors"
             aria-label="Previous page"
           >
             <ChevronLeft className="h-4 w-4" />
           </button>
           <span className="text-xs text-gray-600">
-            Page {pageNumber} of {numPages}
+            Page {pageNumber}{doc.page_end != null ? ` of ${doc.page_end}` : ` of ${numPages}`}
           </span>
           <button
             onClick={goToNextPage}
-            disabled={pageNumber >= numPages}
+            disabled={pageNumber >= lastPage}
             className="p-1 text-gray-600 hover:text-gray-900 disabled:text-gray-300 transition-colors"
             aria-label="Next page"
           >
