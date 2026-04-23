@@ -324,23 +324,27 @@ def _create_tree_from_document_background(
                     # Fallback: concatenate page text directly
                     full_text = "\n\n".join(p.text for p in chapter.pages)
 
+                # Derive page range from the chapter's page list
+                ch_page_start = chapter.pages[0].number if chapter.pages else None
+                ch_page_end = chapter.pages[-1].number if chapter.pages else None
+
                 # Store one KnowledgeDocument per chapter
                 kt_doc = services.kt_doc_store.create_document(
                     tree_uid, chapter_uid, chapter_title, full_text, is_main=False,
-                    page_start=chapter.page_start,
-                    page_end=chapter.page_end,
+                    page_start=ch_page_start,
+                    page_end=ch_page_end,
                 )
                 doc_uid = kt_doc.id
 
                 # For PDFs, extract only this chapter's pages into a separate file
-                if suffix == ".pdf" and chapter.page_start and chapter.page_end:
+                if suffix == ".pdf" and ch_page_start and ch_page_end:
                     import fitz as _fitz
                     src_pdf = _fitz.open(str(tree_file_path))
                     chapter_pdf = _fitz.open()
                     chapter_pdf.insert_pdf(
                         src_pdf,
-                        from_page=chapter.page_start - 1,
-                        to_page=chapter.page_end - 1,
+                        from_page=ch_page_start - 1,
+                        to_page=ch_page_end - 1,
                     )
                     chapter_file_path = storage_dir / f"{doc_uid}.pdf"
                     chapter_pdf.save(str(chapter_file_path))
