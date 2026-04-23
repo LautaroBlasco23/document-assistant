@@ -331,9 +331,28 @@ def _create_tree_from_document_background(
                     page_end=chapter.page_end,
                 )
                 doc_uid = kt_doc.id
-                services.kt_doc_store.update_document_source_file(
-                    kt_doc.id, str(tree_file_path), filename
-                )
+
+                # For PDFs, extract only this chapter's pages into a separate file
+                if suffix == ".pdf" and chapter.page_start and chapter.page_end:
+                    import fitz as _fitz
+                    src_pdf = _fitz.open(str(tree_file_path))
+                    chapter_pdf = _fitz.open()
+                    chapter_pdf.insert_pdf(
+                        src_pdf,
+                        from_page=chapter.page_start - 1,
+                        to_page=chapter.page_end - 1,
+                    )
+                    chapter_file_path = storage_dir / f"{doc_uid}.pdf"
+                    chapter_pdf.save(str(chapter_file_path))
+                    chapter_pdf.close()
+                    src_pdf.close()
+                    services.kt_doc_store.update_document_source_file(
+                        kt_doc.id, str(chapter_file_path), filename
+                    )
+                else:
+                    services.kt_doc_store.update_document_source_file(
+                        kt_doc.id, str(tree_file_path), filename
+                    )
 
                 # Build KnowledgeChunk records for this chapter
                 for j, c in enumerate(chunks):
