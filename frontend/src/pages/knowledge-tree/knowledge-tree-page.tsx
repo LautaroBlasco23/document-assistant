@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { useParams, Link, useSearchParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, TreePine, Layers, Pencil, Plus, FileText, BookMarked, Check, X, Trash2 } from 'lucide-react'
+import { ArrowLeft, TreePine, Layers, Pencil, Plus, FileText, BookMarked, Check, X, Trash2, FolderOpen } from 'lucide-react'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../../components/ui/tabs'
 import { Badge } from '../../components/ui/badge'
 import { Button } from '../../components/ui/button'
@@ -8,19 +8,21 @@ import { Input } from '../../components/ui/input'
 import { useKnowledgeTreeStore } from '../../stores/knowledge-tree-store'
 import { useAppStore } from '../../stores/app-store'
 import { KnowledgeDocumentsTab } from './knowledge-documents-tab'
+import { AllDocumentsTab } from './all-documents-tab'
 import { ContentTab } from './content-tab'
 import { EditKnowledgeTreeDialog } from '../library/edit-knowledge-tree-dialog'
 import type { KnowledgeChapter, KnowledgeTreeTab } from '../../types/knowledge-tree'
 
-const VALID_TABS: KnowledgeTreeTab[] = ['documents', 'content']
+const VALID_TABS: KnowledgeTreeTab[] = ['all-documents', 'documents', 'content']
+
+const TAB_LABELS: Record<KnowledgeTreeTab, string> = {
+  'all-documents': 'All Documents',
+  documents: 'Knowledge Documents',
+  content: 'Content',
+}
 
 function isValidTab(value: string | null): value is KnowledgeTreeTab {
   return VALID_TABS.includes(value as KnowledgeTreeTab)
-}
-
-const TAB_LABELS: Record<KnowledgeTreeTab, string> = {
-  documents: 'Knowledge Documents',
-  content: 'Content',
 }
 
 // ─── Sections sidebar ─────────────────────────────────────────────────────────
@@ -29,7 +31,9 @@ interface SectionsSidebarProps {
   treeId: string
   chapters: KnowledgeChapter[]
   selectedChapter: number | null
+  activeTab: KnowledgeTreeTab
   onChapterChange: (chapter: number | null) => void
+  onTabChange: (tab: KnowledgeTreeTab) => void
   onChaptersRefresh: () => void
 }
 
@@ -37,7 +41,9 @@ function SectionsSidebar({
   treeId,
   chapters,
   selectedChapter,
+  activeTab,
   onChapterChange,
+  onTabChange,
   onChaptersRefresh,
 }: SectionsSidebarProps) {
   const { createChapter, updateChapter, deleteChapter } = useKnowledgeTreeStore()
@@ -80,11 +86,24 @@ function SectionsSidebar({
     <aside className="w-52 shrink-0 flex flex-col gap-1">
       <p className="text-xs font-medium text-gray-400 uppercase tracking-wide px-2 mb-1">Sections</p>
 
+      {/* All Documents */}
+      <button
+        onClick={() => onTabChange('all-documents')}
+        className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm text-left w-full transition-colors ${
+          activeTab === 'all-documents'
+            ? 'bg-green-50 text-green-700 font-medium border-l-2 border-green-600'
+            : 'text-gray-600 hover:bg-gray-100'
+        }`}
+      >
+        <FolderOpen className="h-3.5 w-3.5 shrink-0" />
+        <span className="truncate">Documents</span>
+      </button>
+
       {/* Tree-level (overview) */}
       <button
-        onClick={() => onChapterChange(null)}
+        onClick={() => { onChapterChange(null); if (activeTab === 'all-documents') onTabChange('documents') }}
         className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm text-left w-full transition-colors ${
-          selectedChapter === null
+          selectedChapter === null && activeTab !== 'all-documents'
             ? 'bg-blue-50 text-primary font-medium border-l-2 border-primary'
             : 'text-gray-600 hover:bg-gray-100'
         }`}
@@ -117,9 +136,9 @@ function SectionsSidebar({
           ) : (
             <div className="flex items-center">
               <button
-                onClick={() => onChapterChange(ch.number)}
+                onClick={() => { onChapterChange(ch.number); if (activeTab === 'all-documents') onTabChange('documents') }}
                 className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm text-left flex-1 min-w-0 transition-colors ${
-                  selectedChapter === ch.number
+                  selectedChapter === ch.number && activeTab !== 'all-documents'
                     ? 'bg-blue-50 text-primary font-medium border-l-2 border-primary'
                     : 'text-gray-600 hover:bg-gray-100'
                 }`}
@@ -287,7 +306,9 @@ export function KnowledgeTreePage() {
           treeId={treeId}
           chapters={treeChapters}
           selectedChapter={selectedChapter}
+          activeTab={activeTab}
           onChapterChange={setSelectedChapter}
+          onTabChange={handleTabChange}
           onChaptersRefresh={handleChaptersRefresh}
         />
 
@@ -300,6 +321,13 @@ export function KnowledgeTreePage() {
                 </TabsTrigger>
               ))}
             </TabsList>
+
+            <TabsContent value="all-documents">
+              <AllDocumentsTab
+                treeId={treeId}
+                chapters={treeChapters}
+              />
+            </TabsContent>
 
             <TabsContent value="documents">
               <KnowledgeDocumentsTab

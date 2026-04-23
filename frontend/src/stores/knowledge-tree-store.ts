@@ -35,6 +35,7 @@ interface KnowledgeTreeState {
   deleteChapter: (treeId: string, chapterNumber: number) => Promise<void>
 
   fetchDocuments: (treeId: string, chapter: number | null, chapterId: string | null) => Promise<void>
+  fetchAllDocuments: (treeId: string) => Promise<void>
   createDocument: (treeId: string, chapter: number | null, title: string, content: string, isMain?: boolean) => Promise<KnowledgeDocument>
   updateDocument: (id: string, title: string, content: string, treeId: string, chapter: number | null) => Promise<KnowledgeDocument>
   deleteDocument: (id: string, treeId: string, chapter: number | null) => Promise<void>
@@ -143,6 +144,17 @@ export const useKnowledgeTreeStore = create<KnowledgeTreeState>((set, get) => ({
     set((s) => ({ documentsLoading: { ...s.documentsLoading, [key]: true } }))
     try {
       const docs = await client.listKnowledgeDocuments(treeId, chapterId)
+      set((s) => ({ documents: { ...s.documents, [key]: docs } }))
+    } finally {
+      set((s) => ({ documentsLoading: { ...s.documentsLoading, [key]: false } }))
+    }
+  },
+
+  fetchAllDocuments: async (treeId) => {
+    const key = `${treeId}:all`
+    set((s) => ({ documentsLoading: { ...s.documentsLoading, [key]: true } }))
+    try {
+      const docs = await client.listKnowledgeDocuments(treeId)
       set((s) => ({ documents: { ...s.documents, [key]: docs } }))
     } finally {
       set((s) => ({ documentsLoading: { ...s.documentsLoading, [key]: false } }))

@@ -185,8 +185,8 @@ export class RealClient implements ServiceClient {
   }
 
   // Document Reader
-  getDocumentFileUrl(docId: string): string {
-    return `${baseURL}/knowledge-trees/_/documents/${docId}/file`
+  getDocumentFileUrl(treeId: string, docId: string): string {
+    return `${baseURL}/knowledge-trees/${treeId}/documents/${docId}/file`
   }
 
   async generateFlashcardFromSelection(treeId: string, chapter: number, selectedText: string): Promise<{ task_id: string }> {
