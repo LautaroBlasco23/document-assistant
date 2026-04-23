@@ -24,6 +24,8 @@ export interface KnowledgeDocument {
   is_main: boolean
   created_at: string
   updated_at: string
+  source_file_path?: string
+  source_file_name?: string
 }
 
 export type KnowledgeTreeTab = 'documents' | 'content'

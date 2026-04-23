@@ -63,6 +63,8 @@ class KnowledgeDocumentOut(BaseModel):
     is_main: bool
     created_at: str
     updated_at: str
+    source_file_path: str | None = None
+    source_file_name: str | None = None
 
 
 class KnowledgeChunkOut(BaseModel):

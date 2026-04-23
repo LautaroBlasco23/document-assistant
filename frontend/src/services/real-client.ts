@@ -184,6 +184,19 @@ export class RealClient implements ServiceClient {
     return { task_id: res.data.task_id }
   }
 
+  // Document Reader
+  getDocumentFileUrl(docId: string): string {
+    return `${baseURL}/knowledge-trees/_/documents/${docId}/file`
+  }
+
+  async generateFlashcardFromSelection(treeId: string, chapter: number, selectedText: string): Promise<{ task_id: string }> {
+    const res = await httpClient.post<{ task_id: string; task_type: string }>(
+      `/knowledge-trees/${treeId}/chapters/${chapter}/flashcards`,
+      { selected_text: selectedText }
+    )
+    return res.data
+  }
+
   // Knowledge Tree Questions
   async generateKnowledgeTreeQuestions(
     treeId: string,

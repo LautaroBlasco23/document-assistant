@@ -32,6 +32,20 @@ class KnowledgeDocument:
     is_main: bool
     created_at: datetime
     updated_at: datetime
+    source_file_path: str | None = None
+    source_file_name: str | None = None
+
+
+@dataclass
+class Flashcard:
+    id: UUID
+    tree_id: UUID
+    chapter_id: UUID
+    doc_id: UUID | None
+    front: str
+    back: str
+    source_text: str | None
+    created_at: datetime
 
 
 @dataclass

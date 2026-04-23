@@ -32,6 +32,10 @@ export interface ServiceClient {
   previewKnowledgeTreeFile(file: File): Promise<DocumentPreviewOut>
   createKnowledgeTreeFromFile(file: File, title?: string, chapterIndices?: number[]): Promise<{ task_id: string }>
 
+  // Document Reader
+  getDocumentFileUrl(docId: string): string
+  generateFlashcardFromSelection(treeId: string, chapter: number, selectedText: string): Promise<{ task_id: string }>
+
   // Knowledge Tree Questions
   generateKnowledgeTreeQuestions(
     treeId: string,

@@ -1,11 +1,12 @@
 import * as React from 'react'
-import { Plus, Pencil, Trash2, Check, X, FileText, Upload } from 'lucide-react'
+import { Plus, Pencil, Trash2, Check, X, FileText, Upload, BookOpen } from 'lucide-react'
 import { Button } from '../../components/ui/button'
 import { Input } from '../../components/ui/input'
 import { Badge } from '../../components/ui/badge'
 import { useKnowledgeTreeStore, docKey } from '../../stores/knowledge-tree-store'
 import { useAppStore } from '../../stores/app-store'
 import { client } from '../../services'
+import { DocumentReader } from '../../components/reader/DocumentReader'
 import type { KnowledgeChapter, KnowledgeDocument } from '../../types/knowledge-tree'
 
 interface KnowledgeDocumentsTabProps {
@@ -39,6 +40,7 @@ export function KnowledgeDocumentsTab({
   const [editor, setEditor] = React.useState<DocumentEditorState | null>(null)
   const [saving, setSaving] = React.useState(false)
   const [ingesting, setIngesting] = React.useState(false)
+  const [readerDoc, setReaderDoc] = React.useState<KnowledgeDocument | null>(null)
   const fileInputRef = React.useRef<HTMLInputElement>(null)
 
   const key = docKey(treeId, selectedChapter)
@@ -217,32 +219,44 @@ export function KnowledgeDocumentsTab({
                 </p>
               </div>
             ) : (
-              docs.map((doc) => (
-                editor !== null && editor.id === doc.id ? (
-                  <DocumentEditorCard
-                    key={doc.id}
-                    editor={editor}
-                    saving={saving}
-                    onChange={setEditor}
-                    onSave={() => void handleSave()}
-                    onCancel={handleCancelEditor}
-                    isNew={false}
-                  />
-                ) : (
-                  <DocumentCard
-                    key={doc.id}
-                    doc={doc}
-                    onEdit={() => handleOpenEdit(doc)}
-                    onDelete={() => void handleDelete(doc)}
-                  />
-                )
-              ))
-            )}
-          </>
-        )}
-    </div>
-  )
-}
+               docs.map((doc) => (
+                 editor !== null && editor.id === doc.id ? (
+                   <DocumentEditorCard
+                     key={doc.id}
+                     editor={editor}
+                     saving={saving}
+                     onChange={setEditor}
+                     onSave={() => void handleSave()}
+                     onCancel={handleCancelEditor}
+                     isNew={false}
+                   />
+                 ) : (
+                   <DocumentCard
+                     key={doc.id}
+                     doc={doc}
+                     chapter={selectedChapter}
+                     onEdit={() => handleOpenEdit(doc)}
+                     onDelete={() => void handleDelete(doc)}
+                     onRead={setReaderDoc}
+                   />
+                 )
+               ))
+             )}
+
+             {/* Document Reader Modal */}
+             {readerDoc && selectedChapter !== null && (
+               <DocumentReader
+                 doc={readerDoc}
+                 treeId={treeId}
+                 chapter={selectedChapter}
+                 onClose={() => setReaderDoc(null)}
+               />
+             )}
+           </>
+         )}
+     </div>
+   )
+ }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
@@ -302,12 +316,15 @@ function MainDocEditor({ doc, saving, onSave }: MainDocEditorProps) {
 
 interface DocumentCardProps {
   doc: KnowledgeDocument
+  chapter: number | null
   onEdit: () => void
   onDelete: () => void
+  onRead: (doc: KnowledgeDocument) => void
 }
 
-function DocumentCard({ doc, onEdit, onDelete }: DocumentCardProps) {
+function DocumentCard({ doc, chapter, onEdit, onDelete, onRead }: DocumentCardProps) {
   const preview = doc.content.trim().slice(0, 200)
+  const canRead = !!doc.source_file_path
 
   return (
     <div className="border border-gray-200 rounded-lg p-4 flex flex-col gap-2 bg-white hover:border-gray-300 transition-colors">
@@ -317,6 +334,17 @@ function DocumentCard({ doc, onEdit, onDelete }: DocumentCardProps) {
           <span className="text-sm font-medium text-gray-800 truncate">{doc.title}</span>
         </div>
         <div className="flex gap-1 shrink-0">
+          {canRead && chapter !== null && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => onRead(doc)}
+              className="h-7 px-2 text-indigo-500 hover:text-indigo-700 hover:bg-indigo-50"
+              title="Read document"
+            >
+              <BookOpen className="h-3.5 w-3.5" />
+            </Button>
+          )}
           <Button variant="ghost" size="sm" onClick={onEdit} className="h-7 px-2 text-gray-400 hover:text-gray-700">
             <Pencil className="h-3.5 w-3.5" />
           </Button>

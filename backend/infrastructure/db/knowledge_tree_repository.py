@@ -10,6 +10,7 @@ import psycopg
 from psycopg.pq import TransactionStatus
 
 from core.model.knowledge_tree import (
+    Flashcard,
     KnowledgeChapter,
     KnowledgeChunk,
     KnowledgeDocument,
@@ -86,8 +87,7 @@ class PostgresKnowledgeTreeStore(_BaseKnowledgeRepo):
         conn = self._conn()
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT id, title, description, created_at"
-                " FROM knowledge_trees WHERE id = %s",
+                "SELECT id, title, description, created_at FROM knowledge_trees WHERE id = %s",
                 (id,),
             )
             row = cur.fetchone()
@@ -212,8 +212,7 @@ class PostgresKnowledgeChapterStore(_BaseKnowledgeRepo):
             with conn.transaction():
                 with conn.cursor() as cur:
                     cur.execute(
-                        "DELETE FROM knowledge_chapters"
-                        " WHERE tree_id = %s AND number = %s",
+                        "DELETE FROM knowledge_chapters WHERE tree_id = %s AND number = %s",
                         (tree_id, number),
                     )
         logger.debug("Deleted knowledge chapter tree=%s number=%d", tree_id, number)
@@ -222,15 +221,13 @@ class PostgresKnowledgeChapterStore(_BaseKnowledgeRepo):
 class PostgresKnowledgeDocumentStore(_BaseKnowledgeRepo):
     """CRUD for knowledge_documents table."""
 
-    def list_documents(
-        self, tree_id: UUID, chapter_id: UUID | None
-    ) -> list[KnowledgeDocument]:
+    def list_documents(self, tree_id: UUID, chapter_id: UUID | None) -> list[KnowledgeDocument]:
         conn = self._conn()
         with conn.cursor() as cur:
             if chapter_id is not None:
                 cur.execute(
                     "SELECT id, tree_id, chapter_id, title, content, is_main,"
-                    " created_at, updated_at"
+                    " created_at, updated_at, source_file_path, source_file_name"
                     " FROM knowledge_documents"
                     " WHERE tree_id = %s AND chapter_id = %s"
                     " ORDER BY created_at",
@@ -239,7 +236,7 @@ class PostgresKnowledgeDocumentStore(_BaseKnowledgeRepo):
             else:
                 cur.execute(
                     "SELECT id, tree_id, chapter_id, title, content, is_main,"
-                    " created_at, updated_at"
+                    " created_at, updated_at, source_file_path, source_file_name"
                     " FROM knowledge_documents"
                     " WHERE tree_id = %s"
                     " ORDER BY created_at",
@@ -255,6 +252,8 @@ class PostgresKnowledgeDocumentStore(_BaseKnowledgeRepo):
         title: str,
         content: str,
         is_main: bool,
+        source_file_path: str | None = None,
+        source_file_name: str | None = None,
     ) -> KnowledgeDocument:
         with self._lock:
             conn = self._conn()
@@ -262,11 +261,21 @@ class PostgresKnowledgeDocumentStore(_BaseKnowledgeRepo):
                 with conn.cursor() as cur:
                     cur.execute(
                         "INSERT INTO knowledge_documents"
-                        " (tree_id, chapter_id, title, content, is_main)"
-                        " VALUES (%s, %s, %s, %s, %s)"
+                        " (tree_id, chapter_id, title, content, is_main,"
+                        " source_file_path, source_file_name)"
+                        " VALUES (%s, %s, %s, %s, %s, %s, %s)"
                         " RETURNING id, tree_id, chapter_id, title, content,"
-                        " is_main, created_at, updated_at",
-                        (tree_id, chapter_id, title, content, is_main),
+                        " is_main, created_at, updated_at,"
+                        " source_file_path, source_file_name",
+                        (
+                            tree_id,
+                            chapter_id,
+                            title,
+                            content,
+                            is_main,
+                            source_file_path,
+                            source_file_name,
+                        ),
                     )
                     row = cur.fetchone()
         logger.debug("Created knowledge document tree=%s title=%s", tree_id, title)
@@ -277,7 +286,7 @@ class PostgresKnowledgeDocumentStore(_BaseKnowledgeRepo):
         with conn.cursor() as cur:
             cur.execute(
                 "SELECT id, tree_id, chapter_id, title, content, is_main,"
-                " created_at, updated_at"
+                " created_at, updated_at, source_file_path, source_file_name"
                 " FROM knowledge_documents WHERE id = %s",
                 (id,),
             )
@@ -296,7 +305,7 @@ class PostgresKnowledgeDocumentStore(_BaseKnowledgeRepo):
                         " SET title = %s, content = %s, updated_at = NOW()"
                         " WHERE id = %s"
                         " RETURNING id, tree_id, chapter_id, title, content,"
-                        " is_main, created_at, updated_at",
+                        " is_main, created_at, updated_at, source_file_path, source_file_name",
                         (title, content, id),
                     )
                     row = cur.fetchone()
@@ -305,14 +314,24 @@ class PostgresKnowledgeDocumentStore(_BaseKnowledgeRepo):
         logger.debug("Updated knowledge document id=%s", id)
         return _row_to_doc(row)
 
-    def delete_document(self, id: UUID) -> None:
+    def update_document_source_file(self, id: UUID, path: str | None, name: str | None) -> None:
         with self._lock:
             conn = self._conn()
             with conn.transaction():
                 with conn.cursor() as cur:
                     cur.execute(
-                        "DELETE FROM knowledge_documents WHERE id = %s", (id,)
+                        "UPDATE knowledge_documents"
+                        " SET source_file_path = %s, source_file_name = %s"
+                        " WHERE id = %s",
+                        (path, name, id),
                     )
+
+    def delete_document(self, id: UUID) -> None:
+        with self._lock:
+            conn = self._conn()
+            with conn.transaction():
+                with conn.cursor() as cur:
+                    cur.execute("DELETE FROM knowledge_documents WHERE id = %s", (id,))
         logger.debug("Deleted knowledge document id=%s", id)
 
 
@@ -452,6 +471,66 @@ class PostgresKnowledgeQuestionStore(_BaseKnowledgeRepo):
         logger.debug("Deleted question id=%s", str(question_id))
 
 
+class PostgresFlashcardStore(_BaseKnowledgeRepo):
+    """CRUD for flashcards table."""
+
+    def save_flashcard(self, flashcard: Flashcard) -> None:
+        with self._lock:
+            conn = self._conn()
+            with conn.transaction():
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "INSERT INTO flashcards"
+                        " (id, tree_id, chapter_id, doc_id, front, back, source_text, created_at)"
+                        " VALUES (%s, %s, %s, %s, %s, %s, %s, %s)"
+                        " ON CONFLICT (id) DO NOTHING",
+                        (
+                            flashcard.id,
+                            flashcard.tree_id,
+                            flashcard.chapter_id,
+                            flashcard.doc_id,
+                            flashcard.front,
+                            flashcard.back,
+                            flashcard.source_text,
+                            flashcard.created_at,
+                        ),
+                    )
+        logger.debug("Saved flashcard id=%s", str(flashcard.id)[:12])
+
+    def list_flashcards(self, tree_id: UUID, chapter_id: UUID) -> list[Flashcard]:
+        conn = self._conn()
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT id, tree_id, chapter_id, doc_id, front, back, source_text, created_at"
+                " FROM flashcards"
+                " WHERE tree_id = %s AND chapter_id = %s"
+                " ORDER BY created_at ASC, id ASC",
+                (tree_id, chapter_id),
+            )
+            rows = cur.fetchall()
+        return [
+            Flashcard(
+                id=row["id"],
+                tree_id=row["tree_id"],
+                chapter_id=row["chapter_id"],
+                doc_id=row["doc_id"],
+                front=row["front"],
+                back=row["back"],
+                source_text=row["source_text"],
+                created_at=_ensure_naive(row["created_at"]),
+            )
+            for row in rows
+        ]
+
+    def delete_flashcard(self, id: UUID) -> None:
+        with self._lock:
+            conn = self._conn()
+            with conn.transaction():
+                with conn.cursor() as cur:
+                    cur.execute("DELETE FROM flashcards WHERE id = %s", (id,))
+        logger.debug("Deleted flashcard id=%s", str(id))
+
+
 def _row_to_doc(row: dict) -> KnowledgeDocument:
     return KnowledgeDocument(
         id=row["id"],
@@ -462,4 +541,6 @@ def _row_to_doc(row: dict) -> KnowledgeDocument:
         is_main=row["is_main"],
         created_at=_ensure_naive(row["created_at"]),
         updated_at=_ensure_naive(row["updated_at"]),
+        source_file_path=row.get("source_file_path"),
+        source_file_name=row.get("source_file_name"),
     )

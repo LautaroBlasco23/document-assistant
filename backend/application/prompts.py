@@ -128,6 +128,22 @@ FLASHCARDS_SYSTEM = (
 )
 
 # ---------------------------------------------------------------------------
+# Flashcard from selection prompt
+# ---------------------------------------------------------------------------
+
+FLASHCARD_FROM_SELECTION_SYSTEM = (
+    "You are an expert educator. Create exactly ONE high-quality flashcard "
+    "from the excerpt provided by the user.\n\n"
+    "Return ONLY a JSON object with exactly two keys:\n"
+    '{"front": "...", "back": "..."}\n\n'
+    "Rules:\n"
+    "- Front should be a concise question or term.\n"
+    "- Back should be a precise, complete answer in 1-2 sentences.\n"
+    "- Do NOT add markdown code fences.\n"
+    "- Do NOT add any text outside the JSON object."
+)
+
+# ---------------------------------------------------------------------------
 # Question generation prompts
 # ---------------------------------------------------------------------------
 

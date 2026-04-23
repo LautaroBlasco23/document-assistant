@@ -4,6 +4,7 @@ from typing import Protocol
 from uuid import UUID
 
 from core.model.knowledge_tree import (
+    Flashcard,
     KnowledgeChapter,
     KnowledgeChunk,
     KnowledgeDocument,
@@ -25,9 +26,7 @@ class KnowledgeChapterStore(Protocol):
 
 
 class KnowledgeDocumentStore(Protocol):
-    def list_documents(
-        self, tree_id: UUID, chapter_id: UUID | None
-    ) -> list[KnowledgeDocument]: ...
+    def list_documents(self, tree_id: UUID, chapter_id: UUID | None) -> list[KnowledgeDocument]: ...
     def create_document(
         self,
         tree_id: UUID,
@@ -35,10 +34,19 @@ class KnowledgeDocumentStore(Protocol):
         title: str,
         content: str,
         is_main: bool,
+        source_file_path: str | None = None,
+        source_file_name: str | None = None,
     ) -> KnowledgeDocument: ...
     def get_document(self, id: UUID) -> KnowledgeDocument | None: ...
     def update_document(self, id: UUID, title: str, content: str) -> KnowledgeDocument: ...
+    def update_document_source_file(self, id: UUID, path: str | None, name: str | None) -> None: ...
     def delete_document(self, id: UUID) -> None: ...
+
+
+class FlashcardStore(Protocol):
+    def save_flashcard(self, flashcard: Flashcard) -> None: ...
+    def list_flashcards(self, tree_id: UUID, chapter_id: UUID) -> list[Flashcard]: ...
+    def delete_flashcard(self, id: UUID) -> None: ...
 
 
 class KnowledgeContentStore(Protocol):

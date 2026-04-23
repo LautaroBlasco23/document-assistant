@@ -7,6 +7,7 @@ from api.tasks import TaskRegistry
 from core.ports.llm import LLM
 from infrastructure.config import AppConfig, load_config
 from infrastructure.db.knowledge_tree_repository import (
+    PostgresFlashcardStore,
     PostgresKnowledgeChapterStore,
     PostgresKnowledgeContentStore,
     PostgresKnowledgeDocumentStore,
@@ -33,6 +34,7 @@ class Services:
     kt_doc_store: PostgresKnowledgeDocumentStore
     kt_content_store: PostgresKnowledgeContentStore
     kt_question_store: PostgresKnowledgeQuestionStore
+    kt_flashcard_store: PostgresFlashcardStore
     _pg_pool: PostgresPool
 
 
@@ -61,6 +63,7 @@ def init_services(config: AppConfig | None = None) -> Services:
     kt_doc_store = PostgresKnowledgeDocumentStore(pg_pool)
     kt_content_store = PostgresKnowledgeContentStore(pg_pool)
     kt_question_store = PostgresKnowledgeQuestionStore(pg_pool)
+    kt_flashcard_store = PostgresFlashcardStore(pg_pool)
 
     _services = Services(
         config=config,
@@ -72,6 +75,7 @@ def init_services(config: AppConfig | None = None) -> Services:
         kt_doc_store=kt_doc_store,
         kt_content_store=kt_content_store,
         kt_question_store=kt_question_store,
+        kt_flashcard_store=kt_flashcard_store,
         _pg_pool=pg_pool,
     )
 

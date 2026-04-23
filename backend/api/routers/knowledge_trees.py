@@ -1,13 +1,18 @@
 """Knowledge Tree endpoints."""
 
 import hashlib
+import json
 import logging
+import re
 import tempfile
 import time
+from datetime import datetime
 from pathlib import Path
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi.responses import FileResponse
+from pydantic import BaseModel
 
 from api.deps import ServicesDep
 from api.schemas.knowledge_tree import (
@@ -28,9 +33,10 @@ from api.schemas.question import GenerateQuestionsRequest, QuestionOut
 from api.tasks import Task
 from application.agents.question_generator import QuestionGeneratorAgent
 from core.model.chunk import Chunk, ChunkMetadata
-from core.model.knowledge_tree import KnowledgeChunk
+from core.model.knowledge_tree import Flashcard, KnowledgeChunk
 from core.model.question import Question, QuestionType
 from infrastructure.chunking.splitter import ChapterAwareSplitter
+from infrastructure.config import PROJECT_ROOT
 from infrastructure.ingest.epub_loader import preview_epub
 from infrastructure.ingest.pdf_loader import preview_pdf
 
@@ -74,6 +80,8 @@ def _doc_out(doc) -> KnowledgeDocumentOut:
         is_main=doc.is_main,
         created_at=doc.created_at.isoformat(),
         updated_at=doc.updated_at.isoformat(),
+        source_file_path=doc.source_file_path,
+        source_file_name=doc.source_file_name,
     )
 
 
@@ -260,6 +268,10 @@ def _create_tree_from_document_background(
             _set_progress(task, 20, "Creating knowledge tree...")
             tree = services.kt_tree_store.create_tree(tree_title, None)
             tree_uid = tree.id
+            storage_dir = PROJECT_ROOT / "data" / "storage"
+            storage_dir.mkdir(parents=True, exist_ok=True)
+            tree_file_path = storage_dir / f"{tree_uid}{suffix}"
+            tree_file_path.write_bytes(file_bytes)
 
             if chapter_indices is not None:
                 selected = set(chapter_indices)
@@ -314,6 +326,9 @@ def _create_tree_from_document_background(
                     tree_uid, chapter_uid, chapter_title, full_text, is_main=False
                 )
                 doc_uid = kt_doc.id
+                services.kt_doc_store.update_document_source_file(
+                    kt_doc.id, str(tree_file_path), filename
+                )
 
                 # Build KnowledgeChunk records for this chapter
                 for j, c in enumerate(chunks):
@@ -514,6 +529,20 @@ async def delete_document(tree_id: str, doc_id: str, services: ServicesDep) -> N
     services.kt_doc_store.delete_document(doc_uid)
 
 
+@router.get("/knowledge-trees/{tree_id}/documents/{doc_id}/file")
+async def get_document_file(tree_id: str, doc_id: str, services: ServicesDep):
+    uid = _parse_uuid(tree_id, "tree_id")
+    doc_uid = _parse_uuid(doc_id, "doc_id")
+    doc = services.kt_doc_store.get_document(doc_uid)
+    if doc is None or doc.tree_id != uid or not doc.source_file_path:
+        raise HTTPException(status_code=404, detail="File not found")
+    path = Path(doc.source_file_path)
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="File not found on disk")
+    media_type = "application/pdf" if path.suffix == ".pdf" else "application/epub+zip"
+    return FileResponse(path, filename=doc.source_file_name or path.name, media_type=media_type)
+
+
 # ---------------------------------------------------------------------------
 # File ingest into a chapter
 # ---------------------------------------------------------------------------
@@ -572,9 +601,14 @@ def _ingest_file_background(
             kt_doc = services.kt_doc_store.create_document(
                 tree_id, chapter_id, title, full_text, is_main=False
             )
+            doc_uid = kt_doc.id
+            storage_dir = PROJECT_ROOT / "data" / "storage"
+            storage_dir.mkdir(parents=True, exist_ok=True)
+            file_path = storage_dir / f"{doc_uid}{suffix}"
+            file_path.write_bytes(file_bytes)
+            services.kt_doc_store.update_document_source_file(doc_uid, str(file_path), filename)
 
             _set_progress(task, 75, "Storing content chunks...")
-            doc_uid = kt_doc.id
             kt_chunks = [
                 KnowledgeChunk(
                     id=UUID(c.id) if c.id else uuid4(),
@@ -857,3 +891,84 @@ async def delete_question(
     """Delete a single question by ID."""
     q_uid = _parse_uuid(question_id, "question_id")
     services.kt_question_store.delete_question(q_uid)
+
+
+# ---------------------------------------------------------------------------
+# Flashcards for a chapter
+# ---------------------------------------------------------------------------
+
+
+class GenerateFlashcardRequest(BaseModel):
+    selected_text: str
+
+
+def _flashcard_background(
+    task: Task,
+    tree_id: UUID,
+    chapter_id: UUID,
+    chapter_number: int,
+    selected_text: str,
+    services: ServicesDep,
+) -> dict:
+    try:
+        _set_progress(task, 10, "Generating flashcard...")
+        system = (
+            "You are an expert educator. Create exactly ONE high-quality flashcard "
+            "from the excerpt provided by the user.\n\n"
+            "Return ONLY a JSON object with exactly two keys:\n"
+            '{"front": "...", "back": "..."}\n\n'
+            "Rules:\n"
+            "- Front should be a concise question or term.\n"
+            "- Back should be a precise, complete answer in 1-2 sentences.\n"
+            "- Do NOT add markdown code fences.\n"
+            "- Do NOT add any text outside the JSON object."
+        )
+        raw = services.llm.chat(system, selected_text, format="json")
+        _set_progress(task, 70, "Parsing flashcard...")
+        text = raw.strip()
+        m = re.match(r"^```(?:json)?\s*\n?(.*?)\n?```\s*$", text, re.DOTALL)
+        if m:
+            text = m.group(1).strip()
+        data = json.loads(text)
+        front = str(data["front"]).strip()
+        back = str(data["back"]).strip()
+        flashcard = Flashcard(
+            id=uuid4(),
+            tree_id=tree_id,
+            chapter_id=chapter_id,
+            doc_id=None,
+            front=front,
+            back=back,
+            source_text=selected_text,
+            created_at=datetime.now(),
+        )
+        services.kt_flashcard_store.save_flashcard(flashcard)
+        _set_progress(task, 100, "Done")
+        return {"flashcard_id": str(flashcard.id)}
+    except Exception as e:
+        logger.error("Flashcard generation failed: %s", e)
+        raise
+
+
+@router.post("/knowledge-trees/{tree_id}/chapters/{number}/flashcards", status_code=202)
+async def generate_flashcard(
+    tree_id: str, number: int, req: GenerateFlashcardRequest, services: ServicesDep
+) -> dict:
+    uid = _parse_uuid(tree_id, "tree_id")
+    tree = services.kt_tree_store.get_tree(uid)
+    if tree is None:
+        raise HTTPException(status_code=404, detail="Knowledge tree not found")
+    chapters = services.kt_chapter_store.list_chapters(uid)
+    chapter = next((c for c in chapters if c.number == number), None)
+    if chapter is None:
+        raise HTTPException(status_code=404, detail=f"Chapter {number} not found")
+    task_id = services.task_registry.submit(
+        _flashcard_background,
+        uid,
+        chapter.id,
+        number,
+        req.selected_text,
+        services,
+        task_type="kt_flashcard",
+    )
+    return {"task_id": task_id, "task_type": "kt_flashcard"}

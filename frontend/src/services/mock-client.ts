@@ -227,6 +227,16 @@ export class MockClient implements ServiceClient {
     return { task_id: taskId }
   }
 
+  // Document Reader
+  getDocumentFileUrl(docId: string): string {
+    return `#mock-file-${docId}`
+  }
+
+  async generateFlashcardFromSelection(_treeId: string, _chapter: number, _selectedText: string): Promise<{ task_id: string }> {
+    await delay(500)
+    return { task_id: `mock-task-${Math.random().toString(36).slice(2, 10)}` }
+  }
+
   // Knowledge Tree Questions
 
   async generateKnowledgeTreeQuestions(
