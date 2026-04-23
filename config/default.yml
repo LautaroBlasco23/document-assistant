@@ -37,7 +37,7 @@ chunking:
   overlap_tokens: 128
 
 postgres:
-  host: "postgres"
+  host: "localhost"
   port: 5432
   database: "docassist"
   user: "docassist"
