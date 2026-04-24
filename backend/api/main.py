@@ -3,10 +3,12 @@
 import logging
 import os
 import time
+import traceback
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from starlette.requests import Request
 
 from api.services import init_services, shutdown_services
@@ -100,6 +102,11 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    @app.exception_handler(Exception)
+    async def unhandled_exception_handler(request: Request, exc: Exception):
+        logger.error("Unhandled exception: %s", traceback.format_exc())
+        return JSONResponse(status_code=500, content={"detail": "Internal Server Error"})
 
     @app.middleware("http")
     async def log_requests(request: Request, call_next):
