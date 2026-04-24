@@ -1,15 +1,18 @@
 import * as React from 'react'
-import { NavLink } from 'react-router-dom'
+import { NavLink, useNavigate } from 'react-router-dom'
 import {
   Home,
   Settings,
   ChevronLeft,
   ChevronRight,
+  LogOut,
+  User,
 } from 'lucide-react'
 import { cn } from '../../lib/cn'
 import { Tooltip } from '../ui/tooltip'
 
 import { useAppStore } from '../../stores/app-store'
+import { useAuth } from '../../auth/auth-context'
 
 interface NavItem {
   label: string
@@ -79,6 +82,9 @@ export function Sidebar() {
         })}
       </nav>
 
+      {/* User section */}
+      <UserSection collapsed={collapsed} />
+
       {/* Health dots */}
       <ServiceHealthDots collapsed={collapsed} />
 
@@ -96,6 +102,64 @@ export function Sidebar() {
       </button>
     </aside>
   )
+}
+
+interface UserSectionProps {
+  collapsed: boolean
+}
+
+function UserSection({ collapsed }: UserSectionProps) {
+  const { user, logout } = useAuth()
+  const navigate = useNavigate()
+
+  if (!user) return null
+
+  const handleLogout = () => {
+    logout()
+    navigate('/login')
+  }
+
+  const initials = user.display_name
+    ? user.display_name.split(' ').map(n => n[0]).join('').toUpperCase()
+    : user.email[0].toUpperCase()
+
+  const content = (
+    <div className={cn(
+      'flex items-center border-t border-gray-100 text-gray-600',
+      collapsed ? 'justify-center px-2 py-3' : 'px-4 py-3 gap-3'
+    )}>
+      <div className="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
+        <span className="text-blue-700 text-xs font-bold">{initials}</span>
+      </div>
+      {!collapsed && (
+        <>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-gray-900 truncate">
+              {user.display_name || user.email}
+            </p>
+            <p className="text-xs text-gray-400 truncate">{user.email}</p>
+          </div>
+          <button
+            onClick={handleLogout}
+            className="p-1.5 rounded-md hover:bg-gray-100 text-gray-400 hover:text-red-600 transition-colors"
+            aria-label="Logout"
+          >
+            <LogOut className="h-4 w-4" />
+          </button>
+        </>
+      )}
+    </div>
+  )
+
+  if (collapsed) {
+    return (
+      <Tooltip content={user.email}>
+        {content}
+      </Tooltip>
+    )
+  }
+
+  return content
 }
 
 interface ServiceHealthDotsProps {

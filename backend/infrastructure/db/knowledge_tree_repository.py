@@ -46,17 +46,19 @@ class _BaseKnowledgeRepo:
 class PostgresKnowledgeTreeStore(_BaseKnowledgeRepo):
     """CRUD for knowledge_trees table."""
 
-    def list_trees(self) -> list[KnowledgeTree]:
+    def list_trees_for_user(self, user_id: UUID) -> list[KnowledgeTree]:
         conn = self._conn()
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT id, title, description, created_at"
-                " FROM knowledge_trees ORDER BY created_at DESC"
+                "SELECT id, user_id, title, description, created_at"
+                " FROM knowledge_trees WHERE user_id = %s ORDER BY created_at DESC",
+                (user_id,)
             )
             rows = cur.fetchall()
         return [
             KnowledgeTree(
                 id=row["id"],
+                user_id=row["user_id"],
                 title=row["title"],
                 description=row["description"],
                 created_at=_ensure_naive(row["created_at"]),
@@ -64,20 +66,21 @@ class PostgresKnowledgeTreeStore(_BaseKnowledgeRepo):
             for row in rows
         ]
 
-    def create_tree(self, title: str, description: str | None) -> KnowledgeTree:
+    def create_tree(self, title: str, description: str | None, user_id: UUID) -> KnowledgeTree:
         with self._lock:
             conn = self._conn()
             with conn.transaction():
                 with conn.cursor() as cur:
                     cur.execute(
-                        "INSERT INTO knowledge_trees (title, description)"
-                        " VALUES (%s, %s)"
-                        " RETURNING id, title, description, created_at",
-                        (title, description),
+                        "INSERT INTO knowledge_trees (user_id, title, description)"
+                        " VALUES (%s, %s, %s)"
+                        " RETURNING id, user_id, title, description, created_at",
+                        (user_id, title, description),
                     )
                     row = cur.fetchone()
         return KnowledgeTree(
             id=row["id"],
+            user_id=row["user_id"],
             title=row["title"],
             description=row["description"],
             created_at=_ensure_naive(row["created_at"]),
@@ -87,7 +90,7 @@ class PostgresKnowledgeTreeStore(_BaseKnowledgeRepo):
         conn = self._conn()
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT id, title, description, created_at FROM knowledge_trees WHERE id = %s",
+                "SELECT id, user_id, title, description, created_at FROM knowledge_trees WHERE id = %s",
                 (id,),
             )
             row = cur.fetchone()
@@ -95,6 +98,7 @@ class PostgresKnowledgeTreeStore(_BaseKnowledgeRepo):
             return None
         return KnowledgeTree(
             id=row["id"],
+            user_id=row["user_id"],
             title=row["title"],
             description=row["description"],
             created_at=_ensure_naive(row["created_at"]),
@@ -109,7 +113,7 @@ class PostgresKnowledgeTreeStore(_BaseKnowledgeRepo):
                         "UPDATE knowledge_trees"
                         " SET title = %s, description = %s"
                         " WHERE id = %s"
-                        " RETURNING id, title, description, created_at",
+                        " RETURNING id, user_id, title, description, created_at",
                         (title, description, id),
                     )
                     row = cur.fetchone()
@@ -118,6 +122,7 @@ class PostgresKnowledgeTreeStore(_BaseKnowledgeRepo):
         logger.debug("Updated knowledge tree id=%s", id)
         return KnowledgeTree(
             id=row["id"],
+            user_id=row["user_id"],
             title=row["title"],
             description=row["description"],
             created_at=_ensure_naive(row["created_at"]),

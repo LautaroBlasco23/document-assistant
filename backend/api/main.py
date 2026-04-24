@@ -124,14 +124,18 @@ def create_app() -> FastAPI:
 
     # Import and register routers
     from api.routers import (  # noqa: PLC0415
+        auth,
         config,
         health,
         knowledge_trees,
         tasks,
+        users,
     )
 
     app.include_router(health.router, prefix="/api", tags=["health"])
     app.include_router(config.router, prefix="/api", tags=["config"])
+    app.include_router(auth.router, prefix="/api", tags=["auth"])
+    app.include_router(users.router, prefix="/api", tags=["users"])
     app.include_router(tasks.router, prefix="/api", tags=["tasks"])
     app.include_router(knowledge_trees.router, prefix="/api", tags=["knowledge-trees"])
 

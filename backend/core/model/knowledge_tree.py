@@ -8,6 +8,7 @@ from uuid import UUID
 @dataclass
 class KnowledgeTree:
     id: UUID
+    user_id: UUID  # Owner reference
     title: str
     description: str | None
     created_at: datetime

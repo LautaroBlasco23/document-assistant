@@ -14,7 +14,9 @@ from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
+from api.auth import CurrentUser
 from api.deps import ServicesDep
+from api.limit_checks import PlanLimitExceeded, check_can_create_document, check_can_create_tree
 from api.schemas.knowledge_tree import (
     ChapterPreviewOut,
     CreateChapterRequest,
@@ -136,9 +138,12 @@ def _preview_file(
 
 
 @router.get("/knowledge-trees", response_model=list[KnowledgeTreeOut])
-async def list_trees(services: ServicesDep) -> list[KnowledgeTreeOut]:
-    """List all knowledge trees."""
-    trees = services.kt_tree_store.list_trees()
+async def list_trees(
+    current_user: CurrentUser,
+    services: ServicesDep
+) -> list[KnowledgeTreeOut]:
+    """List user's knowledge trees."""
+    trees = services.kt_tree_store.list_trees_for_user(current_user.id)
     result = []
     for tree in trees:
         chapters = services.kt_chapter_store.list_chapters(tree.id)
@@ -147,9 +152,16 @@ async def list_trees(services: ServicesDep) -> list[KnowledgeTreeOut]:
 
 
 @router.post("/knowledge-trees", response_model=KnowledgeTreeOut, status_code=201)
-async def create_tree(req: CreateTreeRequest, services: ServicesDep) -> KnowledgeTreeOut:
+async def create_tree(
+    req: CreateTreeRequest,
+    current_user: CurrentUser,
+    services: ServicesDep
+) -> KnowledgeTreeOut:
     """Create a new knowledge tree."""
-    tree = services.kt_tree_store.create_tree(req.title, req.description)
+    limits = services.subscription_store.get_user_limits(current_user.id)
+    check_can_create_tree(limits)
+
+    tree = services.kt_tree_store.create_tree(req.title, req.description, current_user.id)
     return _tree_out(tree, 0)
 
 
@@ -183,6 +195,7 @@ async def preview_tree_document(
 
 @router.post("/knowledge-trees/import", status_code=202)
 async def import_tree_from_document(
+    current_user: CurrentUser,
     services: ServicesDep,
     file: UploadFile = File(...),
     title: str = Form(""),
@@ -194,6 +207,10 @@ async def import_tree_from_document(
     integers to import only those chapters (e.g. ``"0,2,3"``).  Omit the field
     to import all chapters (default behaviour).
     """
+    # Check tree limit first
+    limits = services.subscription_store.get_user_limits(current_user.id)
+    check_can_create_tree(limits)
+
     filename = file.filename or "upload"
     suffix = Path(filename).suffix.lower()
     if suffix not in (".pdf", ".epub"):
@@ -224,6 +241,7 @@ async def import_tree_from_document(
         tree_title,
         services,
         parsed_indices,
+        current_user.id,  # Pass user_id to background task
         task_type="kt_create_from_file",
         filename=filename,
     )
@@ -237,6 +255,7 @@ def _create_tree_from_document_background(
     tree_title: str,
     services: ServicesDep,
     chapter_indices: list[int] | None = None,
+    user_id: UUID = None,
 ) -> dict:
     """Background task: parse file, create tree with chapters and knowledge documents.
 
@@ -269,18 +288,31 @@ def _create_tree_from_document_background(
                 raise ValueError(f"Unsupported file type: {suffix}")
 
             _set_progress(task, 20, "Creating knowledge tree...")
-            tree = services.kt_tree_store.create_tree(tree_title, None)
-            tree_uid = tree.id
-            storage_dir = PROJECT_ROOT / "data" / "storage"
-            storage_dir.mkdir(parents=True, exist_ok=True)
-            tree_file_path = storage_dir / f"{tree_uid}{suffix}"
-            tree_file_path.write_bytes(file_bytes)
 
+            # Check document limits before creating
             if chapter_indices is not None:
                 selected = set(chapter_indices)
                 chapters_to_process = [ch for ch in doc.chapters if ch.index in selected]
             else:
                 chapters_to_process = doc.chapters
+
+            limits = services.subscription_store.get_user_limits(user_id)
+            num_new_docs = len(chapters_to_process)
+
+            if limits.current_documents + num_new_docs > limits.max_documents:
+                raise PlanLimitExceeded(
+                    resource="document",
+                    current=limits.current_documents,
+                    max_limit=limits.max_documents,
+                    message=f"This import would create {num_new_docs} documents, exceeding your limit of {limits.max_documents}.",
+                )
+
+            tree = services.kt_tree_store.create_tree(tree_title, None, user_id)
+            tree_uid = tree.id
+            storage_dir = PROJECT_ROOT / "data" / "storage"
+            storage_dir.mkdir(parents=True, exist_ok=True)
+            tree_file_path = storage_dir / f"{tree_uid}{suffix}"
+            tree_file_path.write_bytes(file_bytes)
 
             chapter_count = len(chapters_to_process)
             if chapter_count == 0:

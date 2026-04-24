@@ -69,6 +69,11 @@ class EpubConfig(BaseModel):
     min_chapter_words: int = 100  # Merge items shorter than this into the previous chapter
 
 
+class AuthConfig(BaseModel):
+    jwt_secret: str = ""  # Set via DOCASSIST_AUTH__JWT_SECRET
+    token_expire_days: int = 7
+
+
 class AppConfig(BaseSettings):
     ollama: OllamaConfig = OllamaConfig()
     groq: GroqConfig = GroqConfig()
@@ -78,6 +83,7 @@ class AppConfig(BaseSettings):
     postgres: PostgresConfig = PostgresConfig()
     exam: ExamConfig = ExamConfig()
     epub: EpubConfig = EpubConfig()
+    auth: AuthConfig = AuthConfig()
     llm_provider: str = "groq"  # "ollama" | "groq" | "openrouter" | "huggingface"
     flashcard_model: str = "main"  # "main" | "fast"
 

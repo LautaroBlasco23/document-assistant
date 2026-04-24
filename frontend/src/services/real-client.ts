@@ -1,4 +1,4 @@
-import axios, { type AxiosInstance } from 'axios'
+import axios, { type AxiosInstance, type AxiosError } from 'axios'
 import { useAppStore } from '../stores/app-store'
 import type {
   HealthOut,
@@ -28,9 +28,37 @@ const httpClient: AxiosInstance = axios.create({
   },
 })
 
+// Add auth token to requests
+httpClient.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('auth_token')
+    if (token && config.headers) {
+      config.headers.Authorization = `Bearer ${token}`
+    }
+    return config
+  },
+  (error) => Promise.reject(error)
+)
+
+// Handle auth errors and plan limits
 httpClient.interceptors.response.use(
   (res) => res,
-  (error) => {
+  (error: AxiosError) => {
+    // Handle 401 - Unauthorized (token expired or invalid)
+    if (error.response?.status === 401) {
+      localStorage.removeItem('auth_token')
+      window.location.href = '/login'
+      return Promise.reject(error)
+    }
+
+    // Handle 402 - Plan limit exceeded
+    if (error.response?.status === 402) {
+      const data = error.response?.data as { detail?: { message?: string; resource?: string } }
+      const message = data?.detail?.message || 'Plan limit exceeded'
+      useAppStore.getState().addError(message)
+      return Promise.reject(new Error(message))
+    }
+
     const data = error.response?.data
     let message: string
     if (Array.isArray(data?.detail)) {
@@ -186,7 +214,8 @@ export class RealClient implements ServiceClient {
 
   // Document Reader
   getDocumentFileUrl(treeId: string, docId: string): string {
-    return `${baseURL}/knowledge-trees/${treeId}/documents/${docId}/file`
+    const token = localStorage.getItem('auth_token')
+    return `${baseURL}/knowledge-trees/${treeId}/documents/${docId}/file?token=${token}`
   }
 
   async generateFlashcardFromSelection(treeId: string, chapter: number, selectedText: string): Promise<{ task_id: string }> {

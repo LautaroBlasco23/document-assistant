@@ -1,7 +1,13 @@
 import React, { Suspense } from 'react'
 import { createBrowserRouter } from 'react-router-dom'
+import { AuthProvider } from './auth/auth-context'
+import { ProtectedRoute } from './components/auth/protected-route'
 import { MainLayout } from './components/layout/main-layout'
 import { SkeletonBlock } from './components/ui/skeleton'
+
+// Auth pages (no lazy loading for faster initial render)
+import { LoginPage } from './pages/auth/login-page'
+import { RegisterPage } from './pages/auth/register-page'
 
 const LibraryPage = React.lazy(() =>
   import('./pages/library/library-page').then((m) => ({ default: m.LibraryPage }))
@@ -11,6 +17,9 @@ const KnowledgeTreePage = React.lazy(() =>
 )
 const SettingsPage = React.lazy(() =>
   import('./pages/settings/settings-page').then((m) => ({ default: m.SettingsPage }))
+)
+const PlanPage = React.lazy(() =>
+  import('./pages/settings/plan-page').then((m) => ({ default: m.PlanPage }))
 )
 const NotFoundPage = React.lazy(() =>
   import('./pages/not-found-page').then((m) => ({ default: m.NotFoundPage }))
@@ -27,8 +36,22 @@ function PageFallback() {
 
 export const router = createBrowserRouter([
   {
+    path: '/login',
+    element: <LoginPage />,
+  },
+  {
+    path: '/register',
+    element: <RegisterPage />,
+  },
+  {
     path: '/',
-    element: <MainLayout />,
+    element: (
+      <AuthProvider>
+        <ProtectedRoute>
+          <MainLayout />
+        </ProtectedRoute>
+      </AuthProvider>
+    ),
     children: [
       {
         index: true,
@@ -51,6 +74,14 @@ export const router = createBrowserRouter([
         element: (
           <Suspense fallback={<PageFallback />}>
             <SettingsPage />
+          </Suspense>
+        ),
+      },
+      {
+        path: 'settings/plan',
+        element: (
+          <Suspense fallback={<PageFallback />}>
+            <PlanPage />
           </Suspense>
         ),
       },
