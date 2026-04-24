@@ -1,4 +1,4 @@
-.PHONY: start dev-backend mock stop dev-kill check clean prune help env-check dev-deps infra-deps tools
+.PHONY: start dev dev-backend mock stop dev-kill check clean prune help env-check dev-deps infra-deps tools jwt-secret
 
 DOCKER_COMPOSE := docker compose
 BACKEND_DIR := backend
@@ -19,6 +19,8 @@ help:
 	@echo "    make start PROVIDER=ollama          Use local Ollama"
 	@echo "    make start PROVIDER=openrouter      Use OpenRouter"
 	@echo "    make start PROVIDER=huggingface     Use HuggingFace"
+	@echo "    make dev                            Start app with defaults (dev mode, groq provider)"
+	@echo "    make dev PROVIDER=ollama            Start app with defaults using specific provider"
 	@echo "    make dev-backend                    Start backend only (with PostgreSQL, default: groq)"
 	@echo "    make dev-backend PROVIDER=ollama    Start backend only with specific provider"
 	@echo "    make mock                           Frontend only, no backend (mock data)"
@@ -50,8 +52,15 @@ tools-check:
 tools:
 	@bash scripts/check-tools.sh install
 
+jwt-secret:
+	@bash scripts/generate-jwt-secret.sh
+
 start: env-check tools-check
 	@PROVIDER=$(PROVIDER) bash scripts/start.sh
+
+dev: env-check tools-check
+	@echo "Starting dev server with defaults (dev mode, provider: $(or $(PROVIDER),groq))..."
+	@AUTO_DEFAULTS=1 PROVIDER=$${PROVIDER:-groq} bash scripts/start.sh
 
 dev-backend: env-check tools-check
 	@echo "Starting backend only..."

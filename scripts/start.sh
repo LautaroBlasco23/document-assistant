@@ -39,22 +39,32 @@ select_provider() {
 
 # ── Environment menu ───────────────────────────────────────────────────────────
 
-echo ""
-echo "Select environment:"
-echo "  1) dev          - backend + frontend in dev mode (infra in Docker)"
-echo "  2) full-docker  - everything in Docker (backend, frontend, nginx)"
-printf "Choice [1-2, default: dev]: "
-read -r ENV_CHOICE || true
+if [ "${AUTO_DEFAULTS:-}" = "1" ]; then
+    ENV_MODE=dev
+    echo ""
+    echo "Auto-defaults enabled: using dev environment."
+else
+    echo ""
+    echo "Select environment:"
+    echo "  1) dev          - backend + frontend in dev mode (infra in Docker)"
+    echo "  2) full-docker  - everything in Docker (backend, frontend, nginx)"
+    printf "Choice [1-2, default: dev]: "
+    read -r ENV_CHOICE || true
 
-case "$ENV_CHOICE" in
-    2) ENV_MODE=full-docker ;;
-    *) ENV_MODE=dev ;;
-esac
+    case "$ENV_CHOICE" in
+        2) ENV_MODE=full-docker ;;
+        *) ENV_MODE=dev ;;
+    esac
+fi
 
 # ── Provider selection ─────────────────────────────────────────────────────────
 
 if [ -n "${PROVIDER:-}" ]; then
     CHOSEN_PROVIDER="$PROVIDER"
+    echo "Using provider from command line: $CHOSEN_PROVIDER"
+elif [ "${AUTO_DEFAULTS:-}" = "1" ]; then
+    CHOSEN_PROVIDER="${DOCASSIST_LLM_PROVIDER:-groq}"
+    echo "Auto-defaults enabled: using provider '$CHOSEN_PROVIDER'."
 else
     select_provider
 fi
