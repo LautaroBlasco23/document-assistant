@@ -144,6 +144,28 @@ CREATE TABLE IF NOT EXISTS tasks (
 );
 
 -- ============================================
+-- BACKGROUND TASKS (async job tracking)
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS background_tasks (
+    task_id TEXT PRIMARY KEY,
+    task_type TEXT NOT NULL,
+    doc_hash TEXT NOT NULL DEFAULT '',
+    filename TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'pending',
+    progress TEXT NOT NULL DEFAULT '',
+    progress_pct INTEGER NOT NULL DEFAULT 0,
+    chapter INTEGER NOT NULL DEFAULT 0,
+    book_title TEXT NOT NULL DEFAULT '',
+    result JSONB,
+    error TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_background_tasks_status ON background_tasks(status);
+
+-- ============================================
 -- SEED DATA
 -- ============================================
 

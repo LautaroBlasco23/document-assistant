@@ -1,6 +1,5 @@
 import React, { Suspense } from 'react'
 import { createBrowserRouter } from 'react-router-dom'
-import { AuthProvider } from './auth/auth-context'
 import { ProtectedRoute } from './components/auth/protected-route'
 import { MainLayout } from './components/layout/main-layout'
 import { SkeletonBlock } from './components/ui/skeleton'
@@ -46,11 +45,9 @@ export const router = createBrowserRouter([
   {
     path: '/',
     element: (
-      <AuthProvider>
-        <ProtectedRoute>
-          <MainLayout />
-        </ProtectedRoute>
-      </AuthProvider>
+      <ProtectedRoute>
+        <MainLayout />
+      </ProtectedRoute>
     ),
     children: [
       {

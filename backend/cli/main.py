@@ -8,7 +8,6 @@ from infrastructure.auth.jwt_handler import get_password_hash
 from infrastructure.config import load_config
 from infrastructure.db.postgres import PostgresPool
 from infrastructure.db.user_repository import (
-    PostgresSubscriptionPlanStore,
     PostgresUserStore,
     PostgresUserSubscriptionStore,
 )

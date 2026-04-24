@@ -16,7 +16,7 @@ from pydantic import BaseModel
 
 from api.auth import CurrentUser
 from api.deps import ServicesDep
-from api.limit_checks import PlanLimitExceeded, check_can_create_document, check_can_create_tree
+from api.limit_checks import PlanLimitExceeded, check_can_create_tree
 from api.schemas.knowledge_tree import (
     ChapterPreviewOut,
     CreateChapterRequest,
