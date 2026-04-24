@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { X, ChevronLeft, ChevronRight, Sparkles } from 'lucide-react'
+import { X, Sparkles } from 'lucide-react'
 import { Document, Page } from 'react-pdf'
 import ePub from 'epubjs'
 import { client } from '../../services'
@@ -19,7 +19,6 @@ type FlashcardStatus = 'idle' | 'sending' | 'sent'
 
 export function DocumentReader({ doc, treeId, chapter, onClose }: DocumentReaderProps) {
   const [numPages, setNumPages] = React.useState<number>(0)
-  const [pageNumber, setPageNumber] = React.useState<number>(1)
   const [flashcardStatus, setFlashcardStatus] = React.useState<FlashcardStatus>('idle')
   const [contextMenu, setContextMenu] = React.useState<{ x: number; y: number; text: string } | null>(null)
   const epubContainerRef = React.useRef<HTMLDivElement>(null)
@@ -45,9 +44,6 @@ export function DocumentReader({ doc, treeId, chapter, onClose }: DocumentReader
       book.destroy()
     }
   }, [fileUrl, isPdf])
-
-  const goToPrevPage = () => setPageNumber((p) => Math.max(1, p - 1))
-  const goToNextPage = () => setPageNumber((p) => Math.min(numPages, p + 1))
 
   const handleContextMenu = (e: React.MouseEvent) => {
     const selection = window.getSelection()
@@ -107,66 +103,48 @@ export function DocumentReader({ doc, treeId, chapter, onClose }: DocumentReader
 
       {/* Content */}
       <div
-        className="flex-1 min-h-0 bg-gray-100 overflow-auto flex items-start justify-center p-4"
+        className="flex-1 min-h-0 bg-gray-100 overflow-auto flex flex-col items-center py-6 px-4 gap-8"
         onContextMenu={handleContextMenu}
         onClick={hideContextMenu}
       >
-        <div className="bg-white shadow-lg rounded-lg overflow-hidden" style={{ maxWidth: '100%' }}>
-          {isPdf ? (
-            <Document
-              file={fileUrl}
-              onLoadSuccess={({ numPages }) => setNumPages(numPages)}
-              loading={
-                <div className="w-[600px] h-[800px] flex items-center justify-center text-sm text-gray-400">
-                  Loading PDF...
+        {isPdf ? (
+          <Document
+            file={fileUrl}
+            onLoadSuccess={({ numPages }) => setNumPages(numPages)}
+            loading={
+              <div className="w-[600px] h-[800px] flex items-center justify-center text-sm text-gray-400">
+                Loading PDF...
+              </div>
+            }
+            error={
+              <div className="w-[600px] h-[200px] flex items-center justify-center text-sm text-red-400 px-6">
+                Failed to load PDF. The file may not be available.
+              </div>
+            }
+          >
+            {Array.from({ length: numPages }, (_, i) => (
+              <div key={i + 1} className="flex flex-col items-center">
+                <div className="bg-white shadow-md overflow-hidden">
+                  <Page
+                    pageNumber={i + 1}
+                    width={Math.min(800, window.innerWidth - 48)}
+                    renderAnnotationLayer
+                    renderTextLayer
+                  />
                 </div>
-              }
-              error={
-                <div className="w-[600px] h-[200px] flex items-center justify-center text-sm text-red-400 px-6">
-                  Failed to load PDF. The file may not be available.
-                </div>
-              }
-            >
-              <Page
-                pageNumber={pageNumber}
-                width={Math.min(800, window.innerWidth - 48)}
-                renderAnnotationLayer
-                renderTextLayer
-              />
-            </Document>
-          ) : (
-            <div
-              ref={epubContainerRef}
-              className="w-[800px] max-w-full h-[80vh] bg-white"
-            />
-          )}
-        </div>
+                <span className="mt-2 text-xs text-gray-400 select-none">
+                  {i + 1} / {numPages}
+                </span>
+              </div>
+            ))}
+          </Document>
+        ) : (
+          <div
+            ref={epubContainerRef}
+            className="w-[800px] max-w-full h-[80vh] bg-white shadow-md rounded-sm"
+          />
+        )}
       </div>
-
-      {/* PDF controls */}
-      {isPdf && numPages > 0 && (
-        <div className="flex items-center justify-center gap-3 px-4 py-2 bg-white border-t border-gray-200 shrink-0">
-          <button
-            onClick={goToPrevPage}
-            disabled={pageNumber <= 1}
-            className="p-1 text-gray-600 hover:text-gray-900 disabled:text-gray-300 transition-colors"
-            aria-label="Previous page"
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </button>
-          <span className="text-xs text-gray-600">
-            Page {pageNumber} of {numPages}
-          </span>
-          <button
-            onClick={goToNextPage}
-            disabled={pageNumber >= numPages}
-            className="p-1 text-gray-600 hover:text-gray-900 disabled:text-gray-300 transition-colors"
-            aria-label="Next page"
-          >
-            <ChevronRight className="h-4 w-4" />
-          </button>
-        </div>
-      )}
 
       {/* Context menu */}
       {contextMenu && (
