@@ -18,9 +18,7 @@ venv/
 *.swo
 
 # Data
-data/raw/*
-data/output/*
-data/uploads/
+data/
 !data/raw/.gitkeep
 !data/output/.gitkeep
 
@@ -51,7 +49,6 @@ frontend/dist/
 
 # Build artifacts & caches
 .cache/
-data/.cache/
 .parcel-cache/
 *.tsbuildinfo
 
