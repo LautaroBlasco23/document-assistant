@@ -2,15 +2,13 @@ import os
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+import bcrypt
 import jwt
-from passlib.context import CryptContext
 
 # Configuration
 JWT_SECRET = os.getenv("DOCASSIST_AUTH__JWT_SECRET")
 JWT_ALGORITHM = "HS256"
 JWT_ACCESS_TOKEN_EXPIRE_DAYS = 7
-
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 def validate_jwt_config() -> None:
@@ -30,11 +28,11 @@ def validate_jwt_config() -> None:
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
+    return bcrypt.checkpw(plain_password.encode("utf-8"), hashed_password.encode("utf-8"))
 
 
 def get_password_hash(password: str) -> str:
-    return pwd_context.hash(password)
+    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
 
 def create_access_token(user_id: str, email: str) -> str:
