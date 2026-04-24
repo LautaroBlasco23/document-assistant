@@ -258,7 +258,7 @@ export function DocumentReader({ doc, treeId, chapter, onClose }: DocumentReader
             )}
           >
             <div className="w-80 h-full">
-              <ChatPanel documentContext={pdfText} />
+              <ChatPanel documentContext={pdfText} storageKey={`${treeId}:${doc.id}`} />
             </div>
           </div>
         </div>

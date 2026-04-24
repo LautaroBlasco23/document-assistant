@@ -13,10 +13,9 @@ import { ContentTab } from './content-tab'
 import { EditKnowledgeTreeDialog } from '../library/edit-knowledge-tree-dialog'
 import type { KnowledgeChapter, KnowledgeTreeTab } from '../../types/knowledge-tree'
 
-const VALID_TABS: KnowledgeTreeTab[] = ['all-documents', 'documents', 'content']
+const VALID_TABS: KnowledgeTreeTab[] = ['documents', 'content']
 
 const TAB_LABELS: Record<KnowledgeTreeTab, string> = {
-  'all-documents': 'All Documents',
   documents: 'Knowledge Documents',
   content: 'Content',
 }
@@ -31,9 +30,9 @@ interface SectionsSidebarProps {
   treeId: string
   chapters: KnowledgeChapter[]
   selectedChapter: number | null
-  activeTab: KnowledgeTreeTab
+  showAllDocuments: boolean
+  onSelectAllDocuments: () => void
   onChapterChange: (chapter: number | null) => void
-  onTabChange: (tab: KnowledgeTreeTab) => void
   onChaptersRefresh: () => void
 }
 
@@ -41,9 +40,9 @@ function SectionsSidebar({
   treeId,
   chapters,
   selectedChapter,
-  activeTab,
+  showAllDocuments,
+  onSelectAllDocuments,
   onChapterChange,
-  onTabChange,
   onChaptersRefresh,
 }: SectionsSidebarProps) {
   const { createChapter, updateChapter, deleteChapter } = useKnowledgeTreeStore()
@@ -84,14 +83,14 @@ function SectionsSidebar({
 
   return (
     <aside className="w-52 shrink-0 flex flex-col gap-1">
-      <p className="text-xs font-medium text-gray-400 uppercase tracking-wide px-2 mb-1">Sections</p>
+      {/* General */}
+      <p className="text-xs font-medium text-gray-400 uppercase tracking-wide px-2 mb-1">General</p>
 
-      {/* All Documents */}
       <button
-        onClick={() => onTabChange('all-documents')}
-        className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm text-left w-full transition-colors ${
-          activeTab === 'all-documents'
-            ? 'bg-green-50 text-green-700 font-medium border-l-2 border-green-600'
+        onClick={onSelectAllDocuments}
+        className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm text-left w-full transition-colors sidebar-border-green ${
+          showAllDocuments
+            ? 'bg-green-50 text-green-700 font-medium'
             : 'text-gray-600 hover:bg-gray-100'
         }`}
       >
@@ -101,10 +100,10 @@ function SectionsSidebar({
 
       {/* Tree-level (overview) */}
       <button
-        onClick={() => { onChapterChange(null); if (activeTab === 'all-documents') onTabChange('documents') }}
-        className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm text-left w-full transition-colors ${
-          selectedChapter === null && activeTab !== 'all-documents'
-            ? 'bg-blue-50 text-primary font-medium border-l-2 border-primary'
+        onClick={() => onChapterChange(null)}
+        className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm text-left w-full transition-colors sidebar-border-blue ${
+          selectedChapter === null && !showAllDocuments
+            ? 'bg-blue-50 text-primary font-medium'
             : 'text-gray-600 hover:bg-gray-100'
         }`}
       >
@@ -112,7 +111,12 @@ function SectionsSidebar({
         <span className="truncate">Overview</span>
       </button>
 
+      {/* Divider */}
+      <div className="border-t border-gray-200 my-2" />
+
       {/* Chapters */}
+      <p className="text-xs font-medium text-gray-400 uppercase tracking-wide px-2 mb-1">Chapters</p>
+
       {chapters.map((ch) => (
         <div key={ch.number} className="group flex flex-col">
           {editingChapter?.number === ch.number ? (
@@ -136,10 +140,10 @@ function SectionsSidebar({
           ) : (
             <div className="flex items-center">
               <button
-                onClick={() => { onChapterChange(ch.number); if (activeTab === 'all-documents') onTabChange('documents') }}
+                onClick={() => onChapterChange(ch.number)}
                 className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm text-left flex-1 min-w-0 transition-colors ${
-                  selectedChapter === ch.number && activeTab !== 'all-documents'
-                    ? 'bg-blue-50 text-primary font-medium border-l-2 border-primary'
+                  selectedChapter === ch.number && !showAllDocuments
+                    ? 'bg-blue-50 text-primary font-medium'
                     : 'text-gray-600 hover:bg-gray-100'
                 }`}
               >
@@ -208,12 +212,18 @@ export function KnowledgeTreePage() {
 
   // Single shared chapter selection (null = Overview)
   const [selectedChapter, setSelectedChapter] = React.useState<number | null>(null)
+  const [showAllDocuments, setShowAllDocuments] = React.useState(false)
 
   const rawTab = searchParams.get('tab')
   const activeTab: KnowledgeTreeTab = isValidTab(rawTab) ? rawTab : 'documents'
 
   const handleTabChange = (tab: KnowledgeTreeTab) => {
     setSearchParams({ tab }, { replace: true })
+  }
+
+  const handleChapterChange = (chapter: number | null) => {
+    setSelectedChapter(chapter)
+    setShowAllDocuments(false)
   }
 
   // Load trees if not yet loaded
@@ -306,45 +316,45 @@ export function KnowledgeTreePage() {
           treeId={treeId}
           chapters={treeChapters}
           selectedChapter={selectedChapter}
-          activeTab={activeTab}
-          onChapterChange={setSelectedChapter}
-          onTabChange={handleTabChange}
+          showAllDocuments={showAllDocuments}
+          onSelectAllDocuments={() => setShowAllDocuments(true)}
+          onChapterChange={handleChapterChange}
           onChaptersRefresh={handleChaptersRefresh}
         />
 
         <div className="flex-1 min-w-0">
-          <Tabs value={activeTab} onValueChange={(v) => handleTabChange(v as KnowledgeTreeTab)}>
-            <TabsList>
-              {VALID_TABS.map((tab) => (
-                <TabsTrigger key={tab} value={tab}>
-                  {TAB_LABELS[tab]}
-                </TabsTrigger>
-              ))}
-            </TabsList>
+          {showAllDocuments ? (
+            <AllDocumentsTab
+              treeId={treeId}
+              chapters={treeChapters}
+            />
+          ) : (
+            <Tabs value={activeTab} onValueChange={(v) => handleTabChange(v as KnowledgeTreeTab)}>
+              <TabsList>
+                {VALID_TABS.map((tab) => (
+                  <TabsTrigger key={tab} value={tab}>
+                    {TAB_LABELS[tab]}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
 
-            <TabsContent value="all-documents">
-              <AllDocumentsTab
-                treeId={treeId}
-                chapters={treeChapters}
-              />
-            </TabsContent>
+              <TabsContent value="documents">
+                <KnowledgeDocumentsTab
+                  treeId={treeId}
+                  selectedChapter={selectedChapter}
+                  chapters={treeChapters}
+                />
+              </TabsContent>
 
-            <TabsContent value="documents">
-              <KnowledgeDocumentsTab
-                treeId={treeId}
-                selectedChapter={selectedChapter}
-                chapters={treeChapters}
-              />
-            </TabsContent>
-
-            <TabsContent value="content">
-              <ContentTab
-                treeId={treeId}
-                selectedChapter={selectedChapter}
-                chapters={treeChapters}
-              />
-            </TabsContent>
-          </Tabs>
+              <TabsContent value="content">
+                <ContentTab
+                  treeId={treeId}
+                  selectedChapter={selectedChapter}
+                  chapters={treeChapters}
+                />
+              </TabsContent>
+            </Tabs>
+          )}
         </div>
       </div>
     </div>

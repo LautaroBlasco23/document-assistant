@@ -31,7 +31,7 @@ export interface KnowledgeDocument {
   page_end?: number
 }
 
-export type KnowledgeTreeTab = 'documents' | 'content' | 'all-documents'
+export type KnowledgeTreeTab = 'documents' | 'content'
 
 // --- Exam question types ---
 

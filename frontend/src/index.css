@@ -24,3 +24,23 @@ html, body, #root {
 .rotate-y-180 {
   transform: rotateY(180deg);
 }
+
+/* ─── Sidebar left-border breathing animation ─────────────────────────── */
+
+@keyframes breathe-green {
+  0%, 100% { box-shadow: inset 2px 0 0 0 rgba(22, 163, 74, 0.3); }
+  50%      { box-shadow: inset 2px 0 0 0 rgba(22, 163, 74, 0.9); }
+}
+
+@keyframes breathe-blue {
+  0%, 100% { box-shadow: inset 2px 0 0 0 rgba(37, 99, 235, 0.3); }
+  50%      { box-shadow: inset 2px 0 0 0 rgba(37, 99, 235, 0.9); }
+}
+
+.sidebar-border-green {
+  animation: breathe-green 2.5s ease-in-out infinite;
+}
+
+.sidebar-border-blue {
+  animation: breathe-blue 2.5s ease-in-out infinite;
+}
