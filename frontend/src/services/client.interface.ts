@@ -6,6 +6,8 @@ import type {
   DocumentPreviewOut,
   KnowledgeTreeQuestionType,
   KnowledgeTreeQuestionOut,
+  ChatRequest,
+  ChatResponse,
 } from '../types/api'
 import type { KnowledgeTree, KnowledgeChapter, KnowledgeDocument } from '../types/knowledge-tree'
 
@@ -54,6 +56,9 @@ export interface ServiceClient {
     chapter: number,
     questionId: string
   ): Promise<void>
+
+  // Chat
+  chat(request: ChatRequest): Promise<ChatResponse>
 }
 
 export type { ServiceClient as ServiceClientType }

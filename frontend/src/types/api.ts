@@ -83,3 +83,17 @@ export interface KnowledgeTreeQuestionOut {
   question_data: Record<string, unknown>
   created_at: string
 }
+
+export interface ChatMessage {
+  role: string
+  content: string
+}
+
+export interface ChatRequest {
+  messages: ChatMessage[]
+  context?: string | null
+}
+
+export interface ChatResponse {
+  reply: string
+}

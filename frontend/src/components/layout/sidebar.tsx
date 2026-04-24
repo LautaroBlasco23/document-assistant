@@ -6,7 +6,6 @@ import {
   ChevronLeft,
   ChevronRight,
   LogOut,
-  User,
 } from 'lucide-react'
 import { cn } from '../../lib/cn'
 import { Tooltip } from '../ui/tooltip'

@@ -1,12 +1,9 @@
 """Knowledge Tree endpoints."""
 
 import hashlib
-import json
 import logging
-import re
 import tempfile
 import time
-from datetime import datetime
 from pathlib import Path
 from uuid import UUID, uuid4
 
@@ -33,9 +30,10 @@ from api.schemas.knowledge_tree import (
 )
 from api.schemas.question import GenerateQuestionsRequest, QuestionOut
 from api.tasks import Task
+from application.agents.flashcard_generator import FlashcardGeneratorAgent
 from application.agents.question_generator import QuestionGeneratorAgent
 from core.model.chunk import Chunk, ChunkMetadata
-from core.model.knowledge_tree import Flashcard, KnowledgeChunk
+from core.model.knowledge_tree import KnowledgeChunk
 from core.model.question import Question, QuestionType
 from infrastructure.chunking.splitter import ChapterAwareSplitter
 from infrastructure.config import PROJECT_ROOT
@@ -966,42 +964,19 @@ def _flashcard_background(
     task: Task,
     tree_id: UUID,
     chapter_id: UUID,
-    chapter_number: int,
+    _chapter_number: int,
     selected_text: str,
     services: ServicesDep,
 ) -> dict:
     try:
         _set_progress(task, 10, "Generating flashcard...")
-        system = (
-            "You are an expert educator. Create exactly ONE high-quality flashcard "
-            "from the excerpt provided by the user.\n\n"
-            "Return ONLY a JSON object with exactly two keys:\n"
-            '{"front": "...", "back": "..."}\n\n'
-            "Rules:\n"
-            "- Front should be a concise question or term.\n"
-            "- Back should be a precise, complete answer in 1-2 sentences.\n"
-            "- Do NOT add markdown code fences.\n"
-            "- Do NOT add any text outside the JSON object."
+        agent = FlashcardGeneratorAgent(services.llm)
+        flashcard = agent.create_flashcard(
+            selected_text=selected_text,
+            tree_id=str(tree_id),
+            chapter_id=str(chapter_id),
         )
-        raw = services.llm.chat(system, selected_text, format="json")
-        _set_progress(task, 70, "Parsing flashcard...")
-        text = raw.strip()
-        m = re.match(r"^```(?:json)?\s*\n?(.*?)\n?```\s*$", text, re.DOTALL)
-        if m:
-            text = m.group(1).strip()
-        data = json.loads(text)
-        front = str(data["front"]).strip()
-        back = str(data["back"]).strip()
-        flashcard = Flashcard(
-            id=uuid4(),
-            tree_id=tree_id,
-            chapter_id=chapter_id,
-            doc_id=None,
-            front=front,
-            back=back,
-            source_text=selected_text,
-            created_at=datetime.now(),
-        )
+        _set_progress(task, 70, "Saving flashcard...")
         services.kt_flashcard_store.save_flashcard(flashcard)
         _set_progress(task, 100, "Done")
         return {"flashcard_id": str(flashcard.id)}

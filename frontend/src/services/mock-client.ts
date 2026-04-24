@@ -11,6 +11,8 @@ import type {
   DocumentPreviewOut,
   KnowledgeTreeQuestionType,
   KnowledgeTreeQuestionOut,
+  ChatRequest,
+  ChatResponse,
 } from '../types/api'
 import type { ServiceClient } from './client.interface'
 
@@ -337,5 +339,12 @@ export class MockClient implements ServiceClient {
     _questionId: string
   ): Promise<void> {
     await delay(100)
+  }
+
+  async chat(_request: ChatRequest): Promise<ChatResponse> {
+    await delay(500)
+    return {
+      reply: "This is a mock response. The AI assistant would answer your question here based on the document context provided."
+    }
   }
 }

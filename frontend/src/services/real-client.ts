@@ -8,6 +8,8 @@ import type {
   DocumentPreviewOut,
   KnowledgeTreeQuestionType,
   KnowledgeTreeQuestionOut,
+  ChatRequest,
+  ChatResponse,
 } from '../types/api'
 import type { ServiceClient } from './client.interface'
 import type { KnowledgeTree, KnowledgeChapter, KnowledgeDocument } from '../types/knowledge-tree'
@@ -43,7 +45,7 @@ httpClient.interceptors.request.use(
 // Handle auth errors and plan limits
 httpClient.interceptors.response.use(
   (res) => res,
-  (error: AxiosError) => {
+  (error: AxiosError<{ detail?: unknown; message?: string }>) => {
     // Handle 401 - Unauthorized (token expired or invalid)
     if (error.response?.status === 401) {
       localStorage.removeItem('auth_token')
@@ -53,8 +55,9 @@ httpClient.interceptors.response.use(
 
     // Handle 402 - Plan limit exceeded
     if (error.response?.status === 402) {
-      const data = error.response?.data as { detail?: { message?: string; resource?: string } }
-      const message = data?.detail?.message || 'Plan limit exceeded'
+      const data = error.response?.data
+      const detail = data?.detail as { message?: string; resource?: string } | undefined
+      const message = detail?.message || 'Plan limit exceeded'
       useAppStore.getState().addError(message)
       return Promise.reject(new Error(message))
     }
@@ -62,9 +65,9 @@ httpClient.interceptors.response.use(
     const data = error.response?.data
     let message: string
     if (Array.isArray(data?.detail)) {
-      message = data.detail.map((e: { msg: string }) => e.msg).join(', ')
+      message = data.detail.map((e) => String((e as { msg?: string })?.msg ?? e)).join(', ')
     } else {
-      message = data?.detail ?? data?.message ?? error.message ?? 'Server error'
+      message = String(data?.detail ?? data?.message ?? error.message ?? 'Server error')
     }
     useAppStore.getState().addError(message)
     return Promise.reject(error)
@@ -260,5 +263,11 @@ export class RealClient implements ServiceClient {
     await httpClient.delete(
       `/knowledge-trees/${treeId}/chapters/${chapter}/questions/${questionId}`
     )
+  }
+
+  // Chat
+  async chat(request: ChatRequest): Promise<ChatResponse> {
+    const res = await httpClient.post<ChatResponse>('/chat', request)
+    return res.data
   }
 }
