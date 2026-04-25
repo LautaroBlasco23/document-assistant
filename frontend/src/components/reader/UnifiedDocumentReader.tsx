@@ -1,15 +1,13 @@
 import * as React from 'react'
 import { X, Sparkles, PanelLeft, PanelRight, BookOpen } from 'lucide-react'
-import { Document, Page } from 'react-pdf'
 import ePub from 'epubjs'
 import { client } from '../../services'
 import { useKnowledgeTreeStore } from '../../stores/knowledge-tree-store'
 import { cn } from '../../lib/cn'
 import type { KnowledgeDocument, KnowledgeChapter } from '../../types/knowledge-tree'
 import { ChatPanel } from './ChatPanel'
-
-import 'react-pdf/dist/Page/AnnotationLayer.css'
-import 'react-pdf/dist/Page/TextLayer.css'
+import { PdfPagesView, type PdfPagesViewHandle } from './PdfPagesView'
+import { ResizeHandle } from './ResizeHandle'
 
 interface UnifiedDocumentReaderProps {
   doc: KnowledgeDocument
@@ -21,7 +19,6 @@ interface UnifiedDocumentReaderProps {
 type FlashcardStatus = 'idle' | 'sending' | 'sent'
 
 export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: UnifiedDocumentReaderProps) {
-  const [numPages, setNumPages] = React.useState<number>(0)
   const [currentPage, setCurrentPage] = React.useState<number>(1)
   const [showLeft, setShowLeft] = React.useState(true)
   const [showRight, setShowRight] = React.useState(true)
@@ -29,7 +26,37 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
   const [contextMenu, setContextMenu] = React.useState<{ x: number; y: number; text: string } | null>(null)
   const epubContainerRef = React.useRef<HTMLDivElement>(null)
   const overlayRef = React.useRef<HTMLDivElement>(null)
-  const pageRefs = React.useRef<Map<number, HTMLDivElement>>(new Map())
+  const pdfScrollRef = React.useRef<PdfPagesViewHandle | null>(null)
+
+  const [leftWidth, setLeftWidth] = React.useState(() => {
+    try {
+      const saved = localStorage.getItem('docassist_panel_width:left')
+      if (saved) return Math.max(160, Math.min(500, parseInt(saved, 10)))
+    } catch { /* ignore */ }
+    return 224
+  })
+  const [rightWidth, setRightWidth] = React.useState(() => {
+    try {
+      const saved = localStorage.getItem('docassist_panel_width:right')
+      if (saved) return Math.max(200, Math.min(800, parseInt(saved, 10)))
+    } catch { /* ignore */ }
+    return 320
+  })
+
+  const startLeftWidthRef = React.useRef(leftWidth)
+  const startRightWidthRef = React.useRef(rightWidth)
+
+  const persistLeftWidth = React.useCallback((w: number) => {
+    const clamped = Math.max(160, Math.min(500, w))
+    setLeftWidth(clamped)
+    try { localStorage.setItem('docassist_panel_width:left', String(clamped)) } catch { /* ignore */ }
+  }, [])
+
+  const persistRightWidth = React.useCallback((w: number) => {
+    const clamped = Math.max(200, Math.min(800, w))
+    setRightWidth(clamped)
+    try { localStorage.setItem('docassist_panel_width:right', String(clamped)) } catch { /* ignore */ }
+  }, [])
 
   const isPdf = doc.source_file_name?.toLowerCase().endsWith('.pdf') || doc.source_file_path?.toLowerCase().endsWith('.pdf')
   const fileUrl = client.getDocumentFileUrl(treeId, doc.id)
@@ -97,31 +124,8 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
     }
   }, [fileUrl, isPdf])
 
-  // IntersectionObserver to track current page
-  React.useEffect(() => {
-    if (!isPdf || numPages === 0) return
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const visible = entries
-          .filter((e) => e.isIntersecting)
-          .sort((a, b) => a.intersectionRatio - b.intersectionRatio)
-        if (visible.length > 0) {
-          const pageEl = visible[visible.length - 1].target
-          const pageNum = Number(pageEl.getAttribute('data-page'))
-          if (pageNum) setCurrentPage(pageNum)
-        }
-      },
-      { root: null, threshold: [0, 0.25, 0.5, 0.75, 1] }
-    )
-
-    pageRefs.current.forEach((el) => observer.observe(el))
-    return () => observer.disconnect()
-  }, [isPdf, numPages])
-
   const scrollToPage = (pageNumber: number) => {
-    const el = pageRefs.current.get(pageNumber)
-    el?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    pdfScrollRef.current?.scrollToPage(pageNumber)
   }
 
   const scrollToChapter = (chapterNumber: number) => {
@@ -155,6 +159,26 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
   }
 
   const hideContextMenu = () => setContextMenu(null)
+
+  const renderChapterBanner = React.useCallback(
+    (pageNumber: number) => {
+      const chStart = chapterDocs.find((d) => d.page_start === pageNumber)
+      if (!chStart) return null
+      const title =
+        chapters.find((c) => c.number === chStart.chapter_number)?.title ??
+        `Chapter ${chStart.chapter_number}`
+      return (
+        <div className="w-full max-w-[800px] mb-2">
+          <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-2">
+            <span className="text-xs font-semibold text-blue-700 uppercase tracking-wide">
+              {title}
+            </span>
+          </div>
+        </div>
+      )
+    },
+    [chapterDocs, chapters]
+  )
 
   return (
     <div
@@ -227,126 +251,99 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
         <div className="flex-1 min-h-0 flex">
           {/* Left panel: Chapter sidebar */}
           {isPdf && (
-            <div
-              className={cn(
-                'border-r border-gray-200 bg-gray-50/50 transition-all duration-300 ease-in-out overflow-hidden',
-                showLeft ? 'w-56' : 'w-0 border-r-0'
-              )}
-            >
-              <div className="w-56 h-full flex flex-col">
-                <div className="px-3 py-2 border-b border-gray-200">
-                  <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Chapters</h3>
-                </div>
-                <div className="flex-1 overflow-y-auto">
-                  {chapters.map((ch) => {
-                    const isActive = activeChapter === ch.number
-                    const chDoc = chapterDocs.find((d) => d.chapter_number === ch.number)
-                    return (
-                      <button
-                        key={ch.number}
-                        onClick={() => scrollToChapter(ch.number)}
-                        className={cn(
-                          'w-full text-left px-3 py-2 text-sm transition-colors flex items-center gap-2',
-                          isActive
-                            ? 'bg-blue-50 text-blue-700 font-medium'
-                            : 'text-gray-600 hover:bg-gray-100'
-                        )}
-                      >
-                        <BookOpen className="h-3.5 w-3.5 shrink-0" />
-                        <div className="flex-1 min-w-0">
-                          <div className="truncate">{ch.title}</div>
-                          {chDoc?.page_start && (
-                            <div className="text-xs text-gray-400">
-                              Page {chDoc.page_start}
-                              {chDoc.page_end && chDoc.page_end !== chDoc.page_start
-                                ? ` - ${chDoc.page_end}`
-                                : ''}
-                            </div>
+            <>
+              <div
+                className={cn(
+                  'border-r border-gray-200 bg-gray-50/50 transition-all duration-300 ease-in-out overflow-hidden',
+                  showLeft ? 'block' : 'hidden'
+                )}
+                style={{ width: showLeft ? leftWidth : 0 }}
+              >
+                <div className="h-full flex flex-col">
+                  <div className="px-3 py-2 border-b border-gray-200">
+                    <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Chapters</h3>
+                  </div>
+                  <div className="flex-1 overflow-y-auto">
+                    {chapters.map((ch) => {
+                      const isActive = activeChapter === ch.number
+                      const chDoc = chapterDocs.find((d) => d.chapter_number === ch.number)
+                      return (
+                        <button
+                          key={ch.number}
+                          onClick={() => scrollToChapter(ch.number)}
+                          className={cn(
+                            'w-full text-left px-3 py-2 text-sm transition-colors flex items-center gap-2',
+                            isActive
+                              ? 'bg-blue-50 text-blue-700 font-medium'
+                              : 'text-gray-600 hover:bg-gray-100'
                           )}
-                        </div>
-                      </button>
-                    )
-                  })}
+                        >
+                          <BookOpen className="h-3.5 w-3.5 shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <div className="truncate">{ch.title}</div>
+                            {chDoc?.page_start && (
+                              <div className="text-xs text-gray-400">
+                                Page {chDoc.page_start}
+                                {chDoc.page_end && chDoc.page_end !== chDoc.page_start
+                                  ? ` - ${chDoc.page_end}`
+                                  : ''}
+                              </div>
+                            )}
+                          </div>
+                        </button>
+                      )
+                    })}
+                  </div>
                 </div>
               </div>
-            </div>
+              {showLeft && (
+                <ResizeHandle
+                  onResizeStart={() => { startLeftWidthRef.current = leftWidth }}
+                  onResize={(delta) => persistLeftWidth(startLeftWidthRef.current + delta)}
+                />
+              )}
+            </>
           )}
 
           {/* Center: Document content */}
-          <div
-            className="flex-1 min-w-0 bg-gray-100 overflow-auto flex flex-col items-center py-6 px-4 gap-8"
-            onContextMenu={handleContextMenu}
-            onClick={hideContextMenu}
-          >
-            {isPdf ? (
-              <Document
-                file={fileUrl}
-                onLoadSuccess={({ numPages }) => setNumPages(numPages)}
-                loading={
-                  <div className="w-[600px] h-[800px] flex items-center justify-center text-sm text-gray-400">
-                    Loading PDF...
-                  </div>
-                }
-                error={
-                  <div className="w-[600px] h-[200px] flex items-center justify-center text-sm text-red-400 px-6">
-                    Failed to load PDF. The file may not be available.
-                  </div>
-                }
-              >
-                {(visiblePages ?? Array.from({ length: numPages }, (_, i) => i + 1)).map((pageNumber) => {
-                  const chStart = chapterDocs.find((d) => d.page_start === pageNumber)
-                  const displayCount = visiblePages ? visiblePages.length : numPages
-                  return (
-                    <React.Fragment key={pageNumber}>
-                      {chStart && (
-                        <div className="w-full max-w-[800px] mb-2">
-                          <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-2">
-                            <span className="text-xs font-semibold text-blue-700 uppercase tracking-wide">
-                              {chapters.find((c) => c.number === chStart.chapter_number)?.title ?? `Chapter ${chStart.chapter_number}`}
-                            </span>
-                          </div>
-                        </div>
-                      )}
-                      <div
-                        ref={(el) => {
-                          if (el) pageRefs.current.set(pageNumber, el)
-                          else pageRefs.current.delete(pageNumber)
-                        }}
-                        data-page={pageNumber}
-                        className="flex flex-col items-center"
-                      >
-                        <div className="bg-white shadow-md overflow-hidden">
-                          <Page
-                            pageNumber={pageNumber}
-                            width={Math.min(800, window.innerWidth - 400)}
-                            renderAnnotationLayer
-                            renderTextLayer
-                          />
-                        </div>
-                        <span className="mt-2 text-xs text-gray-400 select-none">
-                          {pageNumber} / {displayCount}
-                        </span>
-                      </div>
-                    </React.Fragment>
-                  )
-                })}
-              </Document>
-            ) : (
+          {isPdf ? (
+            <PdfPagesView
+              fileUrl={fileUrl}
+              visiblePages={visiblePages}
+              renderPageHeader={renderChapterBanner}
+              onCurrentPageChange={setCurrentPage}
+              onContextMenu={handleContextMenu}
+              onClickAway={hideContextMenu}
+              scrollRef={pdfScrollRef}
+            />
+          ) : (
+            <div
+              className="flex-1 min-w-0 bg-gray-100 overflow-auto flex flex-col items-center py-6 px-4 gap-8"
+              onContextMenu={handleContextMenu}
+              onClick={hideContextMenu}
+            >
               <div
                 ref={epubContainerRef}
                 className="w-[800px] max-w-full h-[80vh] bg-white shadow-md rounded-sm"
               />
-            )}
-          </div>
+            </div>
+          )}
 
           {/* Right panel: Chat & Notes */}
+          {showRight && (
+            <ResizeHandle
+              onResizeStart={() => { startRightWidthRef.current = rightWidth }}
+              onResize={(delta) => persistRightWidth(startRightWidthRef.current - delta)}
+            />
+          )}
           <div
             className={cn(
               'border-l border-gray-200 transition-all duration-300 ease-in-out overflow-hidden',
-              showRight ? 'w-80' : 'w-0 border-l-0'
+              showRight ? 'block' : 'hidden'
             )}
+            style={{ width: showRight ? rightWidth : 0 }}
           >
-            <div className="w-80 h-full">
+            <div className="h-full">
               <ChatPanel
                 documentContext={activeChapterContent}
                 storageKey={`${treeId}:${doc.id}:unified`}

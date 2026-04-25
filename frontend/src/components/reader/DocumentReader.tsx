@@ -1,6 +1,5 @@
 import * as React from 'react'
 import { X, Sparkles, PanelLeft, PanelRight } from 'lucide-react'
-import { Document, Page } from 'react-pdf'
 import ePub from 'epubjs'
 import { client } from '../../services'
 import { cn } from '../../lib/cn'
@@ -8,9 +7,8 @@ import { extractPdfText } from '../../lib/pdf-text'
 import type { KnowledgeDocument } from '../../types/knowledge-tree'
 import { PageSidebar } from './PageSidebar'
 import { ChatPanel } from './ChatPanel'
-
-import 'react-pdf/dist/Page/AnnotationLayer.css'
-import 'react-pdf/dist/Page/TextLayer.css'
+import { PdfPagesView, type PdfPagesViewHandle } from './PdfPagesView'
+import { ResizeHandle } from './ResizeHandle'
 
 interface DocumentReaderProps {
   doc: KnowledgeDocument
@@ -31,7 +29,37 @@ export function DocumentReader({ doc, treeId, chapter, onClose }: DocumentReader
   const [contextMenu, setContextMenu] = React.useState<{ x: number; y: number; text: string } | null>(null)
   const epubContainerRef = React.useRef<HTMLDivElement>(null)
   const overlayRef = React.useRef<HTMLDivElement>(null)
-  const pageRefs = React.useRef<Map<number, HTMLDivElement>>(new Map())
+  const pdfScrollRef = React.useRef<PdfPagesViewHandle | null>(null)
+
+  const [leftWidth, setLeftWidth] = React.useState(() => {
+    try {
+      const saved = localStorage.getItem('docassist_panel_width:left')
+      if (saved) return Math.max(160, Math.min(500, parseInt(saved, 10)))
+    } catch { /* ignore */ }
+    return 208
+  })
+  const [rightWidth, setRightWidth] = React.useState(() => {
+    try {
+      const saved = localStorage.getItem('docassist_panel_width:right')
+      if (saved) return Math.max(200, Math.min(800, parseInt(saved, 10)))
+    } catch { /* ignore */ }
+    return 320
+  })
+
+  const startLeftWidthRef = React.useRef(leftWidth)
+  const startRightWidthRef = React.useRef(rightWidth)
+
+  const persistLeftWidth = React.useCallback((w: number) => {
+    const clamped = Math.max(160, Math.min(500, w))
+    setLeftWidth(clamped)
+    try { localStorage.setItem('docassist_panel_width:left', String(clamped)) } catch { /* ignore */ }
+  }, [])
+
+  const persistRightWidth = React.useCallback((w: number) => {
+    const clamped = Math.max(200, Math.min(800, w))
+    setRightWidth(clamped)
+    try { localStorage.setItem('docassist_panel_width:right', String(clamped)) } catch { /* ignore */ }
+  }, [])
 
   const isPdf = doc.source_file_name?.toLowerCase().endsWith('.pdf') || doc.source_file_path?.toLowerCase().endsWith('.pdf')
   const fileUrl = client.getDocumentFileUrl(treeId, doc.id)
@@ -61,31 +89,8 @@ export function DocumentReader({ doc, treeId, chapter, onClose }: DocumentReader
     }
   }, [fileUrl, isPdf])
 
-  // IntersectionObserver to track current page
-  React.useEffect(() => {
-    if (!isPdf || numPages === 0) return
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const visible = entries
-          .filter((e) => e.isIntersecting)
-          .sort((a, b) => a.intersectionRatio - b.intersectionRatio)
-        if (visible.length > 0) {
-          const pageEl = visible[visible.length - 1].target
-          const pageNum = Number(pageEl.getAttribute('data-page'))
-          if (pageNum) setCurrentPage(pageNum)
-        }
-      },
-      { root: null, threshold: [0, 0.25, 0.5, 0.75, 1] }
-    )
-
-    pageRefs.current.forEach((el) => observer.observe(el))
-    return () => observer.disconnect()
-  }, [isPdf, numPages])
-
   const scrollToPage = (pageNumber: number) => {
-    const el = pageRefs.current.get(pageNumber)
-    el?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    pdfScrollRef.current?.scrollToPage(pageNumber)
   }
 
   const handleContextMenu = (e: React.MouseEvent) => {
@@ -178,86 +183,69 @@ export function DocumentReader({ doc, treeId, chapter, onClose }: DocumentReader
         <div className="flex-1 min-h-0 flex">
           {/* Left panel: Page sidebar */}
           {isPdf && (
-            <div
-              className={cn(
-                'border-r border-gray-200 bg-gray-50/50 transition-all duration-300 ease-in-out overflow-hidden',
-                showLeft ? 'w-52' : 'w-0 border-r-0'
-              )}
-            >
-              <div className="w-52 h-full">
-                <PageSidebar
-                  numPages={numPages}
-                  currentPage={currentPage}
-                  onPageClick={scrollToPage}
-                />
+            <>
+              <div
+                className={cn(
+                  'border-r border-gray-200 bg-gray-50/50 transition-all duration-300 ease-in-out overflow-hidden',
+                  showLeft ? 'block' : 'hidden'
+                )}
+                style={{ width: showLeft ? leftWidth : 0 }}
+              >
+                <div className="h-full">
+                  <PageSidebar
+                    numPages={numPages}
+                    currentPage={currentPage}
+                    onPageClick={scrollToPage}
+                  />
+                </div>
               </div>
-            </div>
+              {showLeft && (
+                <ResizeHandle
+                  onResizeStart={() => { startLeftWidthRef.current = leftWidth }}
+                  onResize={(delta) => persistLeftWidth(startLeftWidthRef.current + delta)}
+                />
+              )}
+            </>
           )}
 
           {/* Center: Document content */}
-          <div
-            className="flex-1 min-w-0 bg-gray-100 overflow-auto flex flex-col items-center py-6 px-4 gap-8"
-            onContextMenu={handleContextMenu}
-            onClick={hideContextMenu}
-          >
-            {isPdf ? (
-              <Document
-                file={fileUrl}
-                onLoadSuccess={({ numPages }) => setNumPages(numPages)}
-                loading={
-                  <div className="w-[600px] h-[800px] flex items-center justify-center text-sm text-gray-400">
-                    Loading PDF...
-                  </div>
-                }
-                error={
-                  <div className="w-[600px] h-[200px] flex items-center justify-center text-sm text-red-400 px-6">
-                    Failed to load PDF. The file may not be available.
-                  </div>
-                }
-              >
-                {Array.from({ length: numPages }, (_, i) => {
-                  const pageNumber = i + 1
-                  return (
-                    <div
-                      key={pageNumber}
-                      ref={(el) => {
-                        if (el) pageRefs.current.set(pageNumber, el)
-                        else pageRefs.current.delete(pageNumber)
-                      }}
-                      data-page={pageNumber}
-                      className="flex flex-col items-center"
-                    >
-                      <div className="bg-white shadow-md overflow-hidden">
-                        <Page
-                          pageNumber={pageNumber}
-                          width={Math.min(800, window.innerWidth - 400)}
-                          renderAnnotationLayer
-                          renderTextLayer
-                        />
-                      </div>
-                      <span className="mt-2 text-xs text-gray-400 select-none">
-                        {pageNumber} / {numPages}
-                      </span>
-                    </div>
-                  )
-                })}
-              </Document>
-            ) : (
+          {isPdf ? (
+            <PdfPagesView
+              fileUrl={fileUrl}
+              onCurrentPageChange={setCurrentPage}
+              onNumPagesChange={setNumPages}
+              onContextMenu={handleContextMenu}
+              onClickAway={hideContextMenu}
+              scrollRef={pdfScrollRef}
+            />
+          ) : (
+            <div
+              className="flex-1 min-w-0 bg-gray-100 overflow-auto flex flex-col items-center py-6 px-4 gap-8"
+              onContextMenu={handleContextMenu}
+              onClick={hideContextMenu}
+            >
               <div
                 ref={epubContainerRef}
                 className="w-[800px] max-w-full h-[80vh] bg-white shadow-md rounded-sm"
               />
-            )}
-          </div>
+            </div>
+          )}
 
           {/* Right panel: Chat & Notes */}
+          {showRight && (
+            <ResizeHandle
+              onResizeStart={() => { startRightWidthRef.current = rightWidth }}
+              onResize={(delta) => persistRightWidth(startRightWidthRef.current - delta)}
+            />
+          )}
           <div
             className={cn(
               'border-l border-gray-200 transition-all duration-300 ease-in-out overflow-hidden',
-              showRight ? 'w-80' : 'w-0 border-l-0'
+              showRight ? 'block' : 'hidden'
             )}
+            style={{ width: showRight ? rightWidth : 0 }}
           >
-            <div className="w-80 h-full">
+            <div className="h-full">
               <ChatPanel documentContext={pdfText} storageKey={`${treeId}:${doc.id}`} />
             </div>
           </div>
