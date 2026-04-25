@@ -25,10 +25,6 @@
   color-scheme: light;
 }
 
-html {
-  cursor: url("/cursors/dark-cursor.svg") 2 2, auto;
-}
-
 ::selection {
   background-color: var(--color-primary);
   color: #ffffff;
@@ -53,10 +49,6 @@ html {
   --color-danger-light: rgba(248, 113, 113, 0.12);
 
   color-scheme: dark;
-}
-
-html.dark {
-  cursor: url("/cursors/light-cursor.svg") 2 2, auto;
 }
 
 .dark ::selection {
