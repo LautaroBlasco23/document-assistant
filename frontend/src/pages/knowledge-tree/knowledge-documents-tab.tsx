@@ -334,23 +334,45 @@ function DocumentCard({ doc, chapter, onEdit, onDelete, onRead }: DocumentCardPr
   const thumbnailUrl = canRead ? client.getDocumentThumbnailUrl(doc.tree_id, doc.id) : ''
   const [thumbError, setThumbError] = React.useState(false)
 
-  const handleThumbClick = () => {
+  const handleCardClick = () => {
     if (canRead && isPdf) {
       onRead(doc)
     }
   }
 
   return (
-    <div className="border border-gray-200 rounded-lg p-3 flex flex-row gap-4 bg-white hover:border-gray-300 transition-colors">
+    <div
+      className={cn(
+        'border border-gray-200 rounded-lg p-3 flex flex-row gap-4 bg-white',
+        canRead && isPdf && 'cursor-pointer hover:shadow-xl hover:scale-[1.02] transition-all duration-200 ease-out'
+      )}
+      onClick={handleCardClick}
+    >
+      {/* Edit/Delete buttons */}
+      <div className="shrink-0 flex flex-col gap-1.5 justify-center">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={(e) => { e.stopPropagation(); onEdit(); }}
+          className="h-8 w-8 p-0 text-gray-400 hover:text-gray-700 hover:bg-gray-100"
+          title="Edit document"
+        >
+          <Pencil className="h-4 w-4" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={(e) => { e.stopPropagation(); onDelete(); }}
+          aria-label="Delete document"
+          className="h-8 w-8 p-0 text-red-400 hover:text-red-600 hover:bg-red-50"
+          title="Delete document"
+        >
+          <Trash2 className="h-4 w-4" />
+        </Button>
+      </div>
+
       {/* Thumbnail */}
-      <div
-        className={cn(
-          'shrink-0 w-[100px] h-[130px] rounded-md overflow-hidden bg-gray-100 flex items-center justify-center',
-          canRead && isPdf && !thumbError && 'cursor-pointer hover:ring-2 hover:ring-indigo-400 hover:ring-offset-1 transition-all'
-        )}
-        onClick={handleThumbClick}
-        title={canRead && isPdf ? 'Click to open document viewer' : undefined}
-      >
+      <div className="shrink-0 w-[100px] h-[130px] rounded-md overflow-hidden bg-gray-100 flex items-center justify-center">
         {hasSourceFile && isPdf && !thumbError ? (
           <img
             src={thumbnailUrl}
@@ -373,30 +395,7 @@ function DocumentCard({ doc, chapter, onEdit, onDelete, onRead }: DocumentCardPr
 
       {/* Content */}
       <div className="flex-1 min-w-0 flex flex-col gap-2">
-        <div className="flex items-start justify-between gap-2">
-          <div className="flex items-center gap-2 min-w-0">
-            <span className="text-sm font-medium text-gray-800 truncate">{doc.title}</span>
-          </div>
-          <div className="flex gap-1 shrink-0">
-            {canRead && chapter !== null && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => onRead(doc)}
-                className="h-7 px-2 text-indigo-500 hover:text-indigo-700 hover:bg-indigo-50"
-                title="Read document"
-              >
-                <BookOpen className="h-3.5 w-3.5" />
-              </Button>
-            )}
-            <Button variant="ghost" size="sm" onClick={onEdit} className="h-7 px-2 text-gray-400 hover:text-gray-700">
-              <Pencil className="h-3.5 w-3.5" />
-            </Button>
-            <Button variant="ghost" size="sm" onClick={onDelete} aria-label="Delete document" className="h-7 px-2 text-red-400 hover:text-red-600 hover:bg-red-50">
-              <Trash2 className="h-3.5 w-3.5" />
-            </Button>
-          </div>
-        </div>
+        <span className="text-sm font-medium text-gray-800 truncate">{doc.title}</span>
         {preview && (
           <p className="text-xs text-gray-500 line-clamp-3 leading-relaxed font-mono">
             {preview}{doc.content.length > 200 ? '...' : ''}
