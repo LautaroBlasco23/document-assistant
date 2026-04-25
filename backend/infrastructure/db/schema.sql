@@ -171,7 +171,7 @@ CREATE INDEX IF NOT EXISTS idx_background_tasks_status ON background_tasks(statu
 
 INSERT INTO subscription_plans (slug, name, description, max_documents, max_knowledge_trees)
 VALUES 
-    ('free', 'Free', 'Get started with basic document processing', 10, 2)
+    ('free', 'Free', 'Get started with basic document processing', 200, 3)
 ON CONFLICT (slug) DO NOTHING;
 
 -- ============================================
