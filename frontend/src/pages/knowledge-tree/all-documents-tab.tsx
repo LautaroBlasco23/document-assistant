@@ -146,12 +146,14 @@ function SourceDocumentRow({ doc, onReadUnified }: { doc: KnowledgeDocument; onR
   const [thumbError, setThumbError] = React.useState(false)
 
   return (
-    <div className="source-doc-animated-border">
     <div
       className={cn(
-        'flex items-center gap-3 px-3 py-3 rounded-[9px] bg-white dark:bg-slate-800 shadow-sm transition-all duration-200 ease-out',
+        'source-doc-animated-border transition-all duration-200 ease-out',
         canOpen && !thumbError && 'cursor-pointer hover:shadow-xl hover:scale-[1.02]'
       )}
+    >
+    <div
+      className="flex items-center gap-3 px-3 py-3 rounded-[9px] bg-white dark:bg-slate-800 shadow-sm"
       onClick={() => canOpen && !thumbError && onReadUnified(doc)}
     >
       {/* Thumbnail */}
