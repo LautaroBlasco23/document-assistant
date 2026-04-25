@@ -54,7 +54,7 @@ def test_call_passes_system_and_user():
     result = agent._call("system prompt", "user prompt")
 
     assert result == "response"
-    llm.chat.assert_called_once_with("system prompt", "user prompt")
+    llm.chat.assert_called_once_with("system prompt", "user prompt", params=None)
 
 
 # ---------------------------------------------------------------------------
@@ -69,7 +69,7 @@ def test_call_json_returns_stripped_json():
 
     result = agent._call_json("system", "user")
 
-    llm.chat.assert_called_once_with("system", "user", format="json")
+    llm.chat.assert_called_once_with("system", "user", format="json", params=None)
     assert result == '{"answer": 42}'
 
 

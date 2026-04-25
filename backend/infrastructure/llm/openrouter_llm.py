@@ -5,7 +5,7 @@ from collections import deque
 
 import requests
 
-from core.ports.llm import LLM
+from core.ports.llm import LLM, GenerationParams
 from infrastructure.config import OpenRouterConfig
 
 logger = logging.getLogger(__name__)
@@ -73,17 +73,35 @@ class OpenRouterLLM(LLM):
         self._site_name = config.site_name
         self._rate_limiter = OpenRouterRateLimiter(limit=config.requests_per_minute)
 
-    def generate(self, prompt: str) -> str:
+    def _apply_params(self, payload: dict, params: GenerationParams | None) -> None:
+        """Apply generation parameters to the payload."""
+        if params is None:
+            return
+        if params.temperature is not None:
+            payload["temperature"] = params.temperature
+        if params.top_p is not None:
+            payload["top_p"] = params.top_p
+        if params.max_tokens is not None:
+            payload["max_tokens"] = params.max_tokens
+
+    def generate(self, prompt: str, params: GenerationParams | None = None) -> str:
         """Generate a completion from a plain prompt string."""
-        payload = {
+        payload: dict = {
             "model": self._model,
             "messages": [{"role": "user", "content": prompt}],
             "stream": False,
         }
+        self._apply_params(payload, params)
         resp = self._request(payload)
         return resp.json()["choices"][0]["message"]["content"]
 
-    def chat(self, system: str, user: str, format: str | None = None) -> str:
+    def chat(
+        self,
+        system: str,
+        user: str,
+        format: str | None = None,
+        params: GenerationParams | None = None,
+    ) -> str:
         """Send system + user messages and return the response.
 
         When format='json', appends an instruction to the system prompt
@@ -96,7 +114,7 @@ class OpenRouterLLM(LLM):
                 + "\n\nRespond with valid JSON only. Do not include any explanation or markdown."
             )
 
-        payload = {
+        payload: dict = {
             "model": self._model,
             "messages": [
                 {"role": "system", "content": effective_system},
@@ -104,6 +122,7 @@ class OpenRouterLLM(LLM):
             ],
             "stream": False,
         }
+        self._apply_params(payload, params)
         resp = self._request(payload)
         return resp.json()["choices"][0]["message"]["content"]
 

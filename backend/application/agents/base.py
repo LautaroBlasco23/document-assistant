@@ -2,7 +2,7 @@ import json
 import logging
 import re
 
-from core.ports.llm import LLM
+from core.ports.llm import LLM, GenerationParams
 
 logger = logging.getLogger(__name__)
 
@@ -20,18 +20,28 @@ class BaseAgent:
     def __init__(self, llm: LLM):
         self._llm = llm
 
-    def _call(self, system: str, user: str) -> str:
+    def _call(
+        self, system: str, user: str, params: GenerationParams | None = None
+    ) -> str:
         """Call the LLM with a system + user prompt."""
-        return self._llm.chat(system, user)
+        return self._llm.chat(system, user, params=params)
 
-    def _call_json(self, system: str, user: str) -> str:
+    def _call_json(
+        self, system: str, user: str, params: GenerationParams | None = None
+    ) -> str:
         """Call the LLM with format='json' enforced, stripping any code fences."""
-        raw = self._llm.chat(system, user, format="json")
+        raw = self._llm.chat(system, user, format="json", params=params)
         return _strip_code_fences(raw)
 
-    def _call_json_with_retry(self, system: str, user: str, max_retries: int = 1) -> str:
+    def _call_json_with_retry(
+        self,
+        system: str,
+        user: str,
+        max_retries: int = 1,
+        params: GenerationParams | None = None,
+    ) -> str:
         """Call LLM for JSON output, retrying once with a correction prompt on failure."""
-        raw = self._call_json(system, user)
+        raw = self._call_json(system, user, params=params)
         try:
             json.loads(raw)
             return raw  # Valid JSON, return immediately
@@ -44,5 +54,5 @@ class BaseAgent:
                 "Please respond with ONLY a valid JSON object, no other text. "
                 "Remember: no markdown, no code fences, no explanation -- just the JSON."
             )
-            retry_raw = self._call_json(system, f"{user}\n\n{correction}")
+            retry_raw = self._call_json(system, f"{user}\n\n{correction}", params=params)
             return retry_raw

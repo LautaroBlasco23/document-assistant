@@ -6,6 +6,7 @@ from pydantic import BaseModel
 from api.auth import CurrentUser
 from api.deps import ServicesDep
 from application.agents.document_chat import DocumentChatAgent
+from core.ports.llm import GenerationParams
 
 router = APIRouter()
 
@@ -18,6 +19,9 @@ class ChatMessage(BaseModel):
 class ChatRequest(BaseModel):
     messages: list[ChatMessage]
     context: str | None = None
+    temperature: float | None = None
+    top_p: float | None = None
+    max_tokens: int | None = None
 
 
 class ChatResponse(BaseModel):
@@ -37,5 +41,10 @@ async def chat(
     """
     agent = DocumentChatAgent(services.llm)
     raw_messages = [{"role": m.role, "content": m.content} for m in body.messages]
-    reply = agent.answer(raw_messages, context=body.context)
+    params = GenerationParams(
+        temperature=body.temperature,
+        top_p=body.top_p,
+        max_tokens=body.max_tokens,
+    )
+    reply = agent.answer(raw_messages, context=body.context, params=params)
     return ChatResponse(reply=reply)

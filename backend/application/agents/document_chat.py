@@ -3,6 +3,7 @@
 import logging
 
 from application.agents.base import BaseAgent
+from core.ports.llm import GenerationParams
 
 logger = logging.getLogger(__name__)
 
@@ -16,12 +17,18 @@ _DEFAULT_SYSTEM_PROMPT = (
 class DocumentChatAgent(BaseAgent):
     """Agent that answers questions about a document using its extracted text."""
 
-    def answer(self, messages: list[dict[str, str]], context: str | None = None) -> str:
+    def answer(
+        self,
+        messages: list[dict[str, str]],
+        context: str | None = None,
+        params: GenerationParams | None = None,
+    ) -> str:
         """Answer a user question based on document context and conversation history.
 
         Args:
             messages: Conversation history, each with 'role' and 'content'.
             context: Extracted text from the document to ground answers in.
+            params: Optional generation parameters (temperature, top_p, max_tokens).
 
         Returns:
             The assistant's reply.
@@ -41,7 +48,7 @@ class DocumentChatAgent(BaseAgent):
             user_message = f"Previous conversation:\n{history}\n\nLatest question: {user_message}"
 
         try:
-            return self._call(system, user_message)
+            return self._call(system, user_message, params=params)
         except Exception as e:
             logger.error("Document chat LLM call failed: %s", e)
             return "Sorry, I encountered an error processing your request. Please try again."

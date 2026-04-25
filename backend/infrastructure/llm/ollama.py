@@ -2,7 +2,7 @@ import logging
 
 import requests
 
-from core.ports.llm import LLM
+from core.ports.llm import LLM, GenerationParams
 from infrastructure.config import OllamaConfig
 
 logger = logging.getLogger(__name__)
@@ -42,22 +42,45 @@ class OllamaLLM(LLM):
         """Access to base URL."""
         return self._base_url
 
-    def generate(self, prompt: str) -> str:
+    def _apply_params(self, payload: dict, params: GenerationParams | None) -> None:
+        """Apply generation parameters to the Ollama payload."""
+        if params is None:
+            return
+        opts: dict = {}
+        if params.temperature is not None:
+            opts["temperature"] = params.temperature
+        if params.top_p is not None:
+            opts["top_p"] = params.top_p
+        if params.max_tokens is not None:
+            opts["num_predict"] = params.max_tokens
+        if opts:
+            payload["options"] = opts
+
+    def generate(self, prompt: str, params: GenerationParams | None = None) -> str:
+        payload: dict = {"model": self.model, "prompt": prompt, "stream": False}
+        self._apply_params(payload, params)
         resp = requests.post(
             f"{self.base_url}/api/generate",
-            json={"model": self.model, "prompt": prompt, "stream": False},
+            json=payload,
             timeout=self.timeout,
         )
         resp.raise_for_status()
         return resp.json()["response"]
 
-    def chat(self, system: str, user: str, format: str | None = None) -> str:
+    def chat(
+        self,
+        system: str,
+        user: str,
+        format: str | None = None,
+        params: GenerationParams | None = None,
+    ) -> str:
         """Convenience method for system+user prompt pattern.
 
         Args:
             system: System prompt.
             user: User message.
             format: Optional Ollama format constraint (e.g. "json").
+            params: Optional generation parameters.
         """
         payload: dict = {
             "model": self.model,
@@ -69,6 +92,7 @@ class OllamaLLM(LLM):
         }
         if format is not None:
             payload["format"] = format
+        self._apply_params(payload, params)
         resp = requests.post(
             f"{self.base_url}/api/chat",
             json=payload,
