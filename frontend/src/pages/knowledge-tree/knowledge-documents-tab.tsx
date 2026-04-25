@@ -7,6 +7,7 @@ import { useKnowledgeTreeStore, docKey } from '../../stores/knowledge-tree-store
 import { useAppStore } from '../../stores/app-store'
 import { client } from '../../services'
 import { DocumentReader } from '../../components/reader/DocumentReader'
+import { cn } from '../../lib/cn'
 import type { KnowledgeChapter, KnowledgeDocument } from '../../types/knowledge-tree'
 
 interface KnowledgeDocumentsTabProps {
@@ -324,44 +325,88 @@ interface DocumentCardProps {
 
 function DocumentCard({ doc, chapter, onEdit, onDelete, onRead }: DocumentCardProps) {
   const preview = doc.content.trim().slice(0, 200)
-  const canRead = !!doc.source_file_path
+  const hasSourceFile = !!doc.source_file_path
+  const isPdf = hasSourceFile && (
+    doc.source_file_name?.toLowerCase().endsWith('.pdf') ||
+    doc.source_file_path?.toLowerCase().endsWith('.pdf')
+  )
+  const canRead = hasSourceFile && chapter !== null
+  const thumbnailUrl = canRead ? client.getDocumentThumbnailUrl(doc.tree_id, doc.id) : ''
+  const [thumbError, setThumbError] = React.useState(false)
+
+  const handleThumbClick = () => {
+    if (canRead && isPdf) {
+      onRead(doc)
+    }
+  }
 
   return (
-    <div className="border border-gray-200 rounded-lg p-4 flex flex-col gap-2 bg-white hover:border-gray-300 transition-colors">
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex items-center gap-2 min-w-0">
-          <FileText className="h-3.5 w-3.5 text-gray-400 shrink-0" />
-          <span className="text-sm font-medium text-gray-800 truncate">{doc.title}</span>
-        </div>
-        <div className="flex gap-1 shrink-0">
-          {canRead && chapter !== null && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => onRead(doc)}
-              className="h-7 px-2 text-indigo-500 hover:text-indigo-700 hover:bg-indigo-50"
-              title="Read document"
-            >
-              <BookOpen className="h-3.5 w-3.5" />
-            </Button>
-          )}
-          <Button variant="ghost" size="sm" onClick={onEdit} className="h-7 px-2 text-gray-400 hover:text-gray-700">
-            <Pencil className="h-3.5 w-3.5" />
-          </Button>
-          <Button variant="ghost" size="sm" onClick={onDelete} className="h-7 px-2 text-red-400 hover:text-red-600 hover:bg-red-50">
-            <Trash2 className="h-3.5 w-3.5" />
-          </Button>
-        </div>
+    <div className="border border-gray-200 rounded-lg p-3 flex flex-row gap-4 bg-white hover:border-gray-300 transition-colors">
+      {/* Thumbnail */}
+      <div
+        className={cn(
+          'shrink-0 w-[100px] h-[130px] rounded-md overflow-hidden bg-gray-100 flex items-center justify-center',
+          canRead && isPdf && !thumbError && 'cursor-pointer hover:ring-2 hover:ring-indigo-400 hover:ring-offset-1 transition-all'
+        )}
+        onClick={handleThumbClick}
+        title={canRead && isPdf ? 'Click to open document viewer' : undefined}
+      >
+        {hasSourceFile && isPdf && !thumbError ? (
+          <img
+            src={thumbnailUrl}
+            alt={`Preview of ${doc.title}`}
+            className="w-full h-full object-cover"
+            onError={() => setThumbError(true)}
+          />
+        ) : hasSourceFile && !isPdf ? (
+          <div className="flex flex-col items-center gap-1 text-gray-400">
+            <BookOpen className="h-8 w-8" />
+            <span className="text-[10px] font-medium">EPUB</span>
+          </div>
+        ) : (
+          <div className="flex flex-col items-center gap-1 text-gray-400">
+            <FileText className="h-8 w-8" />
+            <span className="text-[10px] font-medium">TXT</span>
+          </div>
+        )}
       </div>
-      {preview && (
-        <p className="text-xs text-gray-500 line-clamp-3 leading-relaxed font-mono">
-          {preview}{doc.content.length > 200 ? '...' : ''}
-        </p>
-      )}
-      <div className="flex items-center gap-2 pt-1">
-        <Badge variant="neutral" className="text-xs">
-          {doc.content.trim().split(/\s+/).filter(Boolean).length} words
-        </Badge>
+
+      {/* Content */}
+      <div className="flex-1 min-w-0 flex flex-col gap-2">
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-sm font-medium text-gray-800 truncate">{doc.title}</span>
+          </div>
+          <div className="flex gap-1 shrink-0">
+            {canRead && chapter !== null && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => onRead(doc)}
+                className="h-7 px-2 text-indigo-500 hover:text-indigo-700 hover:bg-indigo-50"
+                title="Read document"
+              >
+                <BookOpen className="h-3.5 w-3.5" />
+              </Button>
+            )}
+            <Button variant="ghost" size="sm" onClick={onEdit} className="h-7 px-2 text-gray-400 hover:text-gray-700">
+              <Pencil className="h-3.5 w-3.5" />
+            </Button>
+            <Button variant="ghost" size="sm" onClick={onDelete} className="h-7 px-2 text-red-400 hover:text-red-600 hover:bg-red-50">
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        </div>
+        {preview && (
+          <p className="text-xs text-gray-500 line-clamp-3 leading-relaxed font-mono">
+            {preview}{doc.content.length > 200 ? '...' : ''}
+          </p>
+        )}
+        <div className="flex items-center gap-2 pt-1">
+          <Badge variant="neutral" className="text-xs">
+            {doc.content.trim().split(/\s+/).filter(Boolean).length} words
+          </Badge>
+        </div>
       </div>
     </div>
   )

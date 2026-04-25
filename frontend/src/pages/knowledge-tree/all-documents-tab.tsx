@@ -4,6 +4,9 @@ import { Button } from '../../components/ui/button'
 import { Badge } from '../../components/ui/badge'
 import { useKnowledgeTreeStore } from '../../stores/knowledge-tree-store'
 import { DocumentReader } from '../../components/reader/DocumentReader'
+import { UnifiedDocumentReader } from '../../components/reader/UnifiedDocumentReader'
+import { client } from '../../services'
+import { cn } from '../../lib/cn'
 import type { KnowledgeChapter, KnowledgeDocument } from '../../types/knowledge-tree'
 
 interface AllDocumentsTabProps {
@@ -15,6 +18,7 @@ export function AllDocumentsTab({ treeId, chapters }: AllDocumentsTabProps) {
   const { documents: docsByKey, documentsLoading, fetchAllDocuments } = useKnowledgeTreeStore()
 
   const [readerDoc, setReaderDoc] = React.useState<KnowledgeDocument | null>(null)
+  const [unifiedReaderDoc, setUnifiedReaderDoc] = React.useState<KnowledgeDocument | null>(null)
 
   const key = `${treeId}:all`
   const allDocs = docsByKey[key] ?? []
@@ -65,7 +69,7 @@ export function AllDocumentsTab({ treeId, chapters }: AllDocumentsTabProps) {
           </div>
           <div className="flex flex-col gap-2 pl-1">
             {sourceFiles.map((doc) => (
-              <DocumentRow key={doc.id} doc={doc} onRead={setReaderDoc} />
+              <DocumentRow key={doc.id} doc={doc} onRead={setReaderDoc} onReadUnified={setUnifiedReaderDoc} />
             ))}
           </div>
         </div>
@@ -86,7 +90,7 @@ export function AllDocumentsTab({ treeId, chapters }: AllDocumentsTabProps) {
             </div>
             <div className="flex flex-col gap-2 pl-1">
               {docs.map((doc) => (
-                <DocumentRow key={doc.id} doc={doc} onRead={setReaderDoc} />
+                <DocumentRow key={doc.id} doc={doc} onRead={setReaderDoc} onReadUnified={setUnifiedReaderDoc} />
               ))}
             </div>
           </div>
@@ -102,6 +106,16 @@ export function AllDocumentsTab({ treeId, chapters }: AllDocumentsTabProps) {
           onClose={() => setReaderDoc(null)}
         />
       )}
+
+      {/* Unified Document Reader Modal */}
+      {unifiedReaderDoc && (
+        <UnifiedDocumentReader
+          doc={unifiedReaderDoc}
+          treeId={treeId}
+          chapters={chapters}
+          onClose={() => setUnifiedReaderDoc(null)}
+        />
+      )}
     </div>
   )
 }
@@ -109,14 +123,51 @@ export function AllDocumentsTab({ treeId, chapters }: AllDocumentsTabProps) {
 interface DocumentRowProps {
   doc: KnowledgeDocument
   onRead: (doc: KnowledgeDocument) => void
+  onReadUnified: (doc: KnowledgeDocument) => void
 }
 
-function DocumentRow({ doc, onRead }: DocumentRowProps) {
-  const canRead = !!doc.source_file_path
+function DocumentRow({ doc, onRead, onReadUnified }: DocumentRowProps) {
+  const hasSourceFile = !!doc.source_file_path
+  const isPdf = hasSourceFile && (
+    doc.source_file_name?.toLowerCase().endsWith('.pdf') ||
+    doc.source_file_path?.toLowerCase().endsWith('.pdf')
+  )
+  const canRead = hasSourceFile
+  const isSourceFile = doc.chapter_number === null && !doc.is_main
+  const thumbnailUrl = canRead ? client.getDocumentThumbnailUrl(doc.tree_id, doc.id) : ''
+  const [thumbError, setThumbError] = React.useState(false)
+
+  const handleThumbClick = () => {
+    if (canRead && isPdf) {
+      if (isSourceFile) onReadUnified(doc)
+      else onRead(doc)
+    }
+  }
 
   return (
     <div className="flex items-center gap-3 px-3 py-2 rounded-lg border border-gray-100 bg-white hover:border-gray-200 hover:bg-gray-50 transition-colors">
-      <FileText className="h-3.5 w-3.5 text-gray-400 shrink-0" />
+      {/* Thumbnail */}
+      <div
+        className={cn(
+          'shrink-0 w-[60px] h-[80px] rounded overflow-hidden bg-gray-100 flex items-center justify-center',
+          canRead && isPdf && !thumbError && 'cursor-pointer hover:ring-2 hover:ring-indigo-400 hover:ring-offset-1 transition-all'
+        )}
+        onClick={handleThumbClick}
+        title={canRead && isPdf ? 'Click to open document viewer' : undefined}
+      >
+        {hasSourceFile && isPdf && !thumbError ? (
+          <img
+            src={thumbnailUrl}
+            alt={`Preview of ${doc.title}`}
+            className="w-full h-full object-cover"
+            onError={() => setThumbError(true)}
+          />
+        ) : hasSourceFile && !isPdf ? (
+          <BookOpen className="h-5 w-5 text-gray-400" />
+        ) : (
+          <FileText className="h-5 w-5 text-gray-400" />
+        )}
+      </div>
       <div className="flex-1 min-w-0">
         <span className="text-sm font-medium text-gray-800 truncate">{doc.title}</span>
         {doc.source_file_name && (
@@ -131,7 +182,7 @@ function DocumentRow({ doc, onRead }: DocumentRowProps) {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => onRead(doc)}
+            onClick={() => (isSourceFile ? onReadUnified(doc) : onRead(doc))}
             className="h-7 px-2 text-indigo-500 hover:text-indigo-700 hover:bg-indigo-50"
             title="Read document"
           >

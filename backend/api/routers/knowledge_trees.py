@@ -7,8 +7,9 @@ import time
 from pathlib import Path
 from uuid import UUID, uuid4
 
+import fitz  # PyMuPDF
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel
 
 from api.auth import CurrentUser
@@ -312,6 +313,14 @@ def _create_tree_from_document_background(
             tree_file_path = storage_dir / f"{tree_uid}{suffix}"
             tree_file_path.write_bytes(file_bytes)
 
+            # Create a tree-level source document pointing to the full original file
+            source_doc = services.kt_doc_store.create_document(
+                tree_uid, None, doc.title or tree_title, "", is_main=False,
+            )
+            services.kt_doc_store.update_document_source_file(
+                source_doc.id, str(tree_file_path), filename
+            )
+
             chapter_count = len(chapters_to_process)
             if chapter_count == 0:
                 _set_progress(task, 100, "Done (no chapters found)")
@@ -368,9 +377,8 @@ def _create_tree_from_document_background(
 
                 # For PDFs, extract only this chapter's pages into a separate file
                 if suffix == ".pdf" and ch_page_start and ch_page_end:
-                    import fitz as _fitz
-                    src_pdf = _fitz.open(str(tree_file_path))
-                    chapter_pdf = _fitz.open()
+                    src_pdf = fitz.open(str(tree_file_path))
+                    chapter_pdf = fitz.open()
                     chapter_pdf.insert_pdf(
                         src_pdf,
                         from_page=ch_page_start - 1,
@@ -599,6 +607,29 @@ async def get_document_file(tree_id: str, doc_id: str, services: ServicesDep):
         raise HTTPException(status_code=404, detail="File not found on disk")
     media_type = "application/pdf" if path.suffix == ".pdf" else "application/epub+zip"
     return FileResponse(path, filename=doc.source_file_name or path.name, media_type=media_type)
+
+
+@router.get("/knowledge-trees/{tree_id}/documents/{doc_id}/thumbnail")
+async def get_document_thumbnail(tree_id: str, doc_id: str, services: ServicesDep):
+    """Return a PNG thumbnail of the first page of a PDF document."""
+    uid = _parse_uuid(tree_id, "tree_id")
+    doc_uid = _parse_uuid(doc_id, "doc_id")
+    doc = services.kt_doc_store.get_document(doc_uid)
+    if doc is None or doc.tree_id != uid or not doc.source_file_path:
+        raise HTTPException(status_code=404, detail="File not found")
+    path = Path(doc.source_file_path)
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="File not found on disk")
+    if path.suffix != ".pdf":
+        raise HTTPException(status_code=404, detail="Thumbnails only available for PDF files")
+    pdf = fitz.open(str(path))
+    try:
+        page = pdf[0]
+        pix = page.get_pixmap(dpi=72)
+        img_bytes = pix.tobytes("png")
+    finally:
+        pdf.close()
+    return Response(content=img_bytes, media_type="image/png")
 
 
 # ---------------------------------------------------------------------------

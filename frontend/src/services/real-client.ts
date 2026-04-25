@@ -221,6 +221,11 @@ export class RealClient implements ServiceClient {
     return `${baseURL}/knowledge-trees/${treeId}/documents/${docId}/file?token=${token}`
   }
 
+  getDocumentThumbnailUrl(treeId: string, docId: string): string {
+    const token = localStorage.getItem('auth_token')
+    return `${baseURL}/knowledge-trees/${treeId}/documents/${docId}/thumbnail?token=${token}`
+  }
+
   async generateFlashcardFromSelection(treeId: string, chapter: number, selectedText: string): Promise<{ task_id: string }> {
     const res = await httpClient.post<{ task_id: string; task_type: string }>(
       `/knowledge-trees/${treeId}/chapters/${chapter}/flashcards`,

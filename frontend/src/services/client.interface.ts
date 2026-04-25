@@ -36,6 +36,7 @@ export interface ServiceClient {
 
   // Document Reader
   getDocumentFileUrl(treeId: string, docId: string): string
+  getDocumentThumbnailUrl(treeId: string, docId: string): string
   generateFlashcardFromSelection(treeId: string, chapter: number, selectedText: string): Promise<{ task_id: string }>
 
   // Knowledge Tree Questions

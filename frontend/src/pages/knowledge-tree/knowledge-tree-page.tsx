@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { useParams, Link, useSearchParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, TreePine, Layers, Pencil, Plus, FileText, BookMarked, Check, X, Trash2, FolderOpen } from 'lucide-react'
+import { ArrowLeft, TreePine, Layers, Pencil, Plus, FileText, BookMarked, BookOpen, Check, X, Trash2, FolderOpen } from 'lucide-react'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../../components/ui/tabs'
 import { Badge } from '../../components/ui/badge'
 import { Button } from '../../components/ui/button'
@@ -11,7 +11,8 @@ import { KnowledgeDocumentsTab } from './knowledge-documents-tab'
 import { AllDocumentsTab } from './all-documents-tab'
 import { ContentTab } from './content-tab'
 import { EditKnowledgeTreeDialog } from '../library/edit-knowledge-tree-dialog'
-import type { KnowledgeChapter, KnowledgeTreeTab } from '../../types/knowledge-tree'
+import { UnifiedDocumentReader } from '../../components/reader/UnifiedDocumentReader'
+import type { KnowledgeChapter, KnowledgeDocument, KnowledgeTreeTab } from '../../types/knowledge-tree'
 
 const VALID_TABS: KnowledgeTreeTab[] = ['documents', 'content']
 
@@ -31,9 +32,11 @@ interface SectionsSidebarProps {
   chapters: KnowledgeChapter[]
   selectedChapter: number | null
   showAllDocuments: boolean
+  sourceDoc?: KnowledgeDocument
   onSelectAllDocuments: () => void
   onChapterChange: (chapter: number | null) => void
   onChaptersRefresh: () => void
+  onOpenSourceDoc: () => void
 }
 
 function SectionsSidebar({
@@ -41,9 +44,11 @@ function SectionsSidebar({
   chapters,
   selectedChapter,
   showAllDocuments,
+  sourceDoc,
   onSelectAllDocuments,
   onChapterChange,
   onChaptersRefresh,
+  onOpenSourceDoc,
 }: SectionsSidebarProps) {
   const { createChapter, updateChapter, deleteChapter } = useKnowledgeTreeStore()
 
@@ -97,6 +102,17 @@ function SectionsSidebar({
         <FolderOpen className="h-3.5 w-3.5 shrink-0" />
         <span className="truncate">Documents</span>
       </button>
+
+      {/* Source Document */}
+      {sourceDoc && (
+        <button
+          onClick={onOpenSourceDoc}
+          className="flex items-center gap-2 px-3 py-2 rounded-md text-sm text-left w-full transition-colors sidebar-border-amber text-gray-600 hover:bg-gray-100"
+        >
+          <BookOpen className="h-3.5 w-3.5 shrink-0" />
+          <span className="truncate">Source Document</span>
+        </button>
+      )}
 
       {/* Tree-level (overview) */}
       <button
@@ -208,7 +224,7 @@ export function KnowledgeTreePage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
   const addError = useAppStore((s) => s.addError)
-  const { trees, treesLoading, treesFetched, fetchTrees, chapters, fetchChapters } = useKnowledgeTreeStore()
+  const { trees, treesLoading, treesFetched, fetchTrees, chapters, fetchChapters, documents: docsByKey, fetchDocuments } = useKnowledgeTreeStore()
 
   // Single shared chapter selection (null = Overview)
   const [selectedChapter, setSelectedChapter] = React.useState<number | null>(null)
@@ -240,7 +256,16 @@ export function KnowledgeTreePage() {
     }
   }, [treeId, fetchChapters])
 
+  // Load tree-level documents (to detect source file)
+  React.useEffect(() => {
+    if (treeId) {
+      void fetchDocuments(treeId, null, null)
+    }
+  }, [treeId, fetchDocuments])
+
   const treeChapters = treeId ? (chapters[treeId] ?? []) : []
+  const treeLevelDocs = treeId ? (docsByKey[`${treeId}:main`] ?? []) : []
+  const sourceDoc = treeLevelDocs.find((d) => d.source_file_path && !d.is_main)
 
   const tree = trees.find((t) => t.id === treeId)
 
@@ -252,6 +277,7 @@ export function KnowledgeTreePage() {
   }, [treesFetched, treesLoading, tree, addError, navigate])
 
   const [editOpen, setEditOpen] = React.useState(false)
+  const [unifiedReaderOpen, setUnifiedReaderOpen] = React.useState(false)
 
   const handleChaptersRefresh = () => {
     if (treeId) void fetchChapters(treeId)
@@ -310,6 +336,15 @@ export function KnowledgeTreePage() {
         <EditKnowledgeTreeDialog tree={tree} open={editOpen} onClose={() => setEditOpen(false)} />
       )}
 
+      {unifiedReaderOpen && sourceDoc && (
+        <UnifiedDocumentReader
+          doc={sourceDoc}
+          treeId={treeId}
+          chapters={treeChapters}
+          onClose={() => setUnifiedReaderOpen(false)}
+        />
+      )}
+
       {/* Sidebar + Tabs layout */}
       <div className="flex gap-4 min-h-0">
         <SectionsSidebar
@@ -317,9 +352,11 @@ export function KnowledgeTreePage() {
           chapters={treeChapters}
           selectedChapter={selectedChapter}
           showAllDocuments={showAllDocuments}
+          sourceDoc={sourceDoc}
           onSelectAllDocuments={() => setShowAllDocuments(true)}
           onChapterChange={handleChapterChange}
           onChaptersRefresh={handleChaptersRefresh}
+          onOpenSourceDoc={() => setUnifiedReaderOpen(true)}
         />
 
         <div className="flex-1 min-w-0">

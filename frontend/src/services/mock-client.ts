@@ -236,6 +236,10 @@ export class MockClient implements ServiceClient {
     return `#mock-file-${docId}`
   }
 
+  getDocumentThumbnailUrl(_treeId: string, _docId: string): string {
+    return ''
+  }
+
   async generateFlashcardFromSelection(_treeId: string, _chapter: number, _selectedText: string): Promise<{ task_id: string }> {
     await delay(500)
     return { task_id: `mock-task-${Math.random().toString(36).slice(2, 10)}` }
