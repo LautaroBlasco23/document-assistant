@@ -118,12 +118,12 @@ function GeneratorSection({
   children,
 }: GeneratorSectionProps) {
   return (
-    <div className="rounded-lg border border-gray-200 bg-white overflow-hidden">
+    <div className="rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-gray-50">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-slate-700 bg-gray-50 dark:bg-slate-900/50">
         <div className="flex items-center gap-2">
           {icon}
-          <span className="text-sm font-medium text-gray-700">{title}</span>
+          <span className="text-sm font-medium text-gray-700 dark:text-slate-300">{title}</span>
           {status === 'done' && (
             <Badge variant="success" className="text-xs py-0">
               {count} {count === 1 ? 'question' : 'questions'}
@@ -155,10 +155,10 @@ function GeneratorSection({
       {/* Body */}
       <div className="px-4 py-3">
         {status === 'idle' && (
-          <p className="text-xs text-gray-400">{description}</p>
+          <p className="text-xs text-gray-400 dark:text-slate-500">{description}</p>
         )}
         {status === 'loading' && (
-          <div className="flex items-center gap-2 text-xs text-gray-400 py-1">
+          <div className="flex items-center gap-2 text-xs text-gray-400 dark:text-slate-500 py-1">
             <div
               className={`h-3.5 w-3.5 rounded-full border-2 ${spinnerColor} border-t-transparent animate-spin`}
             />
@@ -187,7 +187,7 @@ function TrueFalseList({
       {questions.map((q) => (
         <li
           key={q.id}
-          className="flex items-start gap-2 rounded-md border border-gray-100 bg-gray-50 px-3 py-2 text-xs"
+          className="flex items-start gap-2 rounded-md border border-gray-100 dark:border-slate-700 bg-gray-50 dark:bg-slate-900/50 px-3 py-2 text-xs"
         >
           <span
             className={`mt-0.5 shrink-0 rounded px-1 py-0.5 font-semibold uppercase text-[10px] ${

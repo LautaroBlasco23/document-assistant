@@ -84,14 +84,14 @@ function SectionsSidebar({
   return (
     <aside className="w-52 shrink-0 flex flex-col gap-1">
       {/* General */}
-      <p className="text-xs font-medium text-gray-400 uppercase tracking-wide px-2 mb-1">General</p>
+      <p className="text-xs font-medium text-gray-400 dark:text-slate-500 uppercase tracking-wide px-2 mb-1">General</p>
 
       <button
         onClick={onSelectAllDocuments}
         className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm text-left w-full transition-colors sidebar-border-green ${
           showAllDocuments
-            ? 'bg-green-50 text-green-700 font-medium'
-            : 'text-gray-600 hover:bg-gray-100'
+            ? 'bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300 font-medium'
+            : 'text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-700'
         }`}
       >
         <FolderOpen className="h-3.5 w-3.5 shrink-0" />
@@ -103,8 +103,8 @@ function SectionsSidebar({
         onClick={() => onChapterChange(null)}
         className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm text-left w-full transition-colors sidebar-border-blue ${
           selectedChapter === null && !showAllDocuments
-            ? 'bg-blue-50 text-primary font-medium'
-            : 'text-gray-600 hover:bg-gray-100'
+            ? 'bg-blue-50 dark:bg-blue-900/30 text-primary font-medium'
+            : 'text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-700'
         }`}
       >
         <BookMarked className="h-3.5 w-3.5 shrink-0" />
@@ -112,10 +112,10 @@ function SectionsSidebar({
       </button>
 
       {/* Divider */}
-      <div className="border-t border-gray-200 my-2" />
+      <div className="border-t border-gray-200 dark:border-slate-700 my-2" />
 
       {/* Chapters */}
-      <p className="text-xs font-medium text-gray-400 uppercase tracking-wide px-2 mb-1">Chapters</p>
+      <p className="text-xs font-medium text-gray-400 dark:text-slate-500 uppercase tracking-wide px-2 mb-1">Chapters</p>
 
       {chapters.map((ch) => (
         <div key={ch.number} className="group flex flex-col">
@@ -133,7 +133,7 @@ function SectionsSidebar({
               <button type="submit" className="p-1 text-green-600 hover:text-green-700 rounded" aria-label="Save">
                 <Check className="h-3 w-3" />
               </button>
-              <button type="button" onClick={() => setEditingChapter(null)} className="p-1 text-gray-400 hover:text-gray-600 rounded" aria-label="Cancel">
+              <button type="button" onClick={() => setEditingChapter(null)} className="p-1 text-gray-400 dark:text-slate-500 hover:text-gray-600 dark:hover:text-slate-300 rounded" aria-label="Cancel">
                 <X className="h-3 w-3" />
               </button>
             </form>
@@ -143,8 +143,8 @@ function SectionsSidebar({
                 onClick={() => onChapterChange(ch.number)}
                 className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm text-left flex-1 min-w-0 transition-colors ${
                   selectedChapter === ch.number && !showAllDocuments
-                    ? 'bg-blue-50 text-primary font-medium'
-                    : 'text-gray-600 hover:bg-gray-100'
+                    ? 'bg-blue-50 dark:bg-blue-900/30 text-primary font-medium'
+                    : 'text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-700'
                 }`}
               >
                 <FileText className="h-3.5 w-3.5 shrink-0" />
@@ -152,7 +152,7 @@ function SectionsSidebar({
               </button>
               <button
                 onClick={() => setEditingChapter({ number: ch.number, title: ch.title })}
-                className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-gray-700 transition-opacity rounded"
+                className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 dark:text-slate-500 hover:text-gray-700 dark:hover:text-slate-200 transition-opacity rounded"
                 aria-label={`Rename chapter ${ch.title}`}
               >
                 <Pencil className="h-3 w-3" />
@@ -191,7 +191,7 @@ function SectionsSidebar({
       ) : (
         <button
           onClick={() => setShowNewChapter(true)}
-          className="flex items-center gap-2 px-3 py-2 rounded-md text-sm text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors w-full text-left"
+          className="flex items-center gap-2 px-3 py-2 rounded-md text-sm text-gray-400 dark:text-slate-500 hover:text-gray-700 dark:hover:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors w-full text-left"
         >
           <Plus className="h-3.5 w-3.5" />
           New Chapter
@@ -260,7 +260,7 @@ export function KnowledgeTreePage() {
   if (!treeId) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[50vh] gap-4">
-        <p className="text-gray-500">Invalid knowledge tree URL.</p>
+        <p className="text-gray-500 dark:text-slate-400">Invalid knowledge tree URL.</p>
         <Link to="/" className="text-primary hover:underline text-sm flex items-center gap-1">
           <ArrowLeft className="h-4 w-4" /> Back to Library
         </Link>
@@ -271,10 +271,10 @@ export function KnowledgeTreePage() {
   if (treesLoading) {
     return (
       <div className="flex flex-col gap-4 animate-pulse">
-        <div className="h-8 bg-gray-100 rounded w-64" />
-        <div className="h-4 bg-gray-100 rounded w-48" />
-        <div className="h-10 bg-gray-100 rounded w-full" />
-        <div className="h-64 bg-gray-100 rounded w-full" />
+        <div className="h-8 bg-gray-100 dark:bg-slate-700 rounded w-64" />
+        <div className="h-4 bg-gray-100 dark:bg-slate-700 rounded w-48" />
+        <div className="h-10 bg-gray-100 dark:bg-slate-700 rounded w-full" />
+        <div className="h-64 bg-gray-100 dark:bg-slate-700 rounded w-full" />
       </div>
     )
   }
@@ -292,9 +292,9 @@ export function KnowledgeTreePage() {
         </Link>
         <TreePine className="h-5 w-5 text-green-600 shrink-0" />
         <div className="flex-1 min-w-0">
-          <h1 className="text-xl font-semibold text-gray-900 truncate">{tree.title}</h1>
+          <h1 className="text-xl font-semibold text-gray-900 dark:text-slate-100 truncate">{tree.title}</h1>
           {tree.description && (
-            <p className="text-xs text-gray-500 truncate mt-0.5">{tree.description}</p>
+            <p className="text-xs text-gray-500 dark:text-slate-400 truncate mt-0.5">{tree.description}</p>
           )}
         </div>
         <Badge variant="neutral" className="shrink-0">

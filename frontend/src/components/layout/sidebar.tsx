@@ -31,18 +31,18 @@ export function Sidebar() {
   return (
     <aside
       className={cn(
-        'flex flex-col h-screen bg-white border-r border-gray-100 shrink-0',
+        'flex flex-col h-screen bg-white dark:bg-slate-900 border-r border-gray-100 dark:border-slate-700 shrink-0',
         'transition-all duration-200',
         collapsed ? 'w-16' : 'w-64',
       )}
     >
       {/* Logo / app name */}
-      <div className="flex items-center gap-3 px-4 py-5 border-b border-gray-100 overflow-hidden">
+      <div className="flex items-center gap-3 px-4 py-5 border-b border-gray-100 dark:border-slate-700 overflow-hidden">
         <div className="shrink-0 h-7 w-7 rounded-md bg-primary flex items-center justify-center">
           <span className="text-white text-xs font-bold">D</span>
         </div>
         {!collapsed && (
-          <span className="font-semibold text-gray-900 text-sm truncate">
+          <span className="font-semibold text-gray-900 dark:text-slate-100 text-sm truncate">
             Doc Assistant
           </span>
         )}
@@ -60,8 +60,8 @@ export function Sidebar() {
                 cn(
                   'flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors',
                   isActive
-                    ? 'bg-blue-50 text-primary border-l-2 border-primary'
-                    : 'text-gray-600 hover:bg-surface-100 hover:text-gray-900',
+                    ? 'bg-blue-50 dark:bg-blue-900/30 text-primary border-l-2 border-primary'
+                    : 'text-gray-600 dark:text-slate-400 hover:bg-surface-100 hover:text-gray-900 dark:hover:text-slate-100',
                   collapsed && 'justify-center px-2',
                 )
               }
@@ -124,23 +124,23 @@ function UserSection({ collapsed }: UserSectionProps) {
 
   const content = (
     <div className={cn(
-      'flex items-center border-t border-gray-100 text-gray-600',
+      'flex items-center border-t border-gray-100 dark:border-slate-700 text-gray-600 dark:text-slate-400',
       collapsed ? 'justify-center px-2 py-3' : 'px-4 py-3 gap-3'
     )}>
-      <div className="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
-        <span className="text-blue-700 text-xs font-bold">{initials}</span>
+      <div className="h-8 w-8 rounded-full bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center shrink-0">
+        <span className="text-blue-700 dark:text-blue-300 text-xs font-bold">{initials}</span>
       </div>
       {!collapsed && (
         <>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-gray-900 truncate">
+            <p className="text-sm font-medium text-gray-900 dark:text-slate-100 truncate">
               {user.display_name || user.email}
             </p>
-            <p className="text-xs text-gray-400 truncate">{user.email}</p>
+            <p className="text-xs text-gray-400 dark:text-slate-500 truncate">{user.email}</p>
           </div>
           <button
             onClick={handleLogout}
-            className="p-1.5 rounded-md hover:bg-gray-100 text-gray-400 hover:text-red-600 transition-colors"
+            className="p-1.5 rounded-md hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-400 hover:text-red-600 transition-colors"
             aria-label="Logout"
           >
             <LogOut className="h-4 w-4" />
@@ -180,7 +180,7 @@ function ServiceHealthDots({ collapsed }: ServiceHealthDotsProps) {
   return (
     <div
       className={cn(
-        'flex items-center gap-2 px-4 py-3 border-t border-gray-100',
+        'flex items-center gap-2 px-4 py-3 border-t border-gray-100 dark:border-slate-700',
         collapsed && 'justify-center px-2',
       )}
     >

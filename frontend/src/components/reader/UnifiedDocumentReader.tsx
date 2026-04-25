@@ -173,8 +173,8 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
         `Chapter ${chStart.chapter_number}`
       return (
         <div className="w-full max-w-[800px] mb-2">
-          <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-2">
-            <span className="text-xs font-semibold text-blue-700 uppercase tracking-wide">
+          <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-lg px-4 py-2">
+            <span className="text-xs font-semibold text-blue-700 dark:text-blue-300 uppercase tracking-wide">
               {title}
             </span>
           </div>
@@ -193,15 +193,15 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
       }}
     >
       <div
-        className="w-full h-full max-h-[95vh] max-w-[1600px] bg-white rounded-xl shadow-2xl flex flex-col overflow-hidden animate-fade-in"
+        className="w-full h-full max-h-[95vh] max-w-[1600px] bg-white dark:bg-slate-900 rounded-xl shadow-2xl flex flex-col overflow-hidden animate-fade-in"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Top bar */}
-        <div className="flex items-center justify-between px-4 py-2 border-b border-gray-200 shrink-0 bg-gray-50/80">
+        <div className="flex items-center justify-between px-4 py-2 border-b border-gray-200 dark:border-slate-700 shrink-0 bg-gray-50/80 dark:bg-slate-800/80">
           <div className="flex items-center gap-3 min-w-0">
-            <h2 className="text-sm font-semibold text-gray-800 truncate">{doc.title}</h2>
+            <h2 className="text-sm font-semibold text-gray-800 dark:text-slate-200 truncate">{doc.title}</h2>
             {activeChapter !== null && (
-              <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full shrink-0">
+              <span className="text-xs px-2 py-0.5 bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 rounded-full shrink-0">
                 {chapters.find((c) => c.number === activeChapter)?.title ?? `Chapter ${activeChapter}`}
               </span>
             )}
@@ -219,8 +219,8 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
                 className={cn(
                   'p-1.5 rounded-md transition-colors',
                   showLeft
-                    ? 'text-blue-600 bg-blue-50 hover:bg-blue-100'
-                    : 'text-gray-400 hover:text-gray-700 hover:bg-gray-100'
+                    ? 'text-blue-600 bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/30 dark:hover:bg-blue-900/50'
+                    : 'text-gray-400 hover:text-gray-700 hover:bg-gray-100 dark:text-slate-500 dark:hover:text-slate-300 dark:hover:bg-slate-700'
                 )}
                 aria-label="Toggle chapter sidebar"
                 title="Toggle chapter sidebar"
@@ -243,7 +243,7 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
             </button>
             <button
               onClick={onClose}
-              className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-md transition-colors ml-2"
+              className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 dark:text-slate-500 dark:hover:text-slate-300 dark:hover:bg-slate-700 rounded-md transition-colors ml-2"
               aria-label="Close reader"
             >
               <X className="h-4 w-4" />
@@ -258,14 +258,14 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
             <>
               <div
                 className={cn(
-                  'border-r border-gray-200 bg-gray-50/50 transition-all duration-300 ease-in-out overflow-hidden',
+                  'border-r border-gray-200 dark:border-slate-700 bg-gray-50/50 dark:bg-slate-800/50 transition-all duration-300 ease-in-out overflow-hidden',
                   showLeft ? 'block' : 'hidden'
                 )}
                 style={{ width: showLeft ? leftWidth : 0 }}
               >
                 <div className="h-full flex flex-col">
-                  <div className="px-3 py-2 border-b border-gray-200">
-                    <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Chapters</h3>
+                  <div className="px-3 py-2 border-b border-gray-200 dark:border-slate-700">
+                    <h3 className="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wide">Chapters</h3>
                   </div>
                   <div className="flex-1 overflow-y-auto">
                     {chapters.map((ch) => {
@@ -278,15 +278,15 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
                           className={cn(
                             'w-full text-left px-3 py-2 text-sm transition-colors flex items-center gap-2',
                             isActive
-                              ? 'bg-blue-50 text-blue-700 font-medium'
-                              : 'text-gray-600 hover:bg-gray-100'
+                              ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 font-medium'
+                              : 'text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-700'
                           )}
                         >
                           <BookOpen className="h-3.5 w-3.5 shrink-0" />
                           <div className="flex-1 min-w-0">
                             <div className="truncate">{ch.title}</div>
                             {chDoc?.page_start && (
-                              <div className="text-xs text-gray-400">
+                              <div className="text-xs text-gray-400 dark:text-slate-500">
                                 Page {chDoc.page_start}
                                 {chDoc.page_end && chDoc.page_end !== chDoc.page_start
                                   ? ` - ${chDoc.page_end}`
@@ -323,13 +323,13 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
             />
           ) : (
             <div
-              className="flex-1 min-w-0 bg-gray-100 overflow-auto flex flex-col items-center py-6 px-4 gap-8"
+              className="flex-1 min-w-0 bg-gray-100 dark:bg-slate-900 overflow-auto flex flex-col items-center py-6 px-4 gap-8"
               onContextMenu={handleContextMenu}
               onClick={hideContextMenu}
             >
               <div
                 ref={epubContainerRef}
-                className="w-[800px] max-w-full h-[80vh] bg-white shadow-md rounded-sm"
+                className="w-[800px] max-w-full h-[80vh] bg-white dark:bg-slate-800 shadow-md rounded-sm"
               />
             </div>
           )}
@@ -344,7 +344,7 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
           )}
           <div
             className={cn(
-              'border-l border-gray-200 transition-all duration-300 ease-in-out overflow-hidden',
+              'border-l border-gray-200 dark:border-slate-700 transition-all duration-300 ease-in-out overflow-hidden',
               showRight ? 'block' : 'hidden'
             )}
             style={{ width: showRight ? rightWidth : 0 }}
@@ -361,12 +361,12 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
         {/* Context menu */}
         {contextMenu && (
           <div
-            className="fixed z-[60] bg-white rounded-lg shadow-lg border border-gray-200 py-1 min-w-[180px]"
+            className="fixed z-[60] bg-white dark:bg-slate-800 rounded-lg shadow-lg border border-gray-200 dark:border-slate-700 py-1 min-w-[180px]"
             style={{ left: contextMenu.x, top: contextMenu.y }}
           >
             <button
               onClick={handleMakeFlashcard}
-              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors"
             >
               <Sparkles className="h-3.5 w-3.5 text-amber-500" />
               Make a flashcard

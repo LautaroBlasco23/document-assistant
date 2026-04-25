@@ -22,13 +22,13 @@ export function HealthBanner({ health }: HealthBannerProps) {
   const names = unhealthyServices.map((s) => s.name).join(', ')
 
   return (
-    <div className="bg-amber-50 border border-amber-200 text-amber-800 px-4 py-2 text-sm flex items-center justify-between">
+    <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 text-amber-800 dark:text-amber-300 px-4 py-2 text-sm flex items-center justify-between">
       <span>
         Some services are unavailable: <strong>{names}</strong>
       </span>
       <button
         onClick={() => setDismissed(true)}
-        className="ml-4 text-amber-600 hover:text-amber-900 transition-colors"
+        className="ml-4 text-amber-600 dark:text-amber-400 hover:text-amber-900 dark:hover:text-amber-200 transition-colors"
         aria-label="Dismiss"
       >
         <X className="h-4 w-4" />

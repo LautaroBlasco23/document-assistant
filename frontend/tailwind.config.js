@@ -4,35 +4,36 @@ export default {
     "./index.html",
     "./src/**/*.{js,ts,jsx,tsx}",
   ],
+  darkMode: 'class',
   theme: {
     extend: {
       colors: {
         primary: {
-          DEFAULT: '#2563eb', // blue-600
-          hover: '#1d4ed8',   // blue-700
-          light: '#eff6ff',   // blue-50
+          DEFAULT: 'var(--color-primary)',
+          hover: 'var(--color-primary-hover)',
+          light: 'var(--color-primary-light)',
         },
         surface: {
-          DEFAULT: '#f8fafc', // slate-50
-          100: '#f1f5f9',     // slate-100
-          200: '#e2e8f0',     // slate-200
+          DEFAULT: 'var(--color-surface)',
+          100: 'var(--color-surface-100)',
+          200: 'var(--color-surface-200)',
         },
         accent: {
-          DEFAULT: '#8b5cf6', // violet-500
-          hover: '#7c3aed',   // violet-600
-          light: '#f5f3ff',   // violet-50
+          DEFAULT: 'var(--color-accent)',
+          hover: 'var(--color-accent-hover)',
+          light: 'var(--color-accent-light)',
         },
         success: {
-          DEFAULT: '#22c55e', // green-500
-          light: '#f0fdf4',   // green-50
+          DEFAULT: 'var(--color-success)',
+          light: 'var(--color-success-light)',
         },
         warning: {
-          DEFAULT: '#f59e0b', // amber-500
-          light: '#fffbeb',   // amber-50
+          DEFAULT: 'var(--color-warning)',
+          light: 'var(--color-warning-light)',
         },
         danger: {
-          DEFAULT: '#ef4444', // red-500
-          light: '#fef2f2',   // red-50
+          DEFAULT: 'var(--color-danger)',
+          light: 'var(--color-danger-light)',
         },
       },
       borderRadius: {

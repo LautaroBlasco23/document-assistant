@@ -126,13 +126,13 @@ export function DocumentReader({ doc, treeId, chapter, onClose }: DocumentReader
       }}
     >
       <div
-        className="w-full h-full max-h-[95vh] max-w-[1600px] bg-white rounded-xl shadow-2xl flex flex-col overflow-hidden animate-fade-in"
+        className="w-full h-full max-h-[95vh] max-w-[1600px] bg-white dark:bg-slate-900 rounded-xl shadow-2xl flex flex-col overflow-hidden animate-fade-in"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Top bar */}
-        <div className="flex items-center justify-between px-4 py-2 border-b border-gray-200 shrink-0 bg-gray-50/80">
+        <div className="flex items-center justify-between px-4 py-2 border-b border-gray-200 dark:border-slate-700 shrink-0 bg-gray-50/80 dark:bg-slate-800/80">
           <div className="flex items-center gap-3 min-w-0">
-            <h2 className="text-sm font-semibold text-gray-800 truncate">{doc.title}</h2>
+            <h2 className="text-sm font-semibold text-gray-800 dark:text-slate-200 truncate">{doc.title}</h2>
             {flashcardStatus === 'sending' && (
               <span className="text-xs text-indigo-600 animate-pulse">Generating flashcard...</span>
             )}
@@ -147,8 +147,8 @@ export function DocumentReader({ doc, treeId, chapter, onClose }: DocumentReader
                 className={cn(
                   'p-1.5 rounded-md transition-colors',
                   showLeft
-                    ? 'text-blue-600 bg-blue-50 hover:bg-blue-100'
-                    : 'text-gray-400 hover:text-gray-700 hover:bg-gray-100'
+                    ? 'text-blue-600 bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/30 dark:hover:bg-blue-900/50'
+                    : 'text-gray-400 hover:text-gray-700 hover:bg-gray-100 dark:text-slate-500 dark:hover:text-slate-300 dark:hover:bg-slate-700'
                 )}
                 aria-label="Toggle page sidebar"
                 title="Toggle page sidebar"
@@ -171,7 +171,7 @@ export function DocumentReader({ doc, treeId, chapter, onClose }: DocumentReader
             </button>
             <button
               onClick={onClose}
-              className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-md transition-colors ml-2"
+              className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 dark:text-slate-500 dark:hover:text-slate-300 dark:hover:bg-slate-700 rounded-md transition-colors ml-2"
               aria-label="Close reader"
             >
               <X className="h-4 w-4" />
@@ -186,7 +186,7 @@ export function DocumentReader({ doc, treeId, chapter, onClose }: DocumentReader
             <>
               <div
                 className={cn(
-                  'border-r border-gray-200 bg-gray-50/50 transition-all duration-300 ease-in-out overflow-hidden',
+                  'border-r border-gray-200 dark:border-slate-700 bg-gray-50/50 dark:bg-slate-800/50 transition-all duration-300 ease-in-out overflow-hidden',
                   showLeft ? 'block' : 'hidden'
                 )}
                 style={{ width: showLeft ? leftWidth : 0 }}
@@ -220,13 +220,13 @@ export function DocumentReader({ doc, treeId, chapter, onClose }: DocumentReader
             />
           ) : (
             <div
-              className="flex-1 min-w-0 bg-gray-100 overflow-auto flex flex-col items-center py-6 px-4 gap-8"
+              className="flex-1 min-w-0 bg-gray-100 dark:bg-slate-900 overflow-auto flex flex-col items-center py-6 px-4 gap-8"
               onContextMenu={handleContextMenu}
               onClick={hideContextMenu}
             >
               <div
                 ref={epubContainerRef}
-                className="w-[800px] max-w-full h-[80vh] bg-white shadow-md rounded-sm"
+                className="w-[800px] max-w-full h-[80vh] bg-white dark:bg-slate-800 shadow-md rounded-sm"
               />
             </div>
           )}
@@ -240,7 +240,7 @@ export function DocumentReader({ doc, treeId, chapter, onClose }: DocumentReader
           )}
           <div
             className={cn(
-              'border-l border-gray-200 transition-all duration-300 ease-in-out overflow-hidden',
+              'border-l border-gray-200 dark:border-slate-700 transition-all duration-300 ease-in-out overflow-hidden',
               showRight ? 'block' : 'hidden'
             )}
             style={{ width: showRight ? rightWidth : 0 }}
@@ -254,12 +254,12 @@ export function DocumentReader({ doc, treeId, chapter, onClose }: DocumentReader
         {/* Context menu */}
         {contextMenu && (
           <div
-            className="fixed z-[60] bg-white rounded-lg shadow-lg border border-gray-200 py-1 min-w-[180px]"
+            className="fixed z-[60] bg-white dark:bg-slate-800 rounded-lg shadow-lg border border-gray-200 dark:border-slate-700 py-1 min-w-[180px]"
             style={{ left: contextMenu.x, top: contextMenu.y }}
           >
             <button
               onClick={handleMakeFlashcard}
-              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors"
             >
               <Sparkles className="h-3.5 w-3.5 text-amber-500" />
               Make a flashcard

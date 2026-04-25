@@ -149,7 +149,7 @@ export function KnowledgeDocumentsTab({
   return (
     <div className="flex flex-col gap-3 min-w-0">
         {loading ? (
-          <div className="text-sm text-gray-400 mt-4">Loading documents...</div>
+          <div className="text-sm text-gray-400 dark:text-slate-500 mt-4">Loading documents...</div>
         ) : isMain ? (
           /* Tree-level: single main document (editable inline) */
           <MainDocEditor
@@ -162,10 +162,10 @@ export function KnowledgeDocumentsTab({
           <>
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-sm font-semibold text-gray-800">
+                <h3 className="text-sm font-semibold text-gray-800 dark:text-slate-200">
                   {chapters.find((c) => c.number === selectedChapter)?.title ?? `Chapter ${selectedChapter}`}
                 </h3>
-                <p className="text-xs text-gray-400">{docs.length} {docs.length === 1 ? 'document' : 'documents'}</p>
+                <p className="text-xs text-gray-400 dark:text-slate-500">{docs.length} {docs.length === 1 ? 'document' : 'documents'}</p>
               </div>
               {editor === null && (
                 <div className="flex items-center gap-2">
@@ -213,9 +213,9 @@ export function KnowledgeDocumentsTab({
             {/* Documents list */}
             {docs.length === 0 && editor === null ? (
               <div className="flex flex-col items-center justify-center py-12 text-center">
-                <FileText className="h-8 w-8 text-gray-300 mb-3" />
-                <p className="text-sm text-gray-500 font-medium">No documents yet</p>
-                <p className="text-xs text-gray-400 mt-1">
+                <FileText className="h-8 w-8 text-gray-300 dark:text-slate-600 mb-3" />
+                <p className="text-sm text-gray-500 dark:text-slate-400 font-medium">No documents yet</p>
+                <p className="text-xs text-gray-400 dark:text-slate-500 mt-1">
                   Add knowledge documents for this chapter. They will be used to generate summaries and flashcards.
                 </p>
               </div>
@@ -286,8 +286,8 @@ function MainDocEditor({ doc, saving, onSave }: MainDocEditorProps) {
     <div className="flex flex-col gap-2">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-sm font-semibold text-gray-800">Overview Document</h3>
-          <p className="text-xs text-gray-400">Describes the overall scope of this knowledge tree.</p>
+          <h3 className="text-sm font-semibold text-gray-800 dark:text-slate-200">Overview Document</h3>
+          <p className="text-xs text-gray-400 dark:text-slate-500">Describes the overall scope of this knowledge tree.</p>
         </div>
         {dirty && (
           <Button
@@ -302,13 +302,13 @@ function MainDocEditor({ doc, saving, onSave }: MainDocEditorProps) {
         )}
       </div>
       <textarea
-        className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm text-gray-700 placeholder-gray-400 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary resize-none font-mono leading-relaxed"
+        className="w-full rounded-lg border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900 px-3 py-2.5 text-sm text-gray-700 dark:text-slate-300 placeholder-gray-400 dark:placeholder-slate-500 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary resize-none font-mono leading-relaxed"
         rows={18}
         placeholder="Write an overview of this knowledge tree. Describe the main topics, goals, and structure..."
         value={content}
         onChange={(e) => handleChange(e.target.value)}
       />
-      <p className="text-xs text-gray-400">
+      <p className="text-xs text-gray-400 dark:text-slate-500">
         This document describes the overall scope. The AI will use it to provide context when generating content for each chapter.
       </p>
     </div>
@@ -343,7 +343,7 @@ function DocumentCard({ doc, chapter, onEdit, onDelete, onRead }: DocumentCardPr
   return (
     <div
       className={cn(
-        'border border-gray-200 rounded-lg p-3 flex flex-row gap-4 bg-white',
+        'border border-gray-200 dark:border-slate-700 rounded-lg p-3 flex flex-row gap-4 bg-white dark:bg-slate-800',
         canRead && isPdf && 'cursor-pointer hover:shadow-xl hover:scale-[1.02] transition-all duration-200 ease-out'
       )}
       onClick={handleCardClick}
@@ -354,7 +354,7 @@ function DocumentCard({ doc, chapter, onEdit, onDelete, onRead }: DocumentCardPr
           variant="ghost"
           size="sm"
           onClick={(e) => { e.stopPropagation(); onEdit(); }}
-          className="h-8 w-8 p-0 text-gray-400 hover:text-gray-700 hover:bg-gray-100"
+          className="h-8 w-8 p-0 text-gray-400 dark:text-slate-500 hover:text-gray-700 dark:hover:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700"
           title="Edit document"
         >
           <Pencil className="h-4 w-4" />
@@ -364,7 +364,7 @@ function DocumentCard({ doc, chapter, onEdit, onDelete, onRead }: DocumentCardPr
           size="sm"
           onClick={(e) => { e.stopPropagation(); onDelete(); }}
           aria-label="Delete document"
-          className="h-8 w-8 p-0 text-red-400 hover:text-red-600 hover:bg-red-50"
+          className="h-8 w-8 p-0 text-red-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
           title="Delete document"
         >
           <Trash2 className="h-4 w-4" />
@@ -372,7 +372,7 @@ function DocumentCard({ doc, chapter, onEdit, onDelete, onRead }: DocumentCardPr
       </div>
 
       {/* Thumbnail */}
-      <div className="shrink-0 w-[100px] h-[130px] rounded-md overflow-hidden bg-gray-100 flex items-center justify-center">
+      <div className="shrink-0 w-[100px] h-[130px] rounded-md overflow-hidden bg-gray-100 dark:bg-slate-700 flex items-center justify-center">
         {hasSourceFile && isPdf && !thumbError ? (
           <img
             src={thumbnailUrl}
@@ -381,12 +381,12 @@ function DocumentCard({ doc, chapter, onEdit, onDelete, onRead }: DocumentCardPr
             onError={() => setThumbError(true)}
           />
         ) : hasSourceFile && !isPdf ? (
-          <div className="flex flex-col items-center gap-1 text-gray-400">
+          <div className="flex flex-col items-center gap-1 text-gray-400 dark:text-slate-500">
             <BookOpen className="h-8 w-8" />
             <span className="text-[10px] font-medium">EPUB</span>
           </div>
         ) : (
-          <div className="flex flex-col items-center gap-1 text-gray-400">
+          <div className="flex flex-col items-center gap-1 text-gray-400 dark:text-slate-500">
             <FileText className="h-8 w-8" />
             <span className="text-[10px] font-medium">TXT</span>
           </div>
@@ -395,9 +395,9 @@ function DocumentCard({ doc, chapter, onEdit, onDelete, onRead }: DocumentCardPr
 
       {/* Content */}
       <div className="flex-1 min-w-0 flex flex-col gap-2">
-        <span className="text-sm font-medium text-gray-800 truncate">{doc.title}</span>
+        <span className="text-sm font-medium text-gray-800 dark:text-slate-200 truncate">{doc.title}</span>
         {preview && (
-          <p className="text-xs text-gray-500 line-clamp-3 leading-relaxed font-mono">
+          <p className="text-xs text-gray-500 dark:text-slate-400 line-clamp-3 leading-relaxed font-mono">
             {preview}{doc.content.length > 200 ? '...' : ''}
           </p>
         )}
@@ -428,7 +428,7 @@ interface DocumentEditorState {
 
 function DocumentEditorCard({ editor, saving, isNew, onChange, onSave, onCancel }: DocumentEditorCardProps) {
   return (
-    <div className="border border-primary/40 rounded-lg p-4 flex flex-col gap-3 bg-blue-50/30">
+    <div className="border border-primary/40 rounded-lg p-4 flex flex-col gap-3 bg-blue-50/30 dark:bg-blue-900/10">
       <div className="flex items-center gap-2">
         <Input
           placeholder="Document title"
@@ -439,7 +439,7 @@ function DocumentEditorCard({ editor, saving, isNew, onChange, onSave, onCancel 
         />
       </div>
       <textarea
-        className="w-full rounded-md border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-700 placeholder-gray-400 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary resize-none font-mono leading-relaxed"
+        className="w-full rounded-md border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2.5 text-sm text-gray-700 dark:text-slate-300 placeholder-gray-400 dark:placeholder-slate-500 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary resize-none font-mono leading-relaxed"
         rows={10}
         placeholder="Write the knowledge document content here..."
         value={editor.content}

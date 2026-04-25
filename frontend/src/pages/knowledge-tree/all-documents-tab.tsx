@@ -46,15 +46,15 @@ export function AllDocumentsTab({ treeId, chapters }: AllDocumentsTabProps) {
   const sortedChapters = [...docsByChapter.keys()].sort((a, b) => a - b)
 
   if (loading) {
-    return <div className="text-sm text-gray-400 mt-4">Loading documents...</div>
+    return <div className="text-sm text-gray-400 dark:text-slate-500 mt-4">Loading documents...</div>
   }
 
   if (allDocs.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-12 text-center">
-        <FolderOpen className="h-8 w-8 text-gray-300 mb-3" />
-        <p className="text-sm text-gray-500 font-medium">No documents yet</p>
-        <p className="text-xs text-gray-400 mt-1">
+        <FolderOpen className="h-8 w-8 text-gray-300 dark:text-slate-600 mb-3" />
+        <p className="text-sm text-gray-500 dark:text-slate-400 font-medium">No documents yet</p>
+        <p className="text-xs text-gray-400 dark:text-slate-500 mt-1">
           Import PDF/EPUB files into chapters to see them here.
         </p>
       </div>
@@ -65,11 +65,11 @@ export function AllDocumentsTab({ treeId, chapters }: AllDocumentsTabProps) {
     <div className="flex flex-col gap-4 min-w-0">
       {/* Source Document — highlighted top subsection */}
       {sourceFiles.length > 0 ? (
-        <div className="flex flex-col gap-2 rounded-xl border border-amber-200 bg-amber-50/40 p-4">
-          <div className="flex items-center gap-2 pb-2 border-b border-amber-200/60">
-            <Layers className="h-4 w-4 text-amber-600" />
-            <h3 className="text-sm font-semibold text-amber-800">Original Source Document</h3>
-            <Badge variant="neutral" className="text-xs bg-amber-100 text-amber-700 border-amber-200">{sourceFiles.length}</Badge>
+        <div className="flex flex-col gap-2 rounded-xl border border-amber-200 dark:border-amber-800/40 bg-amber-50/40 dark:bg-amber-900/10 p-4">
+          <div className="flex items-center gap-2 pb-2 border-b border-amber-200/60 dark:border-amber-800/40">
+            <Layers className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+            <h3 className="text-sm font-semibold text-amber-800 dark:text-amber-300">Original Source Document</h3>
+            <Badge variant="neutral" className="text-xs bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800/40">{sourceFiles.length}</Badge>
           </div>
           <div className="flex flex-col gap-2">
             {sourceFiles.map((doc) => (
@@ -78,8 +78,8 @@ export function AllDocumentsTab({ treeId, chapters }: AllDocumentsTabProps) {
           </div>
         </div>
       ) : (
-        <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50/50 p-4 text-center">
-          <p className="text-xs text-gray-400">
+        <div className="rounded-lg border border-dashed border-gray-200 dark:border-slate-700 bg-gray-50/50 dark:bg-slate-800/50 p-4 text-center">
+          <p className="text-xs text-gray-400 dark:text-slate-500">
             No original source document found. This is only available for trees imported after the latest update.
           </p>
         </div>
@@ -93,9 +93,9 @@ export function AllDocumentsTab({ treeId, chapters }: AllDocumentsTabProps) {
 
         return (
           <div key={chNum} className="flex flex-col gap-2">
-            <div className="flex items-center gap-2 pb-1 border-b border-gray-200">
-              <FileText className="h-4 w-4 text-blue-500" />
-              <h3 className="text-sm font-semibold text-gray-800">{chapterTitle}</h3>
+            <div className="flex items-center gap-2 pb-1 border-b border-gray-200 dark:border-slate-700">
+              <FileText className="h-4 w-4 text-blue-500 dark:text-blue-400" />
+              <h3 className="text-sm font-semibold text-gray-800 dark:text-slate-200">{chapterTitle}</h3>
               <Badge variant="neutral" className="text-xs">{docs.length}</Badge>
             </div>
             <div className="flex flex-col gap-2 pl-1">
@@ -146,11 +146,11 @@ function SourceDocumentRow({ doc, onReadUnified }: { doc: KnowledgeDocument; onR
   const [thumbError, setThumbError] = React.useState(false)
 
   return (
-    <div className="flex items-center gap-3 px-3 py-3 rounded-lg border border-amber-200 bg-white hover:border-amber-300 hover:bg-amber-50/50 transition-colors shadow-sm">
+    <div className="flex items-center gap-3 px-3 py-3 rounded-lg border border-amber-200 dark:border-amber-800/40 bg-white dark:bg-slate-800 hover:border-amber-300 dark:hover:border-amber-700/60 hover:bg-amber-50/50 dark:hover:bg-amber-900/20 transition-colors shadow-sm">
       {/* Thumbnail */}
       <div
         className={cn(
-          'shrink-0 w-[72px] h-[96px] rounded overflow-hidden bg-gray-100 flex items-center justify-center',
+          'shrink-0 w-[72px] h-[96px] rounded overflow-hidden bg-gray-100 dark:bg-slate-700 flex items-center justify-center',
           hasSourceFile && isPdf && !thumbError && 'cursor-pointer hover:ring-2 hover:ring-amber-400 hover:ring-offset-1 transition-all'
         )}
         onClick={() => hasSourceFile && isPdf && onReadUnified(doc)}
@@ -170,13 +170,13 @@ function SourceDocumentRow({ doc, onReadUnified }: { doc: KnowledgeDocument; onR
         )}
       </div>
       <div className="flex-1 min-w-0">
-        <span className="text-sm font-semibold text-gray-900 truncate">{doc.title}</span>
+        <span className="text-sm font-semibold text-gray-900 dark:text-slate-100 truncate">{doc.title}</span>
         {doc.source_file_name && (
-          <p className="text-xs text-gray-500 truncate">{doc.source_file_name}</p>
+          <p className="text-xs text-gray-500 dark:text-slate-400 truncate">{doc.source_file_name}</p>
         )}
       </div>
       <div className="flex items-center gap-2 shrink-0">
-        <Badge variant="neutral" className="text-xs bg-amber-100 text-amber-700 border-amber-200 hover:bg-amber-100">
+        <Badge variant="neutral" className="text-xs bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800/40 hover:bg-amber-100 dark:hover:bg-amber-900/30">
           Original
         </Badge>
         {hasSourceFile && (
@@ -184,7 +184,7 @@ function SourceDocumentRow({ doc, onReadUnified }: { doc: KnowledgeDocument; onR
             variant="ghost"
             size="sm"
             onClick={() => onReadUnified(doc)}
-            className="h-7 px-2 text-amber-600 hover:text-amber-700 hover:bg-amber-100"
+            className="h-7 px-2 text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/30"
             title="Open in unified document viewer"
           >
             <BookOpen className="h-3.5 w-3.5" />
@@ -215,11 +215,11 @@ function DocumentRow({ doc, onRead, onReadUnified }: DocumentRowProps) {
   }
 
   return (
-    <div className="flex items-center gap-3 px-3 py-2 rounded-lg border border-gray-100 bg-white hover:border-gray-200 hover:bg-gray-50 transition-colors">
+    <div className="flex items-center gap-3 px-3 py-2 rounded-lg border border-gray-100 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-gray-200 dark:hover:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors">
       {/* Thumbnail */}
       <div
         className={cn(
-          'shrink-0 w-[60px] h-[80px] rounded overflow-hidden bg-gray-100 flex items-center justify-center',
+          'shrink-0 w-[60px] h-[80px] rounded overflow-hidden bg-gray-100 dark:bg-slate-700 flex items-center justify-center',
           canRead && isPdf && !thumbError && 'cursor-pointer hover:ring-2 hover:ring-indigo-400 hover:ring-offset-1 transition-all'
         )}
         onClick={handleThumbClick}
@@ -233,15 +233,15 @@ function DocumentRow({ doc, onRead, onReadUnified }: DocumentRowProps) {
             onError={() => setThumbError(true)}
           />
         ) : hasSourceFile && !isPdf ? (
-          <BookOpen className="h-5 w-5 text-gray-400" />
+          <BookOpen className="h-5 w-5 text-gray-400 dark:text-slate-500" />
         ) : (
-          <FileText className="h-5 w-5 text-gray-400" />
+          <FileText className="h-5 w-5 text-gray-400 dark:text-slate-500" />
         )}
       </div>
       <div className="flex-1 min-w-0">
-        <span className="text-sm font-medium text-gray-800 truncate">{doc.title}</span>
+        <span className="text-sm font-medium text-gray-800 dark:text-slate-200 truncate">{doc.title}</span>
         {doc.source_file_name && (
-          <p className="text-xs text-gray-400 truncate">{doc.source_file_name}</p>
+          <p className="text-xs text-gray-400 dark:text-slate-500 truncate">{doc.source_file_name}</p>
         )}
       </div>
       <div className="flex items-center gap-2 shrink-0">
@@ -253,7 +253,7 @@ function DocumentRow({ doc, onRead, onReadUnified }: DocumentRowProps) {
             variant="ghost"
             size="sm"
             onClick={() => (isSourceFile ? onReadUnified(doc) : onRead(doc))}
-            className="h-7 px-2 text-indigo-500 hover:text-indigo-700 hover:bg-indigo-50"
+            className="h-7 px-2 text-indigo-500 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/20"
             title="Read document"
           >
             <BookOpen className="h-3.5 w-3.5" />

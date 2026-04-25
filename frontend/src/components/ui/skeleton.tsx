@@ -27,7 +27,7 @@ export function SkeletonBlock({ height = 'h-20', className }: SkeletonBlockProps
 
 export function SkeletonCard() {
   return (
-    <div className="rounded-card border border-gray-100 p-4 flex flex-col gap-3">
+    <div className="rounded-card border border-gray-100 dark:border-slate-700 p-4 flex flex-col gap-3">
       <SkeletonBlock height="h-40" />
       <SkeletonLine className="w-3/4" />
       <SkeletonLine className="w-1/2" />

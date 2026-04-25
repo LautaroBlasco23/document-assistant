@@ -53,25 +53,25 @@ function TrueFalseCard({ question, onAnswer, answered, wasCorrect }: TrueFalseCa
         base +
         (selected === value
           ? 'border-primary bg-primary/10 text-primary'
-          : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50 cursor-pointer')
+          : 'border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-gray-700 dark:text-slate-300 hover:border-gray-300 dark:hover:border-slate-500 hover:bg-gray-50 dark:hover:bg-slate-700 cursor-pointer')
       )
     }
     if (value === question.answer) {
-      return base + 'border-green-400 bg-green-50 text-green-700'
+      return base + 'border-green-400 bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400'
     }
     if (selected === value && value !== question.answer) {
-      return base + 'border-red-300 bg-red-50 text-red-600'
+      return base + 'border-red-300 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400'
     }
-    return base + 'border-gray-200 bg-white text-gray-400'
+    return base + 'border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-gray-400 dark:text-slate-500'
   }
 
   return (
-    <div className="border border-gray-200 rounded-xl bg-white shadow-sm overflow-hidden">
+    <div className="border border-gray-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 shadow-sm overflow-hidden">
       <div className="px-6 pt-5 pb-4">
         <div className="text-xs font-medium text-indigo-500 uppercase tracking-wide mb-3">
           True or False
         </div>
-        <p className="text-base text-gray-800 font-medium leading-relaxed">
+        <p className="text-base text-gray-800 dark:text-slate-200 font-medium leading-relaxed">
           {question.statement}
         </p>
       </div>
@@ -126,25 +126,25 @@ function MultipleChoiceCard({ question, onAnswer, answered, wasCorrect }: Multip
         base +
         (selected === index
           ? 'border-primary bg-primary/10 text-primary'
-          : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50 cursor-pointer')
+          : 'border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-gray-700 dark:text-slate-300 hover:border-gray-300 dark:hover:border-slate-500 hover:bg-gray-50 dark:hover:bg-slate-700 cursor-pointer')
       )
     }
     if (index === question.correctIndex) {
-      return base + 'border-green-400 bg-green-50 text-green-700'
+      return base + 'border-green-400 bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400'
     }
     if (selected === index && index !== question.correctIndex) {
-      return base + 'border-red-300 bg-red-50 text-red-600'
+      return base + 'border-red-300 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400'
     }
-    return base + 'border-gray-200 bg-white text-gray-400'
+    return base + 'border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-gray-400 dark:text-slate-500'
   }
 
   return (
-    <div className="border border-gray-200 rounded-xl bg-white shadow-sm overflow-hidden">
+    <div className="border border-gray-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 shadow-sm overflow-hidden">
       <div className="px-6 pt-5 pb-4">
         <div className="text-xs font-medium text-violet-500 uppercase tracking-wide mb-3">
           Multiple Choice
         </div>
-        <p className="text-base text-gray-800 font-medium leading-relaxed">
+        <p className="text-base text-gray-800 dark:text-slate-200 font-medium leading-relaxed">
           {question.question}
         </p>
       </div>
@@ -152,7 +152,7 @@ function MultipleChoiceCard({ question, onAnswer, answered, wasCorrect }: Multip
       <div className="px-6 pb-4 flex flex-col gap-2">
         {question.choices.map((choice, i) => (
           <button key={i} className={optionClass(i)} onClick={() => handleSelect(i)} disabled={answered}>
-            <span className="text-gray-400 mr-2">{String.fromCharCode(65 + i)}.</span>
+            <span className="text-gray-400 dark:text-slate-500 mr-2">{String.fromCharCode(65 + i)}.</span>
             {choice}
           </button>
         ))}
@@ -162,7 +162,7 @@ function MultipleChoiceCard({ question, onAnswer, answered, wasCorrect }: Multip
         <div className="px-6 pb-5">
           <button
             onClick={handleUnknown}
-            className="text-xs text-gray-400 hover:text-gray-600 underline underline-offset-2 transition-colors"
+            className="text-xs text-gray-400 dark:text-slate-500 hover:text-gray-600 dark:hover:text-slate-300 underline underline-offset-2 transition-colors"
           >
             I don&apos;t know
           </button>
@@ -228,15 +228,15 @@ function MatchingCard({ question, onAnswer, answered, wasCorrect }: MatchingCard
     : 0
 
   return (
-    <div className="border border-gray-200 rounded-xl bg-white shadow-sm overflow-hidden">
+    <div className="border border-gray-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 shadow-sm overflow-hidden">
       <div className="px-6 pt-5 pb-4">
         <div className="text-xs font-medium text-amber-500 uppercase tracking-wide mb-3">
           Matching
         </div>
-        <p className="text-base text-gray-800 font-medium leading-relaxed mb-1">
+        <p className="text-base text-gray-800 dark:text-slate-200 font-medium leading-relaxed mb-1">
           {question.prompt}
         </p>
-        <p className="text-xs text-gray-400">Match each term to its correct definition.</p>
+        <p className="text-xs text-gray-400 dark:text-slate-500">Match each term to its correct definition.</p>
       </div>
 
       <div className="px-6 pb-5 flex flex-col gap-3">
@@ -248,7 +248,7 @@ function MatchingCard({ question, onAnswer, answered, wasCorrect }: MatchingCard
           return (
             <div key={termIndex} className="flex gap-3 items-start">
               {/* Term */}
-              <div className="w-40 shrink-0 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm font-medium text-gray-700">
+              <div className="w-40 shrink-0 rounded-lg border border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-700 px-3 py-2 text-sm font-medium text-gray-700 dark:text-slate-300">
                 {pair.term}
               </div>
 
@@ -259,14 +259,14 @@ function MatchingCard({ question, onAnswer, answered, wasCorrect }: MatchingCard
                   disabled={answered || submitted}
                   onChange={(e) => handleSelect(termIndex, Number(e.target.value))}
                   className={[
-                    'w-full rounded-lg border-2 px-3 py-2 text-sm bg-white focus:outline-none',
+                    'w-full rounded-lg border-2 px-3 py-2 text-sm bg-white dark:bg-slate-800 focus:outline-none',
                     !submitted
-                      ? 'border-gray-200 text-gray-700 focus:border-primary'
+                      ? 'border-gray-200 dark:border-slate-600 text-gray-700 dark:text-slate-300 focus:border-primary'
                       : isCorrect
-                        ? 'border-green-400 text-green-700 bg-green-50'
+                        ? 'border-green-400 text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-900/30'
                         : isWrong
-                          ? 'border-red-300 text-red-600 bg-red-50'
-                          : 'border-gray-200 text-gray-400',
+                          ? 'border-red-300 text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20'
+                          : 'border-gray-200 dark:border-slate-600 text-gray-400 dark:text-slate-500',
                   ].join(' ')}
                 >
                   <option value="" disabled>
@@ -279,7 +279,7 @@ function MatchingCard({ question, onAnswer, answered, wasCorrect }: MatchingCard
                   ))}
                 </select>
                 {submitted && isWrong && selected !== null && (
-                  <p className="text-xs text-green-600 mt-1">
+                  <p className="text-xs text-green-600 dark:text-green-400 mt-1">
                     Correct: {question.pairs[termIndex].definition}
                   </p>
                 )}
@@ -353,24 +353,24 @@ function CheckboxCard({ question, onAnswer, answered, wasCorrect }: CheckboxCard
         base +
         (checked.has(index)
           ? 'border-primary bg-primary/10 text-primary cursor-pointer'
-          : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50 cursor-pointer')
+          : 'border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-gray-700 dark:text-slate-300 hover:border-gray-300 dark:hover:border-slate-500 hover:bg-gray-50 dark:hover:bg-slate-700 cursor-pointer')
       )
     }
     const isCorrect = question.correctIndices.includes(index)
     const wasChecked = checked.has(index)
-    if (isCorrect && wasChecked) return base + 'border-green-400 bg-green-50 text-green-700'
-    if (isCorrect && !wasChecked) return base + 'border-green-300 bg-green-50/50 text-green-600'
-    if (!isCorrect && wasChecked) return base + 'border-red-300 bg-red-50 text-red-600'
-    return base + 'border-gray-200 bg-white text-gray-400'
+    if (isCorrect && wasChecked) return base + 'border-green-400 bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400'
+    if (isCorrect && !wasChecked) return base + 'border-green-300 bg-green-50/50 dark:bg-green-900/20 text-green-600 dark:text-green-400'
+    if (!isCorrect && wasChecked) return base + 'border-red-300 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400'
+    return base + 'border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-gray-400 dark:text-slate-500'
   }
 
   return (
-    <div className="border border-gray-200 rounded-xl bg-white shadow-sm overflow-hidden">
+    <div className="border border-gray-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 shadow-sm overflow-hidden">
       <div className="px-6 pt-5 pb-4">
         <div className="text-xs font-medium text-teal-500 uppercase tracking-wide mb-3">
           Select All That Apply
         </div>
-        <p className="text-base text-gray-800 font-medium leading-relaxed">
+        <p className="text-base text-gray-800 dark:text-slate-200 font-medium leading-relaxed">
           {question.question}
         </p>
       </div>
@@ -394,12 +394,12 @@ function CheckboxCard({ question, onAnswer, answered, wasCorrect }: CheckboxCard
                   !submitted
                     ? checked.has(i)
                       ? 'border-primary bg-primary'
-                      : 'border-gray-300 bg-white'
+                      : 'border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700'
                     : isCorrect
                       ? 'border-green-500 bg-green-500'
                       : wasChecked
                         ? 'border-red-400 bg-red-400'
-                        : 'border-gray-300 bg-white',
+                        : 'border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700',
                 ].join(' ')}
               >
                 {(checked.has(i) || (submitted && isCorrect)) && (
@@ -408,7 +408,7 @@ function CheckboxCard({ question, onAnswer, answered, wasCorrect }: CheckboxCard
               </span>
               <span>{choice}</span>
               {submitted && isCorrect && !wasChecked && (
-                <span className="ml-auto text-xs text-green-600 shrink-0">(missed)</span>
+                <span className="ml-auto text-xs text-green-600 dark:text-green-400 shrink-0">(missed)</span>
               )}
             </button>
           )
@@ -475,22 +475,22 @@ function FlashcardCard({ question, onAnswer, answered }: FlashcardCardProps) {
           {/* Front */}
           <div
             style={{ backfaceVisibility: 'hidden' }}
-            className="absolute inset-0 bg-white border border-gray-200 rounded-xl p-8 flex flex-col justify-between shadow-sm"
+            className="absolute inset-0 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl p-8 flex flex-col justify-between shadow-sm"
           >
             <div className="text-xs font-medium text-blue-400 uppercase tracking-wide">Flashcard</div>
-            <p className="text-lg text-gray-800 font-medium text-center flex-1 flex items-center justify-center py-4">
+            <p className="text-lg text-gray-800 dark:text-slate-200 font-medium text-center flex-1 flex items-center justify-center py-4">
               {question.front}
             </p>
-            <p className="text-sm text-gray-400 text-center">Click to reveal answer</p>
+            <p className="text-sm text-gray-400 dark:text-slate-500 text-center">Click to reveal answer</p>
           </div>
 
           {/* Back */}
           <div
             style={{ backfaceVisibility: 'hidden', transform: 'rotateY(180deg)' }}
-            className="absolute inset-0 bg-blue-50/60 border border-blue-200/60 rounded-xl p-8 flex flex-col justify-between shadow-sm"
+            className="absolute inset-0 bg-blue-50/60 dark:bg-blue-900/30 border border-blue-200/60 dark:border-blue-700/60 rounded-xl p-8 flex flex-col justify-between shadow-sm"
           >
-            <div className="text-xs font-medium text-blue-500 uppercase tracking-wide">Answer</div>
-            <p className="text-base text-gray-700 text-center flex-1 flex items-center justify-center py-4">
+            <div className="text-xs font-medium text-blue-500 dark:text-blue-400 uppercase tracking-wide">Answer</div>
+            <p className="text-base text-gray-700 dark:text-slate-300 text-center flex-1 flex items-center justify-center py-4">
               {question.back}
             </p>
             {flipped && !answered && (
@@ -518,7 +518,7 @@ function FlashcardCard({ question, onAnswer, answered }: FlashcardCardProps) {
       </div>
 
       {!flipped && (
-        <p className="text-center text-sm text-gray-400">
+        <p className="text-center text-sm text-gray-400 dark:text-slate-500">
           Click the card to reveal the answer
         </p>
       )}
@@ -540,7 +540,7 @@ function FeedbackBanner({ correct, explanation }: FeedbackBannerProps) {
     <div
       className={[
         'px-6 py-3 border-t flex gap-3 items-start text-sm',
-        correct ? 'bg-green-50 border-green-100 text-green-700' : 'bg-red-50 border-red-100 text-red-700',
+        correct ? 'bg-green-50 dark:bg-green-900/30 border-green-100 dark:border-green-800 text-green-700 dark:text-green-400' : 'bg-red-50 dark:bg-red-900/20 border-red-100 dark:border-red-800 text-red-700 dark:text-red-400',
       ].join(' ')}
     >
       {correct ? (
@@ -601,10 +601,10 @@ function ResultsScreen({ questions, results, correctCount, total, onFinish }: Re
   return (
     <div className="flex flex-col items-center gap-6 py-8">
       <div className="text-center">
-        <h2 className="text-2xl font-bold text-gray-800 mb-1">
+        <h2 className="text-2xl font-bold text-gray-800 dark:text-slate-200 mb-1">
           {passed ? 'Exam Passed!' : 'Exam Complete'}
         </h2>
-        <p className="text-gray-500 text-sm">
+        <p className="text-gray-500 dark:text-slate-400 text-sm">
           {passed
             ? 'All questions answered correctly.'
             : `Review the missed questions and try again.`}
@@ -612,15 +612,15 @@ function ResultsScreen({ questions, results, correctCount, total, onFinish }: Re
       </div>
 
       <div className="flex flex-col items-center gap-1">
-        <span className="text-5xl font-bold text-gray-800">{pct}%</span>
-        <span className="text-sm text-gray-500">
+        <span className="text-5xl font-bold text-gray-800 dark:text-slate-200">{pct}%</span>
+        <span className="text-sm text-gray-500 dark:text-slate-400">
           {correctCount} / {total} correct
         </span>
       </div>
 
       {!passed && (
         <div className="w-full max-w-md">
-          <p className="text-sm font-medium text-gray-600 mb-2">Missed questions:</p>
+          <p className="text-sm font-medium text-gray-600 dark:text-slate-400 mb-2">Missed questions:</p>
           <ul className="flex flex-col gap-2">
             {Object.entries(results)
               .filter(([, correct]) => !correct)
@@ -636,7 +636,7 @@ function ResultsScreen({ questions, results, correctCount, total, onFinish }: Re
                         ? q.prompt
                         : q.question
                 return (
-                  <li key={idx} className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800 flex gap-2">
+                  <li key={idx} className="rounded-lg border border-red-200 dark:border-red-700 bg-red-50 dark:bg-red-900/20 px-3 py-2 text-sm text-red-800 dark:text-red-300 flex gap-2">
                     <HelpCircle className="h-4 w-4 shrink-0 mt-0.5 text-red-400" />
                     <span>{label}</span>
                   </li>
@@ -706,7 +706,7 @@ export function KnowledgeExamSession({ questions, onFinish }: KnowledgeExamSessi
       <div className="flex items-center gap-3">
         <div className="flex-1">
           <Progress value={progressValue} />
-          <p className="text-xs text-gray-400 mt-1">
+          <p className="text-xs text-gray-400 dark:text-slate-500 mt-1">
             {currentIndex + 1} / {total}
           </p>
         </div>

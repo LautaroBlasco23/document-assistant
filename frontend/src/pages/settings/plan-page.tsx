@@ -37,8 +37,8 @@ export function PlanPage() {
     return (
       <div className="p-6">
         <div className="animate-pulse space-y-4">
-          <div className="h-8 bg-gray-200 rounded w-1/3"></div>
-          <div className="h-32 bg-gray-200 rounded"></div>
+          <div className="h-8 bg-gray-200 dark:bg-slate-600 rounded w-1/3"></div>
+          <div className="h-32 bg-gray-200 dark:bg-slate-600 rounded"></div>
         </div>
       </div>
     )
@@ -61,14 +61,14 @@ export function PlanPage() {
 
       <div className="space-y-6">
         {/* Knowledge Trees */}
-        <div className="bg-white border rounded-lg p-5">
+        <div className="bg-white dark:bg-slate-800 border dark:border-slate-700 rounded-lg p-5">
           <div className="flex justify-between items-center mb-3">
-            <h3 className="font-semibold text-gray-900">Knowledge Trees</h3>
-            <span className="text-sm font-medium text-gray-600">
+            <h3 className="font-semibold text-gray-900 dark:text-slate-100">Knowledge Trees</h3>
+            <span className="text-sm font-medium text-gray-600 dark:text-slate-400">
               {limits.current_knowledge_trees} / {limits.max_knowledge_trees}
             </span>
           </div>
-          <div className="w-full bg-gray-200 rounded-full h-2.5 mb-3">
+          <div className="w-full bg-gray-200 dark:bg-slate-600 rounded-full h-2.5 mb-3">
             <div
               className={`h-2.5 rounded-full transition-all ${
                 treePercent >= 90 ? 'bg-red-500' : 'bg-blue-600'
@@ -84,14 +84,14 @@ export function PlanPage() {
         </div>
 
         {/* Documents */}
-        <div className="bg-white border rounded-lg p-5">
+        <div className="bg-white dark:bg-slate-800 border dark:border-slate-700 rounded-lg p-5">
           <div className="flex justify-between items-center mb-3">
-            <h3 className="font-semibold text-gray-900">Documents</h3>
-            <span className="text-sm font-medium text-gray-600">
+            <h3 className="font-semibold text-gray-900 dark:text-slate-100">Documents</h3>
+            <span className="text-sm font-medium text-gray-600 dark:text-slate-400">
               {limits.current_documents} / {limits.max_documents}
             </span>
           </div>
-          <div className="w-full bg-gray-200 rounded-full h-2.5 mb-3">
+          <div className="w-full bg-gray-200 dark:bg-slate-600 rounded-full h-2.5 mb-3">
             <div
               className={`h-2.5 rounded-full transition-all ${
                 docPercent >= 90 ? 'bg-red-500' : 'bg-green-600'
@@ -107,9 +107,9 @@ export function PlanPage() {
         </div>
 
         {/* Plan Info */}
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <h4 className="font-medium text-blue-900 mb-2">Free Plan</h4>
-          <p className="text-sm text-blue-700">
+        <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-amber-700 rounded-lg p-4">
+          <h4 className="font-medium text-blue-900 dark:text-blue-300 mb-2">Free Plan</h4>
+          <p className="text-sm text-blue-700 dark:text-blue-300">
             You're on the Free plan with {limits.max_knowledge_trees} knowledge trees and {limits.max_documents} documents.
             Contact your admin to upgrade to a higher plan.
           </p>
