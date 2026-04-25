@@ -328,6 +328,12 @@ export function KnowledgeTreePage() {
               treeId={treeId}
               chapters={treeChapters}
             />
+          ) : selectedChapter === null ? (
+            <KnowledgeDocumentsTab
+              treeId={treeId}
+              selectedChapter={null}
+              chapters={treeChapters}
+            />
           ) : (
             <Tabs value={activeTab} onValueChange={(v) => handleTabChange(v as KnowledgeTreeTab)}>
               <TabsList>
