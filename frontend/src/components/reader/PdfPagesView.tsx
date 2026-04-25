@@ -85,17 +85,12 @@ export function PdfPagesView({
     const observer = new IntersectionObserver(
       (entries) => {
         let nextActive: Set<number> | null = null
-        let topMost: { page: number; ratio: number } | null = null
         for (const entry of entries) {
           const pageNum = Number((entry.target as HTMLElement).dataset.page)
           if (!pageNum) continue
           if (entry.isIntersecting) {
             if (!nextActive) nextActive = new Set(activePagesRef.current)
             nextActive.add(pageNum)
-            // Track the most-visible page for current-page reporting.
-            if (entry.intersectionRatio > 0 && (!topMost || entry.intersectionRatio > topMost.ratio)) {
-              topMost = { page: pageNum, ratio: entry.intersectionRatio }
-            }
           } else {
             if (!nextActive) nextActive = new Set(activePagesRef.current)
             nextActive.delete(pageNum)
@@ -105,9 +100,8 @@ export function PdfPagesView({
           activePagesRef.current = nextActive
           setActivePages(nextActive)
         }
-        if (topMost) onCurrentPageChangeRef.current?.(topMost.page)
       },
-      { root, rootMargin: margin, threshold: [0, 0.25, 0.5, 0.75, 1] }
+      { root, rootMargin: margin, threshold: 0 }
     )
     observerRef.current = observer
     // Observe any slots already mounted.
@@ -115,6 +109,39 @@ export function PdfPagesView({
     return () => {
       observer.disconnect()
       observerRef.current = null
+    }
+  }, [])
+
+  // Separate observer with no rootMargin: tracks pages actually visible in the
+  // viewport so we can report the topmost one as the current page.
+  const viewportObserverRef = React.useRef<IntersectionObserver | null>(null)
+  const viewportVisibleRef = React.useRef<Set<number>>(new Set())
+  React.useEffect(() => {
+    const root = scrollContainerRef.current
+    if (!root) return
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          const pageNum = Number((entry.target as HTMLElement).dataset.page)
+          if (!pageNum) continue
+          if (entry.isIntersecting) {
+            viewportVisibleRef.current.add(pageNum)
+          } else {
+            viewportVisibleRef.current.delete(pageNum)
+          }
+        }
+        if (viewportVisibleRef.current.size > 0) {
+          const topPage = Math.min(...viewportVisibleRef.current)
+          onCurrentPageChangeRef.current?.(topPage)
+        }
+      },
+      { root, rootMargin: '0px', threshold: 0.01 }
+    )
+    viewportObserverRef.current = observer
+    pageSlotRefs.current.forEach((el) => observer.observe(el))
+    return () => {
+      observer.disconnect()
+      viewportObserverRef.current = null
     }
   }, [])
 
@@ -131,13 +158,19 @@ export function PdfPagesView({
     if (cached) return cached
     cached = (el: HTMLDivElement | null) => {
       const observer = observerRef.current
+      const vpObserver = viewportObserverRef.current
       const prev = pageSlotRefs.current.get(pageNumber)
-      if (prev && prev !== el) observer?.unobserve(prev)
+      if (prev && prev !== el) {
+        observer?.unobserve(prev)
+        vpObserver?.unobserve(prev)
+      }
       if (el) {
         pageSlotRefs.current.set(pageNumber, el)
         observer?.observe(el)
+        vpObserver?.observe(el)
       } else {
         pageSlotRefs.current.delete(pageNumber)
+        viewportVisibleRef.current.delete(pageNumber)
       }
     }
     refFactoryCache.current.set(pageNumber, cached)
@@ -217,7 +250,7 @@ export function PdfPagesView({
                   />
                 )}
                 <span className="mt-2 text-xs text-gray-400 dark:text-slate-500 select-none">
-                  {pageNumber} / {pageList.length}
+                  {pageNumber} / {numPages}
                 </span>
               </div>
             </React.Fragment>
