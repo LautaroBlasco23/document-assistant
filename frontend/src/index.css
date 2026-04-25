@@ -98,3 +98,11 @@ html, body, #root {
 .sidebar-border-blue {
   animation: breathe-blue 2.5s ease-in-out infinite;
 }
+
+/* ─── Disable IBeam cursor on text inputs and PDF text layer ─────────────── */
+input,
+textarea,
+[contenteditable],
+.textLayer :is(span, br) {
+  cursor: default !important;
+}
