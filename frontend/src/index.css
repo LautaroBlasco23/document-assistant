@@ -99,6 +99,49 @@ html, body, #root {
   animation: breathe-blue 2.5s ease-in-out infinite;
 }
 
+/* ─── Animated border for Original Source Document card ─────────────────── */
+
+@property --source-border-angle {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
+}
+
+@keyframes source-border-spin {
+  to { --source-border-angle: 360deg; }
+}
+
+.source-doc-animated-border {
+  position: relative;
+  padding: 2px;
+  border-radius: 13px;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.source-doc-animated-border::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: conic-gradient(
+    from var(--source-border-angle),
+    transparent 0%,
+    transparent 35%,
+    #c2410c 48%,
+    #f97316 55%,
+    #fb923c 60%,
+    #ffba6b 63%,
+    #fb923c 66%,
+    #f97316 71%,
+    #c2410c 78%,
+    transparent 88%,
+    transparent 100%
+  );
+  animation: source-border-spin 4s linear infinite;
+  z-index: -1;
+}
+
 /* ─── Disable IBeam cursor on text inputs and PDF text layer ─────────────── */
 input,
 textarea,

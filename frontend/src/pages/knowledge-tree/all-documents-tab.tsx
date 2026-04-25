@@ -146,9 +146,10 @@ function SourceDocumentRow({ doc, onReadUnified }: { doc: KnowledgeDocument; onR
   const [thumbError, setThumbError] = React.useState(false)
 
   return (
+    <div className="source-doc-animated-border">
     <div
       className={cn(
-        'flex items-center gap-3 px-3 py-3 rounded-lg border border-amber-200 dark:border-amber-800/40 bg-white dark:bg-slate-800 shadow-sm transition-all duration-200 ease-out',
+        'flex items-center gap-3 px-3 py-3 rounded-[9px] bg-white dark:bg-slate-800 shadow-sm transition-all duration-200 ease-out',
         canOpen && !thumbError && 'cursor-pointer hover:shadow-xl hover:scale-[1.02]'
       )}
       onClick={() => canOpen && !thumbError && onReadUnified(doc)}
@@ -179,6 +180,7 @@ function SourceDocumentRow({ doc, onReadUnified }: { doc: KnowledgeDocument; onR
           Original
         </Badge>
       </div>
+    </div>
     </div>
   )
 }
