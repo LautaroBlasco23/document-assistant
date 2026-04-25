@@ -34,13 +34,8 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
   const isPdf = doc.source_file_name?.toLowerCase().endsWith('.pdf') || doc.source_file_path?.toLowerCase().endsWith('.pdf')
   const fileUrl = client.getDocumentFileUrl(treeId, doc.id)
 
-  // Fetch all documents to get chapter docs with page ranges
-  const { documents: docsByKey, fetchAllDocuments } = useKnowledgeTreeStore()
-  React.useEffect(() => {
-    void fetchAllDocuments(treeId)
-  }, [treeId, fetchAllDocuments])
-
-  const allDocs = docsByKey[`${treeId}:all`] ?? []
+  // Read already-fetched documents from store (AllDocumentsTab fetched them)
+  const allDocs = useKnowledgeTreeStore((s) => s.documents[`${treeId}:all`] ?? [])
   const chapterDocs = React.useMemo(() => {
     return allDocs
       .filter((d) => d.chapter_number !== null && d.page_start != null && d.page_end != null)

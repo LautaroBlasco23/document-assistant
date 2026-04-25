@@ -28,8 +28,12 @@ export function AllDocumentsTab({ treeId, chapters }: AllDocumentsTabProps) {
     void fetchAllDocuments(treeId)
   }, [treeId, fetchAllDocuments])
 
-  const sourceFiles = allDocs.filter((d) => d.source_file_path && d.chapter_number === null)
-  const chapterDocs = allDocs.filter((d) => d.chapter_number !== null)
+  // A "source file" is any tree-level document that has an original file attached.
+  // We check both chapter_number and chapter_id to be defensive against API quirks.
+  const sourceFiles = allDocs.filter(
+    (d) => d.source_file_path && (d.chapter_number == null || d.chapter_id == null)
+  )
+  const chapterDocs = allDocs.filter((d) => d.chapter_number != null && d.chapter_id != null)
 
   const docsByChapter = new Map<number, KnowledgeDocument[]>()
   for (const doc of chapterDocs) {
@@ -59,19 +63,25 @@ export function AllDocumentsTab({ treeId, chapters }: AllDocumentsTabProps) {
 
   return (
     <div className="flex flex-col gap-4 min-w-0">
-      {/* Source Files */}
-      {sourceFiles.length > 0 && (
-        <div className="flex flex-col gap-2">
-          <div className="flex items-center gap-2 pb-1 border-b border-gray-200">
-            <Layers className="h-4 w-4 text-green-600" />
-            <h3 className="text-sm font-semibold text-gray-800">Source Files</h3>
-            <Badge variant="neutral" className="text-xs">{sourceFiles.length}</Badge>
+      {/* Source Document — highlighted top subsection */}
+      {sourceFiles.length > 0 ? (
+        <div className="flex flex-col gap-2 rounded-xl border border-amber-200 bg-amber-50/40 p-4">
+          <div className="flex items-center gap-2 pb-2 border-b border-amber-200/60">
+            <Layers className="h-4 w-4 text-amber-600" />
+            <h3 className="text-sm font-semibold text-amber-800">Original Source Document</h3>
+            <Badge variant="neutral" className="text-xs bg-amber-100 text-amber-700 border-amber-200">{sourceFiles.length}</Badge>
           </div>
-          <div className="flex flex-col gap-2 pl-1">
+          <div className="flex flex-col gap-2">
             {sourceFiles.map((doc) => (
-              <DocumentRow key={doc.id} doc={doc} onRead={setReaderDoc} onReadUnified={setUnifiedReaderDoc} />
+              <SourceDocumentRow key={doc.id} doc={doc} onReadUnified={setUnifiedReaderDoc} />
             ))}
           </div>
+        </div>
+      ) : (
+        <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50/50 p-4 text-center">
+          <p className="text-xs text-gray-400">
+            No original source document found. This is only available for trees imported after the latest update.
+          </p>
         </div>
       )}
 
@@ -126,6 +136,66 @@ interface DocumentRowProps {
   onReadUnified: (doc: KnowledgeDocument) => void
 }
 
+function SourceDocumentRow({ doc, onReadUnified }: { doc: KnowledgeDocument; onReadUnified: (doc: KnowledgeDocument) => void }) {
+  const hasSourceFile = !!doc.source_file_path
+  const isPdf = hasSourceFile && (
+    doc.source_file_name?.toLowerCase().endsWith('.pdf') ||
+    doc.source_file_path?.toLowerCase().endsWith('.pdf')
+  )
+  const thumbnailUrl = hasSourceFile ? client.getDocumentThumbnailUrl(doc.tree_id, doc.id) : ''
+  const [thumbError, setThumbError] = React.useState(false)
+
+  return (
+    <div className="flex items-center gap-3 px-3 py-3 rounded-lg border border-amber-200 bg-white hover:border-amber-300 hover:bg-amber-50/50 transition-colors shadow-sm">
+      {/* Thumbnail */}
+      <div
+        className={cn(
+          'shrink-0 w-[72px] h-[96px] rounded overflow-hidden bg-gray-100 flex items-center justify-center',
+          hasSourceFile && isPdf && !thumbError && 'cursor-pointer hover:ring-2 hover:ring-amber-400 hover:ring-offset-1 transition-all'
+        )}
+        onClick={() => hasSourceFile && isPdf && onReadUnified(doc)}
+        title={hasSourceFile && isPdf ? 'Click to open unified document viewer' : undefined}
+      >
+        {hasSourceFile && isPdf && !thumbError ? (
+          <img
+            src={thumbnailUrl}
+            alt={`Preview of ${doc.title}`}
+            className="w-full h-full object-cover"
+            onError={() => setThumbError(true)}
+          />
+        ) : hasSourceFile && !isPdf ? (
+          <BookOpen className="h-6 w-6 text-amber-500" />
+        ) : (
+          <FileText className="h-6 w-6 text-amber-500" />
+        )}
+      </div>
+      <div className="flex-1 min-w-0">
+        <span className="text-sm font-semibold text-gray-900 truncate">{doc.title}</span>
+        {doc.source_file_name && (
+          <p className="text-xs text-gray-500 truncate">{doc.source_file_name}</p>
+        )}
+      </div>
+      <div className="flex items-center gap-2 shrink-0">
+        <Badge variant="neutral" className="text-xs bg-amber-100 text-amber-700 border-amber-200 hover:bg-amber-100">
+          Original
+        </Badge>
+        {hasSourceFile && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => onReadUnified(doc)}
+            className="h-7 px-2 text-amber-600 hover:text-amber-700 hover:bg-amber-100"
+            title="Open in unified document viewer"
+          >
+            <BookOpen className="h-3.5 w-3.5" />
+            <span className="ml-1 text-xs">Read</span>
+          </Button>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function DocumentRow({ doc, onRead, onReadUnified }: DocumentRowProps) {
   const hasSourceFile = !!doc.source_file_path
   const isPdf = hasSourceFile && (
@@ -133,7 +203,7 @@ function DocumentRow({ doc, onRead, onReadUnified }: DocumentRowProps) {
     doc.source_file_path?.toLowerCase().endsWith('.pdf')
   )
   const canRead = hasSourceFile
-  const isSourceFile = doc.chapter_number === null && !doc.is_main
+  const isSourceFile = doc.chapter_number == null && !doc.is_main
   const thumbnailUrl = canRead ? client.getDocumentThumbnailUrl(doc.tree_id, doc.id) : ''
   const [thumbError, setThumbError] = React.useState(false)
 
