@@ -46,19 +46,6 @@ html, body, #root {
   animation: breathe-blue 2.5s ease-in-out infinite;
 }
 
-/* Windows' default cursor is white — force a black arrow sitewide via a
-   custom SVG so it's always visible on light backgrounds. The fallback
-   `default` kicks in if the browser can't load the data URI. */
-*, *::before, *::after {
-  cursor: url("data:image/svg+xml;charset=utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='20'><path d='M0,0L0,14L4,10L6.5,16.5L8.5,15.5L6,9.5L9.5,9.5Z' fill='%23000' stroke='%23fff' stroke-width='1.5' stroke-linejoin='round'/></svg>") 0 0, default !important;
-}
-
-button, a, [role="button"], select,
-input[type="submit"], input[type="button"], input[type="reset"],
-input[type="checkbox"], input[type="radio"],
-label[for] {
-  cursor: pointer !important;
-}
 
 /* Ensure the text caret stays black and the browser knows these fields are
    light-themed. This fixes white carets on light backgrounds when the OS is
