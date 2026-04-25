@@ -172,7 +172,7 @@ export function PdfPagesView({
   return (
     <div
       ref={scrollContainerRef}
-      className="flex-1 min-w-0 bg-gray-100 overflow-auto flex flex-col items-center py-6 px-4 gap-8 cursor-text"
+      className="flex-1 min-w-0 bg-gray-100 overflow-auto flex flex-col items-center py-6 px-4 gap-8"
       onContextMenu={onContextMenu}
       onClick={onClickAway}
     >

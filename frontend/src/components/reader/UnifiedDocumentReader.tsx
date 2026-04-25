@@ -46,17 +46,21 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
   const startLeftWidthRef = React.useRef(leftWidth)
   const startRightWidthRef = React.useRef(rightWidth)
 
-  const persistLeftWidth = React.useCallback((w: number) => {
-    const clamped = Math.max(160, Math.min(500, w))
-    setLeftWidth(clamped)
-    try { localStorage.setItem('docassist_panel_width:left', String(clamped)) } catch { /* ignore */ }
+  const applyLeftWidth = React.useCallback((w: number) => {
+    setLeftWidth(Math.max(160, Math.min(500, w)))
   }, [])
 
-  const persistRightWidth = React.useCallback((w: number) => {
-    const clamped = Math.max(200, Math.min(800, w))
-    setRightWidth(clamped)
-    try { localStorage.setItem('docassist_panel_width:right', String(clamped)) } catch { /* ignore */ }
+  const saveLeftWidth = React.useCallback(() => {
+    try { localStorage.setItem('docassist_panel_width:left', String(leftWidth)) } catch { /* ignore */ }
+  }, [leftWidth])
+
+  const applyRightWidth = React.useCallback((w: number) => {
+    setRightWidth(Math.max(200, Math.min(800, w)))
   }, [])
+
+  const saveRightWidth = React.useCallback(() => {
+    try { localStorage.setItem('docassist_panel_width:right', String(rightWidth)) } catch { /* ignore */ }
+  }, [rightWidth])
 
   const isPdf = doc.source_file_name?.toLowerCase().endsWith('.pdf') || doc.source_file_path?.toLowerCase().endsWith('.pdf')
   const fileUrl = client.getDocumentFileUrl(treeId, doc.id)
@@ -299,7 +303,8 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
               {showLeft && (
                 <ResizeHandle
                   onResizeStart={() => { startLeftWidthRef.current = leftWidth }}
-                  onResize={(delta) => persistLeftWidth(startLeftWidthRef.current + delta)}
+                  onResize={(delta) => applyLeftWidth(startLeftWidthRef.current + delta)}
+                  onResizeEnd={saveLeftWidth}
                 />
               )}
             </>
@@ -333,7 +338,8 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
           {showRight && (
             <ResizeHandle
               onResizeStart={() => { startRightWidthRef.current = rightWidth }}
-              onResize={(delta) => persistRightWidth(startRightWidthRef.current - delta)}
+              onResize={(delta) => applyRightWidth(startRightWidthRef.current - delta)}
+              onResizeEnd={saveRightWidth}
             />
           )}
           <div

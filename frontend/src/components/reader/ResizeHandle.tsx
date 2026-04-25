@@ -5,41 +5,61 @@ interface ResizeHandleProps {
   direction?: 'horizontal' | 'vertical'
   onResizeStart?: () => void
   onResize: (delta: number) => void
+  onResizeEnd?: () => void
 }
 
 export function ResizeHandle({
   direction = 'horizontal',
   onResizeStart,
   onResize,
+  onResizeEnd,
 }: ResizeHandleProps) {
-  const handleMouseDown = (e: React.MouseEvent) => {
+  const handlePointerDown = (e: React.PointerEvent) => {
     e.preventDefault()
     onResizeStart?.()
+
+    const cursor = direction === 'horizontal' ? 'col-resize' : 'row-resize'
+    const prevUserSelect = document.body.style.userSelect
+    const prevCursor = document.body.style.cursor
     document.body.style.userSelect = 'none'
+    document.body.style.cursor = cursor
 
     const startPos = direction === 'horizontal' ? e.clientX : e.clientY
+    let rafId: number | null = null
+    let latestDelta = 0
 
-    const handleMouseMove = (moveEvent: MouseEvent) => {
-      const currentPos =
-        direction === 'horizontal' ? moveEvent.clientX : moveEvent.clientY
-      onResize(currentPos - startPos)
+    const handlePointerMove = (moveEvent: PointerEvent) => {
+      const currentPos = direction === 'horizontal' ? moveEvent.clientX : moveEvent.clientY
+      latestDelta = currentPos - startPos
+
+      if (rafId !== null) return
+      rafId = requestAnimationFrame(() => {
+        rafId = null
+        onResize(latestDelta)
+      })
     }
 
-    const handleMouseUp = () => {
-      document.body.style.userSelect = ''
-      window.removeEventListener('mousemove', handleMouseMove)
-      window.removeEventListener('mouseup', handleMouseUp)
+    const handlePointerUp = () => {
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId)
+        rafId = null
+      }
+      document.body.style.userSelect = prevUserSelect
+      document.body.style.cursor = prevCursor
+      onResizeEnd?.()
+      window.removeEventListener('pointermove', handlePointerMove)
+      window.removeEventListener('pointerup', handlePointerUp)
     }
 
-    window.addEventListener('mousemove', handleMouseMove)
-    window.addEventListener('mouseup', handleMouseUp)
+    window.addEventListener('pointermove', handlePointerMove)
+    window.addEventListener('pointerup', handlePointerUp)
   }
 
   return (
     <div
-      onMouseDown={handleMouseDown}
+      onPointerDown={handlePointerDown}
       className={cn(
-        'shrink-0 bg-transparent hover:bg-blue-300/50 active:bg-blue-400/70 transition-colors',
+        'shrink-0 bg-transparent hover:bg-blue-300/50 active:bg-blue-400/70 transition-colors touch-none',
         direction === 'horizontal'
           ? 'w-1.5 cursor-col-resize self-stretch'
           : 'h-1.5 cursor-row-resize'
