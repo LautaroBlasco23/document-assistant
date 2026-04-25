@@ -42,6 +42,21 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
       .sort((a, b) => (a.chapter_number ?? 0) - (b.chapter_number ?? 0))
   }, [allDocs])
 
+  // Visible pages: only pages that belong to any chapter's page range
+  const visiblePages = React.useMemo(() => {
+    if (!isPdf || chapterDocs.length === 0) return null
+    const pages: number[] = []
+    const sorted = [...chapterDocs].sort((a, b) => (a.page_start ?? 0) - (b.page_start ?? 0))
+    for (const chDoc of sorted) {
+      if (chDoc.page_start && chDoc.page_end) {
+        for (let p = chDoc.page_start; p <= chDoc.page_end; p++) {
+          pages.push(p)
+        }
+      }
+    }
+    return pages.length > 0 ? pages : null
+  }, [chapterDocs, isPdf])
+
   // Compute active chapter from current page
   const activeChapter = React.useMemo(() => {
     if (!isPdf || !currentPage) return null
@@ -49,11 +64,9 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
       (d) => d.page_start && d.page_end && currentPage >= d.page_start && currentPage <= d.page_end
     )
     if (chDoc) return chDoc.chapter_number
-    // Before first chapter
     if (chapterDocs.length > 0 && currentPage < (chapterDocs[0].page_start ?? 0)) {
       return chapterDocs[0].chapter_number
     }
-    // After last chapter
     if (chapterDocs.length > 0 && currentPage > (chapterDocs[chapterDocs.length - 1].page_end ?? 0)) {
       return chapterDocs[chapterDocs.length - 1].chapter_number
     }
@@ -280,9 +293,9 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
                   </div>
                 }
               >
-                {Array.from({ length: numPages }, (_, i) => {
-                  const pageNumber = i + 1
+                {(visiblePages ?? Array.from({ length: numPages }, (_, i) => i + 1)).map((pageNumber) => {
                   const chStart = chapterDocs.find((d) => d.page_start === pageNumber)
+                  const displayCount = visiblePages ? visiblePages.length : numPages
                   return (
                     <React.Fragment key={pageNumber}>
                       {chStart && (
@@ -311,7 +324,7 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
                           />
                         </div>
                         <span className="mt-2 text-xs text-gray-400 select-none">
-                          {pageNumber} / {numPages}
+                          {pageNumber} / {displayCount}
                         </span>
                       </div>
                     </React.Fragment>
