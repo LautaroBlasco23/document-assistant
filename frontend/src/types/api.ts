@@ -89,9 +89,18 @@ export interface ChatMessage {
   content: string
 }
 
+export interface GenerationParams {
+  temperature: number
+  top_p: number
+  max_tokens: number
+}
+
 export interface ChatRequest {
   messages: ChatMessage[]
   context?: string | null
+  temperature?: number
+  top_p?: number
+  max_tokens?: number
 }
 
 export interface ChatResponse {

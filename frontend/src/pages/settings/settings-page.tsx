@@ -1,63 +1,14 @@
-import * as React from 'react'
 import { Link } from 'react-router-dom'
-import { CreditCard } from 'lucide-react'
-import { SkeletonLine } from '../../components/ui/skeleton'
+import { CreditCard, SlidersHorizontal } from 'lucide-react'
 import { Card } from '../../components/ui/card'
 import { Badge } from '../../components/ui/badge'
-import { client } from '../../services'
-import { useAppStore } from '../../stores/app-store'
 import { useTheme } from '../../theme/theme-context'
 import { cn } from '../../lib/cn'
-import type { ConfigOut } from '../../types/api'
-
-function ServiceBadge({ serviceName }: { serviceName: string }) {
-  const serviceHealth = useAppStore((state) => state.serviceHealth)
-
-  if (!serviceHealth) {
-    return <Badge variant="neutral">Unknown</Badge>
-  }
-
-  const service = serviceHealth.services.find(
-    (s) => s.name.toLowerCase() === serviceName.toLowerCase(),
-  )
-
-  if (!service) {
-    return <Badge variant="neutral">Unknown</Badge>
-  }
-
-  return service.healthy ? (
-    <Badge variant="success">Healthy</Badge>
-  ) : (
-    <Badge variant="danger">Unavailable</Badge>
-  )
-}
-
-function ConfigEntry({ label, value }: { label: string; value: string | number }) {
-  return (
-    <div className="flex flex-col gap-0.5 py-2 border-b border-gray-50 dark:border-slate-700 last:border-0">
-      <dt className="text-xs text-gray-400 dark:text-slate-500">{label}</dt>
-      <dd className="font-mono text-sm text-gray-800 dark:text-slate-200">{String(value)}</dd>
-    </div>
-  )
-}
+import { useGenerationSettings } from '../../stores/generation-settings'
 
 export function SettingsPage() {
   const { theme, setTheme } = useTheme()
-  const [config, setConfig] = React.useState<ConfigOut | null>(null)
-  const [loading, setLoading] = React.useState(true)
-
-  React.useEffect(() => {
-    void (async () => {
-      try {
-        const data = await client.getConfig()
-        setConfig(data)
-      } catch {
-        // fail silently — show placeholders
-      } finally {
-        setLoading(false)
-      }
-    })()
-  }, [])
+  const { settings, update } = useGenerationSettings()
 
   return (
     <div className="p-6 max-w-3xl mx-auto">
@@ -109,43 +60,79 @@ export function SettingsPage() {
           <Badge variant="neutral">Free</Badge>
         </Link>
 
-        {/* Ollama */}
+        {/* Generation Settings */}
         <Card
-          title="Ollama"
-          actions={<ServiceBadge serviceName="ollama" />}
+          title="Generation Settings"
+          actions={<SlidersHorizontal className="h-4 w-4 text-gray-400 dark:text-slate-500" />}
         >
-          {loading ? (
-            <div className="flex flex-col gap-2">
-              <SkeletonLine />
-              <SkeletonLine className="w-3/4" />
-              <SkeletonLine className="w-1/2" />
+          <div className="flex flex-col gap-5">
+            <div>
+              <label className="flex justify-between text-sm mb-1">
+                <span className="text-gray-600 dark:text-slate-400">Temperature</span>
+                <span className="font-mono text-gray-800 dark:text-slate-200">{settings.temperature.toFixed(1)}</span>
+              </label>
+              <input
+                type="range"
+                min="0"
+                max="2"
+                step="0.1"
+                value={settings.temperature}
+                onChange={(e) => update({ temperature: parseFloat(e.target.value) })}
+                className="w-full h-2 bg-gray-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-primary"
+              />
+              <div className="flex justify-between text-xs text-gray-400 dark:text-slate-500 mt-1">
+                <span>Deterministic</span>
+                <span>Creative</span>
+              </div>
+              <p className="text-xs text-gray-400 dark:text-slate-500 mt-1.5 leading-relaxed">
+                Controls randomness in the output. Lower values (e.g. 0.2) give focused, factual replies. Higher values (e.g. 1.5) produce more varied and creative responses.
+              </p>
             </div>
-          ) : config ? (
-            <dl>
-              <ConfigEntry label="Base URL" value={config.ollama.base_url} />
-              <ConfigEntry label="Model" value={config.ollama.generation_model} />
-              <ConfigEntry label="Timeout (s)" value={config.ollama.timeout} />
-            </dl>
-          ) : (
-            <p className="text-sm text-gray-400 dark:text-slate-500">Unable to load configuration</p>
-          )}
-        </Card>
 
-        {/* Chunking */}
-        <Card title="Chunking">
-          {loading ? (
-            <div className="flex flex-col gap-2">
-              <SkeletonLine />
-              <SkeletonLine className="w-1/2" />
+            <div>
+              <label className="flex justify-between text-sm mb-1">
+                <span className="text-gray-600 dark:text-slate-400">Top P</span>
+                <span className="font-mono text-gray-800 dark:text-slate-200">{settings.top_p.toFixed(1)}</span>
+              </label>
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.1"
+                value={settings.top_p}
+                onChange={(e) => update({ top_p: parseFloat(e.target.value) })}
+                className="w-full h-2 bg-gray-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-primary"
+              />
+              <div className="flex justify-between text-xs text-gray-400 dark:text-slate-500 mt-1">
+                <span>Narrow</span>
+                <span>Broad</span>
+              </div>
+              <p className="text-xs text-gray-400 dark:text-slate-500 mt-1.5 leading-relaxed">
+                Nucleus sampling. Only tokens with cumulative probability above this threshold are considered. Lower values (e.g. 0.5) restrict choices to the most likely tokens; 1.0 considers all tokens.
+              </p>
             </div>
-          ) : config ? (
-            <dl>
-              <ConfigEntry label="Chunk Size (tokens)" value={config.chunking.max_tokens} />
-              <ConfigEntry label="Chunk Overlap (tokens)" value={config.chunking.overlap_tokens} />
-            </dl>
-          ) : (
-            <p className="text-sm text-gray-400 dark:text-slate-500">Unable to load configuration</p>
-          )}
+
+            <div>
+              <label className="block text-sm text-gray-600 dark:text-slate-400 mb-1">
+                Max Output Tokens
+              </label>
+              <select
+                value={settings.max_tokens}
+                onChange={(e) => update({ max_tokens: parseInt(e.target.value, 10) })}
+                className="w-full px-3 py-2 border border-gray-200 dark:border-slate-600 rounded-md text-sm bg-white dark:bg-slate-800 text-gray-800 dark:text-slate-200 appearance-none cursor-pointer"
+              >
+                <option value={256}>256 — short answer</option>
+                <option value={512}>512 — concise</option>
+                <option value={1024}>1024 — standard</option>
+                <option value={2048}>2048 — detailed</option>
+                <option value={4096}>4096 — long form</option>
+                <option value={8192}>8192 — very long</option>
+              </select>
+              <p className="text-xs text-gray-400 dark:text-slate-500 mt-1.5 leading-relaxed">
+                Caps the total tokens (words + punctuation) the model can generate per response. Longer outputs take more time and cost.
+              </p>
+            </div>
+          </div>
         </Card>
       </div>
     </div>

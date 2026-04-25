@@ -3,6 +3,7 @@ import { Send, Loader2, MessageSquare, PenLine, Plus, Trash2 } from 'lucide-reac
 import ReactMarkdown from 'react-markdown'
 import { client } from '../../services'
 import { cn } from '../../lib/cn'
+import { useGenerationSettings } from '../../stores/generation-settings'
 import type { ChatMessage } from '../../types/api'
 
 type PanelMode = 'chat' | 'notes'
@@ -172,6 +173,7 @@ function MessageContent({ content, role }: { content: string; role: string }) {
 }
 
 export function ChatPanel({ documentContext, storageKey }: ChatPanelProps) {
+  const { settings } = useGenerationSettings()
   const [mode, setMode] = React.useState<PanelMode>('chat')
   const [sessions, setSessions] = React.useState<ChatSession[]>(() => loadSessions(storageKey))
   const [activeSessionId, setActiveSessionId] = React.useState<string>(sessions[0]?.id ?? '')
@@ -244,6 +246,9 @@ export function ChatPanel({ documentContext, storageKey }: ChatPanelProps) {
       const res = await client.chat({
         messages: updatedMessages,
         context: documentContext || null,
+        temperature: settings.temperature,
+        top_p: settings.top_p,
+        max_tokens: settings.max_tokens,
       })
       updateSessionMessages(activeSession.id, [
         ...updatedMessages,
