@@ -90,7 +90,7 @@ export function Sidebar() {
       {/* Collapse toggle */}
       <button
         onClick={toggleSidebar}
-        className="flex items-center justify-center h-10 border-t border-gray-100 text-gray-400 hover:text-gray-700 hover:bg-surface-100 transition-colors"
+        className="flex items-center justify-center h-10 text-gray-400 hover:text-gray-700 hover:bg-surface-100 transition-colors"
         aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
       >
         {collapsed ? (
@@ -194,9 +194,7 @@ function ServiceHealthDots({ collapsed }: ServiceHealthDotsProps) {
           />
         </Tooltip>
       ))}
-      {!collapsed && (
-        <span className="text-xs text-gray-400 ml-1">Services</span>
-      )}
+      
     </div>
   )
 }
