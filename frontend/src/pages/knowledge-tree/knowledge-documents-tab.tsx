@@ -392,7 +392,7 @@ function DocumentCard({ doc, chapter, onEdit, onDelete, onRead }: DocumentCardPr
             <Button variant="ghost" size="sm" onClick={onEdit} className="h-7 px-2 text-gray-400 hover:text-gray-700">
               <Pencil className="h-3.5 w-3.5" />
             </Button>
-            <Button variant="ghost" size="sm" onClick={onDelete} className="h-7 px-2 text-red-400 hover:text-red-600 hover:bg-red-50">
+            <Button variant="ghost" size="sm" onClick={onDelete} aria-label="Delete document" className="h-7 px-2 text-red-400 hover:text-red-600 hover:bg-red-50">
               <Trash2 className="h-3.5 w-3.5" />
             </Button>
           </div>
