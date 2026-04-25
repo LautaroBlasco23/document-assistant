@@ -1,5 +1,6 @@
 import * as React from 'react'
 import { Send, Loader2, MessageSquare, PenLine, Plus, Trash2 } from 'lucide-react'
+import ReactMarkdown from 'react-markdown'
 import { client } from '../../services'
 import { cn } from '../../lib/cn'
 import type { ChatMessage } from '../../types/api'
@@ -40,6 +41,134 @@ function saveSessions(key: string, sessions: ChatSession[]) {
   } catch {
     // ignore storage errors
   }
+}
+
+function MessageContent({ content, role }: { content: string; role: string }) {
+  const isUser = role === 'user'
+
+  return (
+    <ReactMarkdown
+      components={{
+        pre({ children, ...props }) {
+          return (
+            <pre
+              className={cn(
+                'block text-xs font-mono whitespace-pre-wrap break-words p-2 rounded my-1 overflow-x-auto',
+                isUser ? 'bg-blue-600/50' : 'bg-gray-200 text-gray-800'
+              )}
+              {...props}
+            >
+              {children}
+            </pre>
+          )
+        },
+        code({ children, className, ...props }) {
+          if (className) {
+            // Inside a code block - render without extra background
+            return (
+              <code className={cn('text-xs font-mono', className)} {...props}>
+                {children}
+              </code>
+            )
+          }
+          return (
+            <code
+              className={cn(
+                'px-1 py-0.5 rounded text-xs font-mono',
+                isUser ? 'bg-blue-600/50' : 'bg-gray-200'
+              )}
+              {...props}
+            >
+              {children}
+            </code>
+          )
+        },
+        a({ children, href, ...props }) {
+          return (
+            <a
+              href={href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={cn(
+                'underline font-medium',
+                isUser ? 'text-blue-200' : 'text-blue-600 hover:text-blue-700'
+              )}
+              {...props}
+            >
+              {children}
+            </a>
+          )
+        },
+        p({ children }) {
+          return <p className="mb-1 last:mb-0">{children}</p>
+        },
+        ul({ children }) {
+          return <ul className="list-disc pl-4 mb-1 last:mb-0 space-y-0.5">{children}</ul>
+        },
+        ol({ children }) {
+          return <ol className="list-decimal pl-4 mb-1 last:mb-0 space-y-0.5">{children}</ol>
+        },
+        li({ children }) {
+          return <li>{children}</li>
+        },
+        blockquote({ children }) {
+          return (
+            <blockquote
+              className={cn(
+                'border-l-2 pl-2 my-1 italic',
+                isUser ? 'border-blue-300 text-blue-100' : 'border-gray-300 text-gray-600'
+              )}
+            >
+              {children}
+            </blockquote>
+          )
+        },
+        hr() {
+          return (
+            <hr className={cn('my-2 border-t', isUser ? 'border-blue-400' : 'border-gray-300')} />
+          )
+        },
+        h1({ children }) {
+          return <h1 className="text-base font-bold mb-1 mt-2 first:mt-0">{children}</h1>
+        },
+        h2({ children }) {
+          return <h2 className="text-sm font-bold mb-1 mt-2 first:mt-0">{children}</h2>
+        },
+        h3({ children }) {
+          return <h3 className="text-sm font-semibold mb-1 mt-2 first:mt-0">{children}</h3>
+        },
+        h4({ children }) {
+          return <h4 className="text-xs font-semibold mb-1 mt-2 first:mt-0">{children}</h4>
+        },
+        strong({ children }) {
+          return <strong className="font-bold">{children}</strong>
+        },
+        em({ children }) {
+          return <em className="italic">{children}</em>
+        },
+        table({ children }) {
+          return (
+            <div className="overflow-x-auto my-1">
+              <table className={cn('w-full text-xs border-collapse', isUser ? '' : '')}>
+                {children}
+              </table>
+            </div>
+          )
+        },
+        thead({ children }) {
+          return <thead className={cn('border-b', isUser ? 'border-blue-400' : 'border-gray-300')}>{children}</thead>
+        },
+        th({ children }) {
+          return <th className="px-2 py-1 text-left font-semibold">{children}</th>
+        },
+        td({ children }) {
+          return <td className="px-2 py-1">{children}</td>
+        },
+      }}
+    >
+      {content}
+    </ReactMarkdown>
+  )
 }
 
 export function ChatPanel({ documentContext, storageKey }: ChatPanelProps) {
@@ -217,11 +346,7 @@ export function ChatPanel({ documentContext, storageKey }: ChatPanelProps) {
                     : 'bg-gray-100 text-gray-800'
                 )}
               >
-                {msg.role === 'assistant' ? (
-                  <div className="whitespace-pre-wrap break-words">{msg.content}</div>
-                ) : (
-                  msg.content
-                )}
+                <MessageContent content={msg.content} role={msg.role} />
               </div>
             ))}
             {loading && (
