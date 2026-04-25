@@ -19,6 +19,15 @@
   --color-warning-light: #fffbeb;
   --color-danger: #ef4444;
   --color-danger-light: #fef2f2;
+
+  accent-color: var(--color-primary);
+  caret-color: var(--color-primary);
+  color-scheme: light;
+}
+
+::selection {
+  background-color: var(--color-primary);
+  color: #ffffff;
 }
 
 /* ─── Dark theme ──────────────────────────────────────────────────────────── */
@@ -38,6 +47,13 @@
   --color-warning-light: rgba(251, 191, 36, 0.12);
   --color-danger: #f87171;
   --color-danger-light: rgba(248, 113, 113, 0.12);
+
+  color-scheme: dark;
+}
+
+.dark ::selection {
+  background-color: var(--color-primary);
+  color: #ffffff;
 }
 
 html, body, #root {
