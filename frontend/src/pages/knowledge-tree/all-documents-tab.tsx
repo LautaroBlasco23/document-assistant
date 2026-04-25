@@ -1,6 +1,5 @@
 import * as React from 'react'
 import { BookOpen, FileText, FolderOpen, Layers } from 'lucide-react'
-import { Button } from '../../components/ui/button'
 import { Badge } from '../../components/ui/badge'
 import { useKnowledgeTreeStore } from '../../stores/knowledge-tree-store'
 import { DocumentReader } from '../../components/reader/DocumentReader'
@@ -142,20 +141,20 @@ function SourceDocumentRow({ doc, onReadUnified }: { doc: KnowledgeDocument; onR
     doc.source_file_name?.toLowerCase().endsWith('.pdf') ||
     doc.source_file_path?.toLowerCase().endsWith('.pdf')
   )
+  const canOpen = hasSourceFile && isPdf
   const thumbnailUrl = hasSourceFile ? client.getDocumentThumbnailUrl(doc.tree_id, doc.id) : ''
   const [thumbError, setThumbError] = React.useState(false)
 
   return (
-    <div className="flex items-center gap-3 px-3 py-3 rounded-lg border border-amber-200 dark:border-amber-800/40 bg-white dark:bg-slate-800 hover:border-amber-300 dark:hover:border-amber-700/60 hover:bg-amber-50/50 dark:hover:bg-amber-900/20 transition-colors shadow-sm">
+    <div
+      className={cn(
+        'flex items-center gap-3 px-3 py-3 rounded-lg border border-amber-200 dark:border-amber-800/40 bg-white dark:bg-slate-800 shadow-sm transition-all duration-200 ease-out',
+        canOpen && !thumbError && 'cursor-pointer hover:shadow-xl hover:scale-[1.02]'
+      )}
+      onClick={() => canOpen && !thumbError && onReadUnified(doc)}
+    >
       {/* Thumbnail */}
-      <div
-        className={cn(
-          'shrink-0 w-[72px] h-[96px] rounded overflow-hidden bg-gray-100 dark:bg-slate-700 flex items-center justify-center',
-          hasSourceFile && isPdf && !thumbError && 'cursor-pointer hover:ring-2 hover:ring-amber-400 hover:ring-offset-1 transition-all'
-        )}
-        onClick={() => hasSourceFile && isPdf && onReadUnified(doc)}
-        title={hasSourceFile && isPdf ? 'Click to open unified document viewer' : undefined}
-      >
+      <div className="shrink-0 w-[72px] h-[96px] rounded overflow-hidden bg-gray-100 dark:bg-slate-700 flex items-center justify-center">
         {hasSourceFile && isPdf && !thumbError ? (
           <img
             src={thumbnailUrl}
@@ -179,18 +178,6 @@ function SourceDocumentRow({ doc, onReadUnified }: { doc: KnowledgeDocument; onR
         <Badge variant="neutral" className="text-xs bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800/40 hover:bg-amber-100 dark:hover:bg-amber-900/30">
           Original
         </Badge>
-        {hasSourceFile && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => onReadUnified(doc)}
-            className="h-7 px-2 text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/30"
-            title="Open in unified document viewer"
-          >
-            <BookOpen className="h-3.5 w-3.5" />
-            <span className="ml-1 text-xs">Read</span>
-          </Button>
-        )}
       </div>
     </div>
   )
@@ -202,29 +189,28 @@ function DocumentRow({ doc, onRead, onReadUnified }: DocumentRowProps) {
     doc.source_file_name?.toLowerCase().endsWith('.pdf') ||
     doc.source_file_path?.toLowerCase().endsWith('.pdf')
   )
-  const canRead = hasSourceFile
+  const canOpen = hasSourceFile && isPdf
   const isSourceFile = doc.chapter_number == null && !doc.is_main
-  const thumbnailUrl = canRead ? client.getDocumentThumbnailUrl(doc.tree_id, doc.id) : ''
+  const thumbnailUrl = canOpen ? client.getDocumentThumbnailUrl(doc.tree_id, doc.id) : ''
   const [thumbError, setThumbError] = React.useState(false)
 
-  const handleThumbClick = () => {
-    if (canRead && isPdf) {
+  const handleClick = () => {
+    if (canOpen && !thumbError) {
       if (isSourceFile) onReadUnified(doc)
       else onRead(doc)
     }
   }
 
   return (
-    <div className="flex items-center gap-3 px-3 py-2 rounded-lg border border-gray-100 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-gray-200 dark:hover:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors">
+    <div
+      className={cn(
+        'flex items-center gap-3 px-3 py-2 rounded-lg border border-gray-100 dark:border-slate-700 bg-white dark:bg-slate-800 transition-all duration-200 ease-out',
+        canOpen && !thumbError && 'cursor-pointer hover:shadow-xl hover:scale-[1.02]'
+      )}
+      onClick={handleClick}
+    >
       {/* Thumbnail */}
-      <div
-        className={cn(
-          'shrink-0 w-[60px] h-[80px] rounded overflow-hidden bg-gray-100 dark:bg-slate-700 flex items-center justify-center',
-          canRead && isPdf && !thumbError && 'cursor-pointer hover:ring-2 hover:ring-indigo-400 hover:ring-offset-1 transition-all'
-        )}
-        onClick={handleThumbClick}
-        title={canRead && isPdf ? 'Click to open document viewer' : undefined}
-      >
+      <div className="shrink-0 w-[60px] h-[80px] rounded overflow-hidden bg-gray-100 dark:bg-slate-700 flex items-center justify-center">
         {hasSourceFile && isPdf && !thumbError ? (
           <img
             src={thumbnailUrl}
@@ -248,18 +234,6 @@ function DocumentRow({ doc, onRead, onReadUnified }: DocumentRowProps) {
         <Badge variant="neutral" className="text-xs">
           {doc.content.trim().split(/\s+/).filter(Boolean).length} words
         </Badge>
-        {canRead && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => (isSourceFile ? onReadUnified(doc) : onRead(doc))}
-            className="h-7 px-2 text-indigo-500 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/20"
-            title="Read document"
-          >
-            <BookOpen className="h-3.5 w-3.5" />
-            <span className="ml-1 text-xs">Read</span>
-          </Button>
-        )}
       </div>
     </div>
   )
