@@ -177,7 +177,7 @@ export function KnowledgeDocumentsTab({
                     onChange={(e) => void handleIngestFile(e)}
                   />
                   <Button
-                    variant="ghost"
+                    variant="secondary"
                     size="sm"
                     onClick={() => fileInputRef.current?.click()}
                     disabled={ingesting}
@@ -190,7 +190,7 @@ export function KnowledgeDocumentsTab({
                     )}
                     {ingesting ? 'Importing...' : 'Import from PDF/EPUB'}
                   </Button>
-                  <Button variant="secondary" size="sm" onClick={handleOpenCreate}>
+                  <Button variant="primary" size="sm" onClick={handleOpenCreate}>
                     <Plus className="h-3.5 w-3.5 mr-1" />
                     Add Document
                   </Button>
