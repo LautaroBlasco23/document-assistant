@@ -25,6 +25,13 @@ const mockGetTaskStatus = vi.hoisted(() => vi.fn())
 vi.mock('@/services', () => ({
   client: {
     getTaskStatus: mockGetTaskStatus,
+    getModels: vi.fn().mockResolvedValue({
+      provider: 'groq',
+      current_model: 'llama-3.3-70b-versatile',
+      models: [
+        { id: 'llama-3.3-70b-versatile', label: 'Llama 3.3 70B', role: 'smart' },
+      ],
+    }),
   },
 }))
 
@@ -131,7 +138,7 @@ describe('ContentTab', () => {
     await user.click(firstGenerateBtn)
 
     await waitFor(() => {
-      expect(generateQuestions).toHaveBeenCalledWith('tree-1', 1, 'true_false')
+      expect(generateQuestions).toHaveBeenCalledWith('tree-1', 1, 'true_false', null)
     })
 
     await vi.advanceTimersByTimeAsync(2000)
