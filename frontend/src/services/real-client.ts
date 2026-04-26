@@ -3,6 +3,7 @@ import { useAppStore } from '../stores/app-store'
 import type {
   HealthOut,
   ConfigOut,
+  ModelsOut,
   TaskStatusOut,
   ActiveTasksOut,
   DocumentPreviewOut,
@@ -82,6 +83,11 @@ export class RealClient implements ServiceClient {
 
   async getConfig(): Promise<ConfigOut> {
     const res = await httpClient.get<ConfigOut>('/config')
+    return res.data
+  }
+
+  async getModels(): Promise<ModelsOut> {
+    const res = await httpClient.get<ModelsOut>('/models')
     return res.data
   }
 
@@ -238,10 +244,11 @@ export class RealClient implements ServiceClient {
     treeId: string,
     chapter: number,
     selectedText: string,
+    model?: string,
   ): Promise<{ front: string; back: string; source_text: string }> {
     const res = await httpClient.post<{ front: string; back: string; source_text: string }>(
       `/knowledge-trees/${treeId}/chapters/${chapter}/flashcards/draft`,
-      { selected_text: selectedText },
+      { selected_text: selectedText, model: model ?? null },
     )
     return res.data
   }
@@ -263,6 +270,7 @@ export class RealClient implements ServiceClient {
     chapter: number,
     questionType: KnowledgeTreeQuestionType,
     selectedText: string,
+    model?: string,
   ): Promise<{ question_type: KnowledgeTreeQuestionType; question_data: Record<string, unknown> }> {
     const res = await httpClient.post<{
       question_type: KnowledgeTreeQuestionType
@@ -270,6 +278,7 @@ export class RealClient implements ServiceClient {
     }>(`/knowledge-trees/${treeId}/chapters/${chapter}/questions/draft`, {
       question_type: questionType,
       selected_text: selectedText,
+      model: model ?? null,
     })
     return res.data
   }
@@ -291,9 +300,11 @@ export class RealClient implements ServiceClient {
   async generateKnowledgeTreeQuestions(
     treeId: string,
     chapter: number,
-    questionTypes?: KnowledgeTreeQuestionType[]
+    questionTypes?: KnowledgeTreeQuestionType[],
+    model?: string,
   ): Promise<{ task_id: string }> {
-    const body = questionTypes ? { question_types: questionTypes } : {}
+    const body: Record<string, unknown> = questionTypes ? { question_types: questionTypes } : {}
+    if (model) body.model = model
     const res = await httpClient.post<{ task_id: string }>(
       `/knowledge-trees/${treeId}/chapters/${chapter}/questions`,
       body

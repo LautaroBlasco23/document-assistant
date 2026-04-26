@@ -3,6 +3,7 @@ import type { KnowledgeTree, KnowledgeChapter, KnowledgeDocument, ExamQuestion }
 import { mapApiQuestionToExamQuestion } from '../types/knowledge-tree'
 import type { KnowledgeTreeQuestionType } from '../types/api'
 import { client } from '../services'
+import { useGenerationSettings } from './generation-settings'
 
 // key: `${treeId}:${chapterNumber}`
 type QuestionChapterKey = string
@@ -204,7 +205,8 @@ export const useKnowledgeTreeStore = create<KnowledgeTreeState>((set, get) => ({
   },
 
   generateQuestions: async (treeId, chapter, questionType) => {
-    const { task_id } = await client.generateKnowledgeTreeQuestions(treeId, chapter, [questionType])
+    const model = useGenerationSettings.getState().settings.model
+    const { task_id } = await client.generateKnowledgeTreeQuestions(treeId, chapter, [questionType], model)
     const taskKey = questionTaskKey(treeId, chapter, questionType)
     set((s) => ({ questionTaskIds: { ...s.questionTaskIds, [taskKey]: task_id } }))
     return task_id

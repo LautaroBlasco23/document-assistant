@@ -1,14 +1,24 @@
+import * as React from 'react'
 import { Link } from 'react-router-dom'
-import { CreditCard, SlidersHorizontal } from 'lucide-react'
+import { CreditCard, SlidersHorizontal, Cpu } from 'lucide-react'
 import { Card } from '../../components/ui/card'
 import { Badge } from '../../components/ui/badge'
 import { useTheme } from '../../theme/theme-context'
 import { cn } from '../../lib/cn'
 import { useGenerationSettings } from '../../stores/generation-settings'
+import { client } from '../../services'
+import type { ModelsOut } from '../../types/api'
 
 export function SettingsPage() {
   const { theme, setTheme } = useTheme()
   const { settings, update } = useGenerationSettings()
+  const [modelsData, setModelsData] = React.useState<ModelsOut | null>(null)
+
+  React.useEffect(() => {
+    client.getModels()
+      .then(setModelsData)
+      .catch(() => { /* ignore if backend unavailable */ })
+  }, [])
 
   return (
     <div className="p-6 max-w-3xl mx-auto">
@@ -59,6 +69,44 @@ export function SettingsPage() {
           </div>
           <Badge variant="neutral">Free</Badge>
         </Link>
+
+        {/* Model Selection */}
+        <Card
+          title="Model Selection"
+          actions={<Cpu className="h-4 w-4 text-gray-400 dark:text-slate-500" />}
+        >
+          {modelsData ? (
+            <div className="flex flex-col gap-3">
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-500 dark:text-slate-400">Provider:</span>
+                <Badge variant="neutral">{modelsData.provider}</Badge>
+              </div>
+              <div>
+                <label className="block text-sm text-gray-600 dark:text-slate-400 mb-1">
+                  Active Model
+                </label>
+                <select
+                  value={settings.model ?? modelsData.current_model}
+                  onChange={(e) => update({ model: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-200 dark:border-slate-600 rounded-md text-sm bg-white dark:bg-slate-800 text-gray-800 dark:text-slate-200 appearance-none cursor-pointer"
+                >
+                  {modelsData.models.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.label}{m.role ? ` (${m.role})` : ''}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-400 dark:text-slate-500 mt-1.5 leading-relaxed">
+                  Overrides the default model for chat, question generation, and flashcard drafting. Applies to all requests in this browser session.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-gray-400 dark:text-slate-500">
+              Connect to the backend to see available models.
+            </p>
+          )}
+        </Card>
 
         {/* Generation Settings */}
         <Card

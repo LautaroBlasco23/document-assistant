@@ -6,6 +6,7 @@ import type { KnowledgeTree, KnowledgeChapter, KnowledgeDocument } from '../type
 import type {
   HealthOut,
   ConfigOut,
+  ModelsOut,
   TaskStatusOut,
   ActiveTasksOut,
   DocumentPreviewOut,
@@ -37,6 +38,11 @@ export class MockClient implements ServiceClient {
   async getConfig(): Promise<ConfigOut> {
     await delay(150)
     return { ...mockConfig }
+  }
+
+  async getModels(): Promise<ModelsOut> {
+    await delay(100)
+    return { provider: 'mock', current_model: 'mock-model', models: [] }
   }
 
   async getTaskStatus(taskId: string): Promise<TaskStatusOut> {
@@ -245,7 +251,7 @@ export class MockClient implements ServiceClient {
     return { task_id: `mock-task-${Math.random().toString(36).slice(2, 10)}` }
   }
 
-  async draftFlashcard(_treeId: string, _chapter: number, selectedText: string) {
+  async draftFlashcard(_treeId: string, _chapter: number, selectedText: string, _model?: string) {
     await delay(400)
     return {
       front: `What is described by: "${selectedText.slice(0, 60)}..."?`,
@@ -264,6 +270,7 @@ export class MockClient implements ServiceClient {
     _chapter: number,
     questionType: KnowledgeTreeQuestionType,
     selectedText: string,
+    _model?: string,
   ) {
     await delay(400)
     if (questionType === 'true_false') {
@@ -302,7 +309,8 @@ export class MockClient implements ServiceClient {
   async generateKnowledgeTreeQuestions(
     _treeId: string,
     _chapter: number,
-    _questionTypes?: KnowledgeTreeQuestionType[]
+    _questionTypes?: KnowledgeTreeQuestionType[],
+    _model?: string,
   ): Promise<{ task_id: string }> {
     await delay(150)
     return { task_id: 'mock-task-id' }

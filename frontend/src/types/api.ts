@@ -93,6 +93,19 @@ export interface GenerationParams {
   temperature: number
   top_p: number
   max_tokens: number
+  model?: string
+}
+
+export interface ModelInfo {
+  id: string
+  label: string
+  role: string | null
+}
+
+export interface ModelsOut {
+  provider: string
+  current_model: string
+  models: ModelInfo[]
 }
 
 export interface ChatRequest {
@@ -101,6 +114,7 @@ export interface ChatRequest {
   temperature?: number
   top_p?: number
   max_tokens?: number
+  model?: string
 }
 
 export interface ChatResponse {
