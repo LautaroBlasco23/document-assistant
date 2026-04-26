@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Send, Loader2, MessageSquare, FileText, Plus, Trash2 } from 'lucide-react'
+import { Send, Loader2, MessageSquare, FileText, Plus, Trash2, ChevronDown } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import { client } from '../../services'
 import { cn } from '../../lib/cn'
@@ -37,17 +37,18 @@ function loadSessions(key: string): ChatSession[] {
     const raw = localStorage.getItem(`docassist_chat:${key}`)
     if (raw) {
       const parsed = JSON.parse(raw)
-      if (Array.isArray(parsed)) return parsed
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed
     }
   } catch {
     // ignore parse errors
   }
-  return [{ id: makeId(), name: 'Chat 1', messages: [] }]
+  return []
 }
 
 function saveSessions(key: string, sessions: ChatSession[]) {
   try {
-    localStorage.setItem(`docassist_chat:${key}`, JSON.stringify(sessions))
+    const withMessages = sessions.filter((s) => s.messages.length > 0)
+    localStorage.setItem(`docassist_chat:${key}`, JSON.stringify(withMessages))
   } catch {
     // ignore storage errors
   }
@@ -188,8 +189,21 @@ export const ChatPanel = React.forwardRef<ChatPanelHandle, ChatPanelProps>(funct
   const { settings } = useGenerationSettings()
   const [mode, setMode] = React.useState<PanelMode>('chat')
   const pendingCount = usePendingContent((s) => s.items.length)
-  const [sessions, setSessions] = React.useState<ChatSession[]>(() => loadSessions(storageKey))
-  const [activeSessionId, setActiveSessionId] = React.useState<string>(sessions[0]?.id ?? '')
+  const [dropdownOpen, setDropdownOpen] = React.useState(false)
+  const dropdownRef = React.useRef<HTMLDivElement>(null)
+
+  const [{ initialSessions, initialActiveId }] = React.useState(() => {
+    const stored = loadSessions(storageKey)
+    const newSession: ChatSession = {
+      id: makeId(),
+      name: `Chat ${stored.length + 1}`,
+      messages: [],
+    }
+    return { initialSessions: [...stored, newSession], initialActiveId: newSession.id }
+  })
+
+  const [sessions, setSessions] = React.useState<ChatSession[]>(initialSessions)
+  const [activeSessionId, setActiveSessionId] = React.useState<string>(initialActiveId)
   const [input, setInput] = React.useState('')
   const [loading, setLoading] = React.useState(false)
   const scrollRef = React.useRef<HTMLDivElement>(null)
@@ -199,6 +213,17 @@ export const ChatPanel = React.forwardRef<ChatPanelHandle, ChatPanelProps>(funct
   React.useEffect(() => {
     saveSessions(storageKey, sessions)
   }, [sessions, storageKey])
+
+  React.useEffect(() => {
+    if (!dropdownOpen) return
+    const handleClick = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setDropdownOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [dropdownOpen])
 
   React.useEffect(() => {
     if (!activeSession) {
@@ -226,7 +251,9 @@ export const ChatPanel = React.forwardRef<ChatPanelHandle, ChatPanelProps>(funct
     setSessions((prev) => {
       const filtered = prev.filter((s) => s.id !== sessionId)
       if (filtered.length === 0) {
-        return [{ id: makeId(), name: 'Chat 1', messages: [] }]
+        const fallback: ChatSession = { id: makeId(), name: 'Chat 1', messages: [] }
+        setActiveSessionId(fallback.id)
+        return [fallback]
       }
       return filtered
     })
@@ -344,17 +371,35 @@ export const ChatPanel = React.forwardRef<ChatPanelHandle, ChatPanelProps>(funct
         <>
           {/* Session selector */}
           <div className="shrink-0 border-b border-gray-200 dark:border-slate-700 px-2 py-1.5 flex items-center gap-1.5">
-            <select
-              value={activeSessionId}
-              onChange={(e) => setActiveSessionId(e.target.value)}
-              className="flex-1 min-w-0 text-xs bg-transparent border-none focus:ring-0 text-gray-700 dark:text-slate-300 truncate cursor-pointer"
-            >
-              {sessions.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name} ({s.messages.length} msgs)
-                </option>
-              ))}
-            </select>
+            <div ref={dropdownRef} className="relative flex-1 min-w-0">
+              <button
+                onClick={() => setDropdownOpen((o) => !o)}
+                className="w-full flex items-center justify-between gap-1 text-xs px-2 py-1 rounded border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-gray-700 dark:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-600 transition-colors truncate"
+              >
+                <span className="truncate">
+                  {activeSession?.name} ({activeSession?.messages.length} msgs)
+                </span>
+                <ChevronDown className={cn('h-3 w-3 shrink-0 text-gray-400 dark:text-slate-400 transition-transform', dropdownOpen && 'rotate-180')} />
+              </button>
+              {dropdownOpen && (
+                <div className="absolute top-full left-0 right-0 mt-1 z-50 rounded-md border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-800 shadow-lg max-h-48 overflow-y-auto">
+                  {sessions.map((s) => (
+                    <button
+                      key={s.id}
+                      onClick={() => { setActiveSessionId(s.id); setDropdownOpen(false) }}
+                      className={cn(
+                        'w-full text-left text-xs px-3 py-1.5 truncate transition-colors',
+                        s.id === activeSessionId
+                          ? 'bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 font-medium'
+                          : 'text-gray-700 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700'
+                      )}
+                    >
+                      {s.name} ({s.messages.length} msgs)
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
             <button
               onClick={handleNewSession}
               title="New chat"
