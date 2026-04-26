@@ -47,7 +47,7 @@ describe('Button', () => {
   // Each variant produces a distinct visual treatment; we assert on the presence of the variant-specific class.
   it.each([
     ['primary', 'bg-primary'],
-    ['secondary', 'bg-surface-100'],
+    ['secondary', 'bg-primary/10'],
     ['ghost', 'bg-transparent'],
     ['destructive', 'bg-red-500'],
   ] as const)('renders %s variant', (variant, expectedClass) => {

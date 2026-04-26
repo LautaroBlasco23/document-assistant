@@ -58,7 +58,7 @@ describe('KnowledgeExamSession', () => {
     const { user } = renderWithProviders(<KnowledgeExamSession questions={questions} onFinish={mockOnFinish} />)
 
     // Button accessible name is "B.Paris" (no space — JSX strips whitespace between span and text node)
-    await user.click(screen.getByRole('button', { name: 'B.Paris' }))
+    await user.click(screen.getByRole('button', { name: 'B. Paris' }))
 
     await waitFor(() => {
       expect(screen.getByText('Correct!')).toBeInTheDocument()

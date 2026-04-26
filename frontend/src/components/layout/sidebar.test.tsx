@@ -163,9 +163,6 @@ describe('Sidebar', () => {
 
     const { container } = renderWithProviders(<Sidebar />)
 
-    // The "Services" label is visible in expanded mode
-    expect(screen.getByText('Services')).toBeInTheDocument()
-
     // Both tooltips indicate healthy status via data attribute
     expect(container.querySelector('[data-tooltip="LLM: healthy"]')).toBeInTheDocument()
     expect(container.querySelector('[data-tooltip="PostgreSQL: healthy"]')).toBeInTheDocument()

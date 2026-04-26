@@ -1,6 +1,7 @@
 import { render, type RenderOptions } from '@testing-library/react'
 import { MemoryRouter, type MemoryRouterProps } from 'react-router-dom'
 import { AuthProvider } from '@/auth/auth-context'
+import { ThemeProvider } from '@/theme/theme-context'
 import userEvent from '@testing-library/user-event'
 import { type ReactElement } from 'react'
 
@@ -16,9 +17,11 @@ export function renderWithProviders(
 
   function Wrapper({ children }: { children: React.ReactNode }) {
     return (
-      <MemoryRouter {...routerProps}>
-        <AuthProvider>{children}</AuthProvider>
-      </MemoryRouter>
+      <ThemeProvider>
+        <MemoryRouter {...routerProps}>
+          <AuthProvider>{children}</AuthProvider>
+        </MemoryRouter>
+      </ThemeProvider>
     )
   }
 
