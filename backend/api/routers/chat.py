@@ -7,6 +7,7 @@ from api.auth import CurrentUser
 from api.deps import ServicesDep
 from application.agents.document_chat import DocumentChatAgent
 from core.ports.llm import GenerationParams
+from infrastructure.llm.factory import create_llm_with_model
 
 router = APIRouter()
 
@@ -22,6 +23,7 @@ class ChatRequest(BaseModel):
     temperature: float | None = None
     top_p: float | None = None
     max_tokens: int | None = None
+    model: str | None = None
 
 
 class ChatResponse(BaseModel):
@@ -39,7 +41,8 @@ async def chat(
     The frontend provides the document context and conversation history.
     The assistant answers questions based on that context.
     """
-    agent = DocumentChatAgent(services.llm)
+    llm = create_llm_with_model(services.config, body.model) if body.model else services.llm
+    agent = DocumentChatAgent(llm)
     raw_messages = [{"role": m.role, "content": m.content} for m in body.messages]
     params = GenerationParams(
         temperature=body.temperature,

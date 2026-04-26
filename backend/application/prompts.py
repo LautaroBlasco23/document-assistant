@@ -147,6 +147,18 @@ FLASHCARD_FROM_SELECTION_SYSTEM = (
 # Question generation prompts
 # ---------------------------------------------------------------------------
 
+import re
+
+_COUNT_LINE_RE = re.compile(r"^Generate between \d+ and \d+ questions.*$", re.MULTILINE)
+
+
+def build_question_prompt(base_prompt: str, num_questions: int | None) -> str:
+    """Replace the count instruction line with an exact count when specified."""
+    if num_questions is not None and num_questions > 0:
+        replacement = f"Generate exactly {num_questions} questions.\n"
+        return _COUNT_LINE_RE.sub(replacement, base_prompt, count=1)
+    return base_prompt
+
 QUESTIONS_TRUE_FALSE = (
     "You are an expert educator creating true/false questions for active recall practice.\n\n"
     "Analyze the provided text and generate true/false questions that test substantive "

@@ -9,6 +9,7 @@ from application.prompts import (
     QUESTIONS_MATCHING,
     QUESTIONS_MULTIPLE_CHOICE,
     QUESTIONS_TRUE_FALSE,
+    build_question_prompt,
 )
 from core.model.chunk import Chunk
 from core.model.question import QuestionType
@@ -30,6 +31,7 @@ class QuestionGeneratorAgent(BaseAgent):
         chunks: list[Chunk],
         question_types: list[QuestionType] | None = None,
         on_progress: Callable[[QuestionType, int, int], None] | None = None,
+        num_questions: int | None = None,
     ) -> dict[QuestionType, list[dict]]:
         """Generate questions from chunks for the requested types.
 
@@ -37,6 +39,7 @@ class QuestionGeneratorAgent(BaseAgent):
             chunks: Text chunks to process.
             question_types: Which types to generate. Defaults to all four.
             on_progress: Called after each batch with (question_type, batch_i, total_batches).
+            num_questions: Exact number of questions to generate per type. None = model chooses.
 
         Returns:
             Dict mapping QuestionType to list of validated question_data dicts.
@@ -52,7 +55,7 @@ class QuestionGeneratorAgent(BaseAgent):
         results: dict[QuestionType, list[dict]] = {}
 
         for qtype in question_types:
-            prompt = self._PROMPTS[qtype]
+            prompt = build_question_prompt(self._PROMPTS[qtype], num_questions)
             all_items: list[dict] = []
 
             for batch_i, batch_text in enumerate(text_batches, 1):

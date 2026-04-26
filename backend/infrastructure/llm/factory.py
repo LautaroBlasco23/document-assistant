@@ -74,3 +74,27 @@ def create_fast_llm(config: AppConfig, fallback: LLM) -> LLM:
             logger.info("Using Ollama fast LLM: model=%s", fast_cfg.generation_model)
             return OllamaLLM(fast_cfg)
         return fallback
+
+
+def create_llm_with_model(config: AppConfig, model_name: str) -> LLM:
+    """Create an LLM using the current provider config but with a different model."""
+    if config.llm_provider == "groq":
+        from infrastructure.llm.groq_llm import GroqLLM
+        cfg = config.groq.model_copy(update={"model": model_name})
+        logger.info("Using Groq LLM with override: model=%s", model_name)
+        return GroqLLM(cfg)
+    elif config.llm_provider == "openrouter":
+        from infrastructure.llm.openrouter_llm import OpenRouterLLM
+        cfg = config.openrouter.model_copy(update={"model": model_name})
+        logger.info("Using OpenRouter LLM with override: model=%s", model_name)
+        return OpenRouterLLM(cfg)
+    elif config.llm_provider == "huggingface":
+        from infrastructure.llm.huggingface_llm import HuggingFaceLLM
+        cfg = config.huggingface.model_copy(update={"model": model_name})
+        logger.info("Using HuggingFace LLM with override: model=%s", model_name)
+        return HuggingFaceLLM(cfg)
+    else:
+        from infrastructure.llm.ollama import OllamaLLM
+        cfg = config.ollama.model_copy(update={"generation_model": model_name})
+        logger.info("Using Ollama LLM with override: model=%s", model_name)
+        return OllamaLLM(cfg)

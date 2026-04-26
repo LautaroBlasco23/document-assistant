@@ -41,6 +41,7 @@ from infrastructure.chunking.splitter import ChapterAwareSplitter
 from infrastructure.config import PROJECT_ROOT
 from infrastructure.ingest.epub_loader import preview_epub
 from infrastructure.ingest.pdf_loader import preview_pdf
+from infrastructure.llm.factory import create_llm_with_model
 
 logger = logging.getLogger(__name__)
 
@@ -814,6 +815,8 @@ def _questions_background(
     chapter_number: int,
     services: ServicesDep,
     requested_types: list[QuestionType] | None,
+    model: str | None = None,
+    num_questions: int | None = None,
 ) -> dict:
     """Background task: generate questions for a knowledge chapter."""
     t0 = time.perf_counter()
@@ -839,7 +842,8 @@ def _questions_background(
         ]
 
         _set_progress(task, 15, "Starting question generation...")
-        agent = QuestionGeneratorAgent(services.fast_llm)
+        llm = create_llm_with_model(services.config, model) if model else services.fast_llm
+        agent = QuestionGeneratorAgent(llm)
 
         # Divide progress range 20-85 evenly across requested types
         types_to_generate: list[QuestionType] = requested_types or [
@@ -875,7 +879,7 @@ def _questions_background(
                 f"Generating {qtype.replace('_', ' ')} questions...",
             )
 
-            result = agent.generate(chunks, question_types=[qtype], on_progress=on_progress)
+            result = agent.generate(chunks, question_types=[qtype], on_progress=on_progress, num_questions=num_questions)
             items = result.get(qtype, [])
 
             for item in items:
@@ -929,6 +933,8 @@ async def generate_questions(
         raise HTTPException(status_code=404, detail=f"Chapter {number} not found")
 
     requested_types = req.question_types if req else None
+    model = req.model if req else None
+    num_questions = req.num_questions if req else None
 
     task_id = services.task_registry.submit(
         _questions_background,
@@ -937,6 +943,8 @@ async def generate_questions(
         number,
         services,
         requested_types,
+        model,
+        num_questions,
         task_type="kt_questions",
     )
     return {"task_id": task_id, "task_type": "kt_questions"}
@@ -1051,6 +1059,7 @@ async def generate_flashcard(
 
 class DraftFlashcardRequest(BaseModel):
     selected_text: str
+    model: str | None = None
 
 
 class SaveFlashcardRequest(BaseModel):
@@ -1062,6 +1071,7 @@ class SaveFlashcardRequest(BaseModel):
 class DraftQuestionRequest(BaseModel):
     question_type: QuestionType
     selected_text: str
+    model: str | None = None
 
 
 class SaveQuestionRequest(BaseModel):
@@ -1095,7 +1105,8 @@ async def draft_flashcard(
     if not req.selected_text.strip():
         raise HTTPException(status_code=400, detail="selected_text is required")
     context = _chapter_context(services, uid, number)
-    agent = FlashcardGeneratorAgent(services.fast_llm)
+    llm = create_llm_with_model(services.config, req.model) if req.model else services.fast_llm
+    agent = FlashcardGeneratorAgent(llm)
     try:
         data = agent.generate(req.selected_text, chapter_context=context)
     except Exception as e:
@@ -1137,7 +1148,8 @@ async def draft_question(
     if not req.selected_text.strip():
         raise HTTPException(status_code=400, detail="selected_text is required")
     context = _chapter_context(services, uid, number)
-    agent = QuestionGeneratorAgent(services.fast_llm)
+    llm = create_llm_with_model(services.config, req.model) if req.model else services.fast_llm
+    agent = QuestionGeneratorAgent(llm)
     try:
         question_data = agent.generate_one(
             req.question_type, req.selected_text, chapter_context=context
