@@ -269,3 +269,47 @@ npm run build
 - **Background tasks** — Tasks receive a `Task` object as first argument and write to `task.progress` / `task.progress_pct` for live status updates.
 - **Frontend dev server** — Runs on port 5173; the FastAPI backend must be running independently on port 8000.
 - **Question validation** — Per-type strict validation — invalid questions discarded silently (no re-prompting).
+
+## Preflight
+
+Validated: 2026-04-26. Run `make tools` to verify toolchain is still current.
+
+### Toolchain
+
+| Tool | Version | Required |
+|------|---------|---------|
+| python3 | 3.12.3 | >=3.12 (pyproject.toml) |
+| uv | 0.10.10 | dependency manager |
+| node | 24.14.0 | frontend |
+| npm | 11.9.0 | frontend |
+| docker | 29.2.1 | PostgreSQL |
+| docker compose | v5.0.2 | orchestration |
+| make | 4.3 | task runner |
+
+All required tools present. No blockers.
+
+### Commands
+
+```bash
+# Backend
+cd backend && uv sync                  # install deps
+cd backend && uv run ruff check .      # lint (check)
+cd backend && uv run pytest            # unit tests (integration skipped without PostgreSQL)
+
+# Frontend
+cd frontend && npm install             # install deps
+cd frontend && npm run type-check      # TypeScript check
+cd frontend && npm run build           # production build (tsc + vite)
+cd frontend && npm run test:run        # Vitest unit tests
+
+# Infrastructure
+docker compose up -d postgres          # start PostgreSQL only
+make dev                               # full dev stack (PostgreSQL + backend + frontend)
+make check                             # health check all services
+```
+
+### Known issues (from last preflighter run 2026-04-24)
+
+- **Backend — ruff (14 errors)**: Unused imports, unsorted import block, lines >100 chars. Run `uv run ruff check --fix .` for auto-fixable ones; remaining need manual SQL string wrapping.
+- **Frontend — TypeScript (5 errors)**: Unused `User` import in `sidebar.tsx`; `err.response?.data` typed as `{}` in `real-client.ts` (needs proper error-response type).
+- **Frontend tests**: Vitest is configured (`vitest` script in `package.json`) but no test files exist yet.

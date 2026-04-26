@@ -21,6 +21,23 @@ Uses Docker (PostgreSQL), Groq API for LLM inference (or Ollama locally), and a 
 - **JSON retry** — agents retry once with a correction prompt when the LLM returns malformed JSON
 - **Prompts centralized** in `backend/application/prompts.py`
 
+## Technologies
+
+| Tool / Runtime | Version | Role |
+|----------------|---------|------|
+| Python | 3.12+ | Backend runtime |
+| [uv](https://docs.astral.sh/uv/) | 0.10+ | Python dependency manager |
+| FastAPI | 0.111+ | REST API server |
+| PostgreSQL | 17.4 | Primary persistence |
+| Node.js | 18+ | Frontend runtime |
+| npm | — | Frontend dependency manager |
+| React + TypeScript | 18 / 5 | SPA frontend |
+| Vite | 6 | Frontend build tool |
+| Docker + Compose | — | Infrastructure orchestration |
+| make | — | Task runner |
+| Groq API | — | Default LLM inference (free tier) |
+| Ollama | — | Optional local LLM |
+
 ## Prerequisites
 
 - [Groq API key](https://console.groq.com) — free, no credit card required
