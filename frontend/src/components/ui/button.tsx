@@ -10,8 +10,8 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
 const variantClasses: Record<NonNullable<ButtonProps['variant']>, string> = {
   primary: 'bg-primary text-white hover:bg-primary-hover',
   secondary: 'bg-primary/10 text-primary hover:bg-primary/20 border border-primary/20',
-  ghost: 'bg-transparent text-gray-600 dark:text-slate-400 hover:bg-surface-100',
-  destructive: 'bg-red-500 text-white hover:bg-red-600',
+  ghost: 'bg-transparent text-surface-100 dark:text-surface-100 hover:bg-surface-100 dark:hover:bg-surface-100',
+  destructive: 'bg-danger text-white hover:bg-red-600 dark:hover:bg-red-600',
 }
 
 const sizeClasses: Record<NonNullable<ButtonProps['size']>, string> = {

@@ -18,14 +18,14 @@ export function Tooltip({ content, children, className }: TooltipProps) {
         <RadixTooltip.Portal>
           <RadixTooltip.Content
             className={cn(
-              'bg-gray-900 text-white text-xs px-2 py-1 rounded z-50',
+              'bg-surface-200 dark:bg-surface-200 text-white text-xs px-2 py-1 rounded z-50',
               'animate-fade-in',
               className,
             )}
             sideOffset={4}
           >
             {content}
-            <RadixTooltip.Arrow className="fill-gray-900" />
+            <RadixTooltip.Arrow className="fill-surface-200 dark:fill-surface-200" />
           </RadixTooltip.Content>
         </RadixTooltip.Portal>
       </RadixTooltip.Root>

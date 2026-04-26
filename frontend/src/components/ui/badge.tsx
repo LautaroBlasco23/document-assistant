@@ -8,11 +8,11 @@ export interface BadgeProps {
 }
 
 const variantClasses: Record<BadgeProps['variant'], string> = {
-  success: 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300',
-  warning: 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300',
-  danger: 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300',
-  info: 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300',
-  neutral: 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-300',
+  success: 'bg-success-light text-success dark:text-success',
+  warning: 'bg-warning-light text-warning dark:text-warning',
+  danger: 'bg-danger-light text-danger dark:text-danger',
+  info: 'bg-primary-light text-primary dark:text-primary',
+  neutral: 'bg-surface-100 dark:bg-surface-200 text-surface-200 dark:text-surface-100',
 }
 
 export function Badge({ variant, children, className }: BadgeProps) {

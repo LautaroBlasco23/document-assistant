@@ -59,7 +59,7 @@ export function ResizeHandle({
     <div
       onPointerDown={handlePointerDown}
       className={cn(
-        'shrink-0 bg-transparent hover:bg-blue-300/50 active:bg-blue-400/70 transition-colors touch-none',
+        'shrink-0 bg-transparent hover:bg-primary/20 active:bg-primary/40 transition-colors touch-none',
         direction === 'horizontal'
           ? 'w-1.5 cursor-col-resize self-stretch'
           : 'h-1.5 cursor-row-resize'

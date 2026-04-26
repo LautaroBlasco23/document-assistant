@@ -15,7 +15,7 @@ export function Card({ title, actions, className, children, onClick }: CardProps
   return (
     <div
       className={cn(
-        'bg-white dark:bg-slate-800 rounded-card shadow-sm border border-gray-100 dark:border-slate-700 p-5',
+        'bg-white dark:bg-surface rounded-card shadow-sm border border-surface-200 dark:border-surface-200 p-5',
         onClick && 'cursor-pointer',
         className,
       )}
@@ -27,13 +27,13 @@ export function Card({ title, actions, className, children, onClick }: CardProps
         <>
           <div className="flex items-center justify-between">
             {title && (
-              <h3 className="font-semibold text-gray-800 dark:text-slate-200">{title}</h3>
+              <h3 className="font-semibold text-gray-900 dark:text-slate-100">{title}</h3>
             )}
             {actions && (
               <div className="ml-auto flex items-center gap-2">{actions}</div>
             )}
           </div>
-          <div className="border-b border-gray-100 dark:border-slate-700 mb-4 pb-3" />
+          <div className="border-b border-surface-200 dark:border-surface-200 mb-4 pb-3" />
         </>
       )}
       {children}

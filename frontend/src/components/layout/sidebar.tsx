@@ -31,13 +31,13 @@ export function Sidebar() {
   return (
     <aside
       className={cn(
-        'flex flex-col h-screen bg-white dark:bg-slate-900 border-r border-gray-100 dark:border-slate-700 shrink-0',
+        'flex flex-col h-screen bg-white dark:bg-surface border-r border-surface-200 dark:border-surface-200 shrink-0',
         'transition-all duration-200',
         collapsed ? 'w-16' : 'w-64',
       )}
     >
       {/* Logo / app name */}
-      <div className="flex items-center gap-3 px-4 py-5 border-b border-gray-100 dark:border-slate-700 overflow-hidden">
+      <div className="flex items-center gap-3 px-4 py-5 border-b border-surface-200 dark:border-surface-200 overflow-hidden">
         <div className="shrink-0 h-7 w-7 rounded-md bg-primary flex items-center justify-center">
           <span className="text-white text-xs font-bold">D</span>
         </div>
@@ -60,8 +60,8 @@ export function Sidebar() {
                 cn(
                   'flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors',
                   isActive
-                    ? 'bg-blue-50 dark:bg-blue-900/30 text-primary border-l-2 border-primary'
-                    : 'text-gray-600 dark:text-slate-400 hover:bg-surface-100 hover:text-gray-900 dark:hover:text-slate-100',
+                    ? 'bg-primary-light dark:bg-primary/12 text-primary border-l-2 border-primary'
+                    : 'text-surface-100 dark:text-surface-100 hover:bg-surface-100 dark:hover:bg-surface-100 hover:text-surface-200 dark:hover:text-surface-200',
                   collapsed && 'justify-center px-2',
                 )
               }
@@ -90,7 +90,7 @@ export function Sidebar() {
       {/* Collapse toggle */}
       <button
         onClick={toggleSidebar}
-        className="flex items-center justify-center h-10 text-gray-400 hover:text-gray-700 hover:bg-surface-100 transition-colors"
+        className="flex items-center justify-center h-10 text-surface-100 hover:text-surface-200 hover:bg-surface-100 dark:hover:bg-surface-100 transition-colors"
         aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
       >
         {collapsed ? (
@@ -124,11 +124,11 @@ function UserSection({ collapsed }: UserSectionProps) {
 
   const content = (
     <div className={cn(
-      'flex items-center border-t border-gray-100 dark:border-slate-700 text-gray-600 dark:text-slate-400',
+      'flex items-center border-t border-surface-200 dark:border-surface-200 text-surface-100 dark:text-surface-100',
       collapsed ? 'justify-center px-2 py-3' : 'px-4 py-3 gap-3'
     )}>
-      <div className="h-8 w-8 rounded-full bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center shrink-0">
-        <span className="text-blue-700 dark:text-blue-300 text-xs font-bold">{initials}</span>
+      <div className="h-8 w-8 rounded-full bg-primary-light dark:bg-primary/12 flex items-center justify-center shrink-0">
+        <span className="text-primary text-xs font-bold">{initials}</span>
       </div>
       {!collapsed && (
         <>
@@ -136,11 +136,11 @@ function UserSection({ collapsed }: UserSectionProps) {
             <p className="text-sm font-medium text-gray-900 dark:text-slate-100 truncate">
               {user.display_name || user.email}
             </p>
-            <p className="text-xs text-gray-400 dark:text-slate-500 truncate">{user.email}</p>
+            <p className="text-xs text-surface-100 dark:text-surface-100 truncate">{user.email}</p>
           </div>
           <button
             onClick={handleLogout}
-            className="p-1.5 rounded-md hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-400 hover:text-red-600 transition-colors"
+            className="p-1.5 rounded-md hover:bg-surface-100 dark:hover:bg-surface-100 text-surface-100 hover:text-danger dark:hover:text-danger transition-colors"
             aria-label="Logout"
           >
             <LogOut className="h-4 w-4" />
@@ -180,7 +180,7 @@ function ServiceHealthDots({ collapsed }: ServiceHealthDotsProps) {
   return (
     <div
       className={cn(
-        'flex items-center gap-2 px-4 py-3 border-t border-gray-100 dark:border-slate-700',
+        'flex items-center gap-2 px-4 py-3 border-t border-surface-200 dark:border-surface-200',
         collapsed && 'justify-center px-2',
       )}
     >
@@ -189,7 +189,7 @@ function ServiceHealthDots({ collapsed }: ServiceHealthDotsProps) {
           <span
             className={cn(
               'h-2 w-2 rounded-full shrink-0',
-              healthy ? 'bg-green-400' : 'bg-red-400',
+              healthy ? 'bg-success' : 'bg-danger',
             )}
           />
         </Tooltip>

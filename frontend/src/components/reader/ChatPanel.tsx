@@ -5,7 +5,9 @@ import { client } from '../../services'
 import { cn } from '../../lib/cn'
 import { useGenerationSettings } from '../../stores/generation-settings'
 import { usePendingContent } from '../../stores/pending-content-store'
+import { useAgents } from '../../hooks/use-agents'
 import { useModels } from '../../hooks/use-models'
+import { AgentCreationDialog } from '../../pages/settings/agent-creation-dialog'
 import { ContentPanel } from './ContentPanel'
 import type { ChatMessage } from '../../types/api'
 
@@ -66,7 +68,7 @@ function MessageContent({ content, role }: { content: string; role: string }) {
             <pre
               className={cn(
                 'block text-xs font-mono whitespace-pre-wrap break-words p-2 rounded my-1 overflow-x-auto',
-                isUser ? 'bg-blue-600/50' : 'bg-gray-200 dark:bg-slate-700 text-gray-800 dark:text-slate-200'
+                isUser ? 'bg-primary/20' : 'bg-surface-100 dark:bg-surface-100 text-gray-800 dark:text-slate-200'
               )}
               {...props}
             >
@@ -87,7 +89,7 @@ function MessageContent({ content, role }: { content: string; role: string }) {
             <code
               className={cn(
                 'px-1 py-0.5 rounded text-xs font-mono',
-                isUser ? 'bg-blue-600/50' : 'bg-gray-200 dark:bg-slate-700'
+                isUser ? 'bg-primary/20' : 'bg-surface-100 dark:bg-surface-100'
               )}
               {...props}
             >
@@ -103,7 +105,7 @@ function MessageContent({ content, role }: { content: string; role: string }) {
               rel="noopener noreferrer"
               className={cn(
                 'underline font-medium',
-                isUser ? 'text-blue-200' : 'text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300'
+                isUser ? 'text-primary-light' : 'text-primary dark:text-primary hover:text-primary-hover dark:hover:text-primary-hover'
               )}
               {...props}
             >
@@ -128,7 +130,7 @@ function MessageContent({ content, role }: { content: string; role: string }) {
             <blockquote
               className={cn(
                 'border-l-2 pl-2 my-1 italic',
-                isUser ? 'border-blue-300 text-blue-100' : 'border-gray-300 dark:border-slate-600 text-gray-600 dark:text-slate-400'
+                isUser ? 'border-primary text-primary-light' : 'border-surface-200 dark:border-surface-200 text-surface-100 dark:text-surface-100'
               )}
             >
               {children}
@@ -137,7 +139,7 @@ function MessageContent({ content, role }: { content: string; role: string }) {
         },
         hr() {
           return (
-            <hr className={cn('my-2 border-t', isUser ? 'border-blue-400' : 'border-gray-300 dark:border-slate-600')} />
+            <hr className={cn('my-2 border-t', isUser ? 'border-primary' : 'border-surface-200 dark:border-surface-200')} />
           )
         },
         h1({ children }) {
@@ -168,7 +170,7 @@ function MessageContent({ content, role }: { content: string; role: string }) {
           )
         },
         thead({ children }) {
-          return <thead className={cn('border-b', isUser ? 'border-blue-400' : 'border-gray-300 dark:border-slate-600')}>{children}</thead>
+          return <thead className={cn('border-b', isUser ? 'border-primary' : 'border-surface-200 dark:border-surface-200')}>{children}</thead>
         },
         th({ children }) {
           return <th className="px-2 py-1 text-left font-semibold">{children}</th>
@@ -187,12 +189,30 @@ export const ChatPanel = React.forwardRef<ChatPanelHandle, ChatPanelProps>(funct
   { documentContext, storageKey, treeId, chapter },
   ref,
 ) {
-  const { settings, update } = useGenerationSettings()
+  const { settings, setAgent } = useGenerationSettings()
+  const { agents, loading: agentsLoading } = useAgents()
   const { models, currentModel, loading: modelsLoading } = useModels()
   const [mode, setMode] = React.useState<PanelMode>('chat')
   const pendingCount = usePendingContent((s) => s.items.filter((it) => !it.disposition).length)
   const [dropdownOpen, setDropdownOpen] = React.useState(false)
+  const [agentDialogOpen, setAgentDialogOpen] = React.useState(false)
   const dropdownRef = React.useRef<HTMLDivElement>(null)
+
+  const defaultAgent = agents.find((a) => a.is_default)
+  const selectedAgentId = settings.agent_id ?? defaultAgent?.id ?? ''
+
+  const handleAgentChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const value = e.target.value
+    if (value === '__create__') {
+      setAgentDialogOpen(true)
+      return
+    }
+    if (value) setAgent(value)
+  }
+
+  const handleAgentCreated = (agentId: string) => {
+    setAgent(agentId)
+  }
 
   const [{ initialSessions, initialActiveId }] = React.useState(() => {
     const stored = loadSessions(storageKey)
@@ -285,10 +305,8 @@ export const ChatPanel = React.forwardRef<ChatPanelHandle, ChatPanelProps>(funct
       const res = await client.chat({
         messages: updatedMessages,
         context: documentContext || null,
-        temperature: settings.temperature,
-        top_p: settings.top_p,
-        max_tokens: settings.max_tokens,
         model: settings.model,
+        agent_id: settings.agent_id,
       })
       updateSessionMessages(activeSession.id, [
         ...updatedMessages,
@@ -421,23 +439,37 @@ export const ChatPanel = React.forwardRef<ChatPanelHandle, ChatPanelProps>(funct
             )}
           </div>
 
-          {/* Model selector */}
-          {!modelsLoading && models.length > 0 && (
+          {/* Agent selector */}
+          {!agentsLoading && !modelsLoading && agents.length > 0 && (
             <div className="shrink-0 border-b border-gray-200 dark:border-slate-700 px-2 py-1 flex items-center gap-1.5">
-              <span className="text-[10px] uppercase tracking-wide text-gray-400 dark:text-slate-500 shrink-0">Model</span>
-              <select
-                value={settings.model ?? currentModel}
-                onChange={(e) => update({ model: e.target.value })}
-                className="flex-1 min-w-0 text-xs px-1.5 py-0.5 rounded border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-gray-700 dark:text-slate-200 appearance-none cursor-pointer"
-              >
-                {models.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.label}{m.role ? ` · ${m.role}` : ''}
+              <span className="text-[10px] uppercase tracking-wide text-gray-400 dark:text-slate-500 shrink-0">Agent</span>
+              <div className="relative flex-1 min-w-0">
+                <select
+                  value={selectedAgentId}
+                  onChange={handleAgentChange}
+                  className="w-full text-xs px-1.5 py-0.5 rounded border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-gray-700 dark:text-slate-200 appearance-none cursor-pointer"
+                >
+                  {agents.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.name}{a.is_default ? ' (default)' : ''}
+                    </option>
+                  ))}
+                  <option value="__create__" disabled className="text-gray-400 dark:text-slate-500">
+                    ──────────────
                   </option>
-                ))}
-              </select>
+                  <option value="__create__">+ Create new agent</option>
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 h-3 w-3 text-gray-400 dark:text-slate-500" />
+              </div>
             </div>
           )}
+          <AgentCreationDialog
+            open={agentDialogOpen}
+            onOpenChange={setAgentDialogOpen}
+            models={models}
+            currentModel={currentModel}
+            onCreated={handleAgentCreated}
+          />
 
           <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 space-y-3">
             {(!activeSession || activeSession.messages.length === 0) && (
@@ -475,7 +507,7 @@ export const ChatPanel = React.forwardRef<ChatPanelHandle, ChatPanelProps>(funct
                 onKeyDown={handleKeyDown}
                 placeholder="Ask a question..."
                 rows={2}
-                className="flex-1 resize-none rounded-lg border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 placeholder:text-gray-400 dark:placeholder:text-slate-500"
+                className="flex-1 resize-none rounded-lg border border-surface-200 dark:border-surface-200 bg-white dark:bg-surface text-gray-900 dark:text-slate-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary placeholder:text-surface-100 dark:placeholder:text-surface-100"
                 disabled={loading}
               />
               <button
@@ -484,8 +516,8 @@ export const ChatPanel = React.forwardRef<ChatPanelHandle, ChatPanelProps>(funct
                 className={cn(
                   'p-2 rounded-lg transition-colors shrink-0',
                   input.trim() && !loading
-                    ? 'bg-blue-500 text-white hover:bg-blue-600'
-                    : 'bg-gray-100 dark:bg-slate-700 text-gray-400 dark:text-slate-500 cursor-not-allowed'
+                    ? 'bg-primary text-white hover:bg-primary-hover'
+                    : 'bg-surface-100 dark:bg-surface-100 text-surface-100 dark:text-surface-100 cursor-not-allowed'
                 )}
               >
                 <Send className="h-4 w-4" />
