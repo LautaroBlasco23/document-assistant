@@ -129,6 +129,14 @@ class GroqLLM(LLM):
         resp = self._request(payload)
         return resp.json()["choices"][0]["message"]["content"]
 
+    def _log_error_response(self, resp: requests.Response) -> None:
+        """Log the Groq API error response body for debugging."""
+        try:
+            err_body = resp.json()
+            logger.error("Groq API error (status=%d): %s", resp.status_code, err_body)
+        except Exception:
+            logger.error("Groq API error (status=%d): %s", resp.status_code, resp.text[:500])
+
     def _request(self, payload: dict, stream: bool = False) -> requests.Response:
         """POST to Groq with retry logic for 429s."""
         # Proactive rate limiting before sending
@@ -169,6 +177,8 @@ class GroqLLM(LLM):
             if resp.status_code == 401:
                 raise ValueError("Invalid or missing Groq API key")
 
+            if not resp.ok:
+                self._log_error_response(resp)
             resp.raise_for_status()
             return resp
 

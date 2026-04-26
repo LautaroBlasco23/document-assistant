@@ -11,7 +11,7 @@ import type { ModelsOut } from '../../types/api'
 
 export function SettingsPage() {
   const { theme, setTheme } = useTheme()
-  const { settings, update } = useGenerationSettings()
+  const { settings, update, clearModel } = useGenerationSettings()
   const [modelsData, setModelsData] = React.useState<ModelsOut | null>(null)
 
   React.useEffect(() => {
@@ -19,6 +19,11 @@ export function SettingsPage() {
       .then(setModelsData)
       .catch(() => { /* ignore if backend unavailable */ })
   }, [])
+
+  // Detect stored model that is no longer in the available list
+  const storedModel = settings.model
+  const availableIds = new Set(modelsData?.models.map((m) => m.id) ?? [])
+  const modelStale = storedModel != null && !availableIds.has(storedModel)
 
   return (
     <div className="p-6 max-w-3xl mx-auto">
@@ -86,7 +91,7 @@ export function SettingsPage() {
                   Active Model
                 </label>
                 <select
-                  value={settings.model ?? modelsData.current_model}
+                  value={modelStale ? '' : (settings.model ?? modelsData.current_model)}
                   onChange={(e) => update({ model: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-200 dark:border-slate-600 rounded-md text-sm bg-white dark:bg-slate-800 text-gray-800 dark:text-slate-200 appearance-none cursor-pointer"
                 >
@@ -96,9 +101,24 @@ export function SettingsPage() {
                     </option>
                   ))}
                 </select>
-                <p className="text-xs text-gray-400 dark:text-slate-500 mt-1.5 leading-relaxed">
-                  Overrides the default model for chat, question generation, and flashcard drafting. Applies to all requests in this browser session.
-                </p>
+                {modelStale && (
+                  <div className="mt-2 flex items-center gap-2">
+                    <p className="text-xs text-amber-600 dark:text-amber-400">
+                      Your saved model &quot;{storedModel}&quot; is no longer supported by {modelsData.provider}.
+                    </p>
+                    <button
+                      onClick={clearModel}
+                      className="text-xs text-primary underline hover:no-underline"
+                    >
+                      Reset to default
+                    </button>
+                  </div>
+                )}
+                {!modelStale && (
+                  <p className="text-xs text-gray-400 dark:text-slate-500 mt-1.5 leading-relaxed">
+                    Overrides the default model for chat, question generation, and flashcard drafting. Applies to all requests in this browser session.
+                  </p>
+                )}
               </div>
             </div>
           ) : (
