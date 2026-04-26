@@ -43,7 +43,7 @@ interface KnowledgeTreeState {
   ingestFileAsDocument: (treeId: string, chapter: number, file: File) => Promise<{ task_id: string }>
   createTreeFromFile: (file: File, title?: string, chapterIndices?: number[]) => Promise<string>
 
-  generateQuestions: (treeId: string, chapter: number, questionType: KnowledgeTreeQuestionType) => Promise<string>
+  generateQuestions: (treeId: string, chapter: number, questionType: KnowledgeTreeQuestionType, numQuestions?: number | null) => Promise<string>
   fetchQuestions: (treeId: string, chapter: number) => Promise<void>
   deleteQuestion: (treeId: string, chapter: number, questionId: string) => Promise<void>
 }
@@ -204,9 +204,9 @@ export const useKnowledgeTreeStore = create<KnowledgeTreeState>((set, get) => ({
     return task_id
   },
 
-  generateQuestions: async (treeId, chapter, questionType) => {
+  generateQuestions: async (treeId, chapter, questionType, numQuestions = undefined) => {
     const model = useGenerationSettings.getState().settings.model
-    const { task_id } = await client.generateKnowledgeTreeQuestions(treeId, chapter, [questionType], model)
+    const { task_id } = await client.generateKnowledgeTreeQuestions(treeId, chapter, [questionType], model, numQuestions)
     const taskKey = questionTaskKey(treeId, chapter, questionType)
     set((s) => ({ questionTaskIds: { ...s.questionTaskIds, [taskKey]: task_id } }))
     return task_id

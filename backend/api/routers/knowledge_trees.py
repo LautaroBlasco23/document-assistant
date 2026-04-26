@@ -879,7 +879,9 @@ def _questions_background(
                 f"Generating {qtype.replace('_', ' ')} questions...",
             )
 
-            result = agent.generate(chunks, question_types=[qtype], on_progress=on_progress, num_questions=num_questions)
+            result = agent.generate(
+                chunks, question_types=[qtype], on_progress=on_progress, num_questions=num_questions
+            )
             items = result.get(qtype, [])
 
             for item in items:

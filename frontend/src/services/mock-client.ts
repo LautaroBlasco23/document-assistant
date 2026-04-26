@@ -311,6 +311,7 @@ export class MockClient implements ServiceClient {
     _chapter: number,
     _questionTypes?: KnowledgeTreeQuestionType[],
     _model?: string,
+    _numQuestions?: number | null,
   ): Promise<{ task_id: string }> {
     await delay(150)
     return { task_id: 'mock-task-id' }

@@ -4,6 +4,8 @@ All prompts are pure strings — no f-string interpolation at import time.
 Interpolation happens at call sites.
 """
 
+import re
+
 # ---------------------------------------------------------------------------
 # Summary prompts (moved from summarizer.py)
 # ---------------------------------------------------------------------------
@@ -147,9 +149,7 @@ FLASHCARD_FROM_SELECTION_SYSTEM = (
 # Question generation prompts
 # ---------------------------------------------------------------------------
 
-import re
-
-_COUNT_LINE_RE = re.compile(r"^Generate between \d+ and \d+ questions.*$", re.MULTILINE)
+_COUNT_LINE_RE = re.compile(r"^Generate between \d+ and \d+.*$", re.MULTILINE)
 
 
 def build_question_prompt(base_prompt: str, num_questions: int | None) -> str:

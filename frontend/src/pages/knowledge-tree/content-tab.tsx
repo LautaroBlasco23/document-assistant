@@ -13,8 +13,11 @@ import {
 } from 'lucide-react'
 import { Button } from '../../components/ui/button'
 import { Badge } from '../../components/ui/badge'
+import { Select } from '../../components/ui/select'
 import { KnowledgeExamSession } from './knowledge-exam-session'
 import { useKnowledgeTreeStore } from '../../stores/knowledge-tree-store'
+import { useGenerationSettings } from '../../stores/generation-settings'
+import { useModels } from '../../hooks/use-models'
 import { client } from '../../services'
 import type {
   KnowledgeChapter,
@@ -103,6 +106,7 @@ interface GeneratorSectionProps {
   spinnerColor?: string
   progressMsg?: string | null
   onGenerate: () => void
+  numQuestionsControl?: React.ReactNode
   children: React.ReactNode
 }
 
@@ -115,6 +119,7 @@ function GeneratorSection({
   spinnerColor = 'border-primary',
   progressMsg,
   onGenerate,
+  numQuestionsControl,
   children,
 }: GeneratorSectionProps) {
   return (
@@ -130,26 +135,29 @@ function GeneratorSection({
             </Badge>
           )}
         </div>
-        {status !== 'loading' && (
-          <Button
-            variant={status === 'done' ? 'ghost' : 'secondary'}
-            size="sm"
-            onClick={onGenerate}
-            className={status === 'done' ? 'text-gray-400 h-7 px-2' : 'h-7'}
-          >
-            {status === 'done' ? (
-              <>
-                <RefreshCw className="h-3 w-3 mr-1" />
-                Regenerate
-              </>
-            ) : (
-              <>
-                <Sparkles className="h-3.5 w-3.5 mr-1" />
-                Generate
-              </>
-            )}
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          {numQuestionsControl}
+          {status !== 'loading' && (
+            <Button
+              variant={status === 'done' ? 'ghost' : 'secondary'}
+              size="sm"
+              onClick={onGenerate}
+              className={status === 'done' ? 'text-gray-400 h-7 px-2' : 'h-7'}
+            >
+              {status === 'done' ? (
+                <>
+                  <RefreshCw className="h-3 w-3 mr-1" />
+                  Regenerate
+                </>
+              ) : (
+                <>
+                  <Sparkles className="h-3.5 w-3.5 mr-1" />
+                  Generate
+                </>
+              )}
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Body */}
@@ -452,6 +460,7 @@ function QuestionGenerator({
 }: QuestionGeneratorProps) {
   const [taskId, setTaskId] = React.useState<string | null>(null)
   const [status, setStatus] = React.useState<GenerateStatus>('idle')
+  const [numQuestions, setNumQuestions] = React.useState<number | null>(null)
 
   const store = useKnowledgeTreeStore()
 
@@ -487,7 +496,7 @@ function QuestionGenerator({
   const handleGenerate = async () => {
     setStatus('loading')
     try {
-      const id = await store.generateQuestions(treeId, chapter, questionType)
+      const id = await store.generateQuestions(treeId, chapter, questionType, numQuestions)
       setTaskId(id)
     } catch {
       setStatus('idle')
@@ -508,6 +517,34 @@ function QuestionGenerator({
       spinnerColor={spinnerColor}
       progressMsg={progressMsg}
       onGenerate={() => void handleGenerate()}
+      numQuestionsControl={
+        status !== 'loading' && (
+          <Select
+            value={numQuestions ?? ''}
+            onChange={(e) => {
+              const v = e.target.value
+              setNumQuestions(v === '' ? null : Number(v))
+            }}
+            className="w-[168px] h-8 text-xs py-1"
+          >
+            <option value="" className="text-gray-900 dark:text-slate-100">
+              Let the model choose
+            </option>
+            <option value="5" className="text-gray-900 dark:text-slate-100">
+              5 questions
+            </option>
+            <option value="10" className="text-gray-900 dark:text-slate-100">
+              10 questions
+            </option>
+            <option value="15" className="text-gray-900 dark:text-slate-100">
+              15 questions
+            </option>
+            <option value="20" className="text-gray-900 dark:text-slate-100">
+              20 questions
+            </option>
+          </Select>
+        )
+      }
     >
       {children(handleDelete)}
     </GeneratorSection>
@@ -522,6 +559,8 @@ export function ContentTab({ treeId, selectedChapter, chapters }: ContentTabProp
   const [examActive, setExamActive] = React.useState(false)
 
   const store = useKnowledgeTreeStore()
+  const { settings, update } = useGenerationSettings()
+  const { models, currentModel, loading: modelsLoading } = useModels()
 
   const chapterKey = selectedChapter !== null ? `${treeId}:${selectedChapter}` : null
   const questionsByType = chapterKey ? (store.questionsByType[chapterKey] ?? {}) : {}
@@ -568,6 +607,26 @@ export function ContentTab({ treeId, selectedChapter, chapters }: ContentTabProp
         </div>
       ) : (
         <>
+          {/* Model selector */}
+          {!modelsLoading && models.length > 0 && (
+            <div className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900/50">
+              <span className="text-[10px] uppercase tracking-wide text-gray-400 dark:text-slate-500 shrink-0">
+                Model
+              </span>
+              <select
+                value={settings.model ?? currentModel}
+                onChange={(e) => update({ model: e.target.value })}
+                className="flex-1 min-w-0 text-xs px-1.5 py-0.5 rounded border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-gray-700 dark:text-slate-200 appearance-none cursor-pointer"
+              >
+                {models.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.label}{m.role ? ` · ${m.role}` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
           <p className="text-xs text-gray-500">
             Questions are generated from the knowledge documents in{' '}
             <span className="font-medium text-gray-700">{currentChapter?.title}</span>.

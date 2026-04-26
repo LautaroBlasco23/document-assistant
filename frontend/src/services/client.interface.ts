@@ -50,7 +50,8 @@ export interface ServiceClient {
     treeId: string,
     chapter: number,
     questionTypes?: KnowledgeTreeQuestionType[],
-    model?: string
+    model?: string,
+    numQuestions?: number | null
   ): Promise<{ task_id: string }>
 
   getKnowledgeTreeQuestions(

@@ -302,9 +302,11 @@ export class RealClient implements ServiceClient {
     chapter: number,
     questionTypes?: KnowledgeTreeQuestionType[],
     model?: string,
+    numQuestions?: number | null,
   ): Promise<{ task_id: string }> {
     const body: Record<string, unknown> = questionTypes ? { question_types: questionTypes } : {}
     if (model) body.model = model
+    if (numQuestions !== undefined) body.num_questions = numQuestions
     const res = await httpClient.post<{ task_id: string }>(
       `/knowledge-trees/${treeId}/chapters/${chapter}/questions`,
       body
