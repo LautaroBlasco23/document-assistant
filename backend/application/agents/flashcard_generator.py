@@ -35,16 +35,26 @@ def _strip_code_fences(text: str) -> str:
 class FlashcardGeneratorAgent(BaseAgent):
     """Agent that generates a flashcard from a selected text excerpt."""
 
-    def generate(self, selected_text: str) -> dict[str, str]:
+    def generate(self, selected_text: str, chapter_context: str | None = None) -> dict[str, str]:
         """Generate a flashcard from the provided text.
 
         Args:
             selected_text: The text excerpt to base the flashcard on.
+            chapter_context: Optional surrounding chapter content used for grounding.
 
         Returns:
             A dict with 'front' and 'back' keys.
         """
-        raw = self._llm.chat(_SYSTEM_PROMPT, selected_text, format="json")
+        if chapter_context and chapter_context.strip():
+            user_prompt = (
+                "CHAPTER CONTEXT (for reference only, do not summarize this):\n"
+                f"{chapter_context.strip()}\n\n"
+                "FOCUS EXCERPT (build the flashcard from this):\n"
+                f"{selected_text}"
+            )
+        else:
+            user_prompt = selected_text
+        raw = self._llm.chat(_SYSTEM_PROMPT, user_prompt, format="json")
         text = _strip_code_fences(raw)
         data = json.loads(text)
         return {
@@ -57,6 +67,7 @@ class FlashcardGeneratorAgent(BaseAgent):
         selected_text: str,
         tree_id: str,
         chapter_id: str,
+        chapter_context: str | None = None,
     ) -> Flashcard:
         """Generate and return a Flashcard domain object.
 
@@ -68,7 +79,7 @@ class FlashcardGeneratorAgent(BaseAgent):
         Returns:
             A Flashcard domain model instance.
         """
-        result = self.generate(selected_text)
+        result = self.generate(selected_text, chapter_context=chapter_context)
         return Flashcard(
             id=uuid4(),
             tree_id=tree_id,

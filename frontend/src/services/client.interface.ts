@@ -38,6 +38,10 @@ export interface ServiceClient {
   getDocumentFileUrl(treeId: string, docId: string): string
   getDocumentThumbnailUrl(treeId: string, docId: string): string
   generateFlashcardFromSelection(treeId: string, chapter: number, selectedText: string): Promise<{ task_id: string }>
+  draftFlashcard(treeId: string, chapter: number, selectedText: string): Promise<{ front: string; back: string; source_text: string }>
+  saveFlashcard(treeId: string, chapter: number, payload: { front: string; back: string; source_text?: string | null }): Promise<{ id: string }>
+  draftQuestion(treeId: string, chapter: number, questionType: KnowledgeTreeQuestionType, selectedText: string): Promise<{ question_type: KnowledgeTreeQuestionType; question_data: Record<string, unknown> }>
+  saveQuestion(treeId: string, chapter: number, questionType: KnowledgeTreeQuestionType, questionData: Record<string, unknown>): Promise<{ id: string }>
 
   // Knowledge Tree Questions
   generateKnowledgeTreeQuestions(

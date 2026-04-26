@@ -6,9 +6,11 @@ import { cn } from '../../lib/cn'
 import { extractPdfText } from '../../lib/pdf-text'
 import type { KnowledgeDocument } from '../../types/knowledge-tree'
 import { PageSidebar } from './PageSidebar'
-import { ChatPanel } from './ChatPanel'
+import { ChatPanel, type ChatPanelHandle } from './ChatPanel'
 import { PdfPagesView, type PdfPagesViewHandle } from './PdfPagesView'
 import { ResizeHandle } from './ResizeHandle'
+import { usePendingContent, makePendingId } from '../../stores/pending-content-store'
+import type { KnowledgeTreeQuestionType } from '../../types/api'
 
 interface DocumentReaderProps {
   doc: KnowledgeDocument
@@ -17,19 +19,20 @@ interface DocumentReaderProps {
   onClose: () => void
 }
 
-type FlashcardStatus = 'idle' | 'sending' | 'sent'
-
 export function DocumentReader({ doc, treeId, chapter, onClose }: DocumentReaderProps) {
   const [numPages, setNumPages] = React.useState<number>(0)
   const [currentPage, setCurrentPage] = React.useState<number>(1)
   const [showLeft, setShowLeft] = React.useState(true)
   const [showRight, setShowRight] = React.useState(true)
   const [pdfText, setPdfText] = React.useState<string>('')
-  const [flashcardStatus, setFlashcardStatus] = React.useState<FlashcardStatus>('idle')
   const [contextMenu, setContextMenu] = React.useState<{ x: number; y: number; text: string } | null>(null)
   const epubContainerRef = React.useRef<HTMLDivElement>(null)
   const overlayRef = React.useRef<HTMLDivElement>(null)
   const pdfScrollRef = React.useRef<PdfPagesViewHandle | null>(null)
+  const chatPanelRef = React.useRef<ChatPanelHandle | null>(null)
+  const pendingAdd = usePendingContent((s) => s.add)
+  const pendingUpdate = usePendingContent((s) => s.update)
+  const pendingRemove = usePendingContent((s) => s.remove)
 
   const [leftWidth, setLeftWidth] = React.useState(() => {
     try {
@@ -101,17 +104,63 @@ export function DocumentReader({ doc, treeId, chapter, onClose }: DocumentReader
     setContextMenu({ x: e.clientX, y: e.clientY, text: selectedText })
   }
 
+  const openContentTab = () => {
+    setShowRight(true)
+    chatPanelRef.current?.showContent()
+  }
+
   const handleMakeFlashcard = async () => {
     if (!contextMenu) return
+    const text = contextMenu.text
+    const id = makePendingId()
     setContextMenu(null)
-    setFlashcardStatus('sending')
+    window.getSelection()?.removeAllRanges()
+    pendingAdd({
+      id,
+      kind: 'flashcard',
+      status: 'generating',
+      chapter,
+      front: '',
+      back: '',
+      sourceText: text,
+    })
+    openContentTab()
     try {
-      await client.generateFlashcardFromSelection(treeId, chapter, contextMenu.text)
-      setFlashcardStatus('sent')
-      window.getSelection()?.removeAllRanges()
-      setTimeout(() => setFlashcardStatus('idle'), 3000)
-    } catch {
-      setFlashcardStatus('idle')
+      const draft = await client.draftFlashcard(treeId, chapter, text)
+      pendingUpdate(id, {
+        status: 'ready',
+        front: draft.front,
+        back: draft.back,
+        sourceText: draft.source_text,
+      })
+    } catch (e) {
+      pendingUpdate(id, { status: 'error', error: (e as Error).message || 'Generation failed' })
+      setTimeout(() => pendingRemove(id), 4000)
+    }
+  }
+
+  const handleMakeQuestion = async (questionType: KnowledgeTreeQuestionType) => {
+    if (!contextMenu) return
+    const text = contextMenu.text
+    const id = makePendingId()
+    setContextMenu(null)
+    window.getSelection()?.removeAllRanges()
+    pendingAdd({
+      id,
+      kind: 'question',
+      status: 'generating',
+      chapter,
+      questionType,
+      questionData: {},
+      sourceText: text,
+    })
+    openContentTab()
+    try {
+      const draft = await client.draftQuestion(treeId, chapter, questionType, text)
+      pendingUpdate(id, { status: 'ready', questionData: draft.question_data })
+    } catch (e) {
+      pendingUpdate(id, { status: 'error', error: (e as Error).message || 'Generation failed' })
+      setTimeout(() => pendingRemove(id), 4000)
     }
   }
 
@@ -133,12 +182,6 @@ export function DocumentReader({ doc, treeId, chapter, onClose }: DocumentReader
         <div className="flex items-center justify-between px-4 py-2 border-b border-gray-200 dark:border-slate-700 shrink-0 bg-gray-50/80 dark:bg-slate-800/80">
           <div className="flex items-center gap-3 min-w-0">
             <h2 className="text-sm font-semibold text-gray-800 dark:text-slate-200 truncate">{doc.title}</h2>
-            {flashcardStatus === 'sending' && (
-              <span className="text-xs text-indigo-600 animate-pulse">Generating flashcard...</span>
-            )}
-            {flashcardStatus === 'sent' && (
-              <span className="text-xs text-green-600">Flashcard generation started!</span>
-            )}
           </div>
           <div className="flex items-center gap-1">
             {isPdf && (
@@ -246,7 +289,13 @@ export function DocumentReader({ doc, treeId, chapter, onClose }: DocumentReader
             style={{ width: showRight ? rightWidth : 0 }}
           >
             <div className="h-full">
-              <ChatPanel documentContext={pdfText} storageKey={`${treeId}:${doc.id}`} />
+              <ChatPanel
+                ref={chatPanelRef}
+                documentContext={pdfText}
+                storageKey={`${treeId}:${doc.id}`}
+                treeId={treeId}
+                chapter={chapter}
+              />
             </div>
           </div>
         </div>
@@ -254,15 +303,32 @@ export function DocumentReader({ doc, treeId, chapter, onClose }: DocumentReader
         {/* Context menu */}
         {contextMenu && (
           <div
-            className="fixed z-[60] bg-white dark:bg-slate-800 rounded-lg shadow-lg border border-gray-200 dark:border-slate-700 py-1 min-w-[180px]"
+            className="fixed z-[60] bg-white dark:bg-slate-800 rounded-lg shadow-lg border border-gray-200 dark:border-slate-700 py-1 min-w-[200px]"
             style={{ left: contextMenu.x, top: contextMenu.y }}
           >
+            <div className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-slate-500">
+              Generate
+            </div>
             <button
               onClick={handleMakeFlashcard}
               className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors"
             >
               <Sparkles className="h-3.5 w-3.5 text-amber-500" />
-              Make a flashcard
+              Flashcard
+            </button>
+            <button
+              onClick={() => handleMakeQuestion('true_false')}
+              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors"
+            >
+              <Sparkles className="h-3.5 w-3.5 text-emerald-500" />
+              True / False question
+            </button>
+            <button
+              onClick={() => handleMakeQuestion('multiple_choice')}
+              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors"
+            >
+              <Sparkles className="h-3.5 w-3.5 text-blue-500" />
+              Multiple choice question
             </button>
           </div>
         )}

@@ -5,7 +5,9 @@ import { client } from '../../services'
 import { useKnowledgeTreeStore } from '../../stores/knowledge-tree-store'
 import { cn } from '../../lib/cn'
 import type { KnowledgeDocument, KnowledgeChapter } from '../../types/knowledge-tree'
-import { ChatPanel } from './ChatPanel'
+import { ChatPanel, type ChatPanelHandle } from './ChatPanel'
+import { usePendingContent, makePendingId } from '../../stores/pending-content-store'
+import type { KnowledgeTreeQuestionType } from '../../types/api'
 import { PdfPagesView, type PdfPagesViewHandle } from './PdfPagesView'
 import { ResizeHandle } from './ResizeHandle'
 
@@ -16,17 +18,18 @@ interface UnifiedDocumentReaderProps {
   onClose: () => void
 }
 
-type FlashcardStatus = 'idle' | 'sending' | 'sent'
-
 export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: UnifiedDocumentReaderProps) {
   const [currentPage, setCurrentPage] = React.useState<number>(1)
   const [showLeft, setShowLeft] = React.useState(true)
   const [showRight, setShowRight] = React.useState(true)
-  const [flashcardStatus, setFlashcardStatus] = React.useState<FlashcardStatus>('idle')
   const [contextMenu, setContextMenu] = React.useState<{ x: number; y: number; text: string } | null>(null)
   const epubContainerRef = React.useRef<HTMLDivElement>(null)
   const overlayRef = React.useRef<HTMLDivElement>(null)
   const pdfScrollRef = React.useRef<PdfPagesViewHandle | null>(null)
+  const chatPanelRef = React.useRef<ChatPanelHandle | null>(null)
+  const pendingAdd = usePendingContent((s) => s.add)
+  const pendingUpdate = usePendingContent((s) => s.update)
+  const pendingRemove = usePendingContent((s) => s.remove)
 
   const [leftWidth, setLeftWidth] = React.useState(() => {
     try {
@@ -147,18 +150,65 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
     setContextMenu({ x: e.clientX, y: e.clientY, text: selectedText })
   }
 
+  const openContentTab = () => {
+    setShowRight(true)
+    chatPanelRef.current?.showContent()
+  }
+
   const handleMakeFlashcard = async () => {
     if (!contextMenu) return
     const chapter = activeChapter ?? 1
+    const text = contextMenu.text
+    const id = makePendingId()
     setContextMenu(null)
-    setFlashcardStatus('sending')
+    window.getSelection()?.removeAllRanges()
+    pendingAdd({
+      id,
+      kind: 'flashcard',
+      status: 'generating',
+      chapter,
+      front: '',
+      back: '',
+      sourceText: text,
+    })
+    openContentTab()
     try {
-      await client.generateFlashcardFromSelection(treeId, chapter, contextMenu.text)
-      setFlashcardStatus('sent')
-      window.getSelection()?.removeAllRanges()
-      setTimeout(() => setFlashcardStatus('idle'), 3000)
-    } catch {
-      setFlashcardStatus('idle')
+      const draft = await client.draftFlashcard(treeId, chapter, text)
+      pendingUpdate(id, {
+        status: 'ready',
+        front: draft.front,
+        back: draft.back,
+        sourceText: draft.source_text,
+      })
+    } catch (e) {
+      pendingUpdate(id, { status: 'error', error: (e as Error).message || 'Generation failed' })
+      setTimeout(() => pendingRemove(id), 4000)
+    }
+  }
+
+  const handleMakeQuestion = async (questionType: KnowledgeTreeQuestionType) => {
+    if (!contextMenu) return
+    const chapter = activeChapter ?? 1
+    const text = contextMenu.text
+    const id = makePendingId()
+    setContextMenu(null)
+    window.getSelection()?.removeAllRanges()
+    pendingAdd({
+      id,
+      kind: 'question',
+      status: 'generating',
+      chapter,
+      questionType,
+      questionData: {},
+      sourceText: text,
+    })
+    openContentTab()
+    try {
+      const draft = await client.draftQuestion(treeId, chapter, questionType, text)
+      pendingUpdate(id, { status: 'ready', questionData: draft.question_data })
+    } catch (e) {
+      pendingUpdate(id, { status: 'error', error: (e as Error).message || 'Generation failed' })
+      setTimeout(() => pendingRemove(id), 4000)
     }
   }
 
@@ -204,12 +254,6 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
               <span className="text-xs px-2 py-0.5 bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 rounded-full shrink-0">
                 {chapters.find((c) => c.number === activeChapter)?.title ?? `Chapter ${activeChapter}`}
               </span>
-            )}
-            {flashcardStatus === 'sending' && (
-              <span className="text-xs text-indigo-600 animate-pulse">Generating flashcard...</span>
-            )}
-            {flashcardStatus === 'sent' && (
-              <span className="text-xs text-green-600">Flashcard generation started!</span>
             )}
           </div>
           <div className="flex items-center gap-1">
@@ -351,8 +395,11 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
           >
             <div className="h-full">
               <ChatPanel
+                ref={chatPanelRef}
                 documentContext={activeChapterContent}
                 storageKey={`${treeId}:${doc.id}:unified`}
+                treeId={treeId}
+                chapter={activeChapter}
               />
             </div>
           </div>
@@ -361,15 +408,32 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
         {/* Context menu */}
         {contextMenu && (
           <div
-            className="fixed z-[60] bg-white dark:bg-slate-800 rounded-lg shadow-lg border border-gray-200 dark:border-slate-700 py-1 min-w-[180px]"
+            className="fixed z-[60] bg-white dark:bg-slate-800 rounded-lg shadow-lg border border-gray-200 dark:border-slate-700 py-1 min-w-[200px]"
             style={{ left: contextMenu.x, top: contextMenu.y }}
           >
+            <div className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-slate-500">
+              Generate
+            </div>
             <button
               onClick={handleMakeFlashcard}
               className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors"
             >
               <Sparkles className="h-3.5 w-3.5 text-amber-500" />
-              Make a flashcard
+              Flashcard
+            </button>
+            <button
+              onClick={() => handleMakeQuestion('true_false')}
+              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors"
+            >
+              <Sparkles className="h-3.5 w-3.5 text-emerald-500" />
+              True / False question
+            </button>
+            <button
+              onClick={() => handleMakeQuestion('multiple_choice')}
+              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors"
+            >
+              <Sparkles className="h-3.5 w-3.5 text-blue-500" />
+              Multiple choice question
             </button>
           </div>
         )}

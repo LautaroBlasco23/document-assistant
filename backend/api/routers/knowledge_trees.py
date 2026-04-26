@@ -4,6 +4,7 @@ import hashlib
 import logging
 import tempfile
 import time
+from datetime import datetime
 from pathlib import Path
 from uuid import UUID, uuid4
 
@@ -34,7 +35,7 @@ from api.tasks import Task
 from application.agents.flashcard_generator import FlashcardGeneratorAgent
 from application.agents.question_generator import QuestionGeneratorAgent
 from core.model.chunk import Chunk, ChunkMetadata
-from core.model.knowledge_tree import KnowledgeChunk
+from core.model.knowledge_tree import Flashcard, KnowledgeChunk
 from core.model.question import Question, QuestionType
 from infrastructure.chunking.splitter import ChapterAwareSplitter
 from infrastructure.config import PROJECT_ROOT
@@ -1038,3 +1039,127 @@ async def generate_flashcard(
         task_type="kt_flashcard",
     )
     return {"task_id": task_id, "task_type": "kt_flashcard"}
+
+
+# ---------------------------------------------------------------------------
+# Draft / approve workflow for selection-based content
+# ---------------------------------------------------------------------------
+
+
+class DraftFlashcardRequest(BaseModel):
+    selected_text: str
+
+
+class SaveFlashcardRequest(BaseModel):
+    front: str
+    back: str
+    source_text: str | None = None
+
+
+class DraftQuestionRequest(BaseModel):
+    question_type: QuestionType
+    selected_text: str
+
+
+class SaveQuestionRequest(BaseModel):
+    question_type: QuestionType
+    question_data: dict
+
+
+def _resolve_chapter(services: ServicesDep, tree_id: str, number: int):
+    uid = _parse_uuid(tree_id, "tree_id")
+    if services.kt_tree_store.get_tree(uid) is None:
+        raise HTTPException(status_code=404, detail="Knowledge tree not found")
+    chapter = next(
+        (c for c in services.kt_chapter_store.list_chapters(uid) if c.number == number), None
+    )
+    if chapter is None:
+        raise HTTPException(status_code=404, detail=f"Chapter {number} not found")
+    return uid, chapter
+
+
+def _chapter_context(services: ServicesDep, tree_id: UUID, number: int) -> str:
+    chunks = services.kt_content_store.get_chunks(tree_id, number)
+    return "\n\n".join(c.text for c in chunks if c.text)
+
+
+@router.post("/knowledge-trees/{tree_id}/chapters/{number}/flashcards/draft")
+async def draft_flashcard(
+    tree_id: str, number: int, req: DraftFlashcardRequest, services: ServicesDep
+) -> dict:
+    """Generate a flashcard from a selection synchronously without persisting."""
+    uid, chapter = _resolve_chapter(services, tree_id, number)
+    if not req.selected_text.strip():
+        raise HTTPException(status_code=400, detail="selected_text is required")
+    context = _chapter_context(services, uid, number)
+    agent = FlashcardGeneratorAgent(services.fast_llm)
+    try:
+        data = agent.generate(req.selected_text, chapter_context=context)
+    except Exception as e:
+        logger.error("Flashcard draft failed: %s", e)
+        raise HTTPException(status_code=502, detail="Flashcard generation failed") from e
+    return {"front": data["front"], "back": data["back"], "source_text": req.selected_text}
+
+
+@router.post("/knowledge-trees/{tree_id}/chapters/{number}/flashcards/save")
+async def save_flashcard(
+    tree_id: str, number: int, req: SaveFlashcardRequest, services: ServicesDep
+) -> dict:
+    """Persist a user-approved (possibly edited) flashcard."""
+    uid, chapter = _resolve_chapter(services, tree_id, number)
+    front = req.front.strip()
+    back = req.back.strip()
+    if not front or not back:
+        raise HTTPException(status_code=400, detail="front and back are required")
+    flashcard = Flashcard(
+        id=uuid4(),
+        tree_id=uid,
+        chapter_id=chapter.id,
+        doc_id=None,
+        front=front,
+        back=back,
+        source_text=req.source_text,
+        created_at=datetime.now(),
+    )
+    services.kt_flashcard_store.save_flashcard(flashcard)
+    return {"id": str(flashcard.id)}
+
+
+@router.post("/knowledge-trees/{tree_id}/chapters/{number}/questions/draft")
+async def draft_question(
+    tree_id: str, number: int, req: DraftQuestionRequest, services: ServicesDep
+) -> dict:
+    """Generate a single question of the given type from a selection without persisting."""
+    uid, chapter = _resolve_chapter(services, tree_id, number)
+    if not req.selected_text.strip():
+        raise HTTPException(status_code=400, detail="selected_text is required")
+    context = _chapter_context(services, uid, number)
+    agent = QuestionGeneratorAgent(services.fast_llm)
+    try:
+        question_data = agent.generate_one(
+            req.question_type, req.selected_text, chapter_context=context
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    except Exception as e:
+        logger.error("Question draft failed: %s", e)
+        raise HTTPException(status_code=502, detail="Question generation failed") from e
+    return {"question_type": req.question_type, "question_data": question_data}
+
+
+@router.post("/knowledge-trees/{tree_id}/chapters/{number}/questions/save")
+async def save_question(
+    tree_id: str, number: int, req: SaveQuestionRequest, services: ServicesDep
+) -> dict:
+    """Persist a user-approved (possibly edited) question."""
+    uid, chapter = _resolve_chapter(services, tree_id, number)
+    if not QuestionGeneratorAgent.validate(req.question_type, req.question_data):
+        raise HTTPException(status_code=422, detail="Question data failed validation")
+    question = Question(
+        tree_id=uid,
+        chapter_id=chapter.id,
+        question_type=req.question_type,
+        question_data=req.question_data,
+    )
+    services.kt_question_store.save_questions([question])
+    return {"id": str(question.id)}

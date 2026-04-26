@@ -245,6 +245,58 @@ export class MockClient implements ServiceClient {
     return { task_id: `mock-task-${Math.random().toString(36).slice(2, 10)}` }
   }
 
+  async draftFlashcard(_treeId: string, _chapter: number, selectedText: string) {
+    await delay(400)
+    return {
+      front: `What is described by: "${selectedText.slice(0, 60)}..."?`,
+      back: `Mock answer derived from: ${selectedText.slice(0, 120)}`,
+      source_text: selectedText,
+    }
+  }
+
+  async saveFlashcard(_treeId: string, _chapter: number, _payload: { front: string; back: string; source_text?: string | null }) {
+    await delay(150)
+    return { id: `mock-fc-${Math.random().toString(36).slice(2, 10)}` }
+  }
+
+  async draftQuestion(
+    _treeId: string,
+    _chapter: number,
+    questionType: KnowledgeTreeQuestionType,
+    selectedText: string,
+  ) {
+    await delay(400)
+    if (questionType === 'true_false') {
+      return {
+        question_type: questionType,
+        question_data: {
+          statement: `According to the text, ${selectedText.slice(0, 80)}.`,
+          answer: true,
+          explanation: 'Mock explanation.',
+        } as Record<string, unknown>,
+      }
+    }
+    return {
+      question_type: questionType,
+      question_data: {
+        question: `What does the excerpt "${selectedText.slice(0, 50)}..." imply?`,
+        choices: ['Option A', 'Option B', 'Option C', 'Option D'],
+        correct_index: 0,
+        explanation: 'Mock explanation.',
+      } as Record<string, unknown>,
+    }
+  }
+
+  async saveQuestion(
+    _treeId: string,
+    _chapter: number,
+    _questionType: KnowledgeTreeQuestionType,
+    _questionData: Record<string, unknown>,
+  ) {
+    await delay(150)
+    return { id: `mock-q-${Math.random().toString(36).slice(2, 10)}` }
+  }
+
   // Knowledge Tree Questions
 
   async generateKnowledgeTreeQuestions(

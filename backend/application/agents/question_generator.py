@@ -106,6 +106,52 @@ class QuestionGeneratorAgent(BaseAgent):
 
         return results
 
+    def generate_one(
+        self,
+        question_type: QuestionType,
+        selected_text: str,
+        chapter_context: str | None = None,
+    ) -> dict:
+        """Generate a single validated question of the requested type.
+
+        Args:
+            question_type: One of true_false | multiple_choice | matching | checkbox.
+            selected_text: The text excerpt to focus on.
+            chapter_context: Optional surrounding chapter content for grounding.
+
+        Returns:
+            A validated question_data dict for the given type.
+
+        Raises:
+            ValueError: If no valid question could be produced.
+        """
+        prompt = self._PROMPTS[question_type]
+        if chapter_context and chapter_context.strip():
+            user_prompt = (
+                "CHAPTER CONTEXT (for reference only, do not summarize this):\n"
+                f"{chapter_context.strip()}\n\n"
+                "FOCUS EXCERPT (base the question on this):\n"
+                f"{selected_text}"
+            )
+        else:
+            user_prompt = selected_text
+
+        raw = self._call_json_with_retry(prompt, user_prompt)
+        try:
+            parsed = json.loads(raw)
+        except (json.JSONDecodeError, ValueError) as e:
+            raise ValueError(f"LLM returned non-JSON response for {question_type}") from e
+
+        items = parsed.get("questions", []) if isinstance(parsed, dict) else []
+        if not isinstance(items, list):
+            raise ValueError(f"'questions' key is not a list for {question_type}")
+
+        validator = self._get_validator(question_type)
+        for item in items:
+            if isinstance(item, dict) and validator(item):
+                return item
+        raise ValueError(f"No valid {question_type} question produced from selection")
+
     # ---------------------------------------------------------------------------
     # Per-type validators
     # ---------------------------------------------------------------------------
@@ -185,10 +231,21 @@ class QuestionGeneratorAgent(BaseAgent):
         return True
 
     def _get_validator(self, qtype: QuestionType) -> Callable[[dict], bool]:
-        validators = {
-            "true_false": self._validate_true_false,
-            "multiple_choice": self._validate_multiple_choice,
-            "matching": self._validate_matching,
-            "checkbox": self._validate_checkbox,
+        return self._validators()[qtype]
+
+    @classmethod
+    def _validators(cls) -> dict[QuestionType, Callable[[dict], bool]]:
+        return {
+            "true_false": cls._validate_true_false,
+            "multiple_choice": cls._validate_multiple_choice,
+            "matching": cls._validate_matching,
+            "checkbox": cls._validate_checkbox,
         }
-        return validators[qtype]
+
+    @classmethod
+    def validate(cls, question_type: QuestionType, item: dict) -> bool:
+        """Public per-type validation for externally-supplied question_data."""
+        validator = cls._validators().get(question_type)
+        if validator is None:
+            return False
+        return validator(item)

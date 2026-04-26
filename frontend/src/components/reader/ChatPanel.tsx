@@ -1,12 +1,14 @@
 import * as React from 'react'
-import { Send, Loader2, MessageSquare, PenLine, Plus, Trash2 } from 'lucide-react'
+import { Send, Loader2, MessageSquare, FileText, Plus, Trash2 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import { client } from '../../services'
 import { cn } from '../../lib/cn'
 import { useGenerationSettings } from '../../stores/generation-settings'
+import { usePendingContent } from '../../stores/pending-content-store'
+import { ContentPanel } from './ContentPanel'
 import type { ChatMessage } from '../../types/api'
 
-type PanelMode = 'chat' | 'notes'
+type PanelMode = 'chat' | 'content'
 
 interface ChatSession {
   id: string
@@ -17,6 +19,12 @@ interface ChatSession {
 interface ChatPanelProps {
   documentContext: string
   storageKey: string
+  treeId: string
+  chapter: number | null
+}
+
+export interface ChatPanelHandle {
+  showContent: () => void
 }
 
 function makeId() {
@@ -172,14 +180,18 @@ function MessageContent({ content, role }: { content: string; role: string }) {
   )
 }
 
-export function ChatPanel({ documentContext, storageKey }: ChatPanelProps) {
+export const ChatPanel = React.forwardRef<ChatPanelHandle, ChatPanelProps>(function ChatPanel(
+  { documentContext, storageKey, treeId, chapter },
+  ref,
+) {
   const { settings } = useGenerationSettings()
   const [mode, setMode] = React.useState<PanelMode>('chat')
+  const pendingCount = usePendingContent((s) => s.items.length)
+  React.useImperativeHandle(ref, () => ({ showContent: () => setMode('content') }), [])
   const [sessions, setSessions] = React.useState<ChatSession[]>(() => loadSessions(storageKey))
   const [activeSessionId, setActiveSessionId] = React.useState<string>(sessions[0]?.id ?? '')
   const [input, setInput] = React.useState('')
   const [loading, setLoading] = React.useState(false)
-  const [notes, setNotes] = React.useState('')
   const scrollRef = React.useRef<HTMLDivElement>(null)
 
   const activeSession = sessions.find((s) => s.id === activeSessionId)
@@ -287,16 +299,21 @@ export function ChatPanel({ documentContext, storageKey }: ChatPanelProps) {
           Chat
         </button>
         <button
-          onClick={() => setMode('notes')}
+          onClick={() => setMode('content')}
           className={cn(
             'flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-medium transition-colors',
-            mode === 'notes'
+            mode === 'content'
               ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50/50 dark:bg-blue-900/20'
               : 'text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-300'
           )}
         >
-          <PenLine className="h-3.5 w-3.5" />
-          Notes
+          <FileText className="h-3.5 w-3.5" />
+          Content
+          {pendingCount > 0 && (
+            <span className="ml-0.5 inline-flex items-center justify-center min-w-[1rem] h-4 px-1 text-[10px] font-semibold rounded-full bg-amber-500 text-white">
+              {pendingCount}
+            </span>
+          )}
         </button>
       </div>
 
@@ -388,13 +405,8 @@ export function ChatPanel({ documentContext, storageKey }: ChatPanelProps) {
           </div>
         </>
       ) : (
-        <textarea
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-          placeholder="Write your notes here..."
-          className="flex-1 resize-none p-3 text-sm focus:outline-none bg-white dark:bg-slate-800 text-gray-900 dark:text-slate-100 placeholder:text-gray-400 dark:placeholder:text-slate-500"
-        />
+        <ContentPanel treeId={treeId} chapter={chapter} />
       )}
     </div>
   )
-}
+})

@@ -234,6 +234,59 @@ export class RealClient implements ServiceClient {
     return res.data
   }
 
+  async draftFlashcard(
+    treeId: string,
+    chapter: number,
+    selectedText: string,
+  ): Promise<{ front: string; back: string; source_text: string }> {
+    const res = await httpClient.post<{ front: string; back: string; source_text: string }>(
+      `/knowledge-trees/${treeId}/chapters/${chapter}/flashcards/draft`,
+      { selected_text: selectedText },
+    )
+    return res.data
+  }
+
+  async saveFlashcard(
+    treeId: string,
+    chapter: number,
+    payload: { front: string; back: string; source_text?: string | null },
+  ): Promise<{ id: string }> {
+    const res = await httpClient.post<{ id: string }>(
+      `/knowledge-trees/${treeId}/chapters/${chapter}/flashcards/save`,
+      payload,
+    )
+    return res.data
+  }
+
+  async draftQuestion(
+    treeId: string,
+    chapter: number,
+    questionType: KnowledgeTreeQuestionType,
+    selectedText: string,
+  ): Promise<{ question_type: KnowledgeTreeQuestionType; question_data: Record<string, unknown> }> {
+    const res = await httpClient.post<{
+      question_type: KnowledgeTreeQuestionType
+      question_data: Record<string, unknown>
+    }>(`/knowledge-trees/${treeId}/chapters/${chapter}/questions/draft`, {
+      question_type: questionType,
+      selected_text: selectedText,
+    })
+    return res.data
+  }
+
+  async saveQuestion(
+    treeId: string,
+    chapter: number,
+    questionType: KnowledgeTreeQuestionType,
+    questionData: Record<string, unknown>,
+  ): Promise<{ id: string }> {
+    const res = await httpClient.post<{ id: string }>(
+      `/knowledge-trees/${treeId}/chapters/${chapter}/questions/save`,
+      { question_type: questionType, question_data: questionData },
+    )
+    return res.data
+  }
+
   // Knowledge Tree Questions
   async generateKnowledgeTreeQuestions(
     treeId: string,
