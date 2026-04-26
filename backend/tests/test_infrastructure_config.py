@@ -9,7 +9,6 @@ Out of scope:
 Setup:   Temporary files for YAML round-tripping; monkeypatch for env vars.
 """
 
-import os
 import tempfile
 from pathlib import Path
 
@@ -17,7 +16,6 @@ import pytest
 import yaml
 
 from infrastructure.config import AppConfig, load_config, save_config
-
 
 # ---------------------------------------------------------------------------
 # load_config — YAML parse errors
@@ -141,6 +139,7 @@ def test_env_override_wins_over_yaml(monkeypatch):
         tmp_path = Path(f.name)
 
     monkeypatch.setenv("DOCASSIST_OLLAMA__BASE_URL", "http://env:11434")
+    monkeypatch.delenv("DOCASSIST_LLM_PROVIDER", raising=False)
 
     try:
         config = load_config(tmp_path)
@@ -160,6 +159,7 @@ def test_env_override_creates_missing_intermediate_nodes(monkeypatch):
 def test_env_prefix_is_case_sensitive(monkeypatch):
     """Variables without the DOCASSIST_ prefix must not affect configuration."""
     monkeypatch.setenv("OTHER_PREFIX__FOO", "bar")
+    monkeypatch.delenv("DOCASSIST_LLM_PROVIDER", raising=False)
     config = load_config(Path("/nonexistent/config.yml"))
     # Should use defaults without crashing
     assert isinstance(config, AppConfig)

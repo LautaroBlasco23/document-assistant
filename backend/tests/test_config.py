@@ -42,8 +42,9 @@ def test_fast_model_from_yaml():
         tmp_path.unlink()
 
 
-def test_default_llm_provider_is_groq():
+def test_default_llm_provider_is_groq(monkeypatch):
     """Default provider in default.yml is groq."""
+    monkeypatch.delenv("DOCASSIST_LLM_PROVIDER", raising=False)
     config = load_config()
     assert config.llm_provider == "groq"
 
