@@ -8,6 +8,12 @@ export default {
   theme: {
     extend: {
       colors: {
+        bg: 'var(--color-bg)',
+        border: 'var(--color-border)',
+        text: {
+          DEFAULT: 'var(--color-text)',
+          muted: 'var(--color-text-muted)',
+        },
         primary: {
           DEFAULT: 'var(--color-primary)',
           hover: 'var(--color-primary-hover)',
@@ -15,6 +21,7 @@ export default {
         },
         surface: {
           DEFAULT: 'var(--color-surface)',
+          card: 'var(--color-surface-card)',
           100: 'var(--color-surface-100)',
           200: 'var(--color-surface-200)',
         },

@@ -15,7 +15,7 @@ export function Card({ title, actions, className, children, onClick }: CardProps
   return (
     <div
       className={cn(
-        'bg-surface dark:bg-surface rounded-card shadow-sm border border-surface-200 dark:border-surface-200 p-5',
+        'bg-surface dark:bg-surface-card rounded-card shadow-sm border border-surface-200 dark:border-surface-200 p-5',
         onClick && 'cursor-pointer',
         className,
       )}

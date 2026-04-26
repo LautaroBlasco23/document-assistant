@@ -32,21 +32,29 @@
 
 /* ─── Dark theme ──────────────────────────────────────────────────────────── */
 .dark {
-  --color-primary: #3b82f6;
-  --color-primary-hover: #2563eb;
-  --color-primary-light: rgba(59, 130, 246, 0.12);
+  --color-bg: #0f172a;
   --color-surface: #1e293b;
-  --color-surface-100: #334155;
-  --color-surface-200: #475569;
+  --color-surface-card: rgba(20, 30, 48, 0.82);
+  --color-surface-100: #28374a;
+  --color-surface-200: #334155;
+  --color-border: rgba(148, 163, 184, 0.12);
+  --color-text: #e2e8f0;
+  --color-text-muted: #94a3b8;
+
+  --color-primary: #60a5fa;
+  --color-primary-hover: #3b82f6;
+  --color-primary-light: rgba(96, 165, 250, 0.12);
+
   --color-accent: #a78bfa;
   --color-accent-hover: #8b5cf6;
-  --color-accent-light: rgba(167, 139, 250, 0.12);
+  --color-accent-light: rgba(167, 139, 250, 0.10);
+
   --color-success: #4ade80;
-  --color-success-light: rgba(74, 222, 128, 0.12);
+  --color-success-light: rgba(74, 222, 128, 0.10);
   --color-warning: #fbbf24;
-  --color-warning-light: rgba(251, 191, 36, 0.12);
+  --color-warning-light: rgba(251, 191, 36, 0.10);
   --color-danger: #f87171;
-  --color-danger-light: rgba(248, 113, 113, 0.12);
+  --color-danger-light: rgba(248, 113, 113, 0.10);
 
   color-scheme: dark;
 }
