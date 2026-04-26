@@ -5,6 +5,7 @@ import { client } from '../../services'
 import { cn } from '../../lib/cn'
 import { useGenerationSettings } from '../../stores/generation-settings'
 import { usePendingContent } from '../../stores/pending-content-store'
+import { useModels } from '../../hooks/use-models'
 import { ContentPanel } from './ContentPanel'
 import type { ChatMessage } from '../../types/api'
 
@@ -186,7 +187,8 @@ export const ChatPanel = React.forwardRef<ChatPanelHandle, ChatPanelProps>(funct
   { documentContext, storageKey, treeId, chapter },
   ref,
 ) {
-  const { settings } = useGenerationSettings()
+  const { settings, update } = useGenerationSettings()
+  const { models, currentModel, loading: modelsLoading } = useModels()
   const [mode, setMode] = React.useState<PanelMode>('chat')
   const pendingCount = usePendingContent((s) => s.items.filter((it) => !it.disposition).length)
   const [dropdownOpen, setDropdownOpen] = React.useState(false)
@@ -286,6 +288,7 @@ export const ChatPanel = React.forwardRef<ChatPanelHandle, ChatPanelProps>(funct
         temperature: settings.temperature,
         top_p: settings.top_p,
         max_tokens: settings.max_tokens,
+        model: settings.model,
       })
       updateSessionMessages(activeSession.id, [
         ...updatedMessages,
@@ -417,6 +420,24 @@ export const ChatPanel = React.forwardRef<ChatPanelHandle, ChatPanelProps>(funct
               </button>
             )}
           </div>
+
+          {/* Model selector */}
+          {!modelsLoading && models.length > 0 && (
+            <div className="shrink-0 border-b border-gray-200 dark:border-slate-700 px-2 py-1 flex items-center gap-1.5">
+              <span className="text-[10px] uppercase tracking-wide text-gray-400 dark:text-slate-500 shrink-0">Model</span>
+              <select
+                value={settings.model ?? currentModel}
+                onChange={(e) => update({ model: e.target.value })}
+                className="flex-1 min-w-0 text-xs px-1.5 py-0.5 rounded border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-gray-700 dark:text-slate-200 appearance-none cursor-pointer"
+              >
+                {models.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.label}{m.role ? ` · ${m.role}` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 space-y-3">
             {(!activeSession || activeSession.messages.length === 0) && (

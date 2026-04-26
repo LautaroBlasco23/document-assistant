@@ -8,6 +8,8 @@ import {
   type PendingFlashcard,
   type PendingQuestion,
 } from '../../stores/pending-content-store'
+import { useGenerationSettings } from '../../stores/generation-settings'
+import { useModels } from '../../hooks/use-models'
 
 interface ContentPanelProps {
   treeId: string
@@ -16,31 +18,50 @@ interface ContentPanelProps {
 
 export function ContentPanel({ treeId, chapter }: ContentPanelProps) {
   const items = usePendingContent((s) => s.items)
-
-  if (items.length === 0) {
-    return (
-      <div className="flex-1 overflow-y-auto p-4">
-        <div className="text-center text-xs text-gray-400 dark:text-slate-500 mt-4">
-          Right-click a selection in the document
-          <br />
-          and choose what to generate.
-          <br />
-          <span className="text-gray-300 dark:text-slate-600">
-            Generated items appear here for your review.
-          </span>
-        </div>
-      </div>
-    )
-  }
+  const { settings, update } = useGenerationSettings()
+  const { models, currentModel, loading: modelsLoading } = useModels()
 
   return (
-    <div className="flex-1 overflow-y-auto p-3 space-y-3">
-      {items.map((item) =>
-        item.kind === 'flashcard' ? (
-          <FlashcardCard key={item.id} item={item} treeId={treeId} chapter={chapter} />
-        ) : (
-          <QuestionCard key={item.id} item={item} treeId={treeId} chapter={chapter} />
-        ),
+    <div className="h-full flex flex-col">
+      {!modelsLoading && models.length > 0 && (
+        <div className="shrink-0 border-b border-gray-200 dark:border-slate-700 px-2 py-1 flex items-center gap-1.5">
+          <span className="text-[10px] uppercase tracking-wide text-gray-400 dark:text-slate-500 shrink-0">Model</span>
+          <select
+            value={settings.model ?? currentModel}
+            onChange={(e) => update({ model: e.target.value })}
+            className="flex-1 min-w-0 text-xs px-1.5 py-0.5 rounded border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-gray-700 dark:text-slate-200 appearance-none cursor-pointer"
+          >
+            {models.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.label}{m.role ? ` · ${m.role}` : ''}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      {items.length === 0 ? (
+        <div className="flex-1 overflow-y-auto p-4">
+          <div className="text-center text-xs text-gray-400 dark:text-slate-500 mt-4">
+            Right-click a selection in the document
+            <br />
+            and choose what to generate.
+            <br />
+            <span className="text-gray-300 dark:text-slate-600">
+              Generated items appear here for your review.
+            </span>
+          </div>
+        </div>
+      ) : (
+        <div className="flex-1 overflow-y-auto p-3 space-y-3">
+          {items.map((item) =>
+            item.kind === 'flashcard' ? (
+              <FlashcardCard key={item.id} item={item} treeId={treeId} chapter={chapter} />
+            ) : (
+              <QuestionCard key={item.id} item={item} treeId={treeId} chapter={chapter} />
+            ),
+          )}
+        </div>
       )}
     </div>
   )
