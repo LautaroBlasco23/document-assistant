@@ -1,8 +1,6 @@
-> NOTE: Legacy document flow removed. This file is out of date — re-run docs agent to refresh.
-
 # Document Assistant
 
-Local document reader and knowledge-tree learning platform with PostgreSQL persistence.
+Local document reader and knowledge-tree learning platform with PostgreSQL persistence and user authentication.
 
 ## Language
 
@@ -10,53 +8,52 @@ Python — justified exception to the Go preference. The NLP/ML ecosystem (PyMuP
 
 ## Architecture
 
-Layered / DDD-inspired. Two parallel workflows coexist:
-
-- **Legacy document flow**: Upload PDF/EPUB → ingest chunks → generate summaries + flashcards → test via flashcard exams
-- **Knowledge tree flow**: Create/import knowledge tree → add chapters → attach documents (text or files) → generate questions → test via question exams
+Layered / DDD-inspired. Multi-user knowledge tree platform with JWT authentication and plan-based resource limits.
 
 ```
 backend/        # All Python backend code (pyproject.toml + uv.lock live here)
   core/           # Domain models and port interfaces (no external deps)
-    model/        # Document, Chapter, Page, Chunk, Summary, Flashcard, DocumentMetadata,
-                  # ExamResult, KnowledgeTree, KnowledgeChapter, KnowledgeDocument,
-                  # KnowledgeChunk, Question
+    model/        # User, SubscriptionPlan, UserSubscription, UserLimits, KnowledgeTree,
+                  # KnowledgeChapter, KnowledgeDocument, KnowledgeChunk, Flashcard, Question
     ports/        # ABCs: LLM, ContentStore, KnowledgeTreeStore, KnowledgeChapterStore,
-                  # KnowledgeDocumentStore, KnowledgeContentStore
+                  # KnowledgeDocumentStore, KnowledgeContentStore, UserStore, SubscriptionStore
   application/    # Use cases (orchestration logic)
-    agents/       # SummarizerAgent, FlashcardGeneratorAgent, QuestionGeneratorAgent
-    ingest.py     # Ingestion use case (hash + load + idempotency check)
-  infrastructure/ # Adapters: config loader, LLM clients, PostgreSQL
+    agents/       # FlashcardGeneratorAgent, QuestionGeneratorAgent, DocumentChatAgent
+  infrastructure/ # Adapters: config loader, LLM clients, PostgreSQL, JWT
+    auth/         # JWT token handling, password hashing (bcrypt)
     ingest/       # pdf_loader, epub_loader, normalizer
     chunking/     # ChapterAwareSplitter
     llm/          # OllamaLLM, GroqLLM, OpenRouterLLM, HuggingFaceLLM, factory
-    db/           # PostgresPool, ContentRepository, KnowledgeTreeRepository,
+    db/           # PostgresPool, UserRepository, SubscriptionRepository, KnowledgeTreeRepository,
                   # schema.sql + migrations/
-    output/       # markdown_writer, manifest
   api/            # FastAPI backend (wraps application layer, no duplication)
-    routers/      # health, documents, chapters, content, exams, tasks, config, knowledge_trees
+    routers/      # health, config, tasks, auth, users, knowledge_trees, chat
     schemas/      # Pydantic request/response models
     services.py   # Singleton service container (lifespan-managed)
     tasks.py      # In-memory task registry + ThreadPoolExecutor
+    auth.py       # JWT validation + CurrentUser dependency
+    limit_checks.py # Plan-based resource limit enforcement
   cli/            # CLI entry point (check, ingest, summarize, generate-md, config)
   tests/          # Unit and integration tests
 config/         # YAML configuration (default.yml)
 frontend/       # React + TypeScript + Tailwind SPA (Vite, port 5173)
   src/
-    pages/      # Library, Document (summary/flashcard/exam tabs),
-                # KnowledgeTree (documents/content/exam tabs), Settings
-    components/ # Layout (Sidebar, Header, HealthBanner) + Shadcn-style UI primitives
-    hooks/      # useHealth, useTask, useDocuments, useDocumentStructure
-    stores/     # Zustand: AppStore, DocumentStore, TaskStore, FlashcardStore,
-                # UploadStore, ExamStore, KnowledgeTreeStore
-    services/   # API client abstraction (real/mock clients via VITE_MOCK env var)
-    types/      # TypeScript domain and API types (domain.ts, api.ts, knowledge-tree.ts)
-    lib/        # cn (classname helper)
+    auth/       # AuthContext (login/register/logout), ProtectedRoute
+    pages/      # Library, KnowledgeTree (with unified document reader tab), Settings, Auth pages
+    components/ # Layout (Sidebar, Header, HealthBanner), DocumentReader, ChatPanel, PdfPagesView
+    hooks/      # useHealth, useTask, useDocuments, etc.
+    stores/     # Zustand: AppStore, AuthStore, KnowledgeTreeStore, etc.
+    services/   # API client abstraction
+    types/      # TypeScript domain and API types
+    lib/        # cn (classname helper), pdf-text extraction
     mocks/      # Mock data for development/testing
 ```
 
 ## Key decisions
 
+- **User authentication & multi-tenancy** — JWT tokens (7-day expiry). All knowledge trees owned by user. Login/register/logout via FastAPI `/auth/` endpoints. Frontend stores token in localStorage, requests include Bearer token in Authorization header.
+- **Plan-based resource limits** — Free plan: 200 documents, 3 knowledge trees. Subscription plans in DB (slug, name, max_documents, max_knowledge_trees). Router limit checks before write operations. `PlanLimitExceeded` exception raised on violation.
+- **Per-request generation parameters** — `GenerationParams` dataclass (temperature, top_p, max_tokens) passed to all LLM calls. Frontend generation settings page controls these per-request. All LLM adapters accept params.
 - **No LlamaIndex/LangChain** — Direct `requests` to Groq/Ollama + `psycopg` for PostgreSQL. Simpler, fewer deps, more debuggable.
 - **Groq as default LLM** — `GroqLLM` via `requests` to Groq's OpenAI-compatible API. Switch providers with `DOCASSIST_LLM_PROVIDER=ollama|openrouter|huggingface` or CLI `--provider`.
 - **Groq rate limiter** — `GroqRateLimiter` (sliding window, 25/30 req/min threshold) is a module-level singleton in `groq_llm.py`. Proactively throttles before hitting the free-tier limit; also retries on 429 with exponential backoff.
@@ -66,33 +63,37 @@ frontend/       # React + TypeScript + Tailwind SPA (Vite, port 5173)
 - **Flashcard quality filter** — `_filter_low_quality` in `FlashcardGeneratorAgent` removes trivial cards post-generation: short fronts/backs, pattern-matched trivial questions, front/back overlap, and near-duplicates (Jaccard > 0.8). No extra LLM call needed.
 - **Question validation per type** — `QuestionGeneratorAgent` validates each question against its schema (true_false, multiple_choice, matching, checkbox). Invalid questions are discarded silently; no re-prompting.
 - **Four question types** — `true_false`, `multiple_choice`, `matching`, `checkbox`. Question data stored as JSONB in `knowledge_tree_questions`. Frontend mapper converts snake_case to camelCase.
-- **Exam progression system** — Four levels: 0 (none), 1 (completed), 2 (gold), 3 (platinum). Only passed exams increment level (capped at 3). Failed exams trigger cooldown. Regenerating flashcards resets exam progress for that chapter.
-- **PostgreSQL for all persistence** — 13 tables: legacy document tables + knowledge tree tables. Schema auto-applied on startup; idempotent SQL migrations in `infrastructure/db/migrations/`.
+- **Document chat agent** — `DocumentChatAgent` grounds LLM responses in extracted PDF/EPUB text. User text selection triggers context menu → "Ask definition in chat" → DocumentReader chat panel.
+- **Unified document reader** — Single component (PDF + EPUB) with integrated chat panel, virtualized PDF rendering, resizable sidebars, page navigation per chapter. Stores panel widths in localStorage.
+- **Markdown rendering in chat** — ChatPanel uses react-markdown to render assistant replies with code blocks, lists, emphasis.
+- **PostgreSQL for all persistence** — 16 tables: user auth, subscriptions, knowledge tree data, tasks. Schema auto-applied on startup; idempotent SQL migrations in `infrastructure/db/migrations/`.
 - **Task polling, not SSE** — Background tasks return `task_id`; frontend polls `GET /api/tasks/{task_id}` for progress. No streaming endpoints.
-- **Chapter numbering** — API is **1-based** (user-facing). Legacy DB `chapter_index` is **0-based**. Knowledge trees have explicit 1-based `number` field. Routers convert 1-based input to 0-based before calling application layer.
-- **Knowledge tree documents** — `KnowledgeDocument.chapter_id` can be null (tree-level) or bound to a chapter. Documents are chunked only when explicitly ingested via the import endpoint.
+- **Chapter numbering** — Knowledge tree chapters: 1-based `number` field throughout (API and DB). User-facing always 1-based.
+- **Knowledge tree documents** — `KnowledgeDocument.chapter_id` can be null (tree-level) or bound to a chapter. Documents are chunked only when explicitly ingested via the import endpoint. Stores source_file_path, source_file_name, page_start, page_end (for PDF/EPUB chapter slicing).
 - **No Tesseract OCR (deferred)** — Most text PDFs/EPUBs won't need it. Add when encountering scanned docs.
 - **uv** for dependency management (not pip+venv).
-- **Idempotent ingestion** — Documents identified by SHA-256 file hash; `document_chunks` table checked before re-processing.
+- **Idempotent ingestion** — Documents identified by SHA-256 file hash; `knowledge_content` table checked before re-processing.
 - **FastAPI wraps, not duplicates** — `api/` calls `application/` use cases directly; no logic is reimplemented.
 - **In-memory task registry** — `ThreadPoolExecutor(max_workers=2)` for background tasks; no Celery/Redis needed for single-user local use.
 - **Standalone SPA** — Vite dev server proxies `/api` to FastAPI in development; production build outputs static files to `frontend/dist/`.
 - **Structured logging** — ANSI-colored terminal output with timestamps, log levels, and module names.
-- **Source attribution** — Flashcards track `source_page`, `source_chunk_id`, and first ~400 chars of `source_text`, surfaced via the source context panel in the UI.
+- **Source attribution** — Flashcards track source context and reference to original document/chunk.
 
 ## Domain models
 
-### Knowledge tree (primary flow)
-- `KnowledgeTree`: `id` (UUID), `title`, `description`, `created_at`
-- `KnowledgeChapter`: `id` (UUID), `tree_id`, `number` (1-based), `title`, `created_at` — UNIQUE(tree_id, number)
-- `KnowledgeDocument`: `id` (UUID), `tree_id`, `chapter_id` (nullable), `title`, `content`, `is_main`, `created_at`, `updated_at`
-- `KnowledgeChunk`: `id` (UUID), `tree_id`, `chapter_id`, `doc_id`, `chunk_index`, `text`, `token_count`
-- `Question`: `id` (UUID), `tree_id`, `chapter_id`, `question_type` (true_false|multiple_choice|matching|checkbox), `question_data` (dict), `created_at`
+### User & Subscription
+- `User`: `id` (UUID), `email` (UNIQUE), `password_hash`, `display_name`, `is_active`, `created_at`, `updated_at`
+- `SubscriptionPlan`: `id` (UUID), `slug` (UNIQUE), `name`, `description`, `max_documents`, `max_knowledge_trees`, `is_active`, `created_at`
+- `UserSubscription`: `id` (UUID), `user_id` (FK), `plan_id` (FK), `assigned_at` — UNIQUE(user_id)
+- `UserLimits`: `max_documents`, `max_knowledge_trees`, `current_documents`, `current_knowledge_trees`, `can_create_document`, `can_create_tree`
 
-### Legacy document flow
-- `Document` → `Chapter` → `Page` → `Chunk` → `Summary` / `Flashcard`
-- `ExamResult`: `id`, `document_hash`, `chapter_index`, `total_cards`, `correct_count`, `passed`, `completed_at`
-- `DocumentMetadata`: `description`, `document_type`, `file_extension`
+### Knowledge tree (primary flow)
+- `KnowledgeTree`: `id` (UUID), `user_id` (FK), `title`, `description`, `created_at`
+- `KnowledgeChapter`: `id` (UUID), `tree_id` (FK), `number` (1-based), `title`, `created_at` — UNIQUE(tree_id, number)
+- `KnowledgeDocument`: `id` (UUID), `tree_id` (FK), `chapter_id` (nullable FK), `title`, `content`, `is_main`, `source_file_path`, `source_file_name`, `page_start`, `page_end`, `created_at`, `updated_at`
+- `KnowledgeChunk`: `id` (UUID), `tree_id` (FK), `chapter_id` (FK), `doc_id` (FK), `chunk_index`, `text`, `token_count`, `created_at`
+- `Flashcard`: `id` (UUID), `tree_id` (FK), `chapter_id` (FK), `doc_id` (nullable FK), `front`, `back`, `source_text`, `created_at`
+- `Question`: `id` (UUID), `tree_id` (FK), `chapter_id` (FK), `question_type` (true_false|multiple_choice|matching|checkbox), `question_data` (JSONB), `created_at`
 
 ## Configuration
 
@@ -112,15 +113,6 @@ frontend/       # React + TypeScript + Tailwind SPA (Vite, port 5173)
 | ollama | qwen2.5:14b-instruct | qwen2.5:3b-instruct |
 | openrouter | meta-llama/llama-3.3-70b-instruct:free | qwen/qwen2.5-7b-instruct:free |
 | huggingface | Qwen/Qwen2.5-72B-Instruct | — |
-
-### Exam cooldowns
-
-| Event | Cooldown |
-|-------|---------|
-| After fail | 2 hours |
-| Level 1 (completed) | 4 days |
-| Level 2 (gold) | 14 days |
-| Level 3 (platinum) | 30 days |
 
 ## External services
 
@@ -153,12 +145,6 @@ cd backend && uv run python -m cli.main check
 # Ingest a file or directory
 cd backend && uv run python -m cli.main ingest ../data/raw/book.pdf
 
-# Generate all markdown outputs for chapter 1
-cd backend && uv run python -m cli.main generate-md "book" 1
-
-# Summarize a chapter
-cd backend && uv run python -m cli.main summarize "book" 1
-
 # Run tests (unit only)
 cd backend && uv run pytest
 
@@ -190,6 +176,14 @@ npm run build
 
 ## API endpoints
 
+### Authentication
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/auth/register` | Register new user with free plan → `{access_token, expires_in_days}` |
+| POST | `/api/auth/login` | Authenticate → `{access_token, expires_in_days}` |
+| GET | `/api/auth/me` | Get current user profile (requires Bearer token) |
+
 ### Core
 
 | Method | Path | Description |
@@ -198,52 +192,30 @@ npm run build
 | GET | `/api/config` | Read current config |
 | PATCH | `/api/config` | Update config (partial) |
 | GET | `/api/tasks/{task_id}` | Poll task status + progress |
-| GET | `/api/tasks/active` | List active background tasks |
 
-### Legacy documents
-
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/api/documents` | List all ingested documents |
-| POST | `/api/documents/preview` | Preview chapter structure (no storage) |
-| POST | `/api/documents/ingest` | Upload file → `{task_id}` |
-| POST | `/api/documents/create` | Create custom document from text |
-| GET | `/api/documents/{hash}/structure` | List chapters |
-| DELETE | `/api/documents/{hash}` | Remove from all stores |
-| GET | `/api/documents/{hash}/metadata` | Get document metadata |
-| PATCH | `/api/documents/{hash}/metadata` | Update metadata |
-| GET | `/api/documents/{hash}/content` | Get full stored text |
-| POST | `/api/documents/{hash}/append` | Append text to custom document |
-| PUT | `/api/documents/{hash}/content` | Replace full text content |
-| POST | `/api/chapters/summarize` | Start background summary → `{task_id}` |
-| POST | `/api/chapters/flashcards` | Start background flashcard generation → `{task_id}` |
-| GET | `/api/documents/{hash}/summaries` | Get all stored summaries |
-| GET | `/api/documents/{hash}/summaries/{chapter}` | Get summary for 1-based chapter |
-| DELETE | `/api/documents/{hash}/summaries/{chapter}` | Delete summary |
-| GET | `/api/documents/{hash}/flashcards` | Get flashcards (optional `?chapter=` `?status=`) |
-| PATCH | `/api/documents/{hash}/flashcards/approve` | Approve flashcards by ID list |
-| DELETE | `/api/documents/{hash}/flashcards/reject` | Delete (reject) flashcards by ID list |
-| POST | `/api/documents/{hash}/flashcards/approve-all` | Approve all pending |
-
-### Exams (legacy)
+### Users
 
 | Method | Path | Description |
 |--------|------|-------------|
-| POST | `/api/exams` | Submit exam result (1-based chapter) |
-| GET | `/api/documents/{hash}/exam-status` | Exam status + history for all chapters |
-| GET | `/api/documents/{hash}/exam-status/{chapter}` | Status for 1-based chapter |
+| GET | `/api/users/me/limits` | Get current usage and plan limits |
+
+### Chat
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/chat` | Chat with AI about document context (requires Bearer token) |
 
 ### Knowledge trees
 
 | Method | Path | Description |
 |--------|------|-------------|
-| POST | `/api/knowledge-trees` | Create tree |
-| GET | `/api/knowledge-trees` | List all trees |
-| GET | `/api/knowledge-trees/{tree_id}` | Get tree by UUID |
+| POST | `/api/knowledge-trees` | Create tree (requires auth + limit check) |
+| GET | `/api/knowledge-trees` | List user's knowledge trees (requires auth) |
+| GET | `/api/knowledge-trees/{tree_id}` | Get tree by UUID (requires auth) |
 | PUT | `/api/knowledge-trees/{tree_id}` | Update tree (title, description) |
 | DELETE | `/api/knowledge-trees/{tree_id}` | Delete tree (cascades) |
-| POST | `/api/knowledge-trees/preview` | Preview PDF/EPUB chapter structure |
-| POST | `/api/knowledge-trees/import` | Import tree from file → `{task_id}` |
+| POST | `/api/knowledge-trees/preview` | Preview PDF/EPUB chapter structure (no storage) |
+| POST | `/api/knowledge-trees/import` | Import tree from file → `{task_id}` (requires limit check) |
 | POST | `/api/knowledge-trees/{tree_id}/chapters` | Create chapter |
 | GET | `/api/knowledge-trees/{tree_id}/chapters` | List chapters |
 | PUT | `/api/knowledge-trees/{tree_id}/chapters/{number}` | Update chapter title |
@@ -259,24 +231,23 @@ npm run build
 | DELETE | `/api/knowledge-trees/{tree_id}/chapters/{number}/questions/{question_id}` | Delete question |
 | GET | `/api/knowledge-trees/{tree_id}/chapters/{number}/content` | Get chapter chunks |
 
-## Database schema (13 tables)
+## Database schema (16 tables)
 
-### Legacy document tables
-- `document_chunks`: `file_hash`, `chapter_index` (0-based), `chunk_index`, `text`, `token_count`, `page_number`, `metadata` (JSON)
-- `summaries`: `document_hash`, `chapter_index`, `content`, `description`, `bullets` (JSON text), `created_at`
-- `flashcards`: `id` (UUID), `document_hash`, `chapter_index`, `front`, `back`, `source_page`, `source_chunk_id`, `source_text`, `status` (pending/approved), `created_at`
-- `document_metadata`: `document_hash` (PK), `description`, `document_type`, `file_extension`
-- `exam_results`: `id` (UUID), `document_hash`, `chapter_index`, `total_cards`, `correct_count`, `passed`, `completed_at`
-- `document_content`: `file_hash` (PK), `content`, `created_at`
-- `custom_documents`: `document_hash` (PK), `title`, `content`, `created_at`, `updated_at`
+### User & Authentication
+- `users`: `id` (UUID PK), `email` (UNIQUE), `password_hash`, `display_name`, `is_active`, `created_at`, `updated_at`
+- `subscription_plans`: `id` (UUID PK), `slug` (UNIQUE), `name`, `description`, `max_documents`, `max_knowledge_trees`, `is_active`, `created_at`
+- `user_subscriptions`: `id` (UUID PK), `user_id` (FK cascade), `plan_id` (FK), `assigned_at` — UNIQUE(user_id)
 
-### Knowledge tree tables
-- `knowledge_trees`: `id` (UUID PK), `title`, `description`, `created_at`
-- `knowledge_chapters`: `id` (UUID PK), `tree_id` (FK cascade), `number` (1-based), `title` — UNIQUE(tree_id, number)
-- `knowledge_documents`: `id` (UUID PK), `tree_id` (FK), `chapter_id` (nullable FK), `title`, `content`, `is_main`, `created_at`, `updated_at`
-- `knowledge_content`: `id` (UUID PK), `tree_id`, `chapter_id`, `doc_id`, `chunk_index`, `text`, `token_count` — UNIQUE(doc_id, chunk_index)
-- `knowledge_tree_questions`: `id` (UUID PK), `tree_id`, `chapter_id`, `question_type` (CHECK enum), `question_data` (JSONB), `created_at`
-- `tasks`: `id`, `status`, `progress`, `progress_pct`, `result` (JSON), `error`, `task_type`, `doc_hash`, `chapter`, `book_title`, `filename`, `created_at`, `started_at`, `completed_at`
+### Knowledge Tree Tables
+- `knowledge_trees`: `id` (UUID PK), `user_id` (FK cascade), `title`, `description`, `created_at` — indexed by user_id
+- `knowledge_chapters`: `id` (UUID PK), `tree_id` (FK cascade), `number` (1-based), `title`, `created_at` — UNIQUE(tree_id, number)
+- `knowledge_documents`: `id` (UUID PK), `tree_id` (FK), `chapter_id` (nullable FK), `title`, `content`, `is_main`, `source_file_path`, `source_file_name`, `page_start`, `page_end`, `created_at`, `updated_at`
+- `knowledge_content`: `id` (UUID PK), `tree_id` (FK), `chapter_id` (FK), `doc_id` (FK), `chunk_index`, `text`, `token_count`, `created_at` — UNIQUE(doc_id, chunk_index)
+- `knowledge_tree_questions`: `id` (UUID PK), `tree_id` (FK), `chapter_id` (FK), `question_type` (CHECK enum), `question_data` (JSONB), `created_at`
+- `flashcards`: `id` (UUID PK), `tree_id` (FK), `chapter_id` (FK), `doc_id` (nullable FK), `front`, `back`, `source_text`, `created_at`
+
+### Task Management
+- `tasks`: `id` (TEXT PK), `task_type`, `status`, `progress_pct`, `progress` (TEXT), `result` (JSONB), `error`, `created_at`, `updated_at`
 
 ## Development rules
 
@@ -285,12 +256,16 @@ npm run build
 - Keep modules small and testable. No unnecessary abstractions.
 - Pin Docker images to specific versions.
 - Integration tests are marked `@pytest.mark.integration` and skipped if services are unreachable.
-- All modules use `logging.getLogger(__name__)`; root logger configured in `cli/main.py`.
+- All modules use `logging.getLogger(__name__)`; root logger configured in `api/main.py`.
 - `api/` routers must use `ServicesDep` for dependency injection; never instantiate services directly inside routers.
-- Chapter numbers: API accepts 1-based; routers convert to 0-based before calling application layer (same as CLI convention). Knowledge tree chapters use 1-based `number` throughout.
-- Background tasks receive a `Task` object as first argument and write to `task.progress` for live status updates.
-- Frontend dev server runs on port 5173; the FastAPI backend must be running independently on port 8000.
-- Generated content (summaries, flashcards, questions) is persisted in PostgreSQL; content and knowledge_trees routers read from it.
-- Question validation is per-type and strict — invalid questions are discarded silently (no re-prompting).
-- Knowledge tree question generation always uses `services.fast_llm`.
-- Regenerating flashcards for a chapter resets that chapter's exam progress (all exam results deleted).
+- **Authentication required** — All knowledge tree endpoints except preview require CurrentUser (Bearer token).
+- **Limit checks before write** — POST/PUT/DELETE on trees/chapters/documents check user plan limits via `check_can_create_tree()` or `check_can_create_document()`. Raise `PlanLimitExceeded` if exceeded.
+- **Password hashing** — Use bcrypt (via `get_password_hash()` and `verify_password()` in `infrastructure/auth/jwt_handler.py`). Never store plaintext passwords.
+- **Token expiry** — JWT tokens expire in 7 days. Frontend should handle 401 responses by redirecting to login.
+- **User ownership scoping** — Routers filter knowledge trees by current_user.id before returning results. No cross-user data leakage.
+- **Generation parameters** — All LLM calls accept optional GenerationParams (temperature, top_p, max_tokens). Frontend generation settings page sets these per-request.
+- **Chat context** — DocumentChatAgent extracts PDF/EPUB text at client time (via extractPdfText util) and passes as `context` param. System prompt instructions to ground responses in provided context.
+- **Chapter page ranges** — Knowledge documents store page_start/page_end. PDF import per-chapter slices pages based on chapter metadata.
+- **Background tasks** — Tasks receive a `Task` object as first argument and write to `task.progress` / `task.progress_pct` for live status updates.
+- **Frontend dev server** — Runs on port 5173; the FastAPI backend must be running independently on port 8000.
+- **Question validation** — Per-type strict validation — invalid questions discarded silently (no re-prompting).

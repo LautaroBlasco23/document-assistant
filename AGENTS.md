@@ -82,11 +82,16 @@ uv run python -m cli.main summarize "book" 1  # chapter 1, 1-based
 uv run python -m cli.main generate-md "book" 1 # summary + flashcards
 uv run python -m cli.main prune               # remove orphaned manifests
 
-# Tests
+# Tests — backend
 cd backend && uv run pytest                  # unit only
 cd backend && uv run pytest -m integration   # requires Docker running
 cd backend && uv run ruff check .            # lint
 cd backend && uv run ruff check --fix .
+
+# Tests — frontend (Vitest + React Testing Library)
+cd frontend && npm run test          # watch mode
+cd frontend && npm run test:run       # run once
+cd frontend && npm run test:coverage  # with coverage report
 
 # Frontend
 cd frontend && npm run dev       # dev server port 5173
