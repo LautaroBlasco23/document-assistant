@@ -149,3 +149,10 @@ textarea,
 .textLayer :is(span, br) {
   cursor: default !important;
 }
+
+/* ─── PDF text layer: highlight background only, keep text transparent ───── */
+.textLayer ::selection,
+.textLayer span::selection {
+  background-color: rgba(59, 130, 246, 0.35);
+  color: transparent;
+}
