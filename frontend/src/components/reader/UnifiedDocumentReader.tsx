@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { X, Sparkles, PanelLeft, PanelRight, BookOpen } from 'lucide-react'
+import { X, Sparkles, PanelLeft, PanelRight, BookOpen, MessageCircleQuestion } from 'lucide-react'
 import ePub from 'epubjs'
 import { client } from '../../services'
 import { useKnowledgeTreeStore } from '../../stores/knowledge-tree-store'
@@ -212,6 +212,15 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
     }
   }
 
+  const handleAskDefinition = () => {
+    if (!contextMenu) return
+    const text = contextMenu.text
+    setContextMenu(null)
+    window.getSelection()?.removeAllRanges()
+    setShowRight(true)
+    chatPanelRef.current?.askInChat(text)
+  }
+
   const hideContextMenu = () => setContextMenu(null)
 
   const renderChapterBanner = React.useCallback(
@@ -411,6 +420,17 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
             className="fixed z-[60] bg-white dark:bg-slate-800 rounded-lg shadow-lg border border-gray-200 dark:border-slate-700 py-1 min-w-[200px]"
             style={{ left: contextMenu.x, top: contextMenu.y }}
           >
+            <div className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-slate-500">
+              Ask
+            </div>
+            <button
+              onClick={handleAskDefinition}
+              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors"
+            >
+              <MessageCircleQuestion className="h-3.5 w-3.5 text-purple-500" />
+              Ask definition in chat
+            </button>
+            <div className="my-1 border-t border-gray-100 dark:border-slate-700" />
             <div className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-slate-500">
               Generate
             </div>

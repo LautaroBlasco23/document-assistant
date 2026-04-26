@@ -25,6 +25,7 @@ interface ChatPanelProps {
 
 export interface ChatPanelHandle {
   showContent: () => void
+  askInChat: (text: string) => void
 }
 
 function makeId() {
@@ -187,7 +188,6 @@ export const ChatPanel = React.forwardRef<ChatPanelHandle, ChatPanelProps>(funct
   const { settings } = useGenerationSettings()
   const [mode, setMode] = React.useState<PanelMode>('chat')
   const pendingCount = usePendingContent((s) => s.items.length)
-  React.useImperativeHandle(ref, () => ({ showContent: () => setMode('content') }), [])
   const [sessions, setSessions] = React.useState<ChatSession[]>(() => loadSessions(storageKey))
   const [activeSessionId, setActiveSessionId] = React.useState<string>(sessions[0]?.id ?? '')
   const [input, setInput] = React.useState('')
@@ -238,20 +238,18 @@ export const ChatPanel = React.forwardRef<ChatPanelHandle, ChatPanelProps>(funct
     )
   }
 
-  const handleSend = async () => {
-    const text = input.trim()
+  const sendText = async (rawText: string) => {
+    const text = rawText.trim()
     if (!text || loading || !activeSession) return
 
     if (text === '/clear') {
       updateSessionMessages(activeSession.id, [])
-      setInput('')
       return
     }
 
     const userMsg: ChatMessage = { role: 'user', content: text }
     const updatedMessages = [...activeSession.messages, userMsg]
     updateSessionMessages(activeSession.id, updatedMessages)
-    setInput('')
     setLoading(true)
 
     try {
@@ -275,6 +273,31 @@ export const ChatPanel = React.forwardRef<ChatPanelHandle, ChatPanelProps>(funct
       setLoading(false)
     }
   }
+
+  const handleSend = async () => {
+    const text = input.trim()
+    if (!text) return
+    setInput('')
+    await sendText(text)
+  }
+
+  const sendTextRef = React.useRef(sendText)
+  sendTextRef.current = sendText
+
+  React.useImperativeHandle(
+    ref,
+    () => ({
+      showContent: () => setMode('content'),
+      askInChat: (selected: string) => {
+        const trimmed = selected.trim()
+        if (!trimmed) return
+        setMode('chat')
+        const prompt = `Define and explain the following excerpt in the context of this document:\n\n"${trimmed}"`
+        sendTextRef.current(prompt)
+      },
+    }),
+    [],
+  )
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
