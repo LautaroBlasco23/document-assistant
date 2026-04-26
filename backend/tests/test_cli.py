@@ -3,8 +3,6 @@ from datetime import datetime
 from unittest.mock import MagicMock, patch
 from uuid import UUID
 
-import pytest
-
 from cli import main as cli_main
 from core.model.user import User, UserLimits
 
@@ -124,7 +122,9 @@ def test_run_check_ollama_down(mock_check_ollama, mock_check_postgres, mock_load
 @patch("cli.main.load_config")
 @patch("cli.main.check_postgres")
 @patch("cli.main.check_ollama")
-def test_run_check_groq_missing_key(mock_check_ollama, mock_check_postgres, mock_load_config, capsys):
+def test_run_check_groq_missing_key(
+    mock_check_ollama, mock_check_postgres, mock_load_config, capsys
+):
     """Groq provider with missing API key → reports failure, returns 1."""
     mock_load_config.return_value = _make_config(provider="groq", api_key="")
     mock_check_postgres.return_value = True

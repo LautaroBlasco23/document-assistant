@@ -10,11 +10,8 @@ Setup:   LLM collaborator is a unittest.mock.MagicMock(spec=LLM).
 import json
 from unittest.mock import MagicMock
 
-import pytest
-
 from application.agents.base import BaseAgent, _strip_code_fences
 from core.ports.llm import LLM
-
 
 # ---------------------------------------------------------------------------
 # _strip_code_fences

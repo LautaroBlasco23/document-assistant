@@ -1,9 +1,8 @@
 """Unit tests for JWT token and password utilities."""
 from datetime import datetime, timedelta, timezone
-from unittest.mock import MagicMock, patch
 
-import pytest
 import jwt as pyjwt
+import pytest
 
 import infrastructure.auth.jwt_handler as jwt_module
 

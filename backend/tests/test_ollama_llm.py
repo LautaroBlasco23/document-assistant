@@ -16,7 +16,6 @@ import requests
 from infrastructure.config import OllamaConfig
 from infrastructure.llm.ollama import OllamaClient, OllamaLLM
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------

@@ -15,7 +15,6 @@ import pytest
 from api.limit_checks import PlanLimitExceeded, check_can_create_document, check_can_create_tree
 from core.model.user import UserLimits
 
-
 # ---------------------------------------------------------------------------
 # check_can_create_tree
 # ---------------------------------------------------------------------------

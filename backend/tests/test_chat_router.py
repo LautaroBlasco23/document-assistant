@@ -23,7 +23,6 @@ from api.deps import get_services_dep
 from api.routers import chat as chat_router
 from core.model.user import User
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------

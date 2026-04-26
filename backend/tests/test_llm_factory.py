@@ -10,10 +10,14 @@ Setup:   Uses real config objects with fake API keys.
 """
 import pytest
 
-from core.ports.llm import LLM
-from infrastructure.config import AppConfig, GroqConfig, HuggingFaceConfig, OpenRouterConfig, OllamaConfig
-from infrastructure.llm.factory import create_llm, create_fast_llm
-
+from infrastructure.config import (
+    AppConfig,
+    GroqConfig,
+    HuggingFaceConfig,
+    OllamaConfig,
+    OpenRouterConfig,
+)
+from infrastructure.llm.factory import create_fast_llm, create_llm
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -147,7 +151,7 @@ def test_create_fast_llm_groq_fallback():
 # ---------------------------------------------------------------------------
 
 def test_create_fast_llm_openrouter():
-    """When openrouter.fast_model is set, create_fast_llm should return an OpenRouterLLM using it."""
+    """When openrouter.fast_model is set, create_fast_llm returns an OpenRouterLLM using it."""
     config = _make_config("openrouter")
     fallback = create_llm(config)
     fast_llm = create_fast_llm(config, fallback)
@@ -164,7 +168,7 @@ def test_create_fast_llm_openrouter():
 # ---------------------------------------------------------------------------
 
 def test_create_fast_llm_huggingface():
-    """When huggingface.fast_model is set, create_fast_llm should return a HuggingFaceLLM using it."""
+    """When huggingface.fast_model is set, create_fast_llm returns a HuggingFaceLLM using it."""
     config = _make_config("huggingface")
     fallback = create_llm(config)
     fast_llm = create_fast_llm(config, fallback)

@@ -19,7 +19,6 @@ from fastapi.testclient import TestClient
 from api.deps import get_services_dep
 from api.routers import health as health_router
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------

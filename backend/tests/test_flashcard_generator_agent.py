@@ -18,7 +18,6 @@ from application.agents.flashcard_generator import FlashcardGeneratorAgent
 from core.model.knowledge_tree import Flashcard
 from core.ports.llm import LLM
 
-
 # ---------------------------------------------------------------------------
 # generate()
 # ---------------------------------------------------------------------------

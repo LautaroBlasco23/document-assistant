@@ -256,7 +256,7 @@ def main() -> None:
     limits_parser = sub.add_parser("user-limits", help="Show user limits")
     limits_parser.add_argument("email", help="User email")
 
-    list_parser = sub.add_parser("list-users", help="List all users")
+    sub.add_parser("list-users", help="List all users")
 
     args = parser.parse_args()
     _setup_logging(args.log_format)

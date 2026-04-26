@@ -304,7 +304,10 @@ def _create_tree_from_document_background(
                     resource="document",
                     current=limits.current_documents,
                     max_limit=limits.max_documents,
-                    message=f"This import would create {num_new_docs} documents, exceeding your limit of {limits.max_documents}.",
+                    message=(
+                        f"This import would create {num_new_docs} documents, "
+                        f"exceeding your limit of {limits.max_documents}."
+                    ),
                 )
 
             tree = services.kt_tree_store.create_tree(tree_title, None, user_id)

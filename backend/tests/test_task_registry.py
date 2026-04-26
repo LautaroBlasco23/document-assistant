@@ -16,8 +16,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from api.tasks import Task, TaskRegistry
-
+from api.tasks import TaskRegistry
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -308,7 +307,9 @@ def test_status_transition_calls_repo_update(registry_with_mock_repo):
     time.sleep(0.1)
 
     # At least pending → running → completed means multiple update calls
-    update_calls = [c for c in repo.update_status.call_args_list if c.kwargs.get("task_id") == task_id]
+    update_calls = [
+        c for c in repo.update_status.call_args_list if c.kwargs.get("task_id") == task_id
+    ]
     assert len(update_calls) >= 2
 
 

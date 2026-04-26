@@ -7,7 +7,6 @@ Out of scope:
 Setup:   Pure function; no external dependencies.
 """
 
-import pytest
 
 from application.agents._batching import batch_chunks_by_words
 from core.model.chunk import Chunk, ChunkMetadata

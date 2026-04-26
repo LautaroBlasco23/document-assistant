@@ -7,12 +7,10 @@ Out of scope:
 Setup:   Imports the module directly; no external dependencies.
 """
 
-import inspect
 
 import pytest
 
 import application.prompts as prompts
-
 
 # Collect every top-level string constant defined in the module.
 PROMPT_NAMES = [

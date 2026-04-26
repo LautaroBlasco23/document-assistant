@@ -17,7 +17,6 @@ import requests
 from infrastructure.config import OpenRouterConfig
 from infrastructure.llm.openrouter_llm import OpenRouterLLM, OpenRouterRateLimiter
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------

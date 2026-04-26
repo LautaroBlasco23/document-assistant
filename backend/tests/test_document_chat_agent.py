@@ -3,17 +3,15 @@ Subject: application/agents/document_chat.py — DocumentChatAgent
 Scope:   Answering user questions with/without document context, multi-turn history, LLM errors
 Out of scope:
   - JSON parsing or retry logic          → test_base_agent.py
-  - flashcard / question generation      → test_flashcard_generator_agent.py, test_question_generator_agent.py
+  - flashcard / question generation      → test_flashcard_generator_agent.py,
+                                           test_question_generator_agent.py
 Setup:   LLM collaborator is a unittest.mock.MagicMock(spec=LLM).
 """
 
 from unittest.mock import MagicMock
 
-import pytest
-
 from application.agents.document_chat import DocumentChatAgent
 from core.ports.llm import LLM
-
 
 # ---------------------------------------------------------------------------
 # answer() with context

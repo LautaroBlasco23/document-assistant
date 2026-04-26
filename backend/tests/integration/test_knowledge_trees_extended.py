@@ -16,16 +16,16 @@ from uuid import UUID, uuid4
 os.environ.setdefault("DOCASSIST_AUTH__JWT_SECRET", "x" * 40)
 os.environ.setdefault("DOCASSIST_LLM_PROVIDER", "ollama")
 
+import fitz
 import pytest
 from ebooklib import epub
 from fastapi.testclient import TestClient
 
-import fitz
 from api.main import create_app
 from api.services import get_services
 from core.model.knowledge_tree import KnowledgeChunk
+from core.model.question import Question
 from infrastructure.config import load_config
-from core.model.question import Question, QuestionType
 from infrastructure.db.knowledge_tree_repository import (
     PostgresFlashcardStore,
     PostgresKnowledgeChapterStore,

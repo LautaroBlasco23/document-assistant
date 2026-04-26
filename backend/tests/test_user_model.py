@@ -2,8 +2,6 @@
 from datetime import datetime
 from uuid import UUID
 
-import pytest
-
 from core.model.user import SubscriptionPlan, User, UserLimits, UserSubscription
 
 # ---------------------------------------------------------------------------

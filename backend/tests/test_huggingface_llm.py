@@ -17,7 +17,6 @@ import requests
 from infrastructure.config import HuggingFaceConfig
 from infrastructure.llm.huggingface_llm import HuggingFaceLLM
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------

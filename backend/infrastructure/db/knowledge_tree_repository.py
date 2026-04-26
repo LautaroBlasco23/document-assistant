@@ -90,7 +90,8 @@ class PostgresKnowledgeTreeStore(_BaseKnowledgeRepo):
         conn = self._conn()
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT id, user_id, title, description, created_at FROM knowledge_trees WHERE id = %s",
+                "SELECT id, user_id, title, description, created_at "
+                "FROM knowledge_trees WHERE id = %s",
                 (id,),
             )
             row = cur.fetchone()

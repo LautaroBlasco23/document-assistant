@@ -23,7 +23,6 @@ from api.routers import tasks as tasks_router
 from api.tasks import Task, TaskRegistry
 from core.model.user import User
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -176,10 +175,6 @@ def test_get_task_completed_returns_result(test_client, mock_services):
 
 def test_get_task_failed_returns_error(test_client, mock_services):
     """GET /api/tasks/{id} for a failed task must include the error message."""
-    import threading
-
-    event = threading.Event()
-
     def _fail(t):
         raise RuntimeError("something went wrong")
 

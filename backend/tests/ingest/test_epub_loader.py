@@ -3,7 +3,6 @@ EPUB loader tests use synthetic EPUBs created with ebooklib,
 plus mocked ebooklib responses for edge cases.
 """
 
-import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -15,14 +14,12 @@ from infrastructure.ingest.epub_loader import (
     ChapterPreview,
     _apply_min_words_merge,
     _build_toc_groups,
-    _collect_toc_entries,
     _extract_text,
     _get_metadata,
     _parse_item,
     load_epub,
     preview_epub,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -509,7 +506,9 @@ def test_load_epub_skips_empty_text_groups():
     mock_book.get_metadata.return_value = ""
 
     with patch("infrastructure.ingest.epub_loader.epub.read_epub", return_value=mock_book):
-        doc = load_epub(Path("/fake/path.epub"), "hash", epub_config=EpubConfig(min_chapter_words=5))
+        doc = load_epub(
+            Path("/fake/path.epub"), "hash", epub_config=EpubConfig(min_chapter_words=5)
+        )
     titles = [ch.title for ch in doc.chapters]
     assert "Real" in titles
     # Empty group should be skipped (merged into previous or dropped)

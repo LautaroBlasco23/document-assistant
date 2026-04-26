@@ -11,11 +11,8 @@ Setup:   LLM collaborator is a unittest.mock.MagicMock(spec=LLM).
 import json
 from unittest.mock import MagicMock
 
-import pytest
-
 from application.agents.question_generator import QuestionGeneratorAgent
 from core.model.chunk import Chunk, ChunkMetadata
-from core.model.question import QuestionType
 from core.ports.llm import LLM
 
 
@@ -167,7 +164,8 @@ def test_validate_true_false_missing_statement():
 # Rejects items where the statement starts with 'True or false:'.
 def test_validate_true_false_prefixed():
     agent = QuestionGeneratorAgent(MagicMock(spec=LLM))
-    assert agent._validate_true_false({"statement": "True or false: the sky is blue.", "answer": True}) is False
+    data = {"statement": "True or false: the sky is blue.", "answer": True}
+    assert agent._validate_true_false(data) is False
 
 
 # Rejects items where the answer is not a boolean.

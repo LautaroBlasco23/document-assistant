@@ -23,7 +23,6 @@ from api.services import (
 )
 from infrastructure.config import AppConfig
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -34,7 +33,6 @@ def _reset_services():
     """Ensure the global _services variable is reset before each test."""
     import api.services as svc_module
 
-    original = svc_module._services
     svc_module._services = None
     yield
     svc_module._services = None
@@ -129,7 +127,7 @@ def test_init_services_uses_load_config_when_none_provided():
          patch("api.services.PostgresKnowledgeContentStore"), \
          patch("api.services.PostgresKnowledgeQuestionStore"), \
          patch("api.services.PostgresFlashcardStore"), \
-         patch("api.services.load_config", return_value=AppConfig(llm_provider="ollama")) as mock_load:
+         patch("api.services.load_config", return_value=AppConfig(llm_provider="ollama")) as mock_load:  # noqa: E501
 
         mock_pool_cls.return_value = MagicMock()
         services = init_services()
@@ -201,7 +199,7 @@ def test_shutdown_services_cleans_up():
         mock_pool_cls.return_value = mock_pool
 
         init_services(AppConfig())
-        services = get_services()
+        get_services()
         shutdown_services()
 
     mock_registry.shutdown.assert_called_once()

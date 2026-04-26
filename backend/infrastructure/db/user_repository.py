@@ -74,7 +74,8 @@ class PostgresUserStore(_BaseRepo):
                     cur.execute(
                         "INSERT INTO users (email, password_hash, display_name) "
                         "VALUES (%s, %s, %s) "
-                        "RETURNING id, email, password_hash, display_name, is_active, created_at, updated_at",
+                        "RETURNING id, email, password_hash, display_name, "
+                        "is_active, created_at, updated_at",
                         (email, password_hash, display_name)
                     )
                     row = cur.fetchone()
@@ -87,9 +88,11 @@ class PostgresUserStore(_BaseRepo):
             with conn.transaction():
                 with conn.cursor() as cur:
                     cur.execute(
-                        "UPDATE users SET email = %s, display_name = %s, is_active = %s, updated_at = NOW() "
+                        "UPDATE users SET email = %s, display_name = %s, "
+                        "is_active = %s, updated_at = NOW() "
                         "WHERE id = %s "
-                        "RETURNING id, email, password_hash, display_name, is_active, created_at, updated_at",
+                        "RETURNING id, email, password_hash, display_name, "
+                        "is_active, created_at, updated_at",
                         (user.email, user.display_name, user.is_active, user.id)
                     )
                     row = cur.fetchone()
@@ -135,7 +138,8 @@ class PostgresSubscriptionPlanStore(_BaseRepo):
         conn = self._conn()
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT id, slug, name, description, max_documents, max_knowledge_trees, is_active, created_at "
+                "SELECT id, slug, name, description, max_documents, "
+                "max_knowledge_trees, is_active, created_at "
                 "FROM subscription_plans WHERE slug = %s",
                 (slug,)
             )
@@ -148,7 +152,8 @@ class PostgresSubscriptionPlanStore(_BaseRepo):
         conn = self._conn()
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT id, slug, name, description, max_documents, max_knowledge_trees, is_active, created_at "
+                "SELECT id, slug, name, description, max_documents, "
+                "max_knowledge_trees, is_active, created_at "
                 "FROM subscription_plans WHERE id = %s",
                 (plan_id,)
             )
@@ -161,7 +166,8 @@ class PostgresSubscriptionPlanStore(_BaseRepo):
         conn = self._conn()
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT id, slug, name, description, max_documents, max_knowledge_trees, is_active, created_at "
+                "SELECT id, slug, name, description, max_documents, "
+                "max_knowledge_trees, is_active, created_at "
                 "FROM subscription_plans WHERE is_active = TRUE ORDER BY created_at"
             )
             rows = cur.fetchall()
@@ -188,7 +194,8 @@ class PostgresUserSubscriptionStore(_BaseRepo):
         conn = self._conn()
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT id, user_id, plan_id, assigned_at FROM user_subscriptions WHERE user_id = %s",
+                "SELECT id, user_id, plan_id, assigned_at "
+                "FROM user_subscriptions WHERE user_id = %s",
                 (user_id,)
             )
             row = cur.fetchone()
@@ -200,7 +207,8 @@ class PostgresUserSubscriptionStore(_BaseRepo):
         conn = self._conn()
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT p.id, p.slug, p.name, p.description, p.max_documents, p.max_knowledge_trees, p.is_active, p.created_at "
+                "SELECT p.id, p.slug, p.name, p.description, "
+                "p.max_documents, p.max_knowledge_trees, p.is_active, p.created_at "
                 "FROM subscription_plans p "
                 "JOIN user_subscriptions s ON s.plan_id = p.id "
                 "WHERE s.user_id = %s",
