@@ -16,9 +16,9 @@ export interface EmptyStateProps {
 export function EmptyState({ icon: Icon, title, description, action, className }: EmptyStateProps) {
   return (
     <div className={cn('flex flex-col items-center justify-center gap-3 py-16 text-center', className)}>
-      <Icon className="h-12 w-12 text-surface-200 dark:text-surface-200" />
-      <p className="font-medium text-surface-100 dark:text-surface-100">{title}</p>
-      <p className="text-sm text-surface-100 dark:text-surface-100 max-w-xs">{description}</p>
+      <Icon className="h-12 w-12 text-gray-300 dark:text-slate-600" />
+      <p className="font-medium text-gray-500 dark:text-slate-400">{title}</p>
+      <p className="text-sm text-gray-400 dark:text-slate-500 max-w-xs">{description}</p>
       {action && (
         <Button variant="primary" size="sm" onClick={action.onClick} className="mt-1">
           {action.label}

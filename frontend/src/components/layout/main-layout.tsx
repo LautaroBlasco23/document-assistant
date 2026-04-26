@@ -11,7 +11,7 @@ export function MainLayout() {
   const serviceHealth = useAppStore((state) => state.serviceHealth)
 
   return (
-    <div className="flex h-screen bg-slate-50 dark:bg-slate-900">
+    <div className="flex h-screen bg-surface-100 dark:bg-surface">
       <Sidebar />
       <div className="flex-1 flex flex-col overflow-hidden">
         <HealthBanner health={serviceHealth} />

@@ -7,6 +7,7 @@ from api.tasks import TaskRegistry
 from core.ports.llm import LLM
 from infrastructure.auth.jwt_handler import validate_jwt_config
 from infrastructure.config import AppConfig, load_config
+from infrastructure.db.agent_repository import PostgresAgentRepository
 from infrastructure.db.knowledge_tree_repository import (
     PostgresFlashcardStore,
     PostgresKnowledgeChapterStore,
@@ -44,6 +45,7 @@ class Services:
     kt_content_store: PostgresKnowledgeContentStore
     kt_question_store: PostgresKnowledgeQuestionStore
     kt_flashcard_store: PostgresFlashcardStore
+    agent_store: PostgresAgentRepository
     _pg_pool: PostgresPool
 
 
@@ -81,6 +83,7 @@ def init_services(config: AppConfig | None = None) -> Services:
     kt_content_store = PostgresKnowledgeContentStore(pg_pool)
     kt_question_store = PostgresKnowledgeQuestionStore(pg_pool)
     kt_flashcard_store = PostgresFlashcardStore(pg_pool)
+    agent_store = PostgresAgentRepository(pg_pool)
 
     _services = Services(
         config=config,
@@ -96,6 +99,7 @@ def init_services(config: AppConfig | None = None) -> Services:
         kt_content_store=kt_content_store,
         kt_question_store=kt_question_store,
         kt_flashcard_store=kt_flashcard_store,
+        agent_store=agent_store,
         _pg_pool=pg_pool,
     )
 

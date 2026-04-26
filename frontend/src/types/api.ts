@@ -94,6 +94,7 @@ export interface GenerationParams {
   top_p: number
   max_tokens: number
   model?: string
+  agent_id?: string
 }
 
 export interface ModelInfo {
@@ -108,6 +109,36 @@ export interface ModelsOut {
   models: ModelInfo[]
 }
 
+export interface AgentOut {
+  id: string
+  name: string
+  prompt: string
+  model: string
+  temperature: number
+  top_p: number
+  max_tokens: number
+  is_default: boolean
+  created_at: string
+}
+
+export interface CreateAgentRequest {
+  name: string
+  prompt?: string
+  model: string
+  temperature?: number
+  top_p?: number
+  max_tokens?: number
+}
+
+export interface UpdateAgentRequest {
+  name?: string
+  prompt?: string
+  model?: string
+  temperature?: number
+  top_p?: number
+  max_tokens?: number
+}
+
 export interface ChatRequest {
   messages: ChatMessage[]
   context?: string | null
@@ -115,6 +146,7 @@ export interface ChatRequest {
   top_p?: number
   max_tokens?: number
   model?: string
+  agent_id?: string
 }
 
 export interface ChatResponse {

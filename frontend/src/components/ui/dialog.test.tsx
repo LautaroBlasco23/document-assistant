@@ -89,6 +89,6 @@ describe('Dialog', () => {
         confirmLabel="Delete"
       />,
     )
-    expect(screen.getByRole('button', { name: 'Delete' })).toHaveClass('bg-red-500')
+    expect(screen.getByRole('button', { name: 'Delete' })).toHaveClass('bg-danger')
   })
 })

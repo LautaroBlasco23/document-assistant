@@ -77,7 +77,7 @@ export function AllDocumentsTab({ treeId, chapters }: AllDocumentsTabProps) {
           </div>
         </div>
       ) : (
-        <div className="rounded-lg border border-dashed border-gray-200 dark:border-slate-700 bg-gray-50/50 dark:bg-slate-800/50 p-4 text-center">
+        <div className="rounded-lg border border-dashed border-surface-200 dark:border-surface-200 bg-surface-100/50 dark:bg-surface-200/50 p-4 text-center">
           <p className="text-xs text-gray-400 dark:text-slate-500">
             No original source document found. This is only available for trees imported after the latest update.
           </p>
@@ -92,8 +92,8 @@ export function AllDocumentsTab({ treeId, chapters }: AllDocumentsTabProps) {
 
         return (
           <div key={chNum} className="flex flex-col gap-2">
-            <div className="flex items-center gap-2 pb-1 border-b border-gray-200 dark:border-slate-700">
-              <FileText className="h-4 w-4 text-blue-500 dark:text-blue-400" />
+            <div className="flex items-center gap-2 pb-1 border-b border-surface-200 dark:border-surface-200">
+              <FileText className="h-4 w-4 text-primary" />
               <h3 className="text-sm font-semibold text-gray-800 dark:text-slate-200">{chapterTitle}</h3>
               <Badge variant="neutral" className="text-xs">{docs.length}</Badge>
             </div>
@@ -153,11 +153,11 @@ function SourceDocumentRow({ doc, onReadUnified }: { doc: KnowledgeDocument; onR
       )}
     >
     <div
-      className="flex items-center gap-3 px-3 py-3 rounded-[9px] bg-white dark:bg-slate-800 shadow-sm"
+      className="flex items-center gap-3 px-3 py-3 rounded-[9px] bg-surface dark:bg-surface-200 shadow-sm"
       onClick={() => canOpen && !thumbError && onReadUnified(doc)}
     >
       {/* Thumbnail */}
-      <div className="shrink-0 w-[72px] h-[96px] rounded overflow-hidden bg-gray-100 dark:bg-slate-700 flex items-center justify-center">
+      <div className="shrink-0 w-[72px] h-[96px] rounded overflow-hidden bg-surface-100 dark:bg-surface-200 flex items-center justify-center">
         {hasSourceFile && isPdf && !thumbError ? (
           <img
             src={thumbnailUrl}
@@ -208,13 +208,13 @@ function DocumentRow({ doc, onRead, onReadUnified }: DocumentRowProps) {
   return (
     <div
       className={cn(
-        'flex items-center gap-3 px-3 py-2 rounded-lg border border-gray-100 dark:border-slate-700 bg-white dark:bg-slate-800 transition-all duration-200 ease-out',
+        'flex items-center gap-3 px-3 py-2 rounded-lg border border-surface-200 dark:border-surface-200 bg-surface dark:bg-surface-200 transition-all duration-200 ease-out',
         canOpen && !thumbError && 'cursor-pointer hover:shadow-xl hover:scale-[1.02]'
       )}
       onClick={handleClick}
     >
       {/* Thumbnail */}
-      <div className="shrink-0 w-[60px] h-[80px] rounded overflow-hidden bg-gray-100 dark:bg-slate-700 flex items-center justify-center">
+      <div className="shrink-0 w-[60px] h-[80px] rounded overflow-hidden bg-surface-100 dark:bg-surface-200 flex items-center justify-center">
         {hasSourceFile && isPdf && !thumbError ? (
           <img
             src={thumbnailUrl}

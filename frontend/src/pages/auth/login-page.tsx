@@ -21,13 +21,13 @@ export function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-slate-900">
-      <div className="max-w-md w-full space-y-8 p-8 bg-white dark:bg-slate-800 rounded-lg shadow">
+    <div className="min-h-screen flex items-center justify-center bg-surface-100 dark:bg-surface">
+      <div className="max-w-md w-full space-y-8 p-8 bg-surface dark:bg-surface-200 rounded-lg shadow">
         <div>
-          <h2 className="text-2xl font-bold text-center">Sign in to Document Assistant</h2>
+          <h2 className="text-2xl font-bold text-center text-gray-900 dark:text-slate-100">Sign in to Document Assistant</h2>
         </div>
         {error && (
-          <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 text-red-700 dark:text-red-300 px-4 py-3 rounded">
+          <div className="bg-danger-light dark:bg-danger/12 border border-danger/20 dark:border-danger/30 text-danger px-4 py-3 rounded">
             {error}
           </div>
         )}
@@ -38,7 +38,7 @@ export function LoginPage() {
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="mt-1 block w-full rounded-md border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 dark:text-slate-100 px-3 py-2 focus:border-blue-500 focus:ring-blue-500"
+              className="mt-1 block w-full rounded-md border border-surface-200 dark:border-surface-200 bg-surface dark:bg-surface-200 dark:text-slate-100 px-3 py-2 focus:border-primary focus:ring-primary"
               required
             />
           </div>
@@ -48,20 +48,20 @@ export function LoginPage() {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="mt-1 block w-full rounded-md border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 dark:text-slate-100 px-3 py-2 focus:border-blue-500 focus:ring-blue-500"
+              className="mt-1 block w-full rounded-md border border-surface-200 dark:border-surface-200 bg-surface dark:bg-surface-200 dark:text-slate-100 px-3 py-2 focus:border-primary focus:ring-primary"
               required
             />
           </div>
           <button
             type="submit"
-            className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+            className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-hover focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
           >
             Sign in
           </button>
         </form>
-        <div className="text-center text-sm">
-          Don't have an account?{' '}
-          <Link to="/register" className="text-blue-600 hover:text-blue-500 font-medium">
+        <div className="text-center text-sm text-gray-600 dark:text-slate-400">
+          Don&apos;t have an account?{' '}
+          <Link to="/register" className="text-primary hover:underline font-medium">
             Sign up
           </Link>
         </div>

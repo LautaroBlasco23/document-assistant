@@ -32,6 +32,7 @@ class QuestionGeneratorAgent(BaseAgent):
         question_types: list[QuestionType] | None = None,
         on_progress: Callable[[QuestionType, int, int], None] | None = None,
         num_questions: int | None = None,
+        agent_prompt: str | None = None,
     ) -> dict[QuestionType, list[dict]]:
         """Generate questions from chunks for the requested types.
 
@@ -40,6 +41,7 @@ class QuestionGeneratorAgent(BaseAgent):
             question_types: Which types to generate. Defaults to all four.
             on_progress: Called after each batch with (question_type, batch_i, total_batches).
             num_questions: Exact number of questions to generate per type. None = model chooses.
+            agent_prompt: Optional agent definition to prepend to system prompt.
 
         Returns:
             Dict mapping QuestionType to list of validated question_data dicts.
@@ -56,6 +58,8 @@ class QuestionGeneratorAgent(BaseAgent):
 
         for qtype in question_types:
             prompt = build_question_prompt(self._PROMPTS[qtype], num_questions)
+            if agent_prompt:
+                prompt = agent_prompt + "\n\n" + prompt
             all_items: list[dict] = []
 
             for batch_i, batch_text in enumerate(text_batches, 1):
@@ -114,6 +118,7 @@ class QuestionGeneratorAgent(BaseAgent):
         question_type: QuestionType,
         selected_text: str,
         chapter_context: str | None = None,
+        agent_prompt: str | None = None,
     ) -> dict:
         """Generate a single validated question of the requested type.
 
@@ -121,6 +126,7 @@ class QuestionGeneratorAgent(BaseAgent):
             question_type: One of true_false | multiple_choice | matching | checkbox.
             selected_text: The text excerpt to focus on.
             chapter_context: Optional surrounding chapter content for grounding.
+            agent_prompt: Optional agent definition to prepend to system prompt.
 
         Returns:
             A validated question_data dict for the given type.
@@ -129,6 +135,8 @@ class QuestionGeneratorAgent(BaseAgent):
             ValueError: If no valid question could be produced.
         """
         prompt = self._PROMPTS[question_type]
+        if agent_prompt:
+            prompt = agent_prompt + "\n\n" + prompt
         if chapter_context and chapter_context.strip():
             user_prompt = (
                 "CHAPTER CONTEXT (for reference only, do not summarize this):\n"

@@ -20,11 +20,8 @@ function save(value: GenerationParams) {
 interface GenerationSettingsState {
   settings: GenerationParams
   update: (patch: Partial<GenerationParams>) => void
-  /**
-   * Reset the model override so the app uses the backend default.
-   * Call this after the models list has been fetched and the
-   * previously stored model is no longer supported.
-   */
+  setAgent: (agentId: string) => void
+  clearAgent: () => void
   clearModel: () => void
 }
 
@@ -32,6 +29,17 @@ export const useGenerationSettings = create<GenerationSettingsState>((set, get) 
   settings: load(),
   update: (patch) => {
     const next = { ...get().settings, ...patch }
+    save(next)
+    set({ settings: next })
+  },
+  setAgent: (agentId: string) => {
+    const next = { ...get().settings, agent_id: agentId }
+    save(next)
+    set({ settings: next })
+  },
+  clearAgent: () => {
+    const next = { ...get().settings }
+    delete next.agent_id
     save(next)
     set({ settings: next })
   },

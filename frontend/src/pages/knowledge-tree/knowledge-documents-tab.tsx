@@ -302,7 +302,7 @@ function MainDocEditor({ doc, saving, onSave }: MainDocEditorProps) {
         )}
       </div>
       <textarea
-        className="w-full rounded-lg border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900 px-3 py-2.5 text-sm text-gray-700 dark:text-slate-300 placeholder-gray-400 dark:placeholder-slate-500 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary resize-none font-mono leading-relaxed"
+        className="w-full rounded-lg border border-surface-200 dark:border-surface-200 bg-surface-100 dark:bg-surface px-3 py-2.5 text-sm text-gray-700 dark:text-slate-300 placeholder-gray-400 dark:placeholder-slate-500 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary resize-none font-mono leading-relaxed"
         rows={18}
         placeholder="Write an overview of this knowledge tree. Describe the main topics, goals, and structure..."
         value={content}
@@ -343,7 +343,7 @@ function DocumentCard({ doc, chapter, onEdit, onDelete, onRead }: DocumentCardPr
   return (
     <div
       className={cn(
-        'border border-gray-200 dark:border-slate-700 rounded-lg p-3 flex flex-row gap-4 bg-white dark:bg-slate-800',
+        'border border-surface-200 dark:border-surface-200 rounded-lg p-3 flex flex-row gap-4 bg-surface dark:bg-surface-200',
         canRead && isPdf && 'cursor-pointer hover:shadow-xl hover:scale-[1.02] transition-all duration-200 ease-out'
       )}
       onClick={handleCardClick}
@@ -354,7 +354,7 @@ function DocumentCard({ doc, chapter, onEdit, onDelete, onRead }: DocumentCardPr
           variant="ghost"
           size="sm"
           onClick={(e) => { e.stopPropagation(); onEdit(); }}
-          className="h-8 w-8 p-0 text-gray-400 dark:text-slate-500 hover:text-gray-700 dark:hover:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700"
+          className="h-8 w-8 p-0 text-gray-400 dark:text-slate-500 hover:text-gray-700 dark:hover:text-slate-200 hover:bg-surface-100 dark:hover:bg-surface-100"
           title="Edit document"
         >
           <Pencil className="h-4 w-4" />
@@ -364,7 +364,7 @@ function DocumentCard({ doc, chapter, onEdit, onDelete, onRead }: DocumentCardPr
           size="sm"
           onClick={(e) => { e.stopPropagation(); onDelete(); }}
           aria-label="Delete document"
-          className="h-8 w-8 p-0 text-red-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
+          className="h-8 w-8 p-0 text-red-400 hover:text-danger dark:hover:text-danger hover:bg-danger-light dark:hover:bg-danger/12"
           title="Delete document"
         >
           <Trash2 className="h-4 w-4" />
@@ -372,7 +372,7 @@ function DocumentCard({ doc, chapter, onEdit, onDelete, onRead }: DocumentCardPr
       </div>
 
       {/* Thumbnail */}
-      <div className="shrink-0 w-[100px] h-[130px] rounded-md overflow-hidden bg-gray-100 dark:bg-slate-700 flex items-center justify-center">
+      <div className="shrink-0 w-[100px] h-[130px] rounded-md overflow-hidden bg-surface-100 dark:bg-surface-200 flex items-center justify-center">
         {hasSourceFile && isPdf && !thumbError ? (
           <img
             src={thumbnailUrl}
@@ -428,7 +428,7 @@ interface DocumentEditorState {
 
 function DocumentEditorCard({ editor, saving, isNew, onChange, onSave, onCancel }: DocumentEditorCardProps) {
   return (
-    <div className="border border-primary/40 rounded-lg p-4 flex flex-col gap-3 bg-blue-50/30 dark:bg-blue-900/10">
+    <div className="border border-primary/40 rounded-lg p-4 flex flex-col gap-3 bg-primary-light dark:bg-primary/12">
       <div className="flex items-center gap-2">
         <Input
           placeholder="Document title"
@@ -439,7 +439,7 @@ function DocumentEditorCard({ editor, saving, isNew, onChange, onSave, onCancel 
         />
       </div>
       <textarea
-        className="w-full rounded-md border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2.5 text-sm text-gray-700 dark:text-slate-300 placeholder-gray-400 dark:placeholder-slate-500 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary resize-none font-mono leading-relaxed"
+        className="w-full rounded-md border border-surface-200 dark:border-surface-200 bg-surface dark:bg-surface-200 px-3 py-2.5 text-sm text-gray-700 dark:text-slate-300 placeholder-gray-400 dark:placeholder-slate-500 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary resize-none font-mono leading-relaxed"
         rows={10}
         placeholder="Write the knowledge document content here..."
         value={editor.content}

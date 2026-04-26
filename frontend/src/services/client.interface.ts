@@ -2,6 +2,9 @@ import type {
   HealthOut,
   ConfigOut,
   ModelsOut,
+  AgentOut,
+  CreateAgentRequest,
+  UpdateAgentRequest,
   TaskStatusOut,
   ActiveTasksOut,
   DocumentPreviewOut,
@@ -18,6 +21,13 @@ export interface ServiceClient {
   getModels(): Promise<ModelsOut>
   getTaskStatus(taskId: string): Promise<TaskStatusOut>
   listActiveTasks(): Promise<ActiveTasksOut>
+
+  // Agents
+  listAgents(): Promise<AgentOut[]>
+  createAgent(req: CreateAgentRequest): Promise<AgentOut>
+  updateAgent(id: string, req: UpdateAgentRequest): Promise<AgentOut>
+  deleteAgent(id: string): Promise<void>
+  getDefaultAgent(): Promise<AgentOut>
 
   // Knowledge Trees
   listKnowledgeTrees(): Promise<KnowledgeTree[]>
@@ -40,9 +50,9 @@ export interface ServiceClient {
   getDocumentFileUrl(treeId: string, docId: string): string
   getDocumentThumbnailUrl(treeId: string, docId: string): string
   generateFlashcardFromSelection(treeId: string, chapter: number, selectedText: string): Promise<{ task_id: string }>
-  draftFlashcard(treeId: string, chapter: number, selectedText: string, model?: string): Promise<{ front: string; back: string; source_text: string }>
+  draftFlashcard(treeId: string, chapter: number, selectedText: string, model?: string, agentId?: string): Promise<{ front: string; back: string; source_text: string }>
   saveFlashcard(treeId: string, chapter: number, payload: { front: string; back: string; source_text?: string | null }): Promise<{ id: string }>
-  draftQuestion(treeId: string, chapter: number, questionType: KnowledgeTreeQuestionType, selectedText: string, model?: string): Promise<{ question_type: KnowledgeTreeQuestionType; question_data: Record<string, unknown> }>
+  draftQuestion(treeId: string, chapter: number, questionType: KnowledgeTreeQuestionType, selectedText: string, model?: string, agentId?: string): Promise<{ question_type: KnowledgeTreeQuestionType; question_data: Record<string, unknown> }>
   saveQuestion(treeId: string, chapter: number, questionType: KnowledgeTreeQuestionType, questionData: Record<string, unknown>): Promise<{ id: string }>
 
   // Knowledge Tree Questions
@@ -51,6 +61,7 @@ export interface ServiceClient {
     chapter: number,
     questionTypes?: KnowledgeTreeQuestionType[],
     model?: string,
+    agentId?: string,
     numQuestions?: number | null
   ): Promise<{ task_id: string }>
 

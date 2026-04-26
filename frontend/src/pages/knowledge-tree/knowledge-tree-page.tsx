@@ -90,8 +90,8 @@ function SectionsSidebar({
         onClick={onSelectAllDocuments}
         className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm text-left w-full transition-colors sidebar-border-green ${
           showAllDocuments
-            ? 'bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300 font-medium'
-            : 'text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-700'
+            ? 'bg-success-light dark:bg-success/12 text-success font-medium'
+            : 'text-gray-600 dark:text-slate-400 hover:bg-surface-100 dark:hover:bg-surface-100'
         }`}
       >
         <FolderOpen className="h-3.5 w-3.5 shrink-0" />
@@ -103,8 +103,8 @@ function SectionsSidebar({
         onClick={() => onChapterChange(null)}
         className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm text-left w-full transition-colors sidebar-border-blue ${
           selectedChapter === null && !showAllDocuments
-            ? 'bg-blue-50 dark:bg-blue-900/30 text-primary font-medium'
-            : 'text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-700'
+            ? 'bg-primary-light dark:bg-primary/12 text-primary font-medium'
+            : 'text-gray-600 dark:text-slate-400 hover:bg-surface-100 dark:hover:bg-surface-100'
         }`}
       >
         <BookMarked className="h-3.5 w-3.5 shrink-0" />
@@ -112,7 +112,7 @@ function SectionsSidebar({
       </button>
 
       {/* Divider */}
-      <div className="border-t border-gray-200 dark:border-slate-700 my-2" />
+      <div className="border-t border-surface-200 dark:border-surface-200 my-2" />
 
       {/* Chapters */}
       <p className="text-xs font-medium text-gray-400 dark:text-slate-500 uppercase tracking-wide px-2 mb-1">Chapters</p>
@@ -139,13 +139,13 @@ function SectionsSidebar({
             </form>
           ) : (
             <div className="flex items-center">
-              <button
-                onClick={() => onChapterChange(ch.number)}
-                className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm text-left flex-1 min-w-0 transition-colors ${
-                  selectedChapter === ch.number && !showAllDocuments
-                    ? 'bg-blue-50 dark:bg-blue-900/30 text-primary font-medium'
-                    : 'text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-700'
-                }`}
+                <button
+                  onClick={() => onChapterChange(ch.number)}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm text-left flex-1 min-w-0 transition-colors ${
+                    selectedChapter === ch.number && !showAllDocuments
+                      ? 'bg-primary-light dark:bg-primary/12 text-primary font-medium'
+                      : 'text-gray-600 dark:text-slate-400 hover:bg-surface-100 dark:hover:bg-surface-100'
+                  }`}
               >
                 <FileText className="h-3.5 w-3.5 shrink-0" />
                 <span className="truncate">{ch.title}</span>
@@ -191,7 +191,7 @@ function SectionsSidebar({
       ) : (
         <button
           onClick={() => setShowNewChapter(true)}
-          className="flex items-center gap-2 px-3 py-2 rounded-md text-sm text-gray-400 dark:text-slate-500 hover:text-gray-700 dark:hover:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors w-full text-left"
+          className="flex items-center gap-2 px-3 py-2 rounded-md text-sm text-gray-400 dark:text-slate-500 hover:text-gray-700 dark:hover:text-slate-200 hover:bg-surface-100 dark:hover:bg-surface-100 transition-colors w-full text-left"
         >
           <Plus className="h-3.5 w-3.5" />
           New Chapter
@@ -271,10 +271,10 @@ export function KnowledgeTreePage() {
   if (treesLoading) {
     return (
       <div className="flex flex-col gap-4 animate-pulse">
-        <div className="h-8 bg-gray-100 dark:bg-slate-700 rounded w-64" />
-        <div className="h-4 bg-gray-100 dark:bg-slate-700 rounded w-48" />
-        <div className="h-10 bg-gray-100 dark:bg-slate-700 rounded w-full" />
-        <div className="h-64 bg-gray-100 dark:bg-slate-700 rounded w-full" />
+        <div className="h-8 bg-surface-200 dark:bg-surface-200 rounded w-64" />
+        <div className="h-4 bg-surface-200 dark:bg-surface-200 rounded w-48" />
+        <div className="h-10 bg-surface-200 dark:bg-surface-200 rounded w-full" />
+        <div className="h-64 bg-surface-200 dark:bg-surface-200 rounded w-full" />
       </div>
     )
   }

@@ -18,11 +18,11 @@ describe('Badge', () => {
 
   // Each variant maps to a distinct color scheme; we verify the correct Tailwind classes are present.
   it.each([
-    ['success', 'bg-green-100'],
-    ['warning', 'bg-amber-100'],
-    ['danger', 'bg-red-100'],
-    ['info', 'bg-blue-100'],
-    ['neutral', 'bg-gray-100'],
+    ['success', 'bg-success-light'],
+    ['warning', 'bg-warning-light'],
+    ['danger', 'bg-danger-light'],
+    ['info', 'bg-primary-light'],
+    ['neutral', 'bg-surface-100'],
   ] as const)('applies %s variant classes', (variant, expectedClass) => {
     render(<Badge variant={variant}>{variant}</Badge>)
     expect(screen.getByText(variant)).toHaveClass(expectedClass)

@@ -25,6 +25,9 @@ const mockGetTaskStatus = vi.hoisted(() => vi.fn())
 vi.mock('@/services', () => ({
   client: {
     getTaskStatus: mockGetTaskStatus,
+    listAgents: vi.fn().mockResolvedValue([
+      { id: 'agent-default', name: 'Default', prompt: '', model: 'llama-3.3-70b-versatile', temperature: 0.7, top_p: 1.0, max_tokens: 1024, is_default: true, created_at: '2025-01-01T00:00:00' },
+    ]),
     getModels: vi.fn().mockResolvedValue({
       provider: 'groq',
       current_model: 'llama-3.3-70b-versatile',

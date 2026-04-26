@@ -22,6 +22,7 @@ class DocumentChatAgent(BaseAgent):
         messages: list[dict[str, str]],
         context: str | None = None,
         params: GenerationParams | None = None,
+        agent_prompt: str | None = None,
     ) -> str:
         """Answer a user question based on document context and conversation history.
 
@@ -29,11 +30,14 @@ class DocumentChatAgent(BaseAgent):
             messages: Conversation history, each with 'role' and 'content'.
             context: Extracted text from the document to ground answers in.
             params: Optional generation parameters (temperature, top_p, max_tokens).
+            agent_prompt: Optional agent definition/personality prompt.
 
         Returns:
             The assistant's reply.
         """
         system = _DEFAULT_SYSTEM_PROMPT
+        if agent_prompt:
+            system = agent_prompt + "\n\n" + system
         if context:
             system += f"\n\nHere is the document context:\n\n{context}"
 

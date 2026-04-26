@@ -12,7 +12,7 @@ export function DialogContent({ children, className }: DialogContentProps) {
     <RadixDialog.Content
       className={cn(
         'fixed z-50 left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2',
-        'w-full max-w-lg bg-white dark:bg-surface rounded-card shadow-lg p-6',
+        'w-full max-w-lg bg-surface dark:bg-surface rounded-card shadow-lg p-6',
         'animate-fade-in',
         className,
       )}
@@ -61,7 +61,7 @@ export function Dialog({
             {title}
           </RadixDialog.Title>
           {description && (
-            <RadixDialog.Description className="text-sm text-surface-100 dark:text-surface-100 mb-6">
+              <RadixDialog.Description className="text-sm text-gray-500 dark:text-slate-400 mb-6">
               {description}
             </RadixDialog.Description>
           )}

@@ -49,7 +49,7 @@ describe('Button', () => {
     ['primary', 'bg-primary'],
     ['secondary', 'bg-primary/10'],
     ['ghost', 'bg-transparent'],
-    ['destructive', 'bg-red-500'],
+    ['destructive', 'bg-danger'],
   ] as const)('renders %s variant', (variant, expectedClass) => {
     render(<Button variant={variant}>{variant}</Button>)
     expect(screen.getByRole('button')).toHaveClass(expectedClass)

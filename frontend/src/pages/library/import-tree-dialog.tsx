@@ -168,7 +168,7 @@ export function ImportTreeDialog({ open, onOpenChange, onSuccess }: ImportTreeDi
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-md mx-4 flex flex-col">
+      <div className="bg-surface dark:bg-surface-200 rounded-xl shadow-xl w-full max-w-md mx-4 flex flex-col">
         {step === 'upload' ? (
           <UploadStep
             file={file}
@@ -399,7 +399,7 @@ function SelectChaptersStep({
   return (
     <div className="flex flex-col max-h-[85vh]">
       {/* Header */}
-      <div className="p-6 border-b border-gray-200 dark:border-slate-700">
+      <div className="p-6 border-b border-surface-200 dark:border-surface-200">
         <div className="flex items-center justify-between mb-1">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-100">Select chapters to import</h2>
           <span className="text-sm text-gray-500 dark:text-slate-400">
@@ -413,7 +413,7 @@ function SelectChaptersStep({
       <div className="flex-1 overflow-y-auto p-6">
         {preview && (
           <div className="space-y-2">
-            <div className="flex items-center gap-3 pb-3 border-b border-gray-100 dark:border-slate-700">
+            <div className="flex items-center gap-3 pb-3 border-b border-surface-200 dark:border-surface-200">
               <button
                 type="button"
                 onClick={onToggleAll}
@@ -428,7 +428,7 @@ function SelectChaptersStep({
                     'w-5 h-5 rounded border-2 flex items-center justify-center transition-colors',
                     selectedCount === totalCount
                       ? 'bg-primary border-primary'
-                      : 'border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700',
+                      : 'border-surface-200 dark:border-surface-200 bg-surface dark:bg-surface-200',
                   )}
                 >
                   {selectedCount === totalCount && <Check className="h-3 w-3 text-white" />}
@@ -466,7 +466,7 @@ function SelectChaptersStep({
       </div>
 
       {/* Footer */}
-      <div className="p-6 border-t border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900">
+      <div className="p-6 border-t border-surface-200 dark:border-surface-200 bg-surface-100 dark:bg-surface">
         {/* Progress display during import */}
         {(state === 'importing' || state === 'polling') && (
           <div className="flex flex-col gap-2 mb-4">
@@ -540,7 +540,7 @@ function ChapterItem({
     <div
       className={cn(
         'rounded-lg border transition-colors',
-        isSelected ? 'border-primary bg-blue-50/50' : 'border-gray-200 bg-white hover:border-gray-300',
+        isSelected ? 'border-primary bg-primary-light dark:bg-primary/12' : 'border-surface-200 dark:border-surface-200 bg-surface dark:bg-surface-200 hover:border-surface-200 dark:hover:border-surface-200',
       )}
     >
       <div className="flex items-center gap-3 p-3">
@@ -553,7 +553,7 @@ function ChapterItem({
           <div
             className={cn(
               'w-5 h-5 rounded border-2 flex items-center justify-center transition-colors',
-              isSelected ? 'bg-primary border-primary' : 'border-gray-300 bg-white',
+              isSelected ? 'bg-primary border-primary' : 'border-surface-200 dark:border-surface-200 bg-surface dark:bg-surface-200',
             )}
           >
             {isSelected && <Check className="h-3 w-3 text-white" />}
@@ -588,7 +588,7 @@ function ChapterItem({
         <div
           className={cn(
             'text-xs px-2 py-1 rounded-full',
-            isSelected ? 'bg-primary/10 text-primary' : 'bg-gray-100 text-gray-500',
+            isSelected ? 'bg-primary/10 text-primary' : 'bg-surface-100 dark:bg-surface-200 text-gray-500 dark:text-slate-400',
           )}
         >
           {isSelected ? 'Selected' : 'Skipped'}

@@ -1,39 +1,109 @@
 import * as React from 'react'
 import { Link } from 'react-router-dom'
-import { CreditCard, SlidersHorizontal, Cpu } from 'lucide-react'
+import { CreditCard, Bot, Plus, Info } from 'lucide-react'
 import { Card } from '../../components/ui/card'
 import { Badge } from '../../components/ui/badge'
+import { Button } from '../../components/ui/button'
+import { Tooltip } from '../../components/ui/tooltip'
 import { useTheme } from '../../theme/theme-context'
 import { cn } from '../../lib/cn'
 import { useGenerationSettings } from '../../stores/generation-settings'
+import { useAgents } from '../../hooks/use-agents'
+import { useModels } from '../../hooks/use-models'
 import { client } from '../../services'
-import type { ModelsOut } from '../../types/api'
+import { AgentCreationDialog } from './agent-creation-dialog'
+import { ModelSelect } from '../../components/ui/model-select'
+
+const MAX_TOKENS_OPTIONS = [256, 512, 1024, 2048, 4096, 8192]
+
+const FIELD_INFO: Record<string, string> = {
+  prompt: 'A system-level instruction that defines the agent\'s personality, tone, and behavior. This is prepended to every request.',
+  model: 'The underlying LLM model that powers this agent.',
+  temperature: 'Controls randomness in output (0.0 to 2.0). Lower = focused, higher = creative.',
+  top_p: 'Nucleus sampling threshold (0.0 to 1.0). Lower = more focused token selection.',
+  max_tokens: 'Maximum number of tokens the model can output per response.',
+}
+
+function InfoIcon({ field }: { field: string }) {
+  return (
+    <Tooltip content={FIELD_INFO[field] ?? ''}>
+      <span>
+        <Info className="h-3.5 w-3.5 text-gray-400 dark:text-slate-500 hover:text-blue-500 dark:hover:text-blue-400 cursor-help transition-colors" />
+      </span>
+    </Tooltip>
+  )
+}
 
 export function SettingsPage() {
   const { theme, setTheme } = useTheme()
-  const { settings, update, clearModel } = useGenerationSettings()
-  const [modelsData, setModelsData] = React.useState<ModelsOut | null>(null)
+  const { settings, setAgent } = useGenerationSettings()
+  const { agents, loading: agentsLoading, refresh: refreshAgents } = useAgents()
+  const { models, currentModel } = useModels()
+  const [createDialogOpen, setCreateDialogOpen] = React.useState(false)
+
+  const defaultAgent = agents.find((a) => a.is_default)
+  const selectedId = settings.agent_id ?? defaultAgent?.id ?? ''
+  const selectedAgent = agents.find((a) => a.id === selectedId)
+
+  const [draftName, setDraftName] = React.useState('')
+  const [draftPrompt, setDraftPrompt] = React.useState('')
+  const [draftModel, setDraftModel] = React.useState('')
+  const [draftTemperature, setDraftTemperature] = React.useState(0.7)
+  const [draftTopP, setDraftTopP] = React.useState(1.0)
+  const [draftMaxTokens, setDraftMaxTokens] = React.useState(1024)
+  const [saving, setSaving] = React.useState(false)
+  const [saveError, setSaveError] = React.useState('')
 
   React.useEffect(() => {
-    client.getModels()
-      .then(setModelsData)
-      .catch(() => { /* ignore if backend unavailable */ })
-  }, [])
+    if (selectedAgent) {
+      setDraftName(selectedAgent.name)
+      setDraftPrompt(selectedAgent.prompt || '')
+      setDraftModel(selectedAgent.model)
+      setDraftTemperature(selectedAgent.temperature)
+      setDraftTopP(selectedAgent.top_p)
+      setDraftMaxTokens(selectedAgent.max_tokens)
+      setSaveError('')
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedAgent?.id])
 
-  // Detect stored model that is no longer in the available list
-  const storedModel = settings.model
-  const availableIds = new Set(modelsData?.models.map((m) => m.id) ?? [])
-  const modelStale = storedModel != null && !availableIds.has(storedModel)
+  const isDirty = selectedAgent != null && (
+    draftName !== selectedAgent.name ||
+    draftPrompt !== (selectedAgent.prompt || '') ||
+    draftModel !== selectedAgent.model ||
+    draftTemperature !== selectedAgent.temperature ||
+    draftTopP !== selectedAgent.top_p ||
+    draftMaxTokens !== selectedAgent.max_tokens
+  )
+
+  const handleSave = async () => {
+    if (!selectedAgent) return
+    setSaving(true)
+    setSaveError('')
+    try {
+      await client.updateAgent(selectedAgent.id, {
+        name: draftName.trim(),
+        prompt: draftPrompt.trim(),
+        model: draftModel,
+        temperature: draftTemperature,
+        top_p: draftTopP,
+        max_tokens: draftMaxTokens,
+      })
+      refreshAgents()
+    } catch (e) {
+      setSaveError((e as Error).message || 'Failed to save')
+    } finally {
+      setSaving(false)
+    }
+  }
 
   return (
     <div className="p-6 max-w-3xl mx-auto">
-      {/* Header */}
       <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100 mb-6">Settings</h1>
 
-      {/* Info banner */}
-      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 text-blue-700 dark:text-blue-300 px-4 py-3 rounded-lg text-sm mb-6">
+      <div className="bg-primary-light dark:bg-primary/12 border border-primary/20 dark:border-primary/30 text-primary px-4 py-3 rounded-lg text-sm mb-6">
         Configuration is read-only. Edit{' '}
-        <code className="font-mono text-xs bg-blue-100 dark:bg-blue-900/40 px-1 py-0.5 rounded">
+        <code className="font-mono text-xs bg-primary/10 dark:bg-primary/20 px-1 py-0.5 rounded">
           config/default.yml
         </code>{' '}
         to change settings.
@@ -63,10 +133,10 @@ export function SettingsPage() {
         {/* Plan & Limits */}
         <Link
           to="/settings/plan"
-          className="flex items-center gap-4 p-4 bg-white dark:bg-slate-800 border dark:border-slate-700 rounded-lg hover:border-blue-300 dark:hover:border-blue-600 hover:bg-blue-50/30 dark:hover:bg-blue-900/20 transition-colors group"
+          className="flex items-center gap-4 p-4 bg-surface dark:bg-surface-200 border border-surface-200 dark:border-surface-200 rounded-lg hover:border-primary/40 dark:hover:border-primary/40 hover:bg-primary-light dark:hover:bg-primary/12 transition-colors group"
         >
-          <div className="h-10 w-10 rounded-full bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center shrink-0 group-hover:bg-blue-200 dark:group-hover:bg-blue-900/60 transition-colors">
-            <CreditCard className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+          <div className="h-10 w-10 rounded-full bg-primary-light dark:bg-primary/12 flex items-center justify-center shrink-0 group-hover:bg-primary/20 dark:group-hover:bg-primary/20 transition-colors">
+            <CreditCard className="h-5 w-5 text-primary" />
           </div>
           <div className="flex-1">
             <h3 className="font-semibold text-gray-900 dark:text-slate-100">Plan & Limits</h3>
@@ -75,133 +145,187 @@ export function SettingsPage() {
           <Badge variant="neutral">Free</Badge>
         </Link>
 
-        {/* Model Selection */}
+        {/* Agents */}
         <Card
-          title="Model Selection"
-          actions={<Cpu className="h-4 w-4 text-gray-400 dark:text-slate-500" />}
+          title="Agents"
+          actions={<Bot className="h-4 w-4 text-gray-400 dark:text-slate-500" />}
         >
-          {modelsData ? (
-            <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-4">
+            {/* Default agent selector */}
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm text-gray-600 dark:text-slate-400">Default Agent</label>
               <div className="flex items-center gap-2">
-                <span className="text-xs text-gray-500 dark:text-slate-400">Provider:</span>
-                <Badge variant="neutral">{modelsData.provider}</Badge>
-              </div>
-              <div>
-                <label className="block text-sm text-gray-600 dark:text-slate-400 mb-1">
-                  Active Model
-                </label>
                 <select
-                  value={modelStale ? '' : (settings.model ?? modelsData.current_model)}
-                  onChange={(e) => update({ model: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-200 dark:border-slate-600 rounded-md text-sm bg-white dark:bg-slate-800 text-gray-800 dark:text-slate-200 appearance-none cursor-pointer"
+                  value={selectedId}
+                  onChange={(e) => setAgent(e.target.value)}
+                  disabled={agentsLoading}
+                  className="flex-1 px-3 py-2 border border-surface-200 dark:border-surface-200 rounded-md text-sm bg-surface dark:bg-surface-200 text-gray-800 dark:text-slate-200 appearance-none cursor-pointer disabled:opacity-50"
                 >
-                  {modelsData.models.map((m) => (
-                    <option key={m.id} value={m.id}>
-                      {m.label}{m.role ? ` (${m.role})` : ''}
+                  {agents.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.name} — {a.model}
                     </option>
                   ))}
                 </select>
-                {modelStale && (
-                  <div className="mt-2 flex items-center gap-2">
-                    <p className="text-xs text-amber-600 dark:text-amber-400">
-                      Your saved model &quot;{storedModel}&quot; is no longer supported by {modelsData.provider}.
-                    </p>
-                    <button
-                      onClick={clearModel}
-                      className="text-xs text-primary underline hover:no-underline"
-                    >
-                      Reset to default
-                    </button>
+                <button
+                  onClick={() => setCreateDialogOpen(true)}
+                  title="Create new agent"
+                  className="p-2 rounded-md border border-surface-200 dark:border-surface-200 text-gray-500 dark:text-slate-400 hover:bg-primary-light dark:hover:bg-primary/12 hover:text-primary hover:border-primary/40 dark:hover:border-primary/30 transition-colors"
+                >
+                  <Plus className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Editable config for selected agent */}
+            {selectedAgent && (
+              <div className="border-t border-surface-200 dark:border-surface-200 pt-4 flex flex-col gap-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-gray-700 dark:text-slate-300">
+                    Agent Config
+                  </span>
+                  {isDirty && (
+                    <span className="text-xs text-amber-600 dark:text-amber-400 font-medium">
+                      Unsaved changes
+                    </span>
+                  )}
+                </div>
+
+                {/* Name */}
+                <div>
+                  <label className="text-sm font-medium text-gray-700 dark:text-slate-300 mb-1 block">
+                    Name
+                  </label>
+                  <input
+                    type="text"
+                    value={draftName}
+                    onChange={(e) => setDraftName(e.target.value)}
+                    placeholder="e.g. Creative Writer"
+                    className="w-full px-3 py-2 border border-surface-200 dark:border-surface-200 rounded-md text-sm bg-surface dark:bg-surface-200 text-gray-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                  />
+                </div>
+
+                {/* Prompt */}
+                <div>
+                  <label className="flex items-center gap-1.5 text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+                    Prompt
+                    <InfoIcon field="prompt" />
+                  </label>
+                  <textarea
+                    value={draftPrompt}
+                    onChange={(e) => setDraftPrompt(e.target.value)}
+                    placeholder="e.g. You are a concise academic tutor..."
+                    rows={3}
+                    className="w-full px-3 py-2 border border-surface-200 dark:border-surface-200 rounded-md text-sm bg-surface dark:bg-surface-200 text-gray-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary resize-vertical"
+                  />
+                </div>
+
+                {/* Model */}
+                <div>
+                  <label className="flex items-center gap-1.5 text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+                    Model
+                    <InfoIcon field="model" />
+                  </label>
+                  <ModelSelect
+                    value={draftModel}
+                    onChange={setDraftModel}
+                    models={models}
+                    fallback={draftModel}
+                  />
+                </div>
+
+                {/* Temperature */}
+                <div>
+                  <label className="flex items-center justify-between text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+                    <span className="flex items-center gap-1.5">
+                      Temperature
+                      <InfoIcon field="temperature" />
+                    </span>
+                    <span className="font-mono text-gray-500">{draftTemperature.toFixed(1)}</span>
+                  </label>
+                  <input
+                    type="range"
+                    min="0"
+                    max="2"
+                    step="0.1"
+                    value={draftTemperature}
+                    onChange={(e) => setDraftTemperature(parseFloat(e.target.value))}
+                    className="w-full h-2 bg-surface-200 dark:bg-surface-200 rounded-lg appearance-none cursor-pointer accent-primary"
+                  />
+                  <div className="flex justify-between text-xs text-gray-400 mt-1">
+                    <span>Deterministic</span>
+                    <span>Creative</span>
+                  </div>
+                </div>
+
+                {/* Top P */}
+                <div>
+                  <label className="flex items-center justify-between text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+                    <span className="flex items-center gap-1.5">
+                      Top P
+                      <InfoIcon field="top_p" />
+                    </span>
+                    <span className="font-mono text-gray-500">{draftTopP.toFixed(1)}</span>
+                  </label>
+                  <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.1"
+                    value={draftTopP}
+                    onChange={(e) => setDraftTopP(parseFloat(e.target.value))}
+                    className="w-full h-2 bg-surface-200 dark:bg-surface-200 rounded-lg appearance-none cursor-pointer accent-primary"
+                  />
+                  <div className="flex justify-between text-xs text-gray-400 mt-1">
+                    <span>Narrow</span>
+                    <span>Broad</span>
+                  </div>
+                </div>
+
+                {/* Max Tokens */}
+                <div>
+                  <label className="flex items-center gap-1.5 text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+                    Max Output Tokens
+                    <InfoIcon field="max_tokens" />
+                  </label>
+                  <select
+                    value={draftMaxTokens}
+                    onChange={(e) => setDraftMaxTokens(parseInt(e.target.value, 10))}
+                    className="w-full px-3 py-2 border border-surface-200 dark:border-surface-200 rounded-md text-sm bg-surface dark:bg-surface-200 text-gray-800 dark:text-slate-200 appearance-none cursor-pointer"
+                  >
+                    {MAX_TOKENS_OPTIONS.map((n) => (
+                      <option key={n} value={n}>
+                        {n} — {n <= 512 ? 'concise' : n <= 1024 ? 'standard' : n <= 2048 ? 'detailed' : 'long form'}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {saveError && (
+                  <div className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-3 py-2 rounded">
+                    {saveError}
                   </div>
                 )}
-                {!modelStale && (
-                  <p className="text-xs text-gray-400 dark:text-slate-500 mt-1.5 leading-relaxed">
-                    Overrides the default model for chat, question generation, and flashcard drafting. Applies to all requests in this browser session.
-                  </p>
+
+                {isDirty && (
+                  <div className="flex justify-end">
+                    <Button variant="primary" onClick={handleSave} disabled={saving}>
+                      {saving ? 'Saving...' : 'Save changes'}
+                    </Button>
+                  </div>
                 )}
               </div>
-            </div>
-          ) : (
-            <p className="text-sm text-gray-400 dark:text-slate-500">
-              Connect to the backend to see available models.
-            </p>
-          )}
-        </Card>
-
-        {/* Generation Settings */}
-        <Card
-          title="Generation Settings"
-          actions={<SlidersHorizontal className="h-4 w-4 text-gray-400 dark:text-slate-500" />}
-        >
-          <div className="flex flex-col gap-5">
-            <div>
-              <label className="flex justify-between text-sm mb-1">
-                <span className="text-gray-600 dark:text-slate-400">Temperature</span>
-                <span className="font-mono text-gray-800 dark:text-slate-200">{settings.temperature.toFixed(1)}</span>
-              </label>
-              <input
-                type="range"
-                min="0"
-                max="2"
-                step="0.1"
-                value={settings.temperature}
-                onChange={(e) => update({ temperature: parseFloat(e.target.value) })}
-                className="w-full h-2 bg-gray-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-primary"
-              />
-              <div className="flex justify-between text-xs text-gray-400 dark:text-slate-500 mt-1">
-                <span>Deterministic</span>
-                <span>Creative</span>
-              </div>
-              <p className="text-xs text-gray-400 dark:text-slate-500 mt-1.5 leading-relaxed">
-                Controls randomness in the output. Lower values (e.g. 0.2) give focused, factual replies. Higher values (e.g. 1.5) produce more varied and creative responses.
-              </p>
-            </div>
-
-            <div>
-              <label className="flex justify-between text-sm mb-1">
-                <span className="text-gray-600 dark:text-slate-400">Top P</span>
-                <span className="font-mono text-gray-800 dark:text-slate-200">{settings.top_p.toFixed(1)}</span>
-              </label>
-              <input
-                type="range"
-                min="0"
-                max="1"
-                step="0.1"
-                value={settings.top_p}
-                onChange={(e) => update({ top_p: parseFloat(e.target.value) })}
-                className="w-full h-2 bg-gray-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-primary"
-              />
-              <div className="flex justify-between text-xs text-gray-400 dark:text-slate-500 mt-1">
-                <span>Narrow</span>
-                <span>Broad</span>
-              </div>
-              <p className="text-xs text-gray-400 dark:text-slate-500 mt-1.5 leading-relaxed">
-                Nucleus sampling. Only tokens with cumulative probability above this threshold are considered. Lower values (e.g. 0.5) restrict choices to the most likely tokens; 1.0 considers all tokens.
-              </p>
-            </div>
-
-            <div>
-              <label className="block text-sm text-gray-600 dark:text-slate-400 mb-1">
-                Max Output Tokens
-              </label>
-              <select
-                value={settings.max_tokens}
-                onChange={(e) => update({ max_tokens: parseInt(e.target.value, 10) })}
-                className="w-full px-3 py-2 border border-gray-200 dark:border-slate-600 rounded-md text-sm bg-white dark:bg-slate-800 text-gray-800 dark:text-slate-200 appearance-none cursor-pointer"
-              >
-                <option value={256}>256 — short answer</option>
-                <option value={512}>512 — concise</option>
-                <option value={1024}>1024 — standard</option>
-                <option value={2048}>2048 — detailed</option>
-                <option value={4096}>4096 — long form</option>
-                <option value={8192}>8192 — very long</option>
-              </select>
-              <p className="text-xs text-gray-400 dark:text-slate-500 mt-1.5 leading-relaxed">
-                Caps the total tokens (words + punctuation) the model can generate per response. Longer outputs take more time and cost.
-              </p>
-            </div>
+            )}
           </div>
         </Card>
+
+        <AgentCreationDialog
+          open={createDialogOpen}
+          onOpenChange={setCreateDialogOpen}
+          models={models}
+          currentModel={currentModel}
+          onCreated={(id) => { refreshAgents(); setAgent(id) }}
+        />
       </div>
     </div>
   )

@@ -49,6 +49,68 @@ router = APIRouter()
 
 
 # ---------------------------------------------------------------------------
+# Shared helpers for agent resolution
+# ---------------------------------------------------------------------------
+
+def _resolve_agent_llm(
+    services: ServicesDep,
+    model: str | None,
+    agent_id: str | None,
+    fallback_llm,
+):
+    """Resolve agent, returning (llm, agent_prompt | None)."""
+    if agent_id:
+        try:
+            agent_uid = UUID(agent_id)
+        except ValueError:
+            raise HTTPException(status_code=422, detail="Invalid agent_id")
+        agent = services.agent_store.get_by_id(agent_uid)
+        if agent is None:
+            raise HTTPException(status_code=404, detail="Agent not found")
+        return create_llm_with_model(services.config, agent.model), agent.prompt
+    if model:
+        return create_llm_with_model(services.config, model), None
+    return fallback_llm, None
+
+
+def _resolve_agent_params(
+    services: ServicesDep,
+    body_temperature: float | None,
+    body_top_p: float | None,
+    body_max_tokens: int | None,
+    agent_id: str | None,
+):
+    """Resolve generation params from agent config or request body."""
+    if agent_id:
+        try:
+            agent_uid = UUID(agent_id)
+        except ValueError:
+            return {}
+        agent = services.agent_store.get_by_id(agent_uid)
+        if agent:
+            return {
+                "temperature": (
+                    body_temperature
+                    if body_temperature is not None
+                    else agent.temperature
+                ),
+                "top_p": (
+                    body_top_p if body_top_p is not None else agent.top_p
+                ),
+                "max_tokens": (
+                    body_max_tokens
+                    if body_max_tokens is not None
+                    else agent.max_tokens
+                ),
+            }
+    return {
+        "temperature": body_temperature,
+        "top_p": body_top_p,
+        "max_tokens": body_max_tokens,
+    }
+
+
+# ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
@@ -816,6 +878,7 @@ def _questions_background(
     services: ServicesDep,
     requested_types: list[QuestionType] | None,
     model: str | None = None,
+    agent_id: str | None = None,
     num_questions: int | None = None,
 ) -> dict:
     """Background task: generate questions for a knowledge chapter."""
@@ -842,7 +905,7 @@ def _questions_background(
         ]
 
         _set_progress(task, 15, "Starting question generation...")
-        llm = create_llm_with_model(services.config, model) if model else services.fast_llm
+        llm, agent_prompt = _resolve_agent_llm(services, model, agent_id, services.fast_llm)
         agent = QuestionGeneratorAgent(llm)
 
         # Divide progress range 20-85 evenly across requested types
@@ -880,7 +943,11 @@ def _questions_background(
             )
 
             result = agent.generate(
-                chunks, question_types=[qtype], on_progress=on_progress, num_questions=num_questions
+                chunks,
+                question_types=[qtype],
+                on_progress=on_progress,
+                num_questions=num_questions,
+                agent_prompt=agent_prompt or None,
             )
             items = result.get(qtype, [])
 
@@ -936,6 +1003,7 @@ async def generate_questions(
 
     requested_types = req.question_types if req else None
     model = req.model if req else None
+    agent_id = req.agent_id if req else None
     num_questions = req.num_questions if req else None
 
     task_id = services.task_registry.submit(
@@ -946,6 +1014,7 @@ async def generate_questions(
         services,
         requested_types,
         model,
+        agent_id,
         num_questions,
         task_type="kt_questions",
     )
@@ -1062,6 +1131,7 @@ async def generate_flashcard(
 class DraftFlashcardRequest(BaseModel):
     selected_text: str
     model: str | None = None
+    agent_id: str | None = None
 
 
 class SaveFlashcardRequest(BaseModel):
@@ -1074,6 +1144,7 @@ class DraftQuestionRequest(BaseModel):
     question_type: QuestionType
     selected_text: str
     model: str | None = None
+    agent_id: str | None = None
 
 
 class SaveQuestionRequest(BaseModel):
@@ -1107,10 +1178,14 @@ async def draft_flashcard(
     if not req.selected_text.strip():
         raise HTTPException(status_code=400, detail="selected_text is required")
     context = _chapter_context(services, uid, number)
-    llm = create_llm_with_model(services.config, req.model) if req.model else services.fast_llm
+    llm, agent_prompt = _resolve_agent_llm(services, req.model, req.agent_id, services.fast_llm)
     agent = FlashcardGeneratorAgent(llm)
     try:
-        data = agent.generate(req.selected_text, chapter_context=context)
+        data = agent.generate(
+            req.selected_text,
+            chapter_context=context,
+            agent_prompt=agent_prompt or None,
+        )
     except Exception as e:
         logger.error("Flashcard draft failed: %s", e)
         raise HTTPException(status_code=502, detail="Flashcard generation failed") from e
@@ -1150,11 +1225,14 @@ async def draft_question(
     if not req.selected_text.strip():
         raise HTTPException(status_code=400, detail="selected_text is required")
     context = _chapter_context(services, uid, number)
-    llm = create_llm_with_model(services.config, req.model) if req.model else services.fast_llm
+    llm, agent_prompt = _resolve_agent_llm(services, req.model, req.agent_id, services.fast_llm)
     agent = QuestionGeneratorAgent(llm)
     try:
         question_data = agent.generate_one(
-            req.question_type, req.selected_text, chapter_context=context
+            req.question_type,
+            req.selected_text,
+            chapter_context=context,
+            agent_prompt=agent_prompt or None,
         )
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e)) from e

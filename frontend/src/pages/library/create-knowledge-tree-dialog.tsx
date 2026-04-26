@@ -38,7 +38,7 @@ export function CreateKnowledgeTreeDialog({ open, onClose }: CreateKnowledgeTree
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-md mx-4 p-6 flex flex-col gap-5">
+      <div className="bg-surface dark:bg-surface-200 rounded-xl shadow-xl w-full max-w-md mx-4 p-6 flex flex-col gap-5">
         <div>
           <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-100">New Knowledge Tree</h2>
           <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">
@@ -71,7 +71,7 @@ export function CreateKnowledgeTreeDialog({ open, onClose }: CreateKnowledgeTree
               placeholder="What is this knowledge tree about?"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              className="w-full rounded-md border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-sm text-gray-700 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-500 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary resize-none"
+              className="w-full rounded-md border border-surface-200 dark:border-surface-200 bg-surface dark:bg-surface-200 px-3 py-2 text-sm text-gray-700 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-500 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary resize-none"
             />
           </div>
 

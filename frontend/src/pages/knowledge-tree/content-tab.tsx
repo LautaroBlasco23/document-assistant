@@ -10,6 +10,7 @@ import {
   RefreshCw,
   Trash2,
   BookMarked,
+  ChevronDown,
 } from 'lucide-react'
 import { Button } from '../../components/ui/button'
 import { Badge } from '../../components/ui/badge'
@@ -17,7 +18,9 @@ import { Select } from '../../components/ui/select'
 import { KnowledgeExamSession } from './knowledge-exam-session'
 import { useKnowledgeTreeStore } from '../../stores/knowledge-tree-store'
 import { useGenerationSettings } from '../../stores/generation-settings'
+import { useAgents } from '../../hooks/use-agents'
 import { useModels } from '../../hooks/use-models'
+import { AgentCreationDialog } from '../settings/agent-creation-dialog'
 import { client } from '../../services'
 import type {
   KnowledgeChapter,
@@ -123,9 +126,9 @@ function GeneratorSection({
   children,
 }: GeneratorSectionProps) {
   return (
-    <div className="rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 overflow-hidden">
+    <div className="rounded-lg border border-surface-200 dark:border-surface-200 bg-surface dark:bg-surface-200 overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-slate-700 bg-gray-50 dark:bg-slate-900/50">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-surface-200 dark:border-surface-200 bg-surface-100 dark:bg-surface">
         <div className="flex items-center gap-2">
           {icon}
           <span className="text-sm font-medium text-gray-700 dark:text-slate-300">{title}</span>
@@ -195,7 +198,7 @@ function TrueFalseList({
       {questions.map((q) => (
         <li
           key={q.id}
-          className="flex items-start gap-2 rounded-md border border-gray-100 dark:border-slate-700 bg-gray-50 dark:bg-slate-900/50 px-3 py-2 text-xs"
+          className="flex items-start gap-2 rounded-md border border-surface-200 dark:border-surface-200 bg-surface-100 dark:bg-surface px-3 py-2 text-xs"
         >
           <span
             className={`mt-0.5 shrink-0 rounded px-1 py-0.5 font-semibold uppercase text-[10px] ${
@@ -234,7 +237,7 @@ function MultipleChoiceList({
       {questions.map((q) => (
         <li
           key={q.id}
-          className="rounded-md border border-gray-100 bg-gray-50 px-3 py-2"
+          className="rounded-md border border-surface-200 dark:border-surface-200 bg-surface-100 dark:bg-surface px-3 py-2"
         >
           <div className="flex items-start justify-between mb-1.5">
             <p className="text-xs font-medium text-gray-700">{q.question}</p>
@@ -283,7 +286,7 @@ function MatchingList({
   return (
     <ul className="flex flex-col gap-2">
       {questions.map((q) => (
-        <li key={q.id} className="rounded-md border border-gray-100 bg-gray-50 px-3 py-2">
+        <li key={q.id} className="rounded-md border border-surface-200 dark:border-surface-200 bg-surface-100 dark:bg-surface px-3 py-2">
           <div className="flex items-start justify-between mb-1.5">
             <p className="text-xs font-medium text-gray-600">{q.prompt}</p>
             {onDelete && (
@@ -299,11 +302,11 @@ function MatchingList({
           <table className="w-full text-xs border-collapse">
             <tbody>
               {q.pairs.map((pair, i) => (
-                <tr key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                  <td className="rounded-l px-2 py-1 font-medium text-gray-700 w-36 align-top border border-gray-100">
+                <tr key={i} className={i % 2 === 0 ? 'bg-surface dark:bg-surface-200' : 'bg-surface-100 dark:bg-surface'}>
+                  <td className="rounded-l px-2 py-1 font-medium text-gray-700 w-36 align-top border border-surface-200 dark:border-surface-200">
                     {pair.term}
                   </td>
-                  <td className="rounded-r px-2 py-1 text-gray-500 align-top border border-gray-100">
+                  <td className="rounded-r px-2 py-1 text-gray-500 align-top border border-surface-200 dark:border-surface-200">
                     {pair.definition}
                   </td>
                 </tr>
@@ -326,7 +329,7 @@ function CheckboxList({
   return (
     <ul className="flex flex-col gap-2">
       {questions.map((q) => (
-        <li key={q.id} className="rounded-md border border-gray-100 bg-gray-50 px-3 py-2">
+        <li key={q.id} className="rounded-md border border-surface-200 dark:border-surface-200 bg-surface-100 dark:bg-surface px-3 py-2">
           <div className="flex items-start justify-between mb-1.5">
             <p className="text-xs font-medium text-gray-700">{q.question}</p>
             {onDelete && (
@@ -401,7 +404,7 @@ function KnowledgeExamReady({ typeCounts, totalCount, onStart }: KnowledgeExamRe
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 flex flex-col gap-3">
+      <div className="rounded-lg border border-surface-200 dark:border-surface-200 bg-surface-100 dark:bg-surface p-4 flex flex-col gap-3">
         <p className="text-sm text-gray-600">
           Ready to start with{' '}
           <span className="font-semibold text-gray-800">{totalCount}</span>{' '}
@@ -557,10 +560,24 @@ function QuestionGenerator({
 
 export function ContentTab({ treeId, selectedChapter, chapters }: ContentTabProps) {
   const [examActive, setExamActive] = React.useState(false)
+  const [agentDialogOpen, setAgentDialogOpen] = React.useState(false)
 
   const store = useKnowledgeTreeStore()
-  const { settings, update } = useGenerationSettings()
+  const { settings, setAgent } = useGenerationSettings()
+  const { agents, loading: agentsLoading } = useAgents()
   const { models, currentModel, loading: modelsLoading } = useModels()
+
+  const defaultAgent = agents.find((a) => a.is_default)
+  const selectedAgentId = settings.agent_id ?? defaultAgent?.id ?? ''
+
+  const handleAgentChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const value = e.target.value
+    if (value === '__create__') {
+      setAgentDialogOpen(true)
+      return
+    }
+    if (value) setAgent(value)
+  }
 
   const chapterKey = selectedChapter !== null ? `${treeId}:${selectedChapter}` : null
   const questionsByType = chapterKey ? (store.questionsByType[chapterKey] ?? {}) : {}
@@ -607,25 +624,39 @@ export function ContentTab({ treeId, selectedChapter, chapters }: ContentTabProp
         </div>
       ) : (
         <>
-          {/* Model selector */}
-          {!modelsLoading && models.length > 0 && (
-            <div className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900/50">
+          {/* Agent selector */}
+          {!agentsLoading && !modelsLoading && agents.length > 0 && (
+            <div className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-surface-200 dark:border-surface-200 bg-surface-100 dark:bg-surface">
               <span className="text-[10px] uppercase tracking-wide text-gray-400 dark:text-slate-500 shrink-0">
-                Model
+                Agent
               </span>
-              <select
-                value={settings.model ?? currentModel}
-                onChange={(e) => update({ model: e.target.value })}
-                className="flex-1 min-w-0 text-xs px-1.5 py-0.5 rounded border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-gray-700 dark:text-slate-200 appearance-none cursor-pointer"
-              >
-                {models.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.label}{m.role ? ` · ${m.role}` : ''}
+              <div className="relative flex-1 min-w-0">
+                <select
+                  value={selectedAgentId}
+                  onChange={handleAgentChange}
+                  className="w-full text-xs px-1.5 py-0.5 rounded border border-surface-200 dark:border-surface-200 bg-surface dark:bg-surface-200 text-gray-700 dark:text-slate-200 appearance-none cursor-pointer"
+                >
+                  {agents.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.name}{a.is_default ? ' (default)' : ''}
+                    </option>
+                  ))}
+                  <option value="__create__" disabled className="text-gray-400 dark:text-slate-500">
+                    ──────────────
                   </option>
-                ))}
-              </select>
+                  <option value="__create__">+ Create new agent</option>
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 h-3 w-3 text-gray-400 dark:text-slate-500" />
+              </div>
             </div>
           )}
+          <AgentCreationDialog
+            open={agentDialogOpen}
+            onOpenChange={setAgentDialogOpen}
+            models={models}
+            currentModel={currentModel}
+            onCreated={(id) => setAgent(id)}
+          />
 
           <p className="text-xs text-gray-500">
             Questions are generated from the knowledge documents in{' '}

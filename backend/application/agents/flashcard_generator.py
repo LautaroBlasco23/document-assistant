@@ -35,16 +35,25 @@ def _strip_code_fences(text: str) -> str:
 class FlashcardGeneratorAgent(BaseAgent):
     """Agent that generates a flashcard from a selected text excerpt."""
 
-    def generate(self, selected_text: str, chapter_context: str | None = None) -> dict[str, str]:
+    def generate(
+        self,
+        selected_text: str,
+        chapter_context: str | None = None,
+        agent_prompt: str | None = None,
+    ) -> dict[str, str]:
         """Generate a flashcard from the provided text.
 
         Args:
             selected_text: The text excerpt to base the flashcard on.
             chapter_context: Optional surrounding chapter content used for grounding.
+            agent_prompt: Optional agent definition to prepend to system prompt.
 
         Returns:
             A dict with 'front' and 'back' keys.
         """
+        system = _SYSTEM_PROMPT
+        if agent_prompt:
+            system = agent_prompt + "\n\n" + system
         if chapter_context and chapter_context.strip():
             user_prompt = (
                 "CHAPTER CONTEXT (for reference only, do not summarize this):\n"
@@ -54,7 +63,7 @@ class FlashcardGeneratorAgent(BaseAgent):
             )
         else:
             user_prompt = selected_text
-        raw = self._llm.chat(_SYSTEM_PROMPT, user_prompt, format="json")
+        raw = self._llm.chat(system, user_prompt, format="json")
         text = _strip_code_fences(raw)
         data = json.loads(text)
         return {

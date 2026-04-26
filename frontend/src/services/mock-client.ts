@@ -7,6 +7,9 @@ import type {
   HealthOut,
   ConfigOut,
   ModelsOut,
+  AgentOut,
+  CreateAgentRequest,
+  UpdateAgentRequest,
   TaskStatusOut,
   ActiveTasksOut,
   DocumentPreviewOut,
@@ -30,6 +33,22 @@ export class MockClient implements ServiceClient {
   private documents: KnowledgeDocument[] = [...mockKnowledgeDocuments]
   private deletedTreeIds = new Set<string>()
 
+  // Agents in-memory state
+  private agents: AgentOut[] = [
+    {
+      id: 'agent-default',
+      name: 'Default',
+      prompt: '',
+      model: 'mock-model',
+      temperature: 0.7,
+      top_p: 1.0,
+      max_tokens: 1024,
+      is_default: true,
+      created_at: new Date().toISOString(),
+    },
+  ]
+  private agentCounter = 1
+
   async health(): Promise<HealthOut> {
     await delay(100)
     return { ...mockHealth }
@@ -43,6 +62,59 @@ export class MockClient implements ServiceClient {
   async getModels(): Promise<ModelsOut> {
     await delay(100)
     return { provider: 'mock', current_model: 'mock-model', models: [] }
+  }
+
+  // Agents
+  async listAgents(): Promise<AgentOut[]> {
+    await delay(100)
+    return [...this.agents]
+  }
+
+  async createAgent(req: CreateAgentRequest): Promise<AgentOut> {
+    await delay(150)
+    this.agentCounter++
+    const agent: AgentOut = {
+      id: `agent-${this.agentCounter}`,
+      name: req.name,
+      prompt: req.prompt ?? '',
+      model: req.model,
+      temperature: req.temperature ?? 0.7,
+      top_p: req.top_p ?? 1.0,
+      max_tokens: req.max_tokens ?? 1024,
+      is_default: false,
+      created_at: new Date().toISOString(),
+    }
+    this.agents.push(agent)
+    return agent
+  }
+
+  async updateAgent(id: string, req: UpdateAgentRequest): Promise<AgentOut> {
+    await delay(150)
+    const idx = this.agents.findIndex((a) => a.id === id)
+    if (idx === -1) throw new Error('Agent not found')
+    const agent = this.agents[idx]
+    const updated: AgentOut = {
+      ...agent,
+      name: req.name ?? agent.name,
+      model: req.model ?? agent.model,
+      temperature: req.temperature ?? agent.temperature,
+      top_p: req.top_p ?? agent.top_p,
+      max_tokens: req.max_tokens ?? agent.max_tokens,
+    }
+    this.agents[idx] = updated
+    return updated
+  }
+
+  async deleteAgent(id: string): Promise<void> {
+    await delay(100)
+    this.agents = this.agents.filter((a) => a.id !== id)
+  }
+
+  async getDefaultAgent(): Promise<AgentOut> {
+    await delay(100)
+    const def = this.agents.find((a) => a.is_default)
+    if (def) return def
+    return this.agents[0]
   }
 
   async getTaskStatus(taskId: string): Promise<TaskStatusOut> {
@@ -251,7 +323,7 @@ export class MockClient implements ServiceClient {
     return { task_id: `mock-task-${Math.random().toString(36).slice(2, 10)}` }
   }
 
-  async draftFlashcard(_treeId: string, _chapter: number, selectedText: string, _model?: string) {
+  async draftFlashcard(_treeId: string, _chapter: number, selectedText: string, _model?: string, _agentId?: string) {
     await delay(400)
     return {
       front: `What is described by: "${selectedText.slice(0, 60)}..."?`,
@@ -271,6 +343,7 @@ export class MockClient implements ServiceClient {
     questionType: KnowledgeTreeQuestionType,
     selectedText: string,
     _model?: string,
+    _agentId?: string,
   ) {
     await delay(400)
     if (questionType === 'true_false') {
@@ -311,6 +384,7 @@ export class MockClient implements ServiceClient {
     _chapter: number,
     _questionTypes?: KnowledgeTreeQuestionType[],
     _model?: string,
+    _agentId?: string,
     _numQuestions?: number | null,
   ): Promise<{ task_id: string }> {
     await delay(150)

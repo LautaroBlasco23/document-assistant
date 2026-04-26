@@ -205,8 +205,8 @@ export const useKnowledgeTreeStore = create<KnowledgeTreeState>((set, get) => ({
   },
 
   generateQuestions: async (treeId, chapter, questionType, numQuestions = undefined) => {
-    const model = useGenerationSettings.getState().settings.model
-    const { task_id } = await client.generateKnowledgeTreeQuestions(treeId, chapter, [questionType], model, numQuestions)
+    const { model, agent_id } = useGenerationSettings.getState().settings
+    const { task_id } = await client.generateKnowledgeTreeQuestions(treeId, chapter, [questionType], model, agent_id, numQuestions)
     const taskKey = questionTaskKey(treeId, chapter, questionType)
     set((s) => ({ questionTaskIds: { ...s.questionTaskIds, [taskKey]: task_id } }))
     return task_id

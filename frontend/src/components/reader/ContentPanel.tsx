@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Check, X, Loader2, AlertCircle, Pencil } from 'lucide-react'
+import { Check, X, Loader2, AlertCircle, Pencil, ChevronDown } from 'lucide-react'
 import { client } from '../../services'
 import { cn } from '../../lib/cn'
 import {
@@ -9,7 +9,9 @@ import {
   type PendingQuestion,
 } from '../../stores/pending-content-store'
 import { useGenerationSettings } from '../../stores/generation-settings'
+import { useAgents } from '../../hooks/use-agents'
 import { useModels } from '../../hooks/use-models'
+import { AgentCreationDialog } from '../../pages/settings/agent-creation-dialog'
 
 interface ContentPanelProps {
   treeId: string
@@ -18,27 +20,55 @@ interface ContentPanelProps {
 
 export function ContentPanel({ treeId, chapter }: ContentPanelProps) {
   const items = usePendingContent((s) => s.items)
-  const { settings, update } = useGenerationSettings()
+  const { settings, setAgent } = useGenerationSettings()
+  const { agents, loading: agentsLoading } = useAgents()
   const { models, currentModel, loading: modelsLoading } = useModels()
+  const [agentDialogOpen, setAgentDialogOpen] = React.useState(false)
+
+  const defaultAgent = agents.find((a) => a.is_default)
+  const selectedAgentId = settings.agent_id ?? defaultAgent?.id ?? ''
+
+  const handleAgentChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const value = e.target.value
+    if (value === '__create__') {
+      setAgentDialogOpen(true)
+      return
+    }
+    if (value) setAgent(value)
+  }
 
   return (
     <div className="h-full flex flex-col">
-      {!modelsLoading && models.length > 0 && (
-        <div className="shrink-0 border-b border-gray-200 dark:border-slate-700 px-2 py-1 flex items-center gap-1.5">
-          <span className="text-[10px] uppercase tracking-wide text-gray-400 dark:text-slate-500 shrink-0">Model</span>
-          <select
-            value={settings.model ?? currentModel}
-            onChange={(e) => update({ model: e.target.value })}
-            className="flex-1 min-w-0 text-xs px-1.5 py-0.5 rounded border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-gray-700 dark:text-slate-200 appearance-none cursor-pointer"
-          >
-            {models.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.label}{m.role ? ` · ${m.role}` : ''}
+      {!agentsLoading && !modelsLoading && agents.length > 0 && (
+        <div className="shrink-0 border-b border-surface-200 dark:border-surface-200 px-2 py-1 flex items-center gap-1.5">
+          <span className="text-[10px] uppercase tracking-wide text-gray-400 dark:text-slate-500 shrink-0">Agent</span>
+          <div className="relative flex-1 min-w-0">
+            <select
+              value={selectedAgentId}
+              onChange={handleAgentChange}
+              className="w-full text-xs px-1.5 py-0.5 rounded border border-surface-200 dark:border-surface-200 bg-surface dark:bg-surface-200 text-gray-700 dark:text-slate-200 appearance-none cursor-pointer"
+            >
+              {agents.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.name}{a.is_default ? ' (default)' : ''}
+                </option>
+              ))}
+              <option value="__create__" disabled className="text-gray-400 dark:text-slate-500">
+                ──────────────
               </option>
-            ))}
-          </select>
+              <option value="__create__">+ Create new agent</option>
+            </select>
+            <ChevronDown className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 h-3 w-3 text-gray-400 dark:text-slate-500" />
+          </div>
         </div>
       )}
+      <AgentCreationDialog
+        open={agentDialogOpen}
+        onOpenChange={setAgentDialogOpen}
+        models={models}
+        currentModel={currentModel}
+        onCreated={(id) => setAgent(id)}
+      />
 
       {items.length === 0 ? (
         <div className="flex-1 overflow-y-auto p-4">
@@ -91,20 +121,20 @@ function CardShell({
   const resolved = !!disposition
   return (
     <div className={cn(
-      'rounded-lg border bg-white dark:bg-slate-800/60 shadow-sm overflow-hidden transition-colors',
+      'rounded-lg border bg-surface dark:bg-surface-200 shadow-sm overflow-hidden transition-colors',
       disposition === 'approved'
         ? 'border-green-300 dark:border-green-700'
         : disposition === 'rejected'
           ? 'border-red-300 dark:border-red-700'
-          : 'border-gray-200 dark:border-slate-700',
+          : 'border-surface-200 dark:border-surface-200',
     )}>
       <div className={cn(
-        'flex items-center justify-between px-3 py-1.5 border-b bg-gray-50/60 dark:bg-slate-800/80',
+        'flex items-center justify-between px-3 py-1.5 border-b bg-surface-100 dark:bg-surface-200/80',
         disposition === 'approved'
           ? 'border-green-200 dark:border-green-800'
           : disposition === 'rejected'
             ? 'border-red-200 dark:border-red-800'
-            : 'border-gray-100 dark:border-slate-700/60',
+            : 'border-surface-200 dark:border-surface-200',
       )}>
         <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-slate-400">
           {status === 'generating' && <Loader2 className="h-3 w-3 animate-spin" />}
@@ -128,15 +158,15 @@ function CardShell({
                 onClick={onReject}
                 disabled={status === 'saving'}
                 title="Reject"
-                className="p-1 rounded text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors disabled:opacity-50"
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
-              <button
-                onClick={onApprove}
-                disabled={approveDisabled || status === 'saving' || status === 'generating'}
-                title="Approve"
-                className="p-1 rounded text-gray-400 hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors disabled:opacity-40 disabled:hover:bg-transparent"
+                  className="p-1 rounded text-gray-400 hover:text-danger hover:bg-danger-light dark:hover:bg-danger/12 transition-colors disabled:opacity-50"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  onClick={onApprove}
+                  disabled={approveDisabled || status === 'saving' || status === 'generating'}
+                  title="Approve"
+                  className="p-1 rounded text-gray-400 hover:text-success hover:bg-success-light dark:hover:bg-success/12 transition-colors disabled:opacity-40 disabled:hover:bg-transparent"
               >
                 {status === 'saving' ? (
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -150,7 +180,7 @@ function CardShell({
             <button
               onClick={onDismiss}
               title="Dismiss"
-              className="p-1 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-600 transition-colors"
+              className="p-1 rounded text-gray-400 hover:text-gray-600 dark:hover:text-slate-300 hover:bg-surface-100 dark:hover:bg-surface-100 transition-colors"
             >
               <X className="h-3.5 w-3.5" />
             </button>
@@ -189,10 +219,10 @@ function EditableField({
         rows={rows}
         readOnly={readOnly}
         className={cn(
-          'mt-0.5 w-full resize-none rounded border bg-white dark:bg-slate-700/60 px-2 py-1 text-sm text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-blue-400',
+          'mt-0.5 w-full resize-none rounded border bg-surface dark:bg-surface-200 px-2 py-1 text-sm text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-primary',
           readOnly
-            ? 'border-gray-100 dark:border-slate-600 cursor-default pointer-events-none'
-            : 'border-gray-200 dark:border-slate-600',
+            ? 'border-surface-200 dark:border-surface-200 cursor-default pointer-events-none'
+            : 'border-surface-200 dark:border-surface-200',
         )}
       />
     </label>
@@ -315,8 +345,8 @@ function QuestionCard({
                   'flex-1 px-2 py-1 text-xs rounded border transition-colors',
                   resolved && 'cursor-default',
                   answer === val
-                    ? 'bg-blue-500 text-white border-blue-500'
-                    : 'border-gray-200 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700',
+                    ? 'bg-primary text-white border-primary'
+                    : 'border-surface-200 dark:border-surface-200 text-gray-700 dark:text-slate-300 hover:bg-surface-100 dark:hover:bg-surface-100',
                 )}
               >
                 {val ? 'True' : 'False'}
@@ -370,10 +400,10 @@ function QuestionCard({
                 onChange={(e) => setChoice(i, e.target.value)}
                 readOnly={resolved}
                 className={cn(
-                  'flex-1 rounded border bg-white dark:bg-slate-700/60 px-2 py-1 text-xs text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-blue-400',
+                  'flex-1 rounded border bg-surface dark:bg-surface-200 px-2 py-1 text-xs text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-primary',
                   resolved
-                    ? 'border-gray-100 dark:border-slate-600 cursor-default pointer-events-none'
-                    : 'border-gray-200 dark:border-slate-600',
+                    ? 'border-surface-200 dark:border-surface-200 cursor-default pointer-events-none'
+                    : 'border-surface-200 dark:border-surface-200',
                 )}
               />
             </div>

@@ -17,4 +17,5 @@ class QuestionOut(BaseModel):
 class GenerateQuestionsRequest(BaseModel):
     question_types: list[QuestionTypeLiteral] | None = None
     model: str | None = None
+    agent_id: str | None = None
     num_questions: int | None = None

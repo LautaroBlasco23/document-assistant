@@ -19,19 +19,19 @@ export function Header({ title, breadcrumbs, actions, className }: HeaderProps) 
     <div className={cn('flex items-center justify-between mb-6', className)}>
       <div className="flex flex-col gap-1">
         {breadcrumbs && breadcrumbs.length > 0 && (
-          <nav className="flex items-center gap-1 text-xs text-surface-200 dark:text-surface-200" aria-label="Breadcrumb">
+          <nav className="flex items-center gap-1 text-xs text-gray-400 dark:text-slate-500" aria-label="Breadcrumb">
             {breadcrumbs.map((crumb, index) => (
               <React.Fragment key={index}>
-                {index > 0 && <span className="text-surface-200">/</span>}
+                {index > 0 && <span className="text-gray-400 dark:text-slate-500">/</span>}
                 {crumb.href ? (
                   <Link
                     to={crumb.href}
-                    className="hover:text-surface-100 dark:hover:text-surface-100 transition-colors"
+                    className="hover:text-gray-600 dark:hover:text-slate-300 transition-colors"
                   >
                     {crumb.label}
                   </Link>
                 ) : (
-                  <span className="text-surface-100">{crumb.label}</span>
+                  <span className="text-gray-600 dark:text-slate-300">{crumb.label}</span>
                 )}
               </React.Fragment>
             ))}

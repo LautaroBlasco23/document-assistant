@@ -4,6 +4,9 @@ import type {
   HealthOut,
   ConfigOut,
   ModelsOut,
+  AgentOut,
+  CreateAgentRequest,
+  UpdateAgentRequest,
   TaskStatusOut,
   ActiveTasksOut,
   DocumentPreviewOut,
@@ -88,6 +91,31 @@ export class RealClient implements ServiceClient {
 
   async getModels(): Promise<ModelsOut> {
     const res = await httpClient.get<ModelsOut>('/models')
+    return res.data
+  }
+
+  // Agents
+  async listAgents(): Promise<AgentOut[]> {
+    const res = await httpClient.get<AgentOut[]>('/agents')
+    return res.data
+  }
+
+  async createAgent(req: CreateAgentRequest): Promise<AgentOut> {
+    const res = await httpClient.post<AgentOut>('/agents', req)
+    return res.data
+  }
+
+  async updateAgent(id: string, req: UpdateAgentRequest): Promise<AgentOut> {
+    const res = await httpClient.put<AgentOut>(`/agents/${id}`, req)
+    return res.data
+  }
+
+  async deleteAgent(id: string): Promise<void> {
+    await httpClient.delete(`/agents/${id}`)
+  }
+
+  async getDefaultAgent(): Promise<AgentOut> {
+    const res = await httpClient.get<AgentOut>('/agents/default')
     return res.data
   }
 
@@ -245,10 +273,11 @@ export class RealClient implements ServiceClient {
     chapter: number,
     selectedText: string,
     model?: string,
+    agentId?: string,
   ): Promise<{ front: string; back: string; source_text: string }> {
     const res = await httpClient.post<{ front: string; back: string; source_text: string }>(
       `/knowledge-trees/${treeId}/chapters/${chapter}/flashcards/draft`,
-      { selected_text: selectedText, model: model ?? null },
+      { selected_text: selectedText, model: model ?? null, agent_id: agentId ?? null },
     )
     return res.data
   }
@@ -271,6 +300,7 @@ export class RealClient implements ServiceClient {
     questionType: KnowledgeTreeQuestionType,
     selectedText: string,
     model?: string,
+    agentId?: string,
   ): Promise<{ question_type: KnowledgeTreeQuestionType; question_data: Record<string, unknown> }> {
     const res = await httpClient.post<{
       question_type: KnowledgeTreeQuestionType
@@ -279,6 +309,7 @@ export class RealClient implements ServiceClient {
       question_type: questionType,
       selected_text: selectedText,
       model: model ?? null,
+      agent_id: agentId ?? null,
     })
     return res.data
   }
@@ -302,10 +333,12 @@ export class RealClient implements ServiceClient {
     chapter: number,
     questionTypes?: KnowledgeTreeQuestionType[],
     model?: string,
+    agentId?: string,
     numQuestions?: number | null,
   ): Promise<{ task_id: string }> {
     const body: Record<string, unknown> = questionTypes ? { question_types: questionTypes } : {}
     if (model) body.model = model
+    if (agentId) body.agent_id = agentId
     if (numQuestions !== undefined) body.num_questions = numQuestions
     const res = await httpClient.post<{ task_id: string }>(
       `/knowledge-trees/${treeId}/chapters/${chapter}/questions`,

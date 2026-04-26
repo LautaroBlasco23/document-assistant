@@ -205,7 +205,7 @@ export function DocumentReader({ doc, treeId, chapter, onClose }: DocumentReader
     >
       <div
         className={cn(
-          'w-full h-full bg-white dark:bg-slate-900 flex flex-col overflow-hidden animate-fade-in',
+          'w-full h-full bg-surface dark:bg-surface flex flex-col overflow-hidden animate-fade-in',
           isFullscreen
             ? 'max-h-full max-w-full rounded-none shadow-none'
             : 'max-h-[95vh] max-w-[1600px] rounded-xl shadow-2xl'
@@ -213,29 +213,29 @@ export function DocumentReader({ doc, treeId, chapter, onClose }: DocumentReader
         onClick={(e) => e.stopPropagation()}
       >
         {/* Top bar */}
-        <div className="flex items-center justify-between px-4 py-2 border-b border-surface-200 dark:border-surface-200 shrink-0 bg-surface-100 dark:bg-surface-200">
+        <div className="flex items-center justify-between px-4 py-2 border-b border-surface-200 dark:border-surface-200 shrink-0 bg-surface-100 dark:bg-surface-100">
           <div className="flex items-center gap-3 min-w-0 flex-1">
             <h2 className="text-sm font-semibold text-gray-900 dark:text-slate-100 truncate">{doc.title}</h2>
           </div>
           {/* Zoom controls */}
           {isPdf && (
-            <div className="flex items-center gap-0.5 bg-white dark:bg-surface rounded-md shadow-sm border border-surface-200 dark:border-surface-200 px-1.5 py-0.5">
+            <div className="flex items-center gap-0.5 bg-surface dark:bg-surface-200 rounded-md shadow-sm border border-surface-200 dark:border-surface-200 px-1.5 py-0.5">
               <button
                 onClick={zoomOut}
                 disabled={zoom <= 0.5}
-                className="p-0.5 rounded text-surface-100 hover:text-surface-200 dark:hover:text-surface-200 hover:bg-surface-100 dark:hover:bg-surface-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                className="p-0.5 rounded text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-300 hover:bg-surface-100 dark:hover:bg-surface-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                 aria-label="Zoom out"
                 title="Zoom out"
               >
                 <ZoomOut className="h-3.5 w-3.5" />
               </button>
-              <span className="text-xs tabular-nums text-surface-100 dark:text-surface-100 min-w-[3ch] text-center select-none">
+              <span className="text-xs tabular-nums text-gray-500 dark:text-slate-400 min-w-[3ch] text-center select-none">
                 {Math.round(zoom * 100)}%
               </span>
               <button
                 onClick={zoomIn}
                 disabled={zoom >= 2}
-                className="p-0.5 rounded text-surface-100 hover:text-surface-200 dark:hover:text-surface-200 hover:bg-surface-100 dark:hover:bg-surface-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                className="p-0.5 rounded text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-300 hover:bg-surface-100 dark:hover:bg-surface-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                 aria-label="Zoom in"
                 title="Zoom in"
               >
@@ -246,7 +246,7 @@ export function DocumentReader({ doc, treeId, chapter, onClose }: DocumentReader
           <div className="flex items-center gap-1 flex-1 justify-end">
             <button
               onClick={() => setIsFullscreen(!isFullscreen)}
-              className="p-1.5 rounded-md transition-colors text-surface-100 hover:text-surface-200 hover:bg-surface-100 dark:text-surface-100 dark:hover:text-surface-200 dark:hover:bg-surface-100"
+              className="p-1.5 rounded-md transition-colors text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-300 hover:bg-surface-100 dark:hover:bg-surface-100"
               aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
               title={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
             >
@@ -259,7 +259,7 @@ export function DocumentReader({ doc, treeId, chapter, onClose }: DocumentReader
                   'p-1.5 rounded-md transition-colors',
                   showLeft
                     ? 'text-primary bg-primary-light hover:bg-primary-light dark:bg-primary/12 dark:hover:bg-primary/12'
-                    : 'text-surface-100 hover:text-surface-200 hover:bg-surface-100 dark:text-surface-100 dark:hover:text-surface-200 dark:hover:bg-surface-100'
+                    : 'text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-300 hover:bg-surface-100 dark:hover:bg-surface-100'
                 )}
                 aria-label="Toggle page sidebar"
                 title="Toggle page sidebar"
@@ -272,8 +272,8 @@ export function DocumentReader({ doc, treeId, chapter, onClose }: DocumentReader
               className={cn(
                 'p-1.5 rounded-md transition-colors',
                 showRight
-                  ? 'text-primary bg-primary-light hover:bg-primary-light dark:bg-primary/12 dark:hover:bg-primary/12'
-                  : 'text-surface-100 hover:text-surface-200 hover:bg-surface-100'
+                    ? 'text-primary bg-primary-light hover:bg-primary-light dark:bg-primary/12 dark:hover:bg-primary/12'
+                    : 'text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-300 hover:bg-surface-100 dark:hover:bg-surface-100'
               )}
               aria-label="Toggle chat panel"
               title="Toggle chat & notes"
@@ -282,7 +282,7 @@ export function DocumentReader({ doc, treeId, chapter, onClose }: DocumentReader
             </button>
             <button
               onClick={onClose}
-              className="p-1.5 text-surface-100 hover:text-surface-200 hover:bg-surface-100 dark:text-surface-100 dark:hover:text-surface-200 dark:hover:bg-surface-100 rounded-md transition-colors ml-2"
+              className="p-1.5 text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-300 hover:bg-surface-100 dark:hover:bg-surface-100 rounded-md transition-colors ml-2"
               aria-label="Close reader"
             >
               <X className="h-4 w-4" />
@@ -338,7 +338,7 @@ export function DocumentReader({ doc, treeId, chapter, onClose }: DocumentReader
             >
               <div
                 ref={epubContainerRef}
-                className="w-[800px] max-w-full h-[80vh] bg-white dark:bg-surface shadow-md rounded-sm"
+                className="w-[800px] max-w-full h-[80vh] bg-surface dark:bg-surface-100 shadow-md rounded-sm"
               />
             </div>
           )}
@@ -372,10 +372,10 @@ export function DocumentReader({ doc, treeId, chapter, onClose }: DocumentReader
         {/* Context menu */}
         {contextMenu && (
           <div
-            className="fixed z-[60] bg-white dark:bg-surface rounded-lg shadow-lg border border-surface-200 dark:border-surface-200 py-1 min-w-[200px]"
+            className="fixed z-[60] bg-surface dark:bg-surface-100 rounded-lg shadow-lg border border-surface-200 dark:border-surface-200 py-1 min-w-[200px]"
             style={{ left: contextMenu.x, top: contextMenu.y }}
           >
-            <div className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-surface-100 dark:text-surface-100">
+            <div className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-slate-500">
               Ask
             </div>
             <button
@@ -386,7 +386,7 @@ export function DocumentReader({ doc, treeId, chapter, onClose }: DocumentReader
               Ask definition in chat
             </button>
             <div className="my-1 border-t border-surface-200 dark:border-surface-200" />
-            <div className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-surface-100 dark:text-surface-100">
+            <div className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-slate-500">
               Generate
             </div>
             <button

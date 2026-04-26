@@ -82,13 +82,13 @@ html, body, #root {
 /* ─── Sidebar left-border breathing animation ─────────────────────────── */
 
 @keyframes breathe-green {
-  0%, 100% { box-shadow: inset 2px 0 0 0 rgba(22, 163, 74, 0.3); }
-  50%      { box-shadow: inset 2px 0 0 0 rgba(22, 163, 74, 0.9); }
+  0%, 100% { box-shadow: inset 2px 0 0 0 color-mix(in srgb, var(--color-success) 30%, transparent); }
+  50%      { box-shadow: inset 2px 0 0 0 color-mix(in srgb, var(--color-success) 90%, transparent); }
 }
 
 @keyframes breathe-blue {
-  0%, 100% { box-shadow: inset 2px 0 0 0 rgba(37, 99, 235, 0.3); }
-  50%      { box-shadow: inset 2px 0 0 0 rgba(37, 99, 235, 0.9); }
+  0%, 100% { box-shadow: inset 2px 0 0 0 color-mix(in srgb, var(--color-primary) 30%, transparent); }
+  50%      { box-shadow: inset 2px 0 0 0 color-mix(in srgb, var(--color-primary) 90%, transparent); }
 }
 
 .sidebar-border-green {
@@ -128,13 +128,10 @@ html, body, #root {
     from var(--source-border-angle),
     transparent 0%,
     transparent 35%,
-    #c2410c 48%,
-    #f97316 55%,
-    #fb923c 60%,
-    #ffba6b 63%,
-    #fb923c 66%,
-    #f97316 71%,
-    #c2410c 78%,
+    color-mix(in srgb, var(--color-primary) 30%, transparent) 45%,
+    var(--color-primary) 55%,
+    color-mix(in srgb, var(--color-primary) 30%, transparent) 65%,
+    var(--color-primary) 75%,
     transparent 88%,
     transparent 100%
   );

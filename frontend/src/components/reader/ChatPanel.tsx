@@ -130,7 +130,7 @@ function MessageContent({ content, role }: { content: string; role: string }) {
             <blockquote
               className={cn(
                 'border-l-2 pl-2 my-1 italic',
-                isUser ? 'border-primary text-primary-light' : 'border-surface-200 dark:border-surface-200 text-surface-100 dark:text-surface-100'
+                isUser ? 'border-primary text-primary-light' : 'border-surface-200 dark:border-surface-200 text-gray-600 dark:text-slate-400'
               )}
             >
               {children}
@@ -355,14 +355,14 @@ export const ChatPanel = React.forwardRef<ChatPanelHandle, ChatPanelProps>(funct
   }
 
   return (
-    <div className="h-full flex flex-col bg-white dark:bg-slate-800">
-      <div className="flex border-b border-gray-200 dark:border-slate-700 shrink-0">
+    <div className="h-full flex flex-col bg-surface dark:bg-surface-200">
+      <div className="flex border-b border-surface-200 dark:border-surface-200 shrink-0">
         <button
           onClick={() => setMode('chat')}
           className={cn(
             'flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-medium transition-colors',
             mode === 'chat'
-              ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50/50 dark:bg-blue-900/20'
+              ? 'text-primary border-b-2 border-primary bg-primary-light dark:bg-primary/12'
               : 'text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-300'
           )}
         >
@@ -374,7 +374,7 @@ export const ChatPanel = React.forwardRef<ChatPanelHandle, ChatPanelProps>(funct
           className={cn(
             'flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-medium transition-colors',
             mode === 'content'
-              ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50/50 dark:bg-blue-900/20'
+              ? 'text-primary border-b-2 border-primary bg-primary-light dark:bg-primary/12'
               : 'text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-300'
           )}
         >
@@ -391,19 +391,19 @@ export const ChatPanel = React.forwardRef<ChatPanelHandle, ChatPanelProps>(funct
       {mode === 'chat' ? (
         <>
           {/* Session selector */}
-          <div className="shrink-0 border-b border-gray-200 dark:border-slate-700 px-2 py-1.5 flex items-center gap-1.5">
+           <div className="shrink-0 border-b border-surface-200 dark:border-surface-200 px-2 py-1.5 flex items-center gap-1.5">
             <div ref={dropdownRef} className="relative flex-1 min-w-0">
               <button
                 onClick={() => setDropdownOpen((o) => !o)}
-                className="w-full flex items-center justify-between gap-1 text-xs px-2 py-1 rounded border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-gray-700 dark:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-600 transition-colors truncate"
+                className="w-full flex items-center justify-between gap-1 text-xs px-2 py-1 rounded border border-surface-200 dark:border-surface-200 bg-surface dark:bg-surface-200 text-gray-700 dark:text-slate-200 hover:bg-surface-100 dark:hover:bg-surface-100 transition-colors truncate"
               >
                 <span className="truncate">
                   {activeSession?.name} ({activeSession?.messages.length} msgs)
                 </span>
-                <ChevronDown className={cn('h-3 w-3 shrink-0 text-gray-400 dark:text-slate-400 transition-transform', dropdownOpen && 'rotate-180')} />
+                <ChevronDown className={cn('h-3 w-3 shrink-0 text-gray-400 dark:text-slate-500 transition-transform', dropdownOpen && 'rotate-180')} />
               </button>
               {dropdownOpen && (
-                <div className="absolute top-full left-0 right-0 mt-1 z-50 rounded-md border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-800 shadow-lg max-h-48 overflow-y-auto">
+                <div className="absolute top-full left-0 right-0 mt-1 z-50 rounded-md border border-surface-200 dark:border-surface-200 bg-surface dark:bg-surface-200 shadow-lg max-h-48 overflow-y-auto">
                   {sessions.map((s) => (
                     <button
                       key={s.id}
@@ -411,8 +411,8 @@ export const ChatPanel = React.forwardRef<ChatPanelHandle, ChatPanelProps>(funct
                       className={cn(
                         'w-full text-left text-xs px-3 py-1.5 truncate transition-colors',
                         s.id === activeSessionId
-                          ? 'bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 font-medium'
-                          : 'text-gray-700 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700'
+                          ? 'bg-primary-light dark:bg-primary/12 text-primary font-medium'
+                          : 'text-gray-700 dark:text-slate-300 hover:bg-surface-100 dark:hover:bg-surface-100'
                       )}
                     >
                       {s.name} ({s.messages.length} msgs)
@@ -424,7 +424,7 @@ export const ChatPanel = React.forwardRef<ChatPanelHandle, ChatPanelProps>(funct
             <button
               onClick={handleNewSession}
               title="New chat"
-              className="p-1 rounded text-gray-400 dark:text-slate-500 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors"
+              className="p-1 rounded text-gray-400 dark:text-slate-500 hover:text-primary dark:hover:text-primary hover:bg-primary-light dark:hover:bg-primary/12 transition-colors"
             >
               <Plus className="h-3.5 w-3.5" />
             </button>
@@ -432,7 +432,7 @@ export const ChatPanel = React.forwardRef<ChatPanelHandle, ChatPanelProps>(funct
               <button
                 onClick={() => activeSession && handleDeleteSession(activeSession.id)}
                 title="Delete chat"
-                className="p-1 rounded text-gray-400 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                className="p-1 rounded text-gray-400 dark:text-slate-500 hover:text-danger dark:hover:text-danger hover:bg-danger-light dark:hover:bg-danger/12 transition-colors"
               >
                 <Trash2 className="h-3.5 w-3.5" />
               </button>
@@ -441,13 +441,13 @@ export const ChatPanel = React.forwardRef<ChatPanelHandle, ChatPanelProps>(funct
 
           {/* Agent selector */}
           {!agentsLoading && !modelsLoading && agents.length > 0 && (
-            <div className="shrink-0 border-b border-gray-200 dark:border-slate-700 px-2 py-1 flex items-center gap-1.5">
+            <div className="shrink-0 border-b border-surface-200 dark:border-surface-200 px-2 py-1 flex items-center gap-1.5">
               <span className="text-[10px] uppercase tracking-wide text-gray-400 dark:text-slate-500 shrink-0">Agent</span>
               <div className="relative flex-1 min-w-0">
                 <select
                   value={selectedAgentId}
                   onChange={handleAgentChange}
-                  className="w-full text-xs px-1.5 py-0.5 rounded border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-gray-700 dark:text-slate-200 appearance-none cursor-pointer"
+                  className="w-full text-xs px-1.5 py-0.5 rounded border border-surface-200 dark:border-surface-200 bg-surface dark:bg-surface-200 text-gray-700 dark:text-slate-200 appearance-none cursor-pointer"
                 >
                   {agents.map((a) => (
                     <option key={a.id} value={a.id}>
@@ -485,8 +485,8 @@ export const ChatPanel = React.forwardRef<ChatPanelHandle, ChatPanelProps>(funct
                 className={cn(
                   'text-sm leading-relaxed rounded-lg px-3 py-2 max-w-[90%]',
                   msg.role === 'user'
-                    ? 'bg-blue-500 text-white ml-auto'
-                    : 'bg-gray-100 dark:bg-slate-700 text-gray-800 dark:text-slate-200'
+                    ? 'bg-primary text-white ml-auto'
+                    : 'bg-surface-100 dark:bg-surface-200 text-gray-800 dark:text-slate-200'
                 )}
               >
                 <MessageContent content={msg.content} role={msg.role} />
@@ -499,7 +499,7 @@ export const ChatPanel = React.forwardRef<ChatPanelHandle, ChatPanelProps>(funct
               </div>
             )}
           </div>
-          <div className="border-t border-gray-200 dark:border-slate-700 p-2 shrink-0">
+          <div className="border-t border-surface-200 dark:border-surface-200 p-2 shrink-0">
             <div className="flex items-end gap-2">
               <textarea
                 value={input}
@@ -507,7 +507,7 @@ export const ChatPanel = React.forwardRef<ChatPanelHandle, ChatPanelProps>(funct
                 onKeyDown={handleKeyDown}
                 placeholder="Ask a question..."
                 rows={2}
-                className="flex-1 resize-none rounded-lg border border-surface-200 dark:border-surface-200 bg-white dark:bg-surface text-gray-900 dark:text-slate-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary placeholder:text-surface-100 dark:placeholder:text-surface-100"
+                className="flex-1 resize-none rounded-lg border border-surface-200 dark:border-surface-200 bg-surface dark:bg-surface-200 px-3 py-2 text-sm text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary placeholder:text-gray-400 dark:placeholder:text-slate-500"
                 disabled={loading}
               />
               <button
@@ -517,7 +517,7 @@ export const ChatPanel = React.forwardRef<ChatPanelHandle, ChatPanelProps>(funct
                   'p-2 rounded-lg transition-colors shrink-0',
                   input.trim() && !loading
                     ? 'bg-primary text-white hover:bg-primary-hover'
-                    : 'bg-surface-100 dark:bg-surface-100 text-surface-100 dark:text-surface-100 cursor-not-allowed'
+                    : 'bg-surface-100 dark:bg-surface-200 text-gray-400 dark:text-slate-500 cursor-not-allowed'
                 )}
               >
                 <Send className="h-4 w-4" />
