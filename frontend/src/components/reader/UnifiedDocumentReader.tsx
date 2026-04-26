@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { X, Sparkles, PanelLeft, PanelRight, BookOpen, MessageCircleQuestion } from 'lucide-react'
+import { X, Sparkles, PanelLeft, PanelRight, BookOpen, MessageCircleQuestion, Maximize, Minimize, ZoomIn, ZoomOut } from 'lucide-react'
 import ePub from 'epubjs'
 import { client } from '../../services'
 import { useKnowledgeTreeStore } from '../../stores/knowledge-tree-store'
@@ -10,6 +10,7 @@ import { usePendingContent, makePendingId } from '../../stores/pending-content-s
 import type { KnowledgeTreeQuestionType } from '../../types/api'
 import { PdfPagesView, type PdfPagesViewHandle } from './PdfPagesView'
 import { ResizeHandle } from './ResizeHandle'
+import { useGenerationSettings } from '../../stores/generation-settings'
 
 interface UnifiedDocumentReaderProps {
   doc: KnowledgeDocument
@@ -22,6 +23,8 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
   const [currentPage, setCurrentPage] = React.useState<number>(1)
   const [showLeft, setShowLeft] = React.useState(true)
   const [showRight, setShowRight] = React.useState(true)
+  const [isFullscreen, setIsFullscreen] = React.useState(false)
+  const [zoom, setZoom] = React.useState(1)
   const [contextMenu, setContextMenu] = React.useState<{ x: number; y: number; text: string } | null>(null)
   const epubContainerRef = React.useRef<HTMLDivElement>(null)
   const overlayRef = React.useRef<HTMLDivElement>(null)
@@ -30,6 +33,7 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
   const pendingAdd = usePendingContent((s) => s.add)
   const pendingUpdate = usePendingContent((s) => s.update)
   const pendingRemove = usePendingContent((s) => s.remove)
+  const { settings: genSettings } = useGenerationSettings()
 
   const [leftWidth, setLeftWidth] = React.useState(() => {
     try {
@@ -173,7 +177,7 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
     })
     openContentTab()
     try {
-      const draft = await client.draftFlashcard(treeId, chapter, text)
+      const draft = await client.draftFlashcard(treeId, chapter, text, genSettings.model)
       pendingUpdate(id, {
         status: 'ready',
         front: draft.front,
@@ -204,7 +208,7 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
     })
     openContentTab()
     try {
-      const draft = await client.draftQuestion(treeId, chapter, questionType, text)
+      const draft = await client.draftQuestion(treeId, chapter, questionType, text, genSettings.model)
       pendingUpdate(id, { status: 'ready', questionData: draft.question_data })
     } catch (e) {
       pendingUpdate(id, { status: 'error', error: (e as Error).message || 'Generation failed' })
@@ -222,6 +226,19 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
   }
 
   const hideContextMenu = () => setContextMenu(null)
+
+  const zoomIn = React.useCallback(() => setZoom((z) => Math.min(2, +(z + 0.1).toFixed(1))), [])
+  const zoomOut = React.useCallback(() => setZoom((z) => Math.max(0.5, +(z - 0.1).toFixed(1))), [])
+
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isFullscreen) {
+        setIsFullscreen(false)
+      }
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [isFullscreen])
 
   const renderChapterBanner = React.useCallback(
     (pageNumber: number) => {
@@ -246,18 +263,26 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
   return (
     <div
       ref={overlayRef}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+      className={cn(
+        'fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm',
+        isFullscreen ? 'p-0' : 'p-4'
+      )}
       onClick={(e) => {
         if (e.target === overlayRef.current) onClose()
       }}
     >
       <div
-        className="w-full h-full max-h-[95vh] max-w-[1600px] bg-white dark:bg-slate-900 rounded-xl shadow-2xl flex flex-col overflow-hidden animate-fade-in"
+        className={cn(
+          'w-full h-full bg-white dark:bg-slate-900 flex flex-col overflow-hidden animate-fade-in',
+          isFullscreen
+            ? 'max-h-full max-w-full rounded-none shadow-none'
+            : 'max-h-[95vh] max-w-[1600px] rounded-xl shadow-2xl'
+        )}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Top bar */}
         <div className="flex items-center justify-between px-4 py-2 border-b border-gray-200 dark:border-slate-700 shrink-0 bg-gray-50/80 dark:bg-slate-800/80">
-          <div className="flex items-center gap-3 min-w-0">
+          <div className="flex items-center gap-3 min-w-0 flex-1">
             <h2 className="text-sm font-semibold text-gray-800 dark:text-slate-200 truncate">{doc.title}</h2>
             {activeChapter !== null && (
               <span className="text-xs px-2 py-0.5 bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 rounded-full shrink-0">
@@ -265,7 +290,41 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
               </span>
             )}
           </div>
-          <div className="flex items-center gap-1">
+          {/* Zoom controls */}
+          {isPdf && (
+            <div className="flex items-center gap-0.5 bg-white dark:bg-slate-800 rounded-md shadow-sm border border-gray-200 dark:border-slate-700 px-1.5 py-0.5">
+              <button
+                onClick={zoomOut}
+                disabled={zoom <= 0.5}
+                className="p-0.5 rounded text-gray-400 hover:text-gray-700 dark:hover:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                aria-label="Zoom out"
+                title="Zoom out"
+              >
+                <ZoomOut className="h-3.5 w-3.5" />
+              </button>
+              <span className="text-xs tabular-nums text-gray-500 dark:text-slate-400 min-w-[3ch] text-center select-none">
+                {Math.round(zoom * 100)}%
+              </span>
+              <button
+                onClick={zoomIn}
+                disabled={zoom >= 2}
+                className="p-0.5 rounded text-gray-400 hover:text-gray-700 dark:hover:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                aria-label="Zoom in"
+                title="Zoom in"
+              >
+                <ZoomIn className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          )}
+          <div className="flex items-center gap-1 flex-1 justify-end">
+            <button
+              onClick={() => setIsFullscreen(!isFullscreen)}
+              className="p-1.5 rounded-md transition-colors text-gray-400 hover:text-gray-700 hover:bg-gray-100 dark:text-slate-500 dark:hover:text-slate-300 dark:hover:bg-slate-700"
+              aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+              title={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+            >
+              {isFullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
+            </button>
             {isPdf && (
               <button
                 onClick={() => setShowLeft(!showLeft)}
@@ -368,6 +427,7 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
             <PdfPagesView
               fileUrl={fileUrl}
               visiblePages={visiblePages}
+              zoom={zoom}
               renderPageHeader={renderChapterBanner}
               onCurrentPageChange={setCurrentPage}
               onContextMenu={handleContextMenu}

@@ -11,6 +11,7 @@ interface PdfPagesViewProps {
   fileUrl: string
   visiblePages?: number[] | null
   renderPageHeader?: (pageNumber: number) => React.ReactNode
+  zoom?: number
   onCurrentPageChange?: (pageNumber: number) => void
   onNumPagesChange?: (numPages: number) => void
   onContextMenu?: (e: React.MouseEvent) => void
@@ -30,6 +31,7 @@ export function PdfPagesView({
   fileUrl,
   visiblePages,
   renderPageHeader,
+  zoom = 1,
   onCurrentPageChange,
   onNumPagesChange,
   onContextMenu,
@@ -37,9 +39,10 @@ export function PdfPagesView({
   scrollRef,
 }: PdfPagesViewProps) {
   const [numPages, setNumPages] = React.useState(0)
-  const [containerWidth, setContainerWidth] = React.useState(() =>
+  const [baseWidth, setBaseWidth] = React.useState(() =>
     typeof window !== 'undefined' ? Math.min(800, window.innerWidth - SIDE_PADDING) : 800
   )
+  const displayWidth = Math.round(baseWidth * zoom)
   const [activePages, setActivePages] = React.useState<Set<number>>(() => new Set())
   const [estimatedPageHeight, setEstimatedPageHeight] = React.useState(FALLBACK_PAGE_HEIGHT)
 
@@ -70,7 +73,7 @@ export function PdfPagesView({
       const w = entries[0]?.contentRect.width
       if (!w) return
       const next = Math.min(800, Math.max(320, w - 32))
-      setContainerWidth((prev) => (Math.abs(prev - next) > 1 ? next : prev))
+      setBaseWidth((prev) => (Math.abs(prev - next) > 1 ? next : prev))
     })
     ro.observe(el)
     return () => ro.disconnect()
@@ -239,14 +242,14 @@ export function PdfPagesView({
                   <div className="bg-white dark:bg-slate-700 shadow-md">
                     <MemoPage
                       pageNumber={pageNumber}
-                      width={containerWidth}
+                      width={displayWidth}
                       onRenderSuccess={idx === 0 ? handleFirstPageRender : undefined}
                     />
                   </div>
                 ) : (
                   <div
                     className="bg-white shadow-md"
-                    style={{ width: containerWidth, height: estimatedPageHeight }}
+                    style={{ width: displayWidth, height: estimatedPageHeight }}
                   />
                 )}
                 <span className="mt-2 text-xs text-gray-400 dark:text-slate-500 select-none">
