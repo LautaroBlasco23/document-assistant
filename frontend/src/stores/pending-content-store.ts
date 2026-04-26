@@ -2,11 +2,13 @@ import { create } from 'zustand'
 import type { KnowledgeTreeQuestionType } from '../types/api'
 
 export type PendingContentStatus = 'generating' | 'ready' | 'saving' | 'error'
+export type PendingContentDisposition = 'approved' | 'rejected'
 
 export interface PendingFlashcard {
   id: string
   kind: 'flashcard'
   status: PendingContentStatus
+  disposition?: PendingContentDisposition
   chapter: number
   front: string
   back: string
@@ -18,6 +20,7 @@ export interface PendingQuestion {
   id: string
   kind: 'question'
   status: PendingContentStatus
+  disposition?: PendingContentDisposition
   chapter: number
   questionType: KnowledgeTreeQuestionType
   questionData: Record<string, unknown>

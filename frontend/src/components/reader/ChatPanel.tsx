@@ -188,7 +188,7 @@ export const ChatPanel = React.forwardRef<ChatPanelHandle, ChatPanelProps>(funct
 ) {
   const { settings } = useGenerationSettings()
   const [mode, setMode] = React.useState<PanelMode>('chat')
-  const pendingCount = usePendingContent((s) => s.items.length)
+  const pendingCount = usePendingContent((s) => s.items.filter((it) => !it.disposition).length)
   const [dropdownOpen, setDropdownOpen] = React.useState(false)
   const dropdownRef = React.useRef<HTMLDivElement>(null)
 
