@@ -174,7 +174,7 @@ export function ExamTab({ treeId, selectedChapter, chapters }: ExamTabProps) {
         <div className="flex flex-col gap-3">
           <div className="flex items-center gap-2">
             <Clock className="h-4 w-4 text-gray-400" />
-            <span className="text-sm font-medium text-gray-700">Exam History</span>
+            <span className="text-sm font-medium text-gray-700 dark:text-slate-200">Exam History</span>
           </div>
 
           <div className="flex flex-col gap-2">
@@ -194,7 +194,7 @@ export function ExamTab({ treeId, selectedChapter, chapters }: ExamTabProps) {
                       {session.correct_count}/{session.total_questions} correct
                     </Badge>
                   </div>
-                  <p className="text-xs text-gray-400 mt-0.5">{formatDate(session.created_at)}</p>
+                  <p className="text-xs text-gray-400 dark:text-slate-400 mt-0.5">{formatDate(session.created_at)}</p>
                 </div>
                 <ArrowRight className="h-4 w-4 shrink-0 text-gray-300" />
               </button>

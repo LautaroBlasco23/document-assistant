@@ -223,7 +223,7 @@ function TrueFalseList({
           >
             {q.answer ? 'True' : 'False'}
           </span>
-          <span className="text-gray-700 leading-relaxed flex-1">{q.statement}</span>
+          <span className="text-gray-700 dark:text-slate-200 leading-relaxed flex-1">{q.statement}</span>
           {onDelete && (
             <button
               onClick={() => onDelete(q.id)}
@@ -254,7 +254,7 @@ function MultipleChoiceList({
           className="rounded-md border border-surface-200 dark:border-surface-200 bg-surface-100 dark:bg-surface px-3 py-2"
         >
           <div className="flex items-start justify-between mb-1.5">
-            <p className="text-xs font-medium text-gray-700">{q.question}</p>
+            <p className="text-xs font-medium text-gray-700 dark:text-slate-200">{q.question}</p>
             {onDelete && (
               <button
                 onClick={() => onDelete(q.id)}
@@ -271,8 +271,8 @@ function MultipleChoiceList({
                 key={i}
                 className={`flex items-center gap-1.5 text-xs rounded px-1.5 py-0.5 ${
                   i === q.correctIndex
-                    ? 'text-green-700 bg-green-50'
-                    : 'text-gray-600'
+                    ? 'text-green-600 dark:text-green-400'
+                    : 'text-gray-600 dark:text-slate-300'
                 }`}
               >
                 {i === q.correctIndex ? (
@@ -302,7 +302,7 @@ function MatchingList({
       {questions.map((q) => (
         <li key={q.id} className="rounded-md border border-surface-200 dark:border-surface-200 bg-surface-100 dark:bg-surface px-3 py-2">
           <div className="flex items-start justify-between mb-1.5">
-            <p className="text-xs font-medium text-gray-700">{q.prompt}</p>
+            <p className="text-xs font-medium text-gray-700 dark:text-slate-200">{q.prompt}</p>
             {onDelete && (
               <button
                 onClick={() => onDelete(q.id)}
@@ -317,10 +317,10 @@ function MatchingList({
             <tbody>
               {q.pairs.map((pair, i) => (
                 <tr key={i} className={i % 2 === 0 ? 'bg-surface dark:bg-surface-200' : 'bg-surface-100 dark:bg-surface'}>
-                  <td className="rounded-l px-2 py-1 font-medium text-gray-700 w-36 align-top border border-surface-200 dark:border-surface-200">
+                  <td className="rounded-l px-2 py-1 font-medium text-gray-700 dark:text-slate-200 w-36 align-top border border-surface-200 dark:border-surface-200">
                     {pair.term}
                   </td>
-                  <td className="rounded-r px-2 py-1 text-gray-600 align-top border border-surface-200 dark:border-surface-200">
+                  <td className="rounded-r px-2 py-1 text-gray-600 dark:text-slate-300 align-top border border-surface-200 dark:border-surface-200">
                     {pair.definition}
                   </td>
                 </tr>
@@ -345,7 +345,7 @@ function CheckboxList({
       {questions.map((q) => (
         <li key={q.id} className="rounded-md border border-surface-200 dark:border-surface-200 bg-surface-100 dark:bg-surface px-3 py-2">
           <div className="flex items-start justify-between mb-1.5">
-            <p className="text-xs font-medium text-gray-700">{q.question}</p>
+            <p className="text-xs font-medium text-gray-700 dark:text-slate-200">{q.question}</p>
             {onDelete && (
               <button
                 onClick={() => onDelete(q.id)}
@@ -363,7 +363,9 @@ function CheckboxList({
                 <li
                   key={i}
                   className={`flex items-center gap-1.5 text-xs rounded px-1.5 py-0.5 ${
-                    correct ? 'text-green-700 bg-green-50' : 'text-gray-600'
+                    correct
+                      ? 'text-green-600 dark:text-green-400 border border-green-500 dark:border-green-500'
+                      : 'text-gray-600 dark:text-slate-300'
                   }`}
                 >
                   <span
@@ -786,9 +788,9 @@ export function ContentTab({ treeId, selectedChapter, chapters }: ContentTabProp
             onCreated={(id) => setAgent(id)}
           />
 
-          <p className="text-xs text-gray-500">
+          <p className="text-xs text-gray-500 dark:text-slate-400">
             Questions are generated from the knowledge documents in{' '}
-            <span className="font-medium text-gray-700">{currentChapter?.title}</span>.
+            <span className="font-medium text-gray-700 dark:text-slate-200">{currentChapter?.title}</span>.
             Make sure you&apos;ve added documents in the Knowledge Documents tab first.
           </p>
 
@@ -802,7 +804,7 @@ export function ContentTab({ treeId, selectedChapter, chapters }: ContentTabProp
 
           {/* Question generators */}
           <div className="flex flex-col gap-4">
-            <p className="text-xs text-gray-400">
+            <p className="text-xs text-gray-400 dark:text-slate-400">
               Generate each question type independently. All generated questions will be
               available in the Exam tab.
             </p>
