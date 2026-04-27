@@ -38,7 +38,7 @@ export function LoginPage() {
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="mt-1 block w-full rounded-md border border-surface-200 dark:border-surface-200 bg-surface dark:bg-surface-200 dark:text-slate-100 px-3 py-2 focus:border-primary focus:ring-primary"
+              className="mt-1 block w-full rounded-md border border-surface-200 dark:border-slate-600 bg-surface dark:bg-surface-100 dark:text-slate-100 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
               required
             />
           </div>
@@ -48,7 +48,7 @@ export function LoginPage() {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="mt-1 block w-full rounded-md border border-surface-200 dark:border-surface-200 bg-surface dark:bg-surface-200 dark:text-slate-100 px-3 py-2 focus:border-primary focus:ring-primary"
+              className="mt-1 block w-full rounded-md border border-surface-200 dark:border-slate-600 bg-surface dark:bg-surface-100 dark:text-slate-100 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
               required
             />
           </div>
