@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Plus, Pencil, Trash2, Check, X, FileText, Upload, BookOpen } from 'lucide-react'
+import { Plus, Pencil, Trash2, Check, X, FileText, Upload, BookOpen, Files } from 'lucide-react'
 import { Button } from '../../components/ui/button'
 import { Input } from '../../components/ui/input'
 import { Badge } from '../../components/ui/badge'
@@ -41,8 +41,10 @@ export function KnowledgeDocumentsTab({
   const [editor, setEditor] = React.useState<DocumentEditorState | null>(null)
   const [saving, setSaving] = React.useState(false)
   const [ingesting, setIngesting] = React.useState(false)
+  const [multiIngestProgress, setMultiIngestProgress] = React.useState<{ current: number; total: number } | null>(null)
   const [readerDoc, setReaderDoc] = React.useState<KnowledgeDocument | null>(null)
   const fileInputRef = React.useRef<HTMLInputElement>(null)
+  const multiFileInputRef = React.useRef<HTMLInputElement>(null)
 
   const key = docKey(treeId, selectedChapter)
   const docs = docsByKey[key] ?? []
@@ -97,6 +99,26 @@ export function KnowledgeDocumentsTab({
     }
   }
 
+  const handleIngestMultipleFiles = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? [])
+    if (files.length === 0 || selectedChapter === null) return
+    e.target.value = ''
+    setMultiIngestProgress({ current: 0, total: files.length })
+    try {
+      for (let i = 0; i < files.length; i++) {
+        setMultiIngestProgress({ current: i + 1, total: files.length })
+        try {
+          const { task_id } = await ingestFileAsDocument(treeId, selectedChapter, files[i])
+          await pollIngestTask(task_id, treeId, selectedChapter, selectedChapterId)
+        } catch {
+          addError(`Failed to import "${files[i].name}". Skipping.`)
+        }
+      }
+    } finally {
+      setMultiIngestProgress(null)
+    }
+  }
+
   const pollIngestTask = (
     taskId: string,
     tid: string,
@@ -134,17 +156,21 @@ export function KnowledgeDocumentsTab({
     await deleteDocument(doc.id, treeId, selectedChapter)
   }
 
-  const handleSaveMainDoc = async (doc: KnowledgeDocument, newContent: string) => {
+  const isMain = selectedChapter === null
+  const mainDoc = isMain ? docs.find((d) => d.is_main) : undefined
+
+  const handleSaveMainDoc = async (newContent: string) => {
     setSaving(true)
     try {
-      await updateDocument(doc.id, doc.title, newContent, treeId, null)
+      if (mainDoc) {
+        await updateDocument(mainDoc.id, mainDoc.title, newContent, treeId, null)
+      } else {
+        await createDocument(treeId, null, 'Overview', newContent, true)
+      }
     } finally {
       setSaving(false)
     }
   }
-
-  const isMain = selectedChapter === null
-  const mainDoc = isMain ? docs.find((d) => d.is_main) : undefined
 
   return (
     <div className="flex flex-col gap-3 min-w-0">
@@ -170,18 +196,45 @@ export function KnowledgeDocumentsTab({
               {editor === null && (
                 <div className="flex items-center gap-2">
                   <input
+                    ref={multiFileInputRef}
+                    type="file"
+                    accept=".pdf,.epub,.txt"
+                    multiple
+                    className="hidden"
+                    onChange={(e) => void handleIngestMultipleFiles(e)}
+                  />
+                  <input
                     ref={fileInputRef}
                     type="file"
-                    accept=".pdf,.epub"
+                    accept=".pdf,.epub,.txt"
                     className="hidden"
                     onChange={(e) => void handleIngestFile(e)}
                   />
                   <Button
                     variant="secondary"
                     size="sm"
+                    onClick={() => multiFileInputRef.current?.click()}
+                    disabled={ingesting || multiIngestProgress !== null}
+                    title="Import multiple PDF, EPUB, or TXT files at once"
+                  >
+                    {multiIngestProgress !== null ? (
+                      <>
+                        <div className="h-3.5 w-3.5 rounded-full border-2 border-primary border-t-transparent animate-spin mr-1" />
+                        {`Importing ${multiIngestProgress.current}/${multiIngestProgress.total}...`}
+                      </>
+                    ) : (
+                      <>
+                        <Files className="h-3.5 w-3.5 mr-1" />
+                        Import Multiple
+                      </>
+                    )}
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="sm"
                     onClick={() => fileInputRef.current?.click()}
-                    disabled={ingesting}
-                    title="Import from PDF or EPUB"
+                    disabled={ingesting || multiIngestProgress !== null}
+                    title="Import from PDF, EPUB, or TXT"
                   >
                     {ingesting ? (
                       <div className="h-3.5 w-3.5 rounded-full border-2 border-primary border-t-transparent animate-spin mr-1" />
@@ -264,7 +317,7 @@ export function KnowledgeDocumentsTab({
 interface MainDocEditorProps {
   doc: KnowledgeDocument | null
   saving: boolean
-  onSave: (doc: KnowledgeDocument, content: string) => Promise<void>
+  onSave: (content: string) => Promise<void>
 }
 
 function MainDocEditor({ doc, saving, onSave }: MainDocEditorProps) {
@@ -293,8 +346,8 @@ function MainDocEditor({ doc, saving, onSave }: MainDocEditorProps) {
           <Button
             variant="primary"
             size="sm"
-            onClick={() => doc && void onSave(doc, content)}
-            disabled={saving || !doc}
+            onClick={() => void onSave(content)}
+            disabled={saving}
           >
             <Check className="h-3.5 w-3.5 mr-1" />
             {saving ? 'Saving...' : 'Save'}
