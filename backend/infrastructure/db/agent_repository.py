@@ -45,7 +45,12 @@ class PostgresAgentRepository(AgentRepository):
             top_p=1.0,
             max_tokens=1024,
             is_default=True,
-            prompt="",
+            prompt=(
+                "You are a knowledgeable assistant specialized in helping users deeply understand "
+                "and retain the content of their documents. Your goal is to generate valuable "
+                "knowledge-related content — clear explanations, insightful summaries, and "
+                "connections between concepts — to support effective learning."
+            ),
         )
         return self.create(agent)
 
