@@ -731,10 +731,16 @@ def _ingest_file_background(
                 from infrastructure.ingest.pdf_loader import load_pdf as _load_pdf
 
                 doc = _load_pdf(tmp_path, file_hash, filename)
-            elif suffix in (".epub",):
+            elif suffix == ".epub":
                 from infrastructure.ingest.epub_loader import load_epub as _load_epub
 
                 doc = _load_epub(tmp_path, file_hash, filename)
+            elif suffix == ".txt":
+                from infrastructure.ingest.txt_loader import load_txt as _load_txt
+
+                doc = _load_txt(tmp_path, file_hash, filename)
+                if doc is None:
+                    raise ValueError(f"No text could be extracted from '{filename}'.")
             else:
                 raise ValueError(f"Unsupported file type: {suffix}")
 
@@ -822,8 +828,8 @@ async def ingest_document(
 
     filename = file.filename or "upload"
     suffix = Path(filename).suffix.lower()
-    if suffix not in (".pdf", ".epub"):
-        raise HTTPException(status_code=422, detail="Only PDF and EPUB files are supported")
+    if suffix not in (".pdf", ".epub", ".txt"):
+        raise HTTPException(status_code=422, detail="Only PDF, EPUB, and TXT files are supported")
 
     file_bytes = await file.read()
     task_id = services.task_registry.submit(
