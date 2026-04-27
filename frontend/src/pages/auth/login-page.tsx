@@ -6,17 +6,21 @@ export function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
   const { login } = useAuth()
   const navigate = useNavigate()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
+    setLoading(true)
     try {
       await login(email, password)
       navigate('/')
     } catch (err: any) {
       setError(err.message || 'Invalid credentials')
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -54,8 +58,15 @@ export function LoginPage() {
           </div>
           <button
             type="submit"
-            className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-hover focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
+            disabled={loading}
+            className="w-full flex justify-center items-center gap-2 py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-hover focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
           >
+            {loading && (
+              <span
+                className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"
+                aria-hidden="true"
+              />
+            )}
             Sign in
           </button>
         </form>
