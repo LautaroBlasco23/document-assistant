@@ -3,7 +3,7 @@ import { X, Sparkles, PanelLeft, PanelRight, MessageCircleQuestion, Maximize, Mi
 import ePub from 'epubjs'
 import { client } from '../../services'
 import { cn } from '../../lib/cn'
-import { extractPdfText } from '../../lib/pdf-text'
+import { extractPdfPages } from '../../lib/pdf-text'
 import type { KnowledgeDocument } from '../../types/knowledge-tree'
 import { PageSidebar } from './PageSidebar'
 import { ChatPanel, type ChatPanelHandle } from './ChatPanel'
@@ -27,7 +27,6 @@ export function DocumentReader({ doc, treeId, chapter, onClose }: DocumentReader
   const [showRight, setShowRight] = React.useState(true)
   const [isFullscreen, setIsFullscreen] = React.useState(false)
   const [zoom, setZoom] = React.useState(1)
-  const [pdfText, setPdfText] = React.useState<string>('')
   const [contextMenu, setContextMenu] = React.useState<{ x: number; y: number; text: string } | null>(null)
   const epubContainerRef = React.useRef<HTMLDivElement>(null)
   const overlayRef = React.useRef<HTMLDivElement>(null)
@@ -71,13 +70,10 @@ export function DocumentReader({ doc, treeId, chapter, onClose }: DocumentReader
   const isPdf = doc.source_file_name?.toLowerCase().endsWith('.pdf') || doc.source_file_path?.toLowerCase().endsWith('.pdf')
   const fileUrl = client.getDocumentFileUrl(treeId, doc.id)
 
-  // Extract PDF text for chat context
-  React.useEffect(() => {
-    if (!isPdf) return
-    extractPdfText(fileUrl)
-      .then(setPdfText)
-      .catch(() => setPdfText(''))
-  }, [fileUrl, isPdf])
+  const getContext = React.useCallback((): Promise<string> => {
+    if (!isPdf) return Promise.resolve('')
+    return extractPdfPages(fileUrl, Math.max(1, currentPage - 1), currentPage + 1).catch(() => '')
+  }, [fileUrl, isPdf, currentPage])
 
   // EPUB rendering
   React.useEffect(() => {
@@ -360,7 +356,7 @@ export function DocumentReader({ doc, treeId, chapter, onClose }: DocumentReader
             <div className="h-full">
               <ChatPanel
                 ref={chatPanelRef}
-                documentContext={pdfText}
+                getContext={getContext}
                 storageKey={`${treeId}:${doc.id}`}
                 treeId={treeId}
                 chapter={chapter}
@@ -409,6 +405,13 @@ export function DocumentReader({ doc, treeId, chapter, onClose }: DocumentReader
             >
               <Sparkles className="h-3.5 w-3.5 text-primary" />
               Multiple choice question
+            </button>
+            <button
+              onClick={() => handleMakeQuestion('checkbox')}
+              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-slate-300 hover:bg-surface-100 dark:hover:bg-surface-100 transition-colors"
+            >
+              <Sparkles className="h-3.5 w-3.5 text-accent" />
+              Select all that apply
             </button>
           </div>
         )}

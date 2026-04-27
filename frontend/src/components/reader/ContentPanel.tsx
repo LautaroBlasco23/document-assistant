@@ -417,6 +417,67 @@ function QuestionCard({
         />
       </>
     )
+  } else if (item.questionType === 'checkbox') {
+    const question = String(item.questionData.question ?? '')
+    const choices = (item.questionData.choices as string[] | undefined) ?? ['', '', '', '']
+    const correctIndices = (item.questionData.correct_indices as number[] | undefined) ?? []
+    const explanation = String(item.questionData.explanation ?? '')
+    const toggleCorrect = (i: number) => {
+      const next = correctIndices.includes(i)
+        ? correctIndices.filter((x) => x !== i)
+        : [...correctIndices, i]
+      setData({ correct_indices: next })
+    }
+    const setChoice = (i: number, v: string) => {
+      const next = [...choices]
+      next[i] = v
+      setData({ choices: next })
+    }
+    body = (
+      <>
+        <EditableField
+          label="Question"
+          value={question}
+          onChange={(v) => setData({ question: v })}
+          rows={2}
+          readOnly={resolved}
+        />
+        <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-500 dark:text-slate-500">
+          Choices (check all correct answers)
+        </span>
+        <div className="space-y-1 mt-1 mb-2">
+          {choices.map((c, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={correctIndices.includes(i)}
+                onChange={() => !resolved && toggleCorrect(i)}
+                disabled={resolved}
+                className="shrink-0"
+              />
+              <input
+                type="text"
+                value={c}
+                onChange={(e) => setChoice(i, e.target.value)}
+                readOnly={resolved}
+                className={cn(
+                  'flex-1 rounded border bg-surface dark:bg-surface-200 px-2 py-1 text-xs text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-primary',
+                  resolved
+                    ? 'border-surface-200 dark:border-surface-200 cursor-default pointer-events-none'
+                    : 'border-surface-200 dark:border-surface-200',
+                )}
+              />
+            </div>
+          ))}
+        </div>
+        <EditableField
+          label="Explanation (optional)"
+          value={explanation}
+          onChange={(v) => setData({ explanation: v })}
+          readOnly={resolved}
+        />
+      </>
+    )
   } else {
     body = (
       <pre className="text-xs whitespace-pre-wrap break-words text-gray-700 dark:text-slate-300">
@@ -429,7 +490,7 @@ function QuestionCard({
     true_false: 'True / False',
     multiple_choice: 'Multiple Choice',
     matching: 'Matching',
-    checkbox: 'Checkbox',
+    checkbox: 'Select All That Apply',
   }
 
   return (

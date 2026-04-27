@@ -20,7 +20,7 @@ interface ChatSession {
 }
 
 interface ChatPanelProps {
-  documentContext: string
+  getContext: () => Promise<string>
   storageKey: string
   treeId: string
   chapter: number | null
@@ -186,7 +186,7 @@ function MessageContent({ content, role }: { content: string; role: string }) {
 }
 
 export const ChatPanel = React.forwardRef<ChatPanelHandle, ChatPanelProps>(function ChatPanel(
-  { documentContext, storageKey, treeId, chapter },
+  { getContext, storageKey, treeId, chapter },
   ref,
 ) {
   const { settings, setAgent } = useGenerationSettings()
@@ -302,9 +302,10 @@ export const ChatPanel = React.forwardRef<ChatPanelHandle, ChatPanelProps>(funct
     setLoading(true)
 
     try {
+      const context = await getContext().catch(() => '')
       const res = await client.chat({
         messages: updatedMessages,
-        context: documentContext || null,
+        context: context || null,
         model: settings.model,
         agent_id: settings.agent_id,
       })

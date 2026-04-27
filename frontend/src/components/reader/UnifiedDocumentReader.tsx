@@ -111,11 +111,10 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
     return null
   }, [currentPage, chapterDocs, isPdf])
 
-  // Chat context = active chapter's content
-  const activeChapterContent = React.useMemo(() => {
-    if (!activeChapter) return ''
+  const getContext = React.useCallback((): Promise<string> => {
+    if (!activeChapter) return Promise.resolve('')
     const chDoc = chapterDocs.find((d) => d.chapter_number === activeChapter)
-    return chDoc?.content ?? ''
+    return Promise.resolve(chDoc?.content ?? '')
   }, [activeChapter, chapterDocs])
 
   // EPUB rendering
@@ -465,7 +464,7 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
             <div className="h-full">
               <ChatPanel
                 ref={chatPanelRef}
-                documentContext={activeChapterContent}
+                getContext={getContext}
                 storageKey={`${treeId}:${doc.id}:unified`}
                 treeId={treeId}
                 chapter={activeChapter}
@@ -514,6 +513,13 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
             >
               <Sparkles className="h-3.5 w-3.5 text-primary" />
               Multiple choice question
+            </button>
+            <button
+              onClick={() => handleMakeQuestion('checkbox')}
+              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-slate-300 hover:bg-surface-100 dark:hover:bg-surface-100 transition-colors"
+            >
+              <Sparkles className="h-3.5 w-3.5 text-accent" />
+              Select all that apply
             </button>
           </div>
         )}
