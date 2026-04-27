@@ -14,6 +14,13 @@ import type {
 interface KnowledgeExamSessionProps {
   questions: ExamQuestion[]
   onFinish: () => void
+  onSave?: (results: {
+    score: number
+    total_questions: number
+    correct_count: number
+    question_ids: string[]
+    results: Record<string, boolean>
+  }) => void
 }
 
 function shuffleArray<T>(arr: T[]): T[] {
@@ -657,11 +664,12 @@ function ResultsScreen({ questions, results, correctCount, total, onFinish }: Re
 // Main exam session
 // ---------------------------------------------------------------------------
 
-export function KnowledgeExamSession({ questions, onFinish }: KnowledgeExamSessionProps) {
+export function KnowledgeExamSession({ questions, onFinish, onSave }: KnowledgeExamSessionProps) {
   const [shuffledQuestions] = React.useState(() => shuffleArray(questions))
   const [currentIndex, setCurrentIndex] = React.useState(0)
   const [results, setResults] = React.useState<Record<number, boolean>>({})
   const [isComplete, setIsComplete] = React.useState(false)
+  const [hasSaved, setHasSaved] = React.useState(false)
 
   const total = shuffledQuestions.length
   const progressValue = total > 0 ? (currentIndex / total) * 100 : 0
@@ -679,6 +687,29 @@ export function KnowledgeExamSession({ questions, onFinish }: KnowledgeExamSessi
       setCurrentIndex(nextIndex)
     }
   }
+
+  // Save session when exam completes
+  React.useEffect(() => {
+    if (isComplete && !hasSaved && onSave) {
+      setHasSaved(true)
+      const correctCount = Object.values(results).filter(Boolean).length
+      const pct = total > 0 ? Math.round((correctCount / total) * 100) : 0
+      const questionResults: Record<string, boolean> = {}
+      for (const [idx, correct] of Object.entries(results)) {
+        const q = shuffledQuestions[Number(idx)]
+        if (q) {
+          questionResults[q.id] = correct
+        }
+      }
+      onSave({
+        score: pct,
+        total_questions: total,
+        correct_count: correctCount,
+        question_ids: shuffledQuestions.map((q) => q.id),
+        results: questionResults,
+      })
+    }
+  }, [isComplete, hasSaved, onSave, results, shuffledQuestions, total])
 
   if (isComplete) {
     const correctCount = Object.values(results).filter(Boolean).length

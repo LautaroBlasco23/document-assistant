@@ -9,6 +9,7 @@ from infrastructure.auth.jwt_handler import validate_jwt_config
 from infrastructure.config import AppConfig, load_config
 from infrastructure.db.agent_repository import PostgresAgentRepository
 from infrastructure.db.knowledge_tree_repository import (
+    PostgresExamSessionStore,
     PostgresFlashcardStore,
     PostgresKnowledgeChapterStore,
     PostgresKnowledgeContentStore,
@@ -45,6 +46,7 @@ class Services:
     kt_content_store: PostgresKnowledgeContentStore
     kt_question_store: PostgresKnowledgeQuestionStore
     kt_flashcard_store: PostgresFlashcardStore
+    kt_exam_store: PostgresExamSessionStore
     agent_store: PostgresAgentRepository
     _pg_pool: PostgresPool
 
@@ -83,6 +85,7 @@ def init_services(config: AppConfig | None = None) -> Services:
     kt_content_store = PostgresKnowledgeContentStore(pg_pool)
     kt_question_store = PostgresKnowledgeQuestionStore(pg_pool)
     kt_flashcard_store = PostgresFlashcardStore(pg_pool)
+    kt_exam_store = PostgresExamSessionStore(pg_pool)
     agent_store = PostgresAgentRepository(pg_pool)
 
     _services = Services(
@@ -99,6 +102,7 @@ def init_services(config: AppConfig | None = None) -> Services:
         kt_content_store=kt_content_store,
         kt_question_store=kt_question_store,
         kt_flashcard_store=kt_flashcard_store,
+        kt_exam_store=kt_exam_store,
         agent_store=agent_store,
         _pg_pool=pg_pool,
     )

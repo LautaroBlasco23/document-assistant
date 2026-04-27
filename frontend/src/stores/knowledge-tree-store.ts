@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { KnowledgeTree, KnowledgeChapter, KnowledgeDocument, ExamQuestion } from '../types/knowledge-tree'
+import type { KnowledgeTree, KnowledgeChapter, KnowledgeDocument, ExamQuestion, ExamSession, CreateExamSessionPayload } from '../types/knowledge-tree'
 import { mapApiQuestionToExamQuestion } from '../types/knowledge-tree'
 import type { KnowledgeTreeQuestionType, FlashcardOut } from '../types/api'
 import { client } from '../services'
@@ -29,6 +29,10 @@ interface KnowledgeTreeState {
   flashcardsByChapter: Record<QuestionChapterKey, FlashcardOut[]>
   flashcardsLoading: Record<QuestionChapterKey, boolean>
 
+  // Exam sessions keyed by `${treeId}:${chapterNumber}`
+  examSessionsByChapter: Record<QuestionChapterKey, ExamSession[]>
+  examSessionsLoading: Record<QuestionChapterKey, boolean>
+
   fetchTrees: () => Promise<void>
   createTree: (title: string, description?: string) => Promise<KnowledgeTree>
   updateTree: (id: string, title: string, description?: string) => Promise<KnowledgeTree>
@@ -56,6 +60,9 @@ interface KnowledgeTreeState {
   fetchFlashcards: (treeId: string, chapter: number) => Promise<void>
   deleteFlashcard: (treeId: string, chapter: number, flashcardId: string) => Promise<void>
   deleteAllFlashcards: (treeId: string, chapter: number) => Promise<void>
+
+  saveExamSession: (treeId: string, chapter: number, payload: CreateExamSessionPayload) => Promise<ExamSession>
+  fetchExamSessions: (treeId: string, chapter: number) => Promise<void>
 }
 
 function docKey(treeId: string, chapter: number | null) {
@@ -83,6 +90,8 @@ export const useKnowledgeTreeStore = create<KnowledgeTreeState>((set, get) => ({
   questionTaskIds: {},
   flashcardsByChapter: {},
   flashcardsLoading: {},
+  examSessionsByChapter: {},
+  examSessionsLoading: {},
 
   fetchTrees: async () => {
     set({ treesLoading: true })
@@ -302,6 +311,29 @@ export const useKnowledgeTreeStore = create<KnowledgeTreeState>((set, get) => ({
     await client.deleteAllKnowledgeTreeFlashcards(treeId, chapter)
     const key = questionKey(treeId, chapter)
     set((s) => ({ flashcardsByChapter: { ...s.flashcardsByChapter, [key]: [] } }))
+  },
+
+  saveExamSession: async (treeId, chapter, payload) => {
+    const session = await client.saveExamSession(treeId, chapter, payload)
+    const key = questionKey(treeId, chapter)
+    set((s) => ({
+      examSessionsByChapter: {
+        ...s.examSessionsByChapter,
+        [key]: [session, ...(s.examSessionsByChapter[key] ?? [])],
+      },
+    }))
+    return session
+  },
+
+  fetchExamSessions: async (treeId, chapter) => {
+    const key = questionKey(treeId, chapter)
+    set((s) => ({ examSessionsLoading: { ...s.examSessionsLoading, [key]: true } }))
+    try {
+      const sessions = await client.listExamSessions(treeId, chapter)
+      set((s) => ({ examSessionsByChapter: { ...s.examSessionsByChapter, [key]: sessions } }))
+    } finally {
+      set((s) => ({ examSessionsLoading: { ...s.examSessionsLoading, [key]: false } }))
+    }
   },
 }))
 

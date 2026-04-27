@@ -17,7 +17,7 @@ import type {
   ChatResponse,
 } from '../types/api'
 import type { ServiceClient } from './client.interface'
-import type { KnowledgeTree, KnowledgeChapter, KnowledgeDocument } from '../types/knowledge-tree'
+import type { KnowledgeTree, KnowledgeChapter, KnowledgeDocument, ExamSession, CreateExamSessionPayload } from '../types/knowledge-tree'
 
 // Detect if running in Electron
 const isElectron = typeof window !== 'undefined' && !!(window as Window & { desktopAPI?: unknown }).desktopAPI
@@ -416,6 +416,29 @@ export class RealClient implements ServiceClient {
     await httpClient.delete(
       `/knowledge-trees/${treeId}/chapters/${chapter}/flashcards`
     )
+  }
+
+  // Exam Sessions
+  async saveExamSession(treeId: string, chapter: number, payload: CreateExamSessionPayload): Promise<ExamSession> {
+    const res = await httpClient.post<ExamSession>(
+      `/knowledge-trees/${treeId}/chapters/${chapter}/exam-sessions`,
+      payload,
+    )
+    return res.data
+  }
+
+  async listExamSessions(treeId: string, chapter: number): Promise<ExamSession[]> {
+    const res = await httpClient.get<ExamSession[]>(
+      `/knowledge-trees/${treeId}/chapters/${chapter}/exam-sessions`
+    )
+    return res.data
+  }
+
+  async getExamSession(treeId: string, chapter: number, sessionId: string): Promise<ExamSession> {
+    const res = await httpClient.get<ExamSession>(
+      `/knowledge-trees/${treeId}/chapters/${chapter}/exam-sessions/${sessionId}`
+    )
+    return res.data
   }
 
   // Chat

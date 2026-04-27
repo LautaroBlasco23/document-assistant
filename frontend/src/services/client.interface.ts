@@ -14,7 +14,7 @@ import type {
   ChatRequest,
   ChatResponse,
 } from '../types/api'
-import type { KnowledgeTree, KnowledgeChapter, KnowledgeDocument } from '../types/knowledge-tree'
+import type { KnowledgeTree, KnowledgeChapter, KnowledgeDocument, ExamSession, CreateExamSessionPayload } from '../types/knowledge-tree'
 
 export interface ServiceClient {
   health(): Promise<HealthOut>
@@ -88,6 +88,11 @@ export interface ServiceClient {
   listChapterFlashcards(treeId: string, chapter: number): Promise<FlashcardOut[]>
   deleteKnowledgeTreeFlashcard(treeId: string, chapter: number, flashcardId: string): Promise<void>
   deleteAllKnowledgeTreeFlashcards(treeId: string, chapter: number): Promise<void>
+
+  // Exam Sessions
+  saveExamSession(treeId: string, chapter: number, payload: CreateExamSessionPayload): Promise<ExamSession>
+  listExamSessions(treeId: string, chapter: number): Promise<ExamSession[]>
+  getExamSession(treeId: string, chapter: number, sessionId: string): Promise<ExamSession>
 
   // Chat
   chat(request: ChatRequest): Promise<ChatResponse>

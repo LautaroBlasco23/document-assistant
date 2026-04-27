@@ -1,7 +1,6 @@
 import * as React from 'react'
 import {
   Sparkles,
-  GraduationCap,
   ToggleLeft,
   ListChecks,
   Link2,
@@ -15,7 +14,6 @@ import {
 import { Button } from '../../components/ui/button'
 import { Badge } from '../../components/ui/badge'
 import { Select } from '../../components/ui/select'
-import { KnowledgeExamSession } from './knowledge-exam-session'
 import { useKnowledgeTreeStore } from '../../stores/knowledge-tree-store'
 import { useGenerationSettings } from '../../stores/generation-settings'
 import { useAgents } from '../../hooks/use-agents'
@@ -28,7 +26,6 @@ import type {
   MultipleChoiceQuestion,
   MatchingQuestion,
   CheckboxQuestion,
-  ExamQuestion,
 } from '../../types/knowledge-tree'
 import type { KnowledgeTreeQuestionType, FlashcardOut } from '../../types/api'
 
@@ -275,7 +272,7 @@ function MultipleChoiceList({
                 className={`flex items-center gap-1.5 text-xs rounded px-1.5 py-0.5 ${
                   i === q.correctIndex
                     ? 'text-green-700 bg-green-50'
-                    : 'text-gray-500'
+                    : 'text-gray-600'
                 }`}
               >
                 {i === q.correctIndex ? (
@@ -305,7 +302,7 @@ function MatchingList({
       {questions.map((q) => (
         <li key={q.id} className="rounded-md border border-surface-200 dark:border-surface-200 bg-surface-100 dark:bg-surface px-3 py-2">
           <div className="flex items-start justify-between mb-1.5">
-            <p className="text-xs font-medium text-gray-600">{q.prompt}</p>
+            <p className="text-xs font-medium text-gray-700">{q.prompt}</p>
             {onDelete && (
               <button
                 onClick={() => onDelete(q.id)}
@@ -323,7 +320,7 @@ function MatchingList({
                   <td className="rounded-l px-2 py-1 font-medium text-gray-700 w-36 align-top border border-surface-200 dark:border-surface-200">
                     {pair.term}
                   </td>
-                  <td className="rounded-r px-2 py-1 text-gray-500 align-top border border-surface-200 dark:border-surface-200">
+                  <td className="rounded-r px-2 py-1 text-gray-600 align-top border border-surface-200 dark:border-surface-200">
                     {pair.definition}
                   </td>
                 </tr>
@@ -366,7 +363,7 @@ function CheckboxList({
                 <li
                   key={i}
                   className={`flex items-center gap-1.5 text-xs rounded px-1.5 py-0.5 ${
-                    correct ? 'text-green-700 bg-green-50' : 'text-gray-500'
+                    correct ? 'text-green-700 bg-green-50' : 'text-gray-600'
                   }`}
                 >
                   <span
@@ -417,72 +414,10 @@ function FlashcardList({
               </button>
             )}
           </div>
-          <p className="text-xs text-gray-500 dark:text-slate-400 leading-relaxed">{card.back}</p>
+          <p className="text-xs text-gray-600 dark:text-slate-300 leading-relaxed">{card.back}</p>
         </li>
       ))}
     </ul>
-  )
-}
-
-// ---------------------------------------------------------------------------
-// Exam ready screen
-// ---------------------------------------------------------------------------
-
-interface ExamTypeCount {
-  label: string
-  count: number
-}
-
-interface KnowledgeExamReadyProps {
-  typeCounts: ExamTypeCount[]
-  totalCount: number
-  onStart: () => void
-}
-
-function KnowledgeExamReady({ typeCounts, totalCount, onStart }: KnowledgeExamReadyProps) {
-  const hasQuestions = totalCount > 0
-
-  if (!hasQuestions) {
-    return (
-      <div className="flex flex-col items-center justify-center py-12 text-center gap-3">
-        <GraduationCap className="h-9 w-9 text-gray-200" />
-        <div>
-          <p className="text-sm font-medium text-gray-500">No questions generated yet</p>
-          <p className="text-xs text-gray-400 mt-1">
-            Generate at least one question type above to take an exam.
-          </p>
-        </div>
-      </div>
-    )
-  }
-
-  return (
-    <div className="flex flex-col gap-4">
-      <div className="rounded-lg border border-surface-200 dark:border-surface-200 bg-surface-100 dark:bg-surface p-4 flex flex-col gap-3">
-        <p className="text-sm text-gray-600">
-          Ready to start with{' '}
-          <span className="font-semibold text-gray-800">{totalCount}</span>{' '}
-          {totalCount === 1 ? 'question' : 'questions'} from the following types:
-        </p>
-
-        <div className="flex flex-col gap-1">
-          {typeCounts
-            .filter((t) => t.count > 0)
-            .map((t) => (
-              <div key={t.label} className="flex items-center justify-between text-xs">
-                <span className="text-gray-600">{t.label}</span>
-                <span className="font-medium text-gray-700">
-                  {t.count} {t.count === 1 ? 'question' : 'questions'}
-                </span>
-              </div>
-            ))}
-        </div>
-
-        <Button variant="primary" size="sm" onClick={onStart} className="self-start mt-1">
-          Start Exam
-        </Button>
-      </div>
-    </div>
   )
 }
 
@@ -754,7 +689,6 @@ function QuestionGenerator({
 // ---------------------------------------------------------------------------
 
 export function ContentTab({ treeId, selectedChapter, chapters }: ContentTabProps) {
-  const [examActive, setExamActive] = React.useState(false)
   const [agentDialogOpen, setAgentDialogOpen] = React.useState(false)
 
   const store = useKnowledgeTreeStore()
@@ -798,19 +732,6 @@ export function ContentTab({ treeId, selectedChapter, chapters }: ContentTabProp
   const handleQuestionsUpdated = () => {
     // Store update triggers re-render automatically
   }
-
-  const examQuestions: ExamQuestion[] = selectedChapter !== null
-    ? [...tfQuestions, ...mcQuestions, ...matchingQuestions, ...cbQuestions]
-    : []
-
-  const typeCounts: ExamTypeCount[] = selectedChapter !== null
-    ? [
-        { label: 'True / False', count: tfQuestions.length },
-        { label: 'Multiple Choice', count: mcQuestions.length },
-        { label: 'Matching', count: matchingQuestions.length },
-        { label: 'Checkbox', count: cbQuestions.length },
-      ]
-    : []
 
 
   return (
@@ -883,7 +804,7 @@ export function ContentTab({ treeId, selectedChapter, chapters }: ContentTabProp
           <div className="flex flex-col gap-4">
             <p className="text-xs text-gray-400">
               Generate each question type independently. All generated questions will be
-              available in the exam below.
+              available in the Exam tab.
             </p>
 
             <QuestionGenerator
@@ -941,26 +862,6 @@ export function ContentTab({ treeId, selectedChapter, chapters }: ContentTabProp
             >
               {(onDelete) => <CheckboxList questions={cbQuestions} onDelete={onDelete} />}
             </QuestionGenerator>
-          </div>
-
-          {/* Exam section */}
-          <div className="mt-2">
-            <div className="flex items-center gap-2 mb-3">
-              <GraduationCap className="h-4 w-4 text-gray-400" />
-              <span className="text-sm font-medium text-gray-700">Exam</span>
-            </div>
-            {examActive ? (
-              <KnowledgeExamSession
-                questions={examQuestions}
-                onFinish={() => setExamActive(false)}
-              />
-            ) : (
-              <KnowledgeExamReady
-                typeCounts={typeCounts}
-                totalCount={examQuestions.length}
-                onStart={() => setExamActive(true)}
-              />
-            )}
           </div>
         </>
       )}

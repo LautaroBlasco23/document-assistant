@@ -2,7 +2,7 @@ import { mockHealth } from '../mocks/health'
 import { mockConfig } from '../mocks/config'
 import { mockKnowledgeTrees, mockKnowledgeChapters, mockKnowledgeDocuments } from '../mocks/knowledge-trees'
 import { mockExamQuestions } from '../mocks/knowledge-exam'
-import type { KnowledgeTree, KnowledgeChapter, KnowledgeDocument } from '../types/knowledge-tree'
+import type { KnowledgeTree, KnowledgeChapter, KnowledgeDocument, ExamSession, CreateExamSessionPayload } from '../types/knowledge-tree'
 import type {
   HealthOut,
   ConfigOut,
@@ -501,6 +501,39 @@ export class MockClient implements ServiceClient {
 
   async deleteAllKnowledgeTreeFlashcards(_treeId: string, _chapter: number): Promise<void> {
     await delay(100)
+  }
+
+  // Exam Sessions
+  private examSessions: ExamSession[] = []
+
+  async saveExamSession(_treeId: string, _chapter: number, payload: CreateExamSessionPayload): Promise<ExamSession> {
+    await delay(150)
+    const session: ExamSession = {
+      id: `mock-es-${Math.random().toString(36).slice(2, 10)}`,
+      tree_id: _treeId,
+      chapter_id: '',
+      ...payload,
+      score: payload.score,
+      total_questions: payload.total_questions,
+      correct_count: payload.correct_count,
+      question_ids: payload.question_ids,
+      results: payload.results,
+      created_at: new Date().toISOString(),
+    }
+    this.examSessions.push(session)
+    return session
+  }
+
+  async listExamSessions(_treeId: string, _chapter: number): Promise<ExamSession[]> {
+    await delay(100)
+    return [...this.examSessions].reverse()
+  }
+
+  async getExamSession(_treeId: string, _chapter: number, sessionId: string): Promise<ExamSession> {
+    await delay(100)
+    const session = this.examSessions.find((s) => s.id === sessionId)
+    if (!session) throw new Error('Exam session not found')
+    return session
   }
 
   async chat(_request: ChatRequest): Promise<ChatResponse> {

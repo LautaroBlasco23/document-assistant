@@ -10,14 +10,16 @@ import { useAppStore } from '../../stores/app-store'
 import { KnowledgeDocumentsTab } from './knowledge-documents-tab'
 import { AllDocumentsTab } from './all-documents-tab'
 import { ContentTab } from './content-tab'
+import { ExamTab } from './exam-tab'
 import { EditKnowledgeTreeDialog } from '../library/edit-knowledge-tree-dialog'
 import type { KnowledgeChapter, KnowledgeTreeTab } from '../../types/knowledge-tree'
 
-const VALID_TABS: KnowledgeTreeTab[] = ['documents', 'content']
+const VALID_TABS: KnowledgeTreeTab[] = ['documents', 'content', 'exam']
 
 const TAB_LABELS: Record<KnowledgeTreeTab, string> = {
   documents: 'Knowledge Documents',
   content: 'Content',
+  exam: 'Exam',
 }
 
 function isValidTab(value: string | null): value is KnowledgeTreeTab {
@@ -354,6 +356,14 @@ export function KnowledgeTreePage() {
 
               <TabsContent value="content">
                 <ContentTab
+                  treeId={treeId}
+                  selectedChapter={selectedChapter}
+                  chapters={treeChapters}
+                />
+              </TabsContent>
+
+              <TabsContent value="exam">
+                <ExamTab
                   treeId={treeId}
                   selectedChapter={selectedChapter}
                   chapters={treeChapters}

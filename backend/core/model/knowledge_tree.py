@@ -53,6 +53,19 @@ class Flashcard:
 
 
 @dataclass
+class ExamSession:
+    id: UUID
+    tree_id: UUID
+    chapter_id: UUID
+    score: float
+    total_questions: int
+    correct_count: int
+    question_ids: list[str]
+    results: dict[str, bool]
+    created_at: datetime
+
+
+@dataclass
 class KnowledgeChunk:
     id: UUID
     tree_id: UUID

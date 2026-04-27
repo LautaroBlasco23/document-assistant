@@ -10,6 +10,7 @@ import psycopg
 from psycopg.pq import TransactionStatus
 
 from core.model.knowledge_tree import (
+    ExamSession,
     Flashcard,
     KnowledgeChapter,
     KnowledgeChunk,
@@ -586,6 +587,80 @@ class PostgresFlashcardStore(_BaseKnowledgeRepo):
         logger.debug(
             "Deleted all flashcards for tree=%s chapter=%s", str(tree_id)[:12], str(chapter_id)[:12]
         )
+
+
+class PostgresExamSessionStore(_BaseKnowledgeRepo):
+    """CRUD for exam_sessions table."""
+
+    def save_session(self, session: ExamSession) -> ExamSession:
+        with self._lock:
+            conn = self._conn()
+            with conn.transaction():
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "INSERT INTO exam_sessions"
+                        " (id, tree_id, chapter_id, score, total_questions,"
+                        "  correct_count, question_ids, results, created_at)"
+                        " VALUES (%s, %s, %s, %s, %s, %s, %s::jsonb, %s::jsonb, %s)"
+                        " RETURNING id, tree_id, chapter_id, score, total_questions,"
+                        "  correct_count, question_ids, results, created_at",
+                        (
+                            session.id,
+                            session.tree_id,
+                            session.chapter_id,
+                            session.score,
+                            session.total_questions,
+                            session.correct_count,
+                            json.dumps(session.question_ids),
+                            json.dumps(session.results),
+                            session.created_at,
+                        ),
+                    )
+                    row = cur.fetchone()
+        return _row_to_exam_session(row)
+
+    def list_sessions(self, tree_id: UUID, chapter_id: UUID) -> list[ExamSession]:
+        conn = self._conn()
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT id, tree_id, chapter_id, score, total_questions,"
+                "  correct_count, question_ids, results, created_at"
+                " FROM exam_sessions"
+                " WHERE tree_id = %s AND chapter_id = %s"
+                " ORDER BY created_at DESC",
+                (tree_id, chapter_id),
+            )
+            rows = cur.fetchall()
+        return [_row_to_exam_session(row) for row in rows]
+
+    def get_session(self, session_id: UUID) -> ExamSession | None:
+        conn = self._conn()
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT id, tree_id, chapter_id, score, total_questions,"
+                "  correct_count, question_ids, results, created_at"
+                " FROM exam_sessions"
+                " WHERE id = %s",
+                (session_id,),
+            )
+            row = cur.fetchone()
+        if row is None:
+            return None
+        return _row_to_exam_session(row)
+
+
+def _row_to_exam_session(row: dict) -> ExamSession:
+    return ExamSession(
+        id=row["id"],
+        tree_id=row["tree_id"],
+        chapter_id=row["chapter_id"],
+        score=row["score"],
+        total_questions=row["total_questions"],
+        correct_count=row["correct_count"],
+        question_ids=list(row["question_ids"]),
+        results={str(k): bool(v) for k, v in row["results"].items()},
+        created_at=_ensure_naive(row["created_at"]),
+    )
 
 
 def _row_to_doc(row: dict) -> KnowledgeDocument:

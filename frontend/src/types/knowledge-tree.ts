@@ -31,7 +31,7 @@ export interface KnowledgeDocument {
   page_end?: number
 }
 
-export type KnowledgeTreeTab = 'documents' | 'content'
+export type KnowledgeTreeTab = 'documents' | 'content' | 'exam'
 
 // --- Exam question types ---
 
@@ -144,4 +144,28 @@ export function mapApiQuestionToExamQuestion(q: KnowledgeTreeQuestionOut): ExamQ
     default:
       return null
   }
+}
+
+// ---------------------------------------------------------------------------
+// Exam session types
+// ---------------------------------------------------------------------------
+
+export interface ExamSession {
+  id: string
+  tree_id: string
+  chapter_id: string
+  score: number
+  total_questions: number
+  correct_count: number
+  question_ids: string[]
+  results: Record<string, boolean>
+  created_at: string
+}
+
+export interface CreateExamSessionPayload {
+  score: number
+  total_questions: number
+  correct_count: number
+  question_ids: string[]
+  results: Record<string, boolean>
 }

@@ -93,3 +93,26 @@ class DocumentPreviewOut(BaseModel):
     filename: str
     num_chapters: int
     chapters: list[ChapterPreviewOut]
+
+
+# --- Exam Sessions ---
+
+
+class CreateExamSessionRequest(BaseModel):
+    score: float
+    total_questions: int
+    correct_count: int
+    question_ids: list[str]
+    results: dict[str, bool]
+
+
+class ExamSessionOut(BaseModel):
+    id: str
+    tree_id: str
+    chapter_id: str
+    score: float
+    total_questions: int
+    correct_count: int
+    question_ids: list[str]
+    results: dict[str, bool]
+    created_at: str

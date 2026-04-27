@@ -20,8 +20,10 @@ from api.schemas.knowledge_tree import (
     ChapterPreviewOut,
     CreateChapterRequest,
     CreateDocumentRequest,
+    CreateExamSessionRequest,
     CreateTreeRequest,
     DocumentPreviewOut,
+    ExamSessionOut,
     KnowledgeChapterOut,
     KnowledgeChunkOut,
     KnowledgeDocumentOut,
@@ -37,7 +39,7 @@ from application.agents._tokens import truncate_tokens
 from application.agents.flashcard_generator import FlashcardGeneratorAgent
 from application.agents.question_generator import QuestionGeneratorAgent
 from core.model.chunk import Chunk, ChunkMetadata
-from core.model.knowledge_tree import Flashcard, KnowledgeChunk
+from core.model.knowledge_tree import ExamSession, Flashcard, KnowledgeChunk
 from core.model.question import Question, QuestionType
 from infrastructure.chunking.splitter import ChapterAwareSplitter
 from infrastructure.config import PROJECT_ROOT
@@ -1086,6 +1088,106 @@ async def delete_all_questions(
     """Delete all questions for a chapter, optionally filtered by type."""
     uid, chapter = _resolve_chapter(services, tree_id, number)
     services.kt_question_store.delete_all_questions(uid, chapter.id, question_type=type)
+
+
+# ---------------------------------------------------------------------------
+# Exam sessions
+# ---------------------------------------------------------------------------
+
+
+@router.post(
+    "/knowledge-trees/{tree_id}/chapters/{number}/exam-sessions",
+    response_model=ExamSessionOut,
+    status_code=201,
+)
+async def save_exam_session(
+    tree_id: str,
+    number: int,
+    req: CreateExamSessionRequest,
+    services: ServicesDep,
+) -> ExamSessionOut:
+    """Save the results of an exam session for a knowledge chapter."""
+    uid, chapter = _resolve_chapter(services, tree_id, number)
+
+    session = ExamSession(
+        id=uuid4(),
+        tree_id=uid,
+        chapter_id=chapter.id,
+        score=req.score,
+        total_questions=req.total_questions,
+        correct_count=req.correct_count,
+        question_ids=req.question_ids,
+        results=req.results,
+        created_at=datetime.now(),
+    )
+    saved = services.kt_exam_store.save_session(session)
+    return ExamSessionOut(
+        id=str(saved.id),
+        tree_id=str(saved.tree_id),
+        chapter_id=str(saved.chapter_id),
+        score=saved.score,
+        total_questions=saved.total_questions,
+        correct_count=saved.correct_count,
+        question_ids=saved.question_ids,
+        results=saved.results,
+        created_at=saved.created_at.isoformat(),
+    )
+
+
+@router.get(
+    "/knowledge-trees/{tree_id}/chapters/{number}/exam-sessions",
+    response_model=list[ExamSessionOut],
+)
+async def list_exam_sessions(
+    tree_id: str,
+    number: int,
+    services: ServicesDep,
+) -> list[ExamSessionOut]:
+    """List exam sessions for a knowledge chapter, newest first."""
+    uid, chapter = _resolve_chapter(services, tree_id, number)
+    sessions = services.kt_exam_store.list_sessions(uid, chapter.id)
+    return [
+        ExamSessionOut(
+            id=str(s.id),
+            tree_id=str(s.tree_id),
+            chapter_id=str(s.chapter_id),
+            score=s.score,
+            total_questions=s.total_questions,
+            correct_count=s.correct_count,
+            question_ids=s.question_ids,
+            results=s.results,
+            created_at=s.created_at.isoformat(),
+        )
+        for s in sessions
+    ]
+
+
+@router.get(
+    "/knowledge-trees/{tree_id}/chapters/{number}/exam-sessions/{session_id}",
+    response_model=ExamSessionOut,
+)
+async def get_exam_session(
+    tree_id: str,
+    number: int,
+    session_id: str,
+    services: ServicesDep,
+) -> ExamSessionOut:
+    """Get a single exam session by ID."""
+    sid = _parse_uuid(session_id, "session_id")
+    session = services.kt_exam_store.get_session(sid)
+    if session is None:
+        raise HTTPException(status_code=404, detail="Exam session not found")
+    return ExamSessionOut(
+        id=str(session.id),
+        tree_id=str(session.tree_id),
+        chapter_id=str(session.chapter_id),
+        score=session.score,
+        total_questions=session.total_questions,
+        correct_count=session.correct_count,
+        question_ids=session.question_ids,
+        results=session.results,
+        created_at=session.created_at.isoformat(),
+    )
 
 
 # ---------------------------------------------------------------------------
