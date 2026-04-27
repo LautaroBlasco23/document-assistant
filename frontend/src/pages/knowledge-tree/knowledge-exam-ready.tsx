@@ -38,31 +38,41 @@ export function KnowledgeExamReady({ typeCounts, totalCount, onStart }: Knowledg
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="rounded-lg border border-surface-200 dark:border-surface-200 bg-surface-100 dark:bg-surface p-4 flex flex-col gap-3">
-        <p className="text-sm text-gray-600">
-          Ready to start with{' '}
-          <span className="font-semibold text-gray-800">{totalCount}</span>{' '}
-          {totalCount === 1 ? 'question' : 'questions'} from the following types:
-        </p>
+    <div className="flex flex-col gap-3">
+      <p className="text-sm text-gray-600 dark:text-slate-300">
+        Ready to start with{' '}
+        <span className="font-semibold text-gray-800 dark:text-slate-100">{totalCount}</span>{' '}
+        {totalCount === 1 ? 'question' : 'questions'} from the following types:
+      </p>
 
-        <div className="flex flex-col gap-1">
+      <table style={{ width: 'auto', borderCollapse: 'collapse' }} className="text-xs border border-surface-200 dark:border-surface-200 rounded-lg overflow-hidden">
+        <thead>
+          <tr className="bg-surface-100 dark:bg-surface-200">
+            <th className="px-3 py-1.5 text-left font-medium text-gray-400 dark:text-slate-500 uppercase tracking-wide text-[10px] whitespace-nowrap">
+              Type
+            </th>
+            <th className="px-3 py-1.5 text-right font-medium text-gray-400 dark:text-slate-500 uppercase tracking-wide text-[10px]">
+              #
+            </th>
+          </tr>
+        </thead>
+        <tbody>
           {typeCounts
             .filter((t) => t.count > 0)
             .map((t) => (
-              <div key={t.label} className="flex items-center justify-between text-xs">
-                <span className="text-gray-600">{t.label}</span>
-                <span className="font-medium text-gray-700">
-                  {t.count} {t.count === 1 ? 'question' : 'questions'}
-                </span>
-              </div>
+              <tr key={t.label} className="border-t border-surface-200 dark:border-surface-200">
+                <td className="px-3 py-1.5 text-gray-600 dark:text-slate-300 whitespace-nowrap">{t.label}</td>
+                <td className="px-3 py-1.5 text-right font-medium tabular-nums text-gray-700 dark:text-slate-200">
+                  {t.count}
+                </td>
+              </tr>
             ))}
-        </div>
+        </tbody>
+      </table>
 
-        <Button variant="primary" size="sm" onClick={onStart} className="self-start mt-1">
-          Start Exam
-        </Button>
-      </div>
+      <Button variant="primary" size="sm" onClick={onStart} className="self-start mt-1">
+        Start Exam
+      </Button>
     </div>
   )
 }
