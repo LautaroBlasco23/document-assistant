@@ -54,6 +54,8 @@ frontend/dist/
 
 # Test coverage
 coverage/
+.coverage
+coverage.json
 .nyc_output/
 test-results/
 
