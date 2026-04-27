@@ -10,6 +10,7 @@ import type {
   DocumentPreviewOut,
   KnowledgeTreeQuestionType,
   KnowledgeTreeQuestionOut,
+  FlashcardOut,
   ChatRequest,
   ChatResponse,
 } from '../types/api'
@@ -76,6 +77,17 @@ export interface ServiceClient {
     chapter: number,
     questionId: string
   ): Promise<void>
+
+  deleteAllKnowledgeTreeQuestions(
+    treeId: string,
+    chapter: number,
+    type?: KnowledgeTreeQuestionType
+  ): Promise<void>
+
+  generateChapterFlashcards(treeId: string, chapter: number, numFlashcards?: number | null, model?: string, agentId?: string): Promise<{ task_id: string }>
+  listChapterFlashcards(treeId: string, chapter: number): Promise<FlashcardOut[]>
+  deleteKnowledgeTreeFlashcard(treeId: string, chapter: number, flashcardId: string): Promise<void>
+  deleteAllKnowledgeTreeFlashcards(treeId: string, chapter: number): Promise<void>
 
   // Chat
   chat(request: ChatRequest): Promise<ChatResponse>

@@ -7,10 +7,10 @@ import {
   Link2,
   CheckSquare,
   Check,
-  RefreshCw,
   Trash2,
   BookMarked,
   ChevronDown,
+  BookOpen,
 } from 'lucide-react'
 import { Button } from '../../components/ui/button'
 import { Badge } from '../../components/ui/badge'
@@ -30,7 +30,7 @@ import type {
   CheckboxQuestion,
   ExamQuestion,
 } from '../../types/knowledge-tree'
-import type { KnowledgeTreeQuestionType } from '../../types/api'
+import type { KnowledgeTreeQuestionType, FlashcardOut } from '../../types/api'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -109,6 +109,7 @@ interface GeneratorSectionProps {
   spinnerColor?: string
   progressMsg?: string | null
   onGenerate: () => void
+  onDeleteAll?: () => void
   numQuestionsControl?: React.ReactNode
   children: React.ReactNode
 }
@@ -122,9 +123,21 @@ function GeneratorSection({
   spinnerColor = 'border-primary',
   progressMsg,
   onGenerate,
+  onDeleteAll,
   numQuestionsControl,
   children,
 }: GeneratorSectionProps) {
+  const [confirmDelete, setConfirmDelete] = React.useState(false)
+
+  const handleDeleteAll = () => {
+    if (!confirmDelete) {
+      setConfirmDelete(true)
+      return
+    }
+    setConfirmDelete(false)
+    onDeleteAll?.()
+  }
+
   return (
     <div className="rounded-lg border border-surface-200 dark:border-surface-200 bg-surface dark:bg-surface-200 overflow-hidden">
       {/* Header */}
@@ -140,24 +153,28 @@ function GeneratorSection({
         </div>
         <div className="flex items-center gap-2">
           {numQuestionsControl}
+          {status === 'done' && onDeleteAll && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleDeleteAll}
+              onBlur={() => setConfirmDelete(false)}
+              className={confirmDelete ? 'text-red-500 h-7 px-2' : 'text-gray-300 h-7 px-2'}
+              title={confirmDelete ? 'Click again to confirm' : 'Delete all questions of this type'}
+            >
+              <Trash2 className="h-3 w-3 mr-1" />
+              {confirmDelete ? 'Confirm?' : 'Delete all'}
+            </Button>
+          )}
           {status !== 'loading' && (
             <Button
-              variant={status === 'done' ? 'ghost' : 'secondary'}
+              variant="secondary"
               size="sm"
               onClick={onGenerate}
-              className={status === 'done' ? 'text-gray-400 h-7 px-2' : 'h-7'}
+              className="h-7"
             >
-              {status === 'done' ? (
-                <>
-                  <RefreshCw className="h-3 w-3 mr-1" />
-                  Regenerate
-                </>
-              ) : (
-                <>
-                  <Sparkles className="h-3.5 w-3.5 mr-1" />
-                  Generate
-                </>
-              )}
+              <Sparkles className="h-3.5 w-3.5 mr-1" />
+              {status === 'done' ? 'Generate more' : 'Generate'}
             </Button>
           )}
         </div>
@@ -371,6 +388,43 @@ function CheckboxList({
 }
 
 // ---------------------------------------------------------------------------
+// Saved flashcard list
+// ---------------------------------------------------------------------------
+
+function FlashcardList({
+  flashcards,
+  onDelete,
+}: {
+  flashcards: FlashcardOut[]
+  onDelete?: (id: string) => void
+}) {
+  return (
+    <ul className="flex flex-col gap-2">
+      {flashcards.map((card) => (
+        <li
+          key={card.id}
+          className="rounded-md border border-surface-200 dark:border-surface-200 bg-surface-100 dark:bg-surface px-3 py-2"
+        >
+          <div className="flex items-start justify-between mb-1">
+            <p className="text-xs font-semibold text-gray-700 dark:text-slate-300 flex-1">{card.front}</p>
+            {onDelete && (
+              <button
+                onClick={() => onDelete(card.id)}
+                className="ml-2 shrink-0 text-gray-300 hover:text-red-400 transition-colors"
+                aria-label="Delete flashcard"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+          <p className="text-xs text-gray-500 dark:text-slate-400 leading-relaxed">{card.back}</p>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Exam ready screen
 // ---------------------------------------------------------------------------
 
@@ -433,6 +487,142 @@ function KnowledgeExamReady({ typeCounts, totalCount, onStart }: KnowledgeExamRe
 }
 
 // ---------------------------------------------------------------------------
+// Flashcard generator (bulk generation from chapter chunks)
+// ---------------------------------------------------------------------------
+
+interface FlashcardGeneratorProps {
+  treeId: string
+  chapter: number
+  flashcardCount: number
+  onFlashcardsUpdated: () => void
+}
+
+function FlashcardGenerator({ treeId, chapter, flashcardCount, onFlashcardsUpdated }: FlashcardGeneratorProps) {
+  const [taskId, setTaskId] = React.useState<string | null>(null)
+  const [status, setStatus] = React.useState<GenerateStatus>('idle')
+  const [numFlashcards, setNumFlashcards] = React.useState<number | null>(null)
+  const [confirmDeleteAll, setConfirmDeleteAll] = React.useState(false)
+
+  const store = useKnowledgeTreeStore()
+
+  React.useEffect(() => {
+    if (flashcardCount > 0 && status === 'idle') setStatus('done')
+    else if (flashcardCount === 0 && status === 'done') setStatus('idle')
+  }, [flashcardCount, status])
+
+  const { isPolling, progressMsg } = useQuestionGenerationTask({
+    taskId,
+    onComplete: () => {
+      void store.fetchFlashcards(treeId, chapter).then(() => {
+        onFlashcardsUpdated()
+        setStatus('done')
+        setTaskId(null)
+      })
+    },
+    onFail: () => {
+      setStatus('idle')
+      setTaskId(null)
+    },
+  })
+
+  React.useEffect(() => {
+    if (isPolling && status !== 'loading') setStatus('loading')
+  }, [isPolling, status])
+
+  const handleGenerate = async () => {
+    setStatus('loading')
+    try {
+      const id = await store.generateFlashcards(treeId, chapter, numFlashcards)
+      setTaskId(id)
+    } catch {
+      setStatus('idle')
+    }
+  }
+
+  const handleDeleteAll = async () => {
+    if (!confirmDeleteAll) { setConfirmDeleteAll(true); return }
+    setConfirmDeleteAll(false)
+    await store.deleteAllFlashcards(treeId, chapter)
+  }
+
+  const handleDeleteSingle = async (id: string) => {
+    await store.deleteFlashcard(treeId, chapter, id)
+  }
+
+  const chapterKey = `${treeId}:${chapter}`
+  const flashcards = store.flashcardsByChapter[chapterKey] ?? []
+
+  return (
+    <div className="rounded-lg border border-surface-200 dark:border-surface-200 bg-surface dark:bg-surface-200 overflow-hidden">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-surface-200 dark:border-surface-200 bg-surface-100 dark:bg-surface">
+        <div className="flex items-center gap-2">
+          <BookOpen className="h-4 w-4 text-emerald-400" />
+          <span className="text-sm font-medium text-gray-700 dark:text-slate-300">Flashcards</span>
+          {status === 'done' && (
+            <Badge variant="success" className="text-xs py-0">
+              {flashcardCount} {flashcardCount === 1 ? 'card' : 'cards'}
+            </Badge>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          {status === 'done' && flashcardCount > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => void handleDeleteAll()}
+              onBlur={() => setConfirmDeleteAll(false)}
+              className={confirmDeleteAll ? 'text-red-500 h-7 px-2' : 'text-gray-300 h-7 px-2'}
+              title={confirmDeleteAll ? 'Click again to confirm' : 'Delete all flashcards'}
+            >
+              <Trash2 className="h-3 w-3 mr-1" />
+              {confirmDeleteAll ? 'Confirm?' : 'Delete all'}
+            </Button>
+          )}
+          {status !== 'loading' && (
+            <Select
+              value={numFlashcards ?? ''}
+              onChange={(e) => {
+                const v = e.target.value
+                setNumFlashcards(v === '' ? null : Number(v))
+              }}
+              className="w-[168px] h-8 text-xs py-1"
+            >
+              <option value="" className="text-gray-900 dark:text-slate-100">Let the model choose</option>
+              <option value="5" className="text-gray-900 dark:text-slate-100">5 flashcards</option>
+              <option value="10" className="text-gray-900 dark:text-slate-100">10 flashcards</option>
+              <option value="20" className="text-gray-900 dark:text-slate-100">20 flashcards</option>
+              <option value="30" className="text-gray-900 dark:text-slate-100">30 flashcards</option>
+            </Select>
+          )}
+          {status !== 'loading' && (
+            <Button variant="secondary" size="sm" onClick={() => void handleGenerate()} className="h-7">
+              <Sparkles className="h-3.5 w-3.5 mr-1" />
+              {status === 'done' ? 'Generate more' : 'Generate'}
+            </Button>
+          )}
+        </div>
+      </div>
+      <div className="px-4 py-3">
+        {status === 'idle' && (
+          <p className="text-xs text-gray-400 dark:text-slate-500">
+            Generate flashcards from the knowledge documents, or approve individual ones from the PDF viewer.
+          </p>
+        )}
+        {status === 'loading' && (
+          <div className="flex items-center gap-2 text-xs text-gray-400 dark:text-slate-500 py-1">
+            <div className="h-3.5 w-3.5 rounded-full border-2 border-emerald-400 border-t-transparent animate-spin" />
+            {progressMsg ?? 'Generating flashcards from knowledge documents...'}
+          </div>
+        )}
+        {status === 'done' && (
+          <FlashcardList flashcards={flashcards} onDelete={(id) => void handleDeleteSingle(id)} />
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Per-question-type generator with task polling
 // ---------------------------------------------------------------------------
 
@@ -467,10 +657,11 @@ function QuestionGenerator({
 
   const store = useKnowledgeTreeStore()
 
-  // When questions exist in the store, show 'done' status
   React.useEffect(() => {
     if (questionCount > 0 && status === 'idle') {
       setStatus('done')
+    } else if (questionCount === 0 && status === 'done') {
+      setStatus('idle')
     }
   }, [questionCount, status])
 
@@ -489,7 +680,6 @@ function QuestionGenerator({
     },
   })
 
-  // Keep status in sync with polling state
   React.useEffect(() => {
     if (isPolling && status !== 'loading') {
       setStatus('loading')
@@ -510,6 +700,10 @@ function QuestionGenerator({
     await store.deleteQuestion(treeId, chapter, questionId)
   }
 
+  const handleDeleteAll = async () => {
+    await store.deleteAllQuestions(treeId, chapter, questionType)
+  }
+
   return (
     <GeneratorSection
       icon={icon}
@@ -520,6 +714,7 @@ function QuestionGenerator({
       spinnerColor={spinnerColor}
       progressMsg={progressMsg}
       onGenerate={() => void handleGenerate()}
+      onDeleteAll={questionCount > 0 ? () => void handleDeleteAll() : undefined}
       numQuestionsControl={
         status !== 'loading' && (
           <Select
@@ -587,7 +782,18 @@ export function ContentTab({ treeId, selectedChapter, chapters }: ContentTabProp
   const matchingQuestions = (questionsByType['matching'] ?? []) as MatchingQuestion[]
   const cbQuestions = (questionsByType['checkbox'] ?? []) as CheckboxQuestion[]
 
+  const flashcards: FlashcardOut[] = chapterKey ? (store.flashcardsByChapter[chapterKey] ?? []) : []
+
   const currentChapter = chapters.find((c) => c.number === selectedChapter)
+
+  // Load questions and flashcards when chapter is selected
+  React.useEffect(() => {
+    if (treeId && selectedChapter !== null) {
+      void store.fetchQuestions(treeId, selectedChapter)
+      void store.fetchFlashcards(treeId, selectedChapter)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [treeId, selectedChapter])
 
   const handleQuestionsUpdated = () => {
     // Store update triggers re-render automatically
@@ -605,6 +811,7 @@ export function ContentTab({ treeId, selectedChapter, chapters }: ContentTabProp
         { label: 'Checkbox', count: cbQuestions.length },
       ]
     : []
+
 
   return (
     <div className="flex flex-col gap-5">
@@ -663,6 +870,14 @@ export function ContentTab({ treeId, selectedChapter, chapters }: ContentTabProp
             <span className="font-medium text-gray-700">{currentChapter?.title}</span>.
             Make sure you&apos;ve added documents in the Knowledge Documents tab first.
           </p>
+
+          {/* Flashcards section — top */}
+          <FlashcardGenerator
+            treeId={treeId}
+            chapter={selectedChapter}
+            flashcardCount={flashcards.length}
+            onFlashcardsUpdated={handleQuestionsUpdated}
+          />
 
           {/* Question generators */}
           <div className="flex flex-col gap-4">

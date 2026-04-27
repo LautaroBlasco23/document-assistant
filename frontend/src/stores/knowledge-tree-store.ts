@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import type { KnowledgeTree, KnowledgeChapter, KnowledgeDocument, ExamQuestion } from '../types/knowledge-tree'
 import { mapApiQuestionToExamQuestion } from '../types/knowledge-tree'
-import type { KnowledgeTreeQuestionType } from '../types/api'
+import type { KnowledgeTreeQuestionType, FlashcardOut } from '../types/api'
 import { client } from '../services'
 import { useGenerationSettings } from './generation-settings'
 
@@ -25,6 +25,10 @@ interface KnowledgeTreeState {
   // Task ids for question generation, keyed by `${treeId}:${chapterNumber}:${questionType}`
   questionTaskIds: Record<string, string>
 
+  // Flashcards keyed by `${treeId}:${chapterNumber}`
+  flashcardsByChapter: Record<QuestionChapterKey, FlashcardOut[]>
+  flashcardsLoading: Record<QuestionChapterKey, boolean>
+
   fetchTrees: () => Promise<void>
   createTree: (title: string, description?: string) => Promise<KnowledgeTree>
   updateTree: (id: string, title: string, description?: string) => Promise<KnowledgeTree>
@@ -46,6 +50,12 @@ interface KnowledgeTreeState {
   generateQuestions: (treeId: string, chapter: number, questionType: KnowledgeTreeQuestionType, numQuestions?: number | null) => Promise<string>
   fetchQuestions: (treeId: string, chapter: number) => Promise<void>
   deleteQuestion: (treeId: string, chapter: number, questionId: string) => Promise<void>
+  deleteAllQuestions: (treeId: string, chapter: number, questionType?: KnowledgeTreeQuestionType) => Promise<void>
+
+  generateFlashcards: (treeId: string, chapter: number, numFlashcards?: number | null) => Promise<string>
+  fetchFlashcards: (treeId: string, chapter: number) => Promise<void>
+  deleteFlashcard: (treeId: string, chapter: number, flashcardId: string) => Promise<void>
+  deleteAllFlashcards: (treeId: string, chapter: number) => Promise<void>
 }
 
 function docKey(treeId: string, chapter: number | null) {
@@ -71,6 +81,8 @@ export const useKnowledgeTreeStore = create<KnowledgeTreeState>((set, get) => ({
   questionsByType: {},
   questionsLoading: {},
   questionTaskIds: {},
+  flashcardsByChapter: {},
+  flashcardsLoading: {},
 
   fetchTrees: async () => {
     set({ treesLoading: true })
@@ -250,8 +262,46 @@ export const useKnowledgeTreeStore = create<KnowledgeTreeState>((set, get) => ({
       }
       return { questionsByType: { ...s.questionsByType, [key]: updated } }
     })
-    // Rehydrate from server to ensure consistency
     void get().fetchQuestions(treeId, chapter)
+  },
+
+  deleteAllQuestions: async (treeId, chapter, questionType) => {
+    await client.deleteAllKnowledgeTreeQuestions(treeId, chapter, questionType)
+    await get().fetchQuestions(treeId, chapter)
+  },
+
+  generateFlashcards: async (treeId, chapter, numFlashcards = undefined) => {
+    const { model, agent_id } = useGenerationSettings.getState().settings
+    const { task_id } = await client.generateChapterFlashcards(treeId, chapter, numFlashcards, model, agent_id)
+    return task_id
+  },
+
+  fetchFlashcards: async (treeId, chapter) => {
+    const key = questionKey(treeId, chapter)
+    set((s) => ({ flashcardsLoading: { ...s.flashcardsLoading, [key]: true } }))
+    try {
+      const cards = await client.listChapterFlashcards(treeId, chapter)
+      set((s) => ({ flashcardsByChapter: { ...s.flashcardsByChapter, [key]: cards } }))
+    } finally {
+      set((s) => ({ flashcardsLoading: { ...s.flashcardsLoading, [key]: false } }))
+    }
+  },
+
+  deleteFlashcard: async (treeId, chapter, flashcardId) => {
+    await client.deleteKnowledgeTreeFlashcard(treeId, chapter, flashcardId)
+    const key = questionKey(treeId, chapter)
+    set((s) => ({
+      flashcardsByChapter: {
+        ...s.flashcardsByChapter,
+        [key]: (s.flashcardsByChapter[key] ?? []).filter((f) => f.id !== flashcardId),
+      },
+    }))
+  },
+
+  deleteAllFlashcards: async (treeId, chapter) => {
+    await client.deleteAllKnowledgeTreeFlashcards(treeId, chapter)
+    const key = questionKey(treeId, chapter)
+    set((s) => ({ flashcardsByChapter: { ...s.flashcardsByChapter, [key]: [] } }))
   },
 }))
 

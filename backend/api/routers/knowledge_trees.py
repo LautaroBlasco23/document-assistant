@@ -32,6 +32,8 @@ from api.schemas.knowledge_tree import (
 )
 from api.schemas.question import GenerateQuestionsRequest, QuestionOut
 from api.tasks import Task
+from application.agents._batching import chunks_around_selection
+from application.agents._tokens import truncate_tokens
 from application.agents.flashcard_generator import FlashcardGeneratorAgent
 from application.agents.question_generator import QuestionGeneratorAgent
 from core.model.chunk import Chunk, ChunkMetadata
@@ -1071,6 +1073,21 @@ async def delete_question(
     services.kt_question_store.delete_question(q_uid)
 
 
+@router.delete(
+    "/knowledge-trees/{tree_id}/chapters/{number}/questions",
+    status_code=204,
+)
+async def delete_all_questions(
+    tree_id: str,
+    number: int,
+    services: ServicesDep,
+    type: str | None = None,
+) -> None:
+    """Delete all questions for a chapter, optionally filtered by type."""
+    uid, chapter = _resolve_chapter(services, tree_id, number)
+    services.kt_question_store.delete_all_questions(uid, chapter.id, question_type=type)
+
+
 # ---------------------------------------------------------------------------
 # Flashcards for a chapter
 # ---------------------------------------------------------------------------
@@ -1105,6 +1122,46 @@ def _flashcard_background(
         raise
 
 
+@router.get("/knowledge-trees/{tree_id}/chapters/{number}/flashcards")
+async def list_flashcards(
+    tree_id: str, number: int, services: ServicesDep
+) -> list[dict]:
+    """List saved flashcards for a chapter."""
+    uid, chapter = _resolve_chapter(services, tree_id, number)
+    cards = services.kt_flashcard_store.list_flashcards(uid, chapter.id)
+    return [
+        {
+            "id": str(c.id),
+            "front": c.front,
+            "back": c.back,
+            "source_text": c.source_text,
+            "created_at": c.created_at.isoformat(),
+        }
+        for c in cards
+    ]
+
+
+@router.delete("/knowledge-trees/{tree_id}/chapters/{number}/flashcards", status_code=204)
+async def delete_all_flashcards(
+    tree_id: str, number: int, services: ServicesDep
+) -> None:
+    """Delete all flashcards for a chapter."""
+    uid, chapter = _resolve_chapter(services, tree_id, number)
+    services.kt_flashcard_store.delete_all_flashcards(uid, chapter.id)
+
+
+@router.delete(
+    "/knowledge-trees/{tree_id}/chapters/{number}/flashcards/{flashcard_id}",
+    status_code=204,
+)
+async def delete_flashcard(
+    tree_id: str, number: int, flashcard_id: str, services: ServicesDep
+) -> None:
+    """Delete a single flashcard by ID."""
+    f_uid = _parse_uuid(flashcard_id, "flashcard_id")
+    services.kt_flashcard_store.delete_flashcard(f_uid)
+
+
 @router.post("/knowledge-trees/{tree_id}/chapters/{number}/flashcards", status_code=202)
 async def generate_flashcard(
     tree_id: str, number: int, req: GenerateFlashcardRequest, services: ServicesDep
@@ -1127,6 +1184,112 @@ async def generate_flashcard(
         task_type="kt_flashcard",
     )
     return {"task_id": task_id, "task_type": "kt_flashcard"}
+
+
+# ---------------------------------------------------------------------------
+# Bulk flashcard generation from chapter content
+# ---------------------------------------------------------------------------
+
+
+class GenerateFlashcardsRequest(BaseModel):
+    num_flashcards: int | None = None
+    model: str | None = None
+    agent_id: str | None = None
+
+
+def _flashcards_bulk_background(
+    task: Task,
+    tree_id: UUID,
+    chapter_id: UUID,
+    chapter_number: int,
+    services: ServicesDep,
+    num_flashcards: int | None = None,
+    model: str | None = None,
+    agent_id: str | None = None,
+) -> dict:
+    """Background task: generate multiple flashcards for a chapter from its chunks."""
+    t0 = time.perf_counter()
+    try:
+        _set_progress(task, 5, f"Retrieving chunks for chapter {chapter_number}...")
+        kt_chunks = services.kt_content_store.get_chunks(tree_id, chapter_number)
+        if not kt_chunks:
+            raise ValueError(f"No content found for chapter {chapter_number}")
+
+        chunks = [
+            Chunk(
+                text=kc.text,
+                token_count=kc.token_count,
+                metadata=ChunkMetadata(
+                    source_file=str(kc.tree_id),
+                    chapter_index=chapter_number - 1,
+                    page_number=0,
+                    start_char=0,
+                    end_char=0,
+                ),
+            )
+            for kc in kt_chunks
+        ]
+
+        _set_progress(task, 15, "Starting flashcard generation...")
+        llm, agent_prompt = _resolve_agent_llm(services, model, agent_id, services.fast_llm)
+        agent = FlashcardGeneratorAgent(llm)
+
+        def on_progress(batch_i: int, total_batches: int) -> None:
+            pct = 15 + int((batch_i / total_batches) * 75) if total_batches > 0 else 90
+            _set_progress(task, pct, f"Generating flashcards... batch {batch_i}/{total_batches}")
+
+        flashcards = agent.generate_batch(
+            chunks,
+            tree_id=tree_id,
+            chapter_id=chapter_id,
+            num_flashcards=num_flashcards,
+            agent_prompt=agent_prompt or None,
+            on_progress=on_progress,
+        )
+
+        _set_progress(task, 90, f"Saving {len(flashcards)} flashcards...")
+        for card in flashcards:
+            services.kt_flashcard_store.save_flashcard(card)
+
+        _set_progress(task, 100, "Done")
+        elapsed = time.perf_counter() - t0
+        logger.info(
+            "Generated %d flashcards for chapter %d in %.1fs",
+            len(flashcards), chapter_number, elapsed,
+        )
+        return {"count": len(flashcards)}
+    except Exception as e:
+        logger.error("Bulk flashcard generation failed: %s", e)
+        raise
+
+
+@router.post(
+    "/knowledge-trees/{tree_id}/chapters/{number}/flashcards/generate",
+    status_code=202,
+)
+async def generate_flashcards_bulk(
+    tree_id: str,
+    number: int,
+    services: ServicesDep,
+    req: GenerateFlashcardsRequest | None = None,
+) -> dict:
+    """Start background bulk flashcard generation from chapter chunks."""
+    uid, chapter = _resolve_chapter(services, tree_id, number)
+    num_flashcards = req.num_flashcards if req else None
+    model = req.model if req else None
+    agent_id = req.agent_id if req else None
+    task_id = services.task_registry.submit(
+        _flashcards_bulk_background,
+        uid,
+        chapter.id,
+        number,
+        services,
+        num_flashcards,
+        model,
+        agent_id,
+        task_type="kt_flashcards_bulk",
+    )
+    return {"task_id": task_id, "task_type": "kt_flashcards_bulk"}
 
 
 # ---------------------------------------------------------------------------
@@ -1170,9 +1333,17 @@ def _resolve_chapter(services: ServicesDep, tree_id: str, number: int):
     return uid, chapter
 
 
-def _chapter_context(services: ServicesDep, tree_id: UUID, number: int) -> str:
+def _chapter_context(
+    services: ServicesDep,
+    tree_id: UUID,
+    number: int,
+    selected_text: str = "",
+    max_tokens: int = 4000,
+) -> str:
     chunks = services.kt_content_store.get_chunks(tree_id, number)
-    return "\n\n".join(c.text for c in chunks if c.text)
+    window = chunks_around_selection(chunks, selected_text, neighbors=1)
+    joined = "\n\n".join(c.text for c in window if c.text)
+    return truncate_tokens(joined, max_tokens)
 
 
 @router.post("/knowledge-trees/{tree_id}/chapters/{number}/flashcards/draft")
@@ -1183,7 +1354,7 @@ async def draft_flashcard(
     uid, chapter = _resolve_chapter(services, tree_id, number)
     if not req.selected_text.strip():
         raise HTTPException(status_code=400, detail="selected_text is required")
-    context = _chapter_context(services, uid, number)
+    context = _chapter_context(services, uid, number, selected_text=req.selected_text)
     llm, agent_prompt = _resolve_agent_llm(services, req.model, req.agent_id, services.fast_llm)
     agent = FlashcardGeneratorAgent(llm)
     try:
@@ -1230,7 +1401,7 @@ async def draft_question(
     uid, chapter = _resolve_chapter(services, tree_id, number)
     if not req.selected_text.strip():
         raise HTTPException(status_code=400, detail="selected_text is required")
-    context = _chapter_context(services, uid, number)
+    context = _chapter_context(services, uid, number, selected_text=req.selected_text)
     llm, agent_prompt = _resolve_agent_llm(services, req.model, req.agent_id, services.fast_llm)
     agent = QuestionGeneratorAgent(llm)
     try:

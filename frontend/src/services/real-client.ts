@@ -12,6 +12,7 @@ import type {
   DocumentPreviewOut,
   KnowledgeTreeQuestionType,
   KnowledgeTreeQuestionOut,
+  FlashcardOut,
   ChatRequest,
   ChatResponse,
 } from '../types/api'
@@ -366,6 +367,54 @@ export class RealClient implements ServiceClient {
   ): Promise<void> {
     await httpClient.delete(
       `/knowledge-trees/${treeId}/chapters/${chapter}/questions/${questionId}`
+    )
+  }
+
+  async deleteAllKnowledgeTreeQuestions(
+    treeId: string,
+    chapter: number,
+    type?: KnowledgeTreeQuestionType
+  ): Promise<void> {
+    const params = type ? `?type=${type}` : ''
+    await httpClient.delete(
+      `/knowledge-trees/${treeId}/chapters/${chapter}/questions${params}`
+    )
+  }
+
+  async generateChapterFlashcards(
+    treeId: string,
+    chapter: number,
+    numFlashcards?: number | null,
+    model?: string,
+    agentId?: string,
+  ): Promise<{ task_id: string }> {
+    const body: Record<string, unknown> = {}
+    if (numFlashcards) body.num_flashcards = numFlashcards
+    if (model) body.model = model
+    if (agentId) body.agent_id = agentId
+    const res = await httpClient.post<{ task_id: string }>(
+      `/knowledge-trees/${treeId}/chapters/${chapter}/flashcards/generate`,
+      body,
+    )
+    return res.data
+  }
+
+  async listChapterFlashcards(treeId: string, chapter: number): Promise<FlashcardOut[]> {
+    const res = await httpClient.get<FlashcardOut[]>(
+      `/knowledge-trees/${treeId}/chapters/${chapter}/flashcards`
+    )
+    return res.data
+  }
+
+  async deleteKnowledgeTreeFlashcard(treeId: string, chapter: number, flashcardId: string): Promise<void> {
+    await httpClient.delete(
+      `/knowledge-trees/${treeId}/chapters/${chapter}/flashcards/${flashcardId}`
+    )
+  }
+
+  async deleteAllKnowledgeTreeFlashcards(treeId: string, chapter: number): Promise<void> {
+    await httpClient.delete(
+      `/knowledge-trees/${treeId}/chapters/${chapter}/flashcards`
     )
   }
 

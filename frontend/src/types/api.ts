@@ -84,6 +84,14 @@ export interface KnowledgeTreeQuestionOut {
   created_at: string
 }
 
+export interface FlashcardOut {
+  id: string
+  front: string
+  back: string
+  source_text: string | null
+  created_at: string
+}
+
 export interface ChatMessage {
   role: string
   content: string

@@ -488,6 +488,32 @@ class PostgresKnowledgeQuestionStore(_BaseKnowledgeRepo):
                     )
         logger.debug("Deleted question id=%s", str(question_id))
 
+    def delete_all_questions(
+        self,
+        tree_id: UUID,
+        chapter_id: UUID,
+        question_type: str | None = None,
+    ) -> None:
+        with self._lock:
+            conn = self._conn()
+            with conn.transaction():
+                with conn.cursor() as cur:
+                    if question_type is not None:
+                        cur.execute(
+                            "DELETE FROM knowledge_tree_questions"
+                            " WHERE tree_id = %s AND chapter_id = %s AND question_type = %s",
+                            (tree_id, chapter_id, question_type),
+                        )
+                    else:
+                        cur.execute(
+                            "DELETE FROM knowledge_tree_questions"
+                            " WHERE tree_id = %s AND chapter_id = %s",
+                            (tree_id, chapter_id),
+                        )
+        logger.debug(
+            "Deleted all questions for tree=%s chapter=%s", str(tree_id)[:12], str(chapter_id)[:12]
+        )
+
 
 class PostgresFlashcardStore(_BaseKnowledgeRepo):
     """CRUD for flashcards table."""
@@ -547,6 +573,19 @@ class PostgresFlashcardStore(_BaseKnowledgeRepo):
                 with conn.cursor() as cur:
                     cur.execute("DELETE FROM flashcards WHERE id = %s", (id,))
         logger.debug("Deleted flashcard id=%s", str(id))
+
+    def delete_all_flashcards(self, tree_id: UUID, chapter_id: UUID) -> None:
+        with self._lock:
+            conn = self._conn()
+            with conn.transaction():
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "DELETE FROM flashcards WHERE tree_id = %s AND chapter_id = %s",
+                        (tree_id, chapter_id),
+                    )
+        logger.debug(
+            "Deleted all flashcards for tree=%s chapter=%s", str(tree_id)[:12], str(chapter_id)[:12]
+        )
 
 
 def _row_to_doc(row: dict) -> KnowledgeDocument:

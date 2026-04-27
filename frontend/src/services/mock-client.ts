@@ -15,6 +15,7 @@ import type {
   DocumentPreviewOut,
   KnowledgeTreeQuestionType,
   KnowledgeTreeQuestionOut,
+  FlashcardOut,
   ChatRequest,
   ChatResponse,
 } from '../types/api'
@@ -477,6 +478,28 @@ export class MockClient implements ServiceClient {
     _chapter: number,
     _questionId: string
   ): Promise<void> {
+    await delay(100)
+  }
+
+  async deleteAllKnowledgeTreeQuestions(_treeId: string, _chapter: number): Promise<void> {
+    await delay(100)
+  }
+
+  async generateChapterFlashcards(_treeId: string, _chapter: number): Promise<{ task_id: string }> {
+    await delay(200)
+    return { task_id: 'mock-task-flashcards' }
+  }
+
+  async listChapterFlashcards(_treeId: string, _chapter: number): Promise<FlashcardOut[]> {
+    await delay(200)
+    return []
+  }
+
+  async deleteKnowledgeTreeFlashcard(_treeId: string, _chapter: number, _flashcardId: string): Promise<void> {
+    await delay(100)
+  }
+
+  async deleteAllKnowledgeTreeFlashcards(_treeId: string, _chapter: number): Promise<void> {
     await delay(100)
   }
 
