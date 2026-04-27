@@ -90,6 +90,19 @@ function TrueFalseCard({ question, onAnswer, answered }: TrueFalseCardProps) {
           False
         </button>
       </div>
+
+      {answered && selected !== null && (
+        <div className="px-6 pb-5">
+          {selected === question.answer ? (
+            <p className="text-sm font-medium text-green-600 dark:text-green-400">Correct!</p>
+          ) : (
+            <p className="text-sm font-medium text-red-600 dark:text-red-400">Incorrect</p>
+          )}
+          {question.explanation && (
+            <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">{question.explanation}</p>
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -165,6 +178,19 @@ function MultipleChoiceCard({ question, onAnswer, answered }: MultipleChoiceCard
           </button>
         </div>
       )}
+
+      {answered && selected !== null && (
+        <div className="px-6 pb-5">
+          {selected === question.correctIndex ? (
+            <p className="text-sm font-medium text-green-600 dark:text-green-400">Correct!</p>
+          ) : (
+            <p className="text-sm font-medium text-red-600 dark:text-red-400">Incorrect</p>
+          )}
+          {question.explanation && (
+            <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">{question.explanation}</p>
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -187,6 +213,8 @@ function MatchingCard({ question, onAnswer, answered }: MatchingCardProps) {
     () => question.pairs.map(() => null)
   )
   const [submitted, setSubmitted] = React.useState(false)
+  const [isCorrect, setIsCorrect] = React.useState<boolean | null>(null)
+  const [correctCount, setCorrectCount] = React.useState(0)
 
   const handleSelect = (termIndex: number, pairIndex: number) => {
     if (answered || submitted) return
@@ -202,9 +230,11 @@ function MatchingCard({ question, onAnswer, answered }: MatchingCardProps) {
   const handleSubmit = () => {
     if (!allSelected) return
     setSubmitted(true)
-    const correctCount = selections.filter((pairIndex, termIndex) => pairIndex === termIndex).length
-    const correct = correctCount === question.pairs.length
-    const userAnswer = `${correctCount} / ${question.pairs.length} pairs matched`
+    const correctCountLocal = selections.filter((pairIndex, termIndex) => pairIndex === termIndex).length
+    const correct = correctCountLocal === question.pairs.length
+    setIsCorrect(correct)
+    setCorrectCount(correctCountLocal)
+    const userAnswer = `${correctCountLocal} / ${question.pairs.length} pairs matched`
     const correctAnswer = question.pairs.map((p) => `${p.term} → ${p.definition}`).join('; ')
     onAnswer(correct, userAnswer, correctAnswer)
   }
@@ -260,6 +290,20 @@ function MatchingCard({ question, onAnswer, answered }: MatchingCardProps) {
             Check Matches
           </Button>
         )}
+
+        {submitted && isCorrect !== null && (
+          <div className="mt-2">
+            {isCorrect ? (
+              <p className="text-sm font-medium text-green-600 dark:text-green-400">
+                Correct! {correctCount} of {question.pairs.length} pairs matched correctly.
+              </p>
+            ) : (
+              <p className="text-sm font-medium text-red-600 dark:text-red-400">
+                Incorrect. {correctCount} of {question.pairs.length} pairs matched correctly.
+              </p>
+            )}
+          </div>
+        )}
       </div>
     </div>
   )
@@ -278,6 +322,7 @@ interface CheckboxCardProps {
 function CheckboxCard({ question, onAnswer, answered }: CheckboxCardProps) {
   const [checked, setChecked] = React.useState<Set<number>>(new Set())
   const [submitted, setSubmitted] = React.useState(false)
+  const [isCorrect, setIsCorrect] = React.useState<boolean | null>(null)
 
   const toggle = (index: number) => {
     if (answered || submitted) return
@@ -294,6 +339,7 @@ function CheckboxCard({ question, onAnswer, answered }: CheckboxCardProps) {
     setSubmitted(true)
     const correctSet = new Set(question.correctIndices)
     const correct = checked.size === correctSet.size && [...checked].every((i) => correctSet.has(i))
+    setIsCorrect(correct)
     const userAnswer = [...checked].map((i) => question.choices[i]).join(', ') || 'None'
     const correctAnswer = question.correctIndices.map((i) => question.choices[i]).join(', ')
     onAnswer(correct, userAnswer, correctAnswer)
@@ -352,6 +398,19 @@ function CheckboxCard({ question, onAnswer, answered }: CheckboxCardProps) {
           >
             Submit
           </Button>
+        )}
+
+        {submitted && isCorrect !== null && (
+          <div className="mt-2">
+            {isCorrect ? (
+              <p className="text-sm font-medium text-green-600 dark:text-green-400">Correct!</p>
+            ) : (
+              <p className="text-sm font-medium text-red-600 dark:text-red-400">Incorrect</p>
+            )}
+            {question.explanation && (
+              <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">{question.explanation}</p>
+            )}
+          </div>
         )}
       </div>
     </div>

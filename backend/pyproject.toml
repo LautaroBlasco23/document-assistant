@@ -26,6 +26,7 @@ dependencies = [
 dev = [
     "httpx>=0.28.1",
     "pytest>=8.0",
+    "pytest-cov>=7.1.0",
     "ruff>=0.4",
 ]
 
@@ -40,4 +41,17 @@ select = ["E", "F", "I", "W"]
 testpaths = ["tests"]
 markers = [
     "integration: requires running external services (PostgreSQL)",
+]
+
+[tool.coverage.run]
+source = ["api", "application", "core", "infrastructure"]
+branch = true
+
+[tool.coverage.report]
+exclude_also = [
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
 ]

@@ -158,12 +158,14 @@ describe('KnowledgeExamSession', () => {
 
     // Answer first correctly
     await user.click(screen.getByRole('button', { name: 'True' }))
-    await user.click(screen.getByRole('button', { name: /next question/i }))
+    // Auto-advance to Q2 after 350ms timeout
+    await waitFor(() => {
+      expect(screen.getByText('Grass is red')).toBeInTheDocument()
+    })
 
-    // Answer second incorrectly
+    // Answer second incorrectly (answer is false, so picking True = wrong)
     await user.click(screen.getByRole('button', { name: 'True' }))
-    await user.click(screen.getByRole('button', { name: /see results/i }))
-
+    // Auto-advance to results screen after 350ms timeout
     await waitFor(() => {
       expect(screen.getByText('50%')).toBeInTheDocument()
     })
@@ -179,8 +181,7 @@ describe('KnowledgeExamSession', () => {
     const { user } = renderWithProviders(<KnowledgeExamSession questions={questions} onFinish={mockOnFinish} />)
 
     await user.click(screen.getByRole('button', { name: 'True' }))
-    await user.click(screen.getByRole('button', { name: /see results/i }))
-
+    // Auto-advance to results screen after 350ms since it is the only question
     await waitFor(() => {
       expect(screen.getByText('Exam Passed!')).toBeInTheDocument()
     })

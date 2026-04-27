@@ -272,21 +272,55 @@ npm run build
 
 ## Preflight
 
-Validated: 2026-04-26. Run `make tools` to verify toolchain is still current.
+Validated: 2026-04-27. Run `make tools` to verify toolchain is still current.
+
+### Ecosystem
+
+| Layer | Type | Config file |
+|-------|------|-------------|
+| Backend | Python 3.12+ | `backend/pyproject.toml` + `backend/uv.lock` |
+| Frontend | Node/JS/TS | `frontend/package.json` |
+| Infra | Docker Compose | `docker-compose.yml` |
+| Root | Make | `Makefile` |
 
 ### Toolchain
 
-| Tool | Version | Required |
-|------|---------|---------|
-| python3 | 3.12.3 | >=3.12 (pyproject.toml) |
-| uv | 0.10.10 | dependency manager |
-| node | 24.14.0 | frontend |
-| npm | 11.9.0 | frontend |
-| docker | 29.2.1 | PostgreSQL |
-| docker compose | v5.0.2 | orchestration |
-| make | 4.3 | task runner |
+| Category | Tool | Version | Required | Status |
+|----------|------|---------|----------|--------|
+| Runtime | python3 | 3.12.3 | >=3.12 | ✅ Found |
+| Runtime | node | 24.14.0 | >=18 | ✅ Found |
+| Runtime | npm | 11.9.0 | package manager | ✅ Found |
+| Python | uv | 0.10.10 | dep manager | ✅ Found |
+| Container | docker | 29.2.1 | PostgreSQL | ✅ Found |
+| Container | docker compose | v5.0.2 | orchestration | ✅ Found |
+| Automation | make | 4.3 | task runner | ✅ Found |
+| VCS | git | 2.43.0 | source control | ✅ Found |
+
+**Globally installed optional tools**: ruff ✗, eslint ✗, tsc ✗, prettier ✗, mypy ✗ — all expected; linting/type-checking runs via `uv run`/`npx`.
 
 All required tools present. No blockers.
+
+### Dependency files
+
+| File | Status |
+|------|--------|
+| `backend/pyproject.toml` | ✅ Exists (16 deps, requires Python >=3.12) |
+| `backend/uv.lock` | ✅ Exists (254 KB, 2026-04-27) |
+| `frontend/package.json` | ✅ Exists (14 deps + 14 devDeps) |
+| `docker-compose.yml` | ✅ Exists (4 services: postgres, backend, frontend, nginx) |
+| `config/default.yml` | ✅ Exists (app config) |
+| `Makefile` | ✅ Exists (dev automation) |
+
+### Docker configuration
+
+| Service | Dockerfile | Healthcheck | Depends on |
+|---------|-----------|-------------|------------|
+| postgres | — (image) | ✅ pg_isready | — |
+| backend | `backend/Dockerfile` | ✅ /api/health | postgres (healthy) |
+| frontend | `frontend/Dockerfile` | ✅ wget :80 | — |
+| nginx | — (image) | ✅ wget | backend + frontend (healthy) |
+
+**Note**: No `.dockerignore` found at project root. Consider adding one to exclude `node_modules/`, `__pycache__/`, `.git/`, `data/raw/`, and `data/output/` from Docker build context.
 
 ### Commands
 
@@ -295,17 +329,23 @@ All required tools present. No blockers.
 cd backend && uv sync                  # install deps
 cd backend && uv run ruff check .      # lint (check)
 cd backend && uv run pytest            # unit tests (integration skipped without PostgreSQL)
+cd backend && uv run pytest -m integration  # integration tests (requires Docker PostgreSQL)
+cd backend && uv run python -m cli.main check  # health check via CLI
 
 # Frontend
 cd frontend && npm install             # install deps
-cd frontend && npm run type-check      # TypeScript check
+cd frontend && npm run type-check      # TypeScript check (tsc --noEmit)
 cd frontend && npm run build           # production build (tsc + vite)
 cd frontend && npm run test:run        # Vitest unit tests
+cd frontend && npm run test            # Vitest watch mode
+cd frontend && npm run test:coverage   # Vitest with coverage
 
 # Infrastructure
 docker compose up -d postgres          # start PostgreSQL only
 make dev                               # full dev stack (PostgreSQL + backend + frontend)
 make check                             # health check all services
+make stop                              # stop all services
+make tools                             # install missing tools (uv auto-install)
 ```
 
 ### Known issues (from last preflighter run 2026-04-24)
@@ -313,3 +353,4 @@ make check                             # health check all services
 - **Backend — ruff (14 errors)**: Unused imports, unsorted import block, lines >100 chars. Run `uv run ruff check --fix .` for auto-fixable ones; remaining need manual SQL string wrapping.
 - **Frontend — TypeScript (5 errors)**: Unused `User` import in `sidebar.tsx`; `err.response?.data` typed as `{}` in `real-client.ts` (needs proper error-response type).
 - **Frontend tests**: Vitest is configured (`vitest` script in `package.json`) but no test files exist yet.
+- **Missing `.dockerignore`**: Not a blocker but would speed up Docker builds.

@@ -37,6 +37,7 @@ function createMockTreeStore(overrides = {}) {
     questionsByType: {},
     questionsLoading: {},
     questionTaskIds: {},
+    flashcardsByChapter: {} as Record<string, any[]>,
     fetchTrees: vi.fn().mockResolvedValue(undefined),
     createTree: vi.fn(),
     updateTree: vi.fn(),
@@ -55,6 +56,11 @@ function createMockTreeStore(overrides = {}) {
     generateQuestions: vi.fn(),
     fetchQuestions: vi.fn(),
     deleteQuestion: vi.fn(),
+    generateFlashcards: vi.fn().mockResolvedValue('task-flash'),
+    fetchFlashcards: vi.fn().mockResolvedValue(undefined),
+    deleteFlashcard: vi.fn().mockResolvedValue(undefined),
+    deleteAllFlashcards: vi.fn().mockResolvedValue(undefined),
+    deleteAllQuestions: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   }
 }

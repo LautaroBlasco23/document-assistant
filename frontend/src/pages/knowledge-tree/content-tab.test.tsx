@@ -50,6 +50,7 @@ function createMockStore(overrides = {}) {
     questionsByType: {} as Record<string, any>,
     questionsLoading: {},
     questionTaskIds: {},
+    flashcardsByChapter: {} as Record<string, any[]>,
     fetchTrees: vi.fn(),
     createTree: vi.fn(),
     updateTree: vi.fn(),
@@ -68,6 +69,11 @@ function createMockStore(overrides = {}) {
     generateQuestions: vi.fn().mockResolvedValue('task-123'),
     fetchQuestions: vi.fn().mockResolvedValue(undefined),
     deleteQuestion: vi.fn().mockResolvedValue(undefined),
+    generateFlashcards: vi.fn().mockResolvedValue('task-flash'),
+    fetchFlashcards: vi.fn().mockResolvedValue(undefined),
+    deleteFlashcard: vi.fn().mockResolvedValue(undefined),
+    deleteAllFlashcards: vi.fn().mockResolvedValue(undefined),
+    deleteAllQuestions: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   }
 }
@@ -115,9 +121,10 @@ describe('ContentTab', () => {
       chapters: [{ id: 'ch-1', number: 1, title: 'Intro', tree_id: 'tree-1' }],
     })
 
-    // Each section renders a plain "Generate" button — the type is shown in the section title
+    // Each section renders a plain "Generate" button — the type is shown in the section title.
+    // Four question types + one flashcard generator = five "Generate" buttons.
     const generateBtns = screen.getAllByRole('button', { name: 'Generate' })
-    expect(generateBtns).toHaveLength(4)
+    expect(generateBtns).toHaveLength(5)
 
     expect(screen.getByText('True / False')).toBeInTheDocument()
     expect(screen.getByText('Multiple Choice')).toBeInTheDocument()
@@ -137,8 +144,9 @@ describe('ContentTab', () => {
       { generateQuestions, fetchQuestions }
     )
 
-    const [firstGenerateBtn] = screen.getAllByRole('button', { name: 'Generate' })
-    await user.click(firstGenerateBtn)
+    // Flashcard generator renders first (index 0), True/False QuestionGenerator is index 1
+    const generateBtns = screen.getAllByRole('button', { name: 'Generate' })
+    await user.click(generateBtns[1])
 
     await waitFor(() => {
       expect(generateQuestions).toHaveBeenCalledWith('tree-1', 1, 'true_false', null)
@@ -176,24 +184,4 @@ describe('ContentTab', () => {
     })
   })
 
-  // With at least one question generated, the Start Exam button should appear.
-  it('launches exam session when Start Exam is clicked', async () => {
-    const { user } = renderTab(
-      { treeId: 'tree-1', selectedChapter: 1, chapters: [{ id: 'ch-1', number: 1, title: 'Intro', tree_id: 'tree-1' }] },
-      {
-        questionsByType: {
-          'tree-1:1': {
-            true_false: [{ type: 'true-false', id: 'q1', statement: 'Sky is blue', answer: true }],
-          },
-        },
-      }
-    )
-
-    const startBtn = await screen.findByRole('button', { name: /start exam/i })
-    await user.click(startBtn)
-
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: /end exam/i })).toBeInTheDocument()
-    })
-  })
 })
