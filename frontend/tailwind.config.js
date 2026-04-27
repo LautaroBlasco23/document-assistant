@@ -8,16 +8,39 @@ export default {
   theme: {
     extend: {
       colors: {
-        bg: 'var(--color-bg)',
-        border: 'var(--color-border)',
-        text: {
-          DEFAULT: 'var(--color-text)',
-          muted: 'var(--color-text-muted)',
+        bg: {
+          DEFAULT: 'var(--color-bg)',
+          page: 'var(--color-bg-page)',
+          card: 'var(--color-bg-card)',
+          elevated: 'var(--color-bg-elevated)',
+          inset: 'var(--color-bg-inset)',
         },
-        primary: {
-          DEFAULT: 'var(--color-primary)',
-          hover: 'var(--color-primary-hover)',
-          light: 'var(--color-primary-light)',
+        border: {
+          DEFAULT: 'var(--color-border-default)',
+          strong: 'var(--color-border-strong)',
+          focus: 'var(--color-border-focus)',
+          subtle: 'var(--color-border-subtle)',
+        },
+        text: {
+          DEFAULT: 'var(--color-text-primary)',
+          primary: 'var(--color-text-primary)',
+          secondary: 'var(--color-text-secondary)',
+          tertiary: 'var(--color-text-tertiary)',
+          disabled: 'var(--color-text-disabled)',
+          inverse: 'var(--color-text-inverse)',
+          link: 'var(--color-text-link)',
+        },
+        icon: {
+          DEFAULT: 'var(--color-icon-primary)',
+          primary: 'var(--color-icon-primary)',
+          secondary: 'var(--color-icon-secondary)',
+          accent: 'var(--color-icon-accent)',
+          success: 'var(--color-icon-success)',
+          warning: 'var(--color-icon-warning)',
+        },
+        overlay: {
+          backdrop: 'var(--color-overlay-backdrop)',
+          modal: 'var(--color-overlay-modal)',
         },
         surface: {
           DEFAULT: 'var(--color-surface)',
@@ -25,22 +48,45 @@ export default {
           100: 'var(--color-surface-100)',
           200: 'var(--color-surface-200)',
         },
+        primary: {
+          DEFAULT: 'var(--color-primary)',
+          hover: 'var(--color-primary-hover)',
+          active: 'var(--color-primary-active)',
+          light: 'var(--color-primary-light)',
+          border: 'var(--color-primary-border)',
+        },
         accent: {
           DEFAULT: 'var(--color-accent)',
           hover: 'var(--color-accent-hover)',
+          active: 'var(--color-accent-active)',
           light: 'var(--color-accent-light)',
+          border: 'var(--color-accent-border)',
         },
         success: {
-          DEFAULT: 'var(--color-success)',
-          light: 'var(--color-success-light)',
+          DEFAULT: 'var(--color-success-fg)',
+          light: 'var(--color-success-bg)',
+          fg: 'var(--color-success-fg)',
+          bg: 'var(--color-success-bg)',
+          border: 'var(--color-success-border)',
         },
         warning: {
-          DEFAULT: 'var(--color-warning)',
-          light: 'var(--color-warning-light)',
+          DEFAULT: 'var(--color-warning-fg)',
+          light: 'var(--color-warning-bg)',
+          fg: 'var(--color-warning-fg)',
+          bg: 'var(--color-warning-bg)',
+          border: 'var(--color-warning-border)',
         },
         danger: {
-          DEFAULT: 'var(--color-danger)',
-          light: 'var(--color-danger-light)',
+          DEFAULT: 'var(--color-error-fg)',
+          light: 'var(--color-error-bg)',
+          fg: 'var(--color-error-fg)',
+          bg: 'var(--color-error-bg)',
+          border: 'var(--color-error-border)',
+        },
+        info: {
+          fg: 'var(--color-info-fg)',
+          bg: 'var(--color-info-bg)',
+          border: 'var(--color-info-border)',
         },
       },
       borderRadius: {
