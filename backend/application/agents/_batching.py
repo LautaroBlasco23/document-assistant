@@ -1,6 +1,7 @@
 """Shared batching utility for LLM agents."""
 
 from core.model.chunk import Chunk
+from core.model.knowledge_tree import KnowledgeChunk
 
 
 def batch_chunks_by_words(chunks: list[Chunk], max_words: int = 2500) -> list[str]:
@@ -36,3 +37,21 @@ def batch_chunks_by_words(chunks: list[Chunk], max_words: int = 2500) -> list[st
         batches.append("\n".join(current))
 
     return batches
+
+
+def chunks_around_selection(
+    chunks: list[KnowledgeChunk],
+    selected_text: str,
+    neighbors: int = 1,
+) -> list[KnowledgeChunk]:
+    """Return the chunk containing selected_text plus N neighbors on each side.
+
+    Falls back to the first (neighbors*2 + 1) chunks when no match is found.
+    """
+    if not selected_text or not chunks:
+        return chunks[: neighbors * 2 + 1]
+    needle = selected_text.strip()[:120]
+    hit = next((i for i, c in enumerate(chunks) if needle in c.text), None)
+    if hit is None:
+        return chunks[: neighbors * 2 + 1]
+    return chunks[max(0, hit - neighbors) : hit + neighbors + 1]

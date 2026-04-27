@@ -134,20 +134,17 @@ class QuestionGeneratorAgent(BaseAgent):
         Raises:
             ValueError: If no valid question could be produced.
         """
-        prompt = self._PROMPTS[question_type]
+        system_prompt = self._PROMPTS[question_type]
+        parts = ["--- Background (reference only) ---"]
         if agent_prompt:
-            prompt = agent_prompt + "\n\n" + prompt
+            parts.append(f"Agent guidance:\n{agent_prompt}")
         if chapter_context and chapter_context.strip():
-            user_prompt = (
-                "CHAPTER CONTEXT (for reference only, do not summarize this):\n"
-                f"{chapter_context.strip()}\n\n"
-                "FOCUS EXCERPT (base the question on this):\n"
-                f"{selected_text}"
-            )
-        else:
-            user_prompt = selected_text
+            parts.append(f"Surrounding chapter context:\n{chapter_context.strip()}")
+        parts.append("--- Focus ---")
+        parts.append(f"Focus excerpt (base the question on this):\n{selected_text}")
+        user_prompt = "\n\n".join(parts)
 
-        raw = self._call_json_with_retry(prompt, user_prompt)
+        raw = self._call_json_with_retry(system_prompt, user_prompt)
         try:
             parsed = json.loads(raw)
         except (json.JSONDecodeError, ValueError) as e:

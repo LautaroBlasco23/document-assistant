@@ -17,7 +17,7 @@ from core.ports.llm import LLM
 # answer() with context
 # ---------------------------------------------------------------------------
 
-# Includes document context in the system prompt so the LLM can ground its answer.
+# Includes document context in the user message Background section (not system prompt).
 def test_answer_with_context():
     llm = MagicMock(spec=LLM)
     llm.chat.return_value = "The answer is 42."
@@ -29,8 +29,9 @@ def test_answer_with_context():
     assert result == "The answer is 42."
     call_args = llm.chat.call_args[0]
     system, user = call_args[0], call_args[1]
-    assert "Document about life" in system
+    assert "Document about life" in user
     assert "What is the meaning of life?" in user
+    assert "Document about life" not in system
 
 
 # ---------------------------------------------------------------------------
@@ -70,10 +71,11 @@ def test_answer_multi_turn():
 
     assert result == "Sure thing."
     user_msg = llm.chat.call_args[0][1]
-    assert "Previous conversation:" in user_msg
+    assert "Conversation so far" in user_msg
     assert "User: First question" in user_msg
     assert "Assistant: First answer" in user_msg
-    assert "Latest question: Follow-up" in user_msg
+    assert "Latest question" in user_msg
+    assert "Follow-up" in user_msg
 
 
 # ---------------------------------------------------------------------------
@@ -106,4 +108,5 @@ def test_answer_empty_messages():
 
     assert result == "Empty."
     user_msg = llm.chat.call_args[0][1]
-    assert user_msg == ""
+    assert "Latest question" in user_msg
+    assert "Ctx" in user_msg
