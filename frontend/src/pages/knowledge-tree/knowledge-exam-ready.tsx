@@ -45,30 +45,32 @@ export function KnowledgeExamReady({ typeCounts, totalCount, onStart }: Knowledg
         {totalCount === 1 ? 'question' : 'questions'} from the following types:
       </p>
 
-      <table style={{ width: 'auto', borderCollapse: 'collapse' }} className="text-xs border border-surface-200 dark:border-surface-200 rounded-lg overflow-hidden">
-        <thead>
-          <tr className="bg-surface-100 dark:bg-surface-200">
-            <th className="px-3 py-1.5 text-left font-medium text-gray-400 dark:text-slate-500 uppercase tracking-wide text-[10px] whitespace-nowrap">
-              Type
-            </th>
-            <th className="px-3 py-1.5 text-right font-medium text-gray-400 dark:text-slate-500 uppercase tracking-wide text-[10px]">
-              #
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {typeCounts
-            .filter((t) => t.count > 0)
-            .map((t) => (
-              <tr key={t.label} className="border-t border-surface-200 dark:border-surface-200">
-                <td className="px-3 py-1.5 text-gray-600 dark:text-slate-300 whitespace-nowrap">{t.label}</td>
-                <td className="px-3 py-1.5 text-right font-medium tabular-nums text-gray-700 dark:text-slate-200">
-                  {t.count}
-                </td>
-              </tr>
-            ))}
-        </tbody>
-      </table>
+      <div className="self-start border-2 border-gray-300 dark:border-slate-500 rounded-lg overflow-hidden">
+        <table style={{ minWidth: '280px', borderCollapse: 'collapse' }} className="text-xs">
+          <thead>
+            <tr className="bg-gray-100 dark:bg-slate-700 border-b-2 border-gray-300 dark:border-slate-500">
+              <th className="px-4 py-2 text-left font-semibold text-gray-600 dark:text-slate-300 uppercase tracking-wide text-[10px] whitespace-nowrap border-r-2 border-gray-300 dark:border-slate-500">
+                Question Type
+              </th>
+              <th className="px-4 py-2 text-right font-semibold text-gray-600 dark:text-slate-300 uppercase tracking-wide text-[10px] whitespace-nowrap">
+                Amount
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {typeCounts
+              .filter((t) => t.count > 0)
+              .map((t) => (
+                <tr key={t.label} className="border-t border-gray-200 dark:border-slate-600">
+                  <td className="px-4 py-2 text-gray-700 dark:text-slate-300 whitespace-nowrap border-r-2 border-gray-300 dark:border-slate-500">{t.label}</td>
+                  <td className="px-4 py-2 text-right font-semibold tabular-nums text-gray-800 dark:text-slate-200">
+                    {t.count}
+                  </td>
+                </tr>
+              ))}
+          </tbody>
+        </table>
+      </div>
 
       <Button variant="primary" size="sm" onClick={onStart} className="self-start mt-1">
         Start Exam
