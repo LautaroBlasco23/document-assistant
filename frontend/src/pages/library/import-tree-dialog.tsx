@@ -138,6 +138,15 @@ export function ImportTreeDialog({ open, onOpenChange, onSuccess }: ImportTreeDi
               stopPolling()
               setState('error')
               setErrorMsg(status.error ?? 'Import failed')
+            } else if (status.status === 'rate_limited') {
+              stopPolling()
+              setState('error')
+              const retryAfter = (status.result as { retry_after?: number } | undefined)?.retry_after
+              setErrorMsg(
+                retryAfter
+                  ? `The AI provider is rate-limiting requests. Please retry in ${Math.ceil(retryAfter)}s.`
+                  : (status.error ?? 'Rate limited by AI provider. Please try again shortly.')
+              )
             }
           } catch {
             stopPolling()

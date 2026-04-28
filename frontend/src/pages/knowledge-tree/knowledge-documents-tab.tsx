@@ -140,6 +140,16 @@ export function KnowledgeDocumentsTab({
               addError(status.error ?? 'File import failed. The document was not added.')
               setIngesting(false)
               resolve()
+            } else if (status.status === 'rate_limited') {
+              clearInterval(interval)
+              const retryAfter = (status.result as { retry_after?: number } | undefined)?.retry_after
+              addError(
+                retryAfter
+                  ? `AI provider is rate-limiting requests. Please retry in ${Math.ceil(retryAfter)}s.`
+                  : (status.error ?? 'Rate limited by AI provider. Please try again shortly.')
+              )
+              setIngesting(false)
+              resolve()
             }
           } catch {
             clearInterval(interval)

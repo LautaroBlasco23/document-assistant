@@ -18,7 +18,7 @@ export interface TaskResponseOut {
 
 export interface TaskStatusOut {
   task_id: string
-  status: 'pending' | 'running' | 'completed' | 'failed'
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'rate_limited'
   progress: string
   progress_pct?: number
   result?: Record<string, unknown>
@@ -30,7 +30,7 @@ export interface ActiveTaskOut {
   task_type: string
   doc_hash: string
   filename: string
-  status: 'pending' | 'running' | 'completed' | 'failed'
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'rate_limited'
   progress: string
   progress_pct: number
   chapter: number

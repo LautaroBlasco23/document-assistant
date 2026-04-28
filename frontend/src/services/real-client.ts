@@ -443,7 +443,22 @@ export class RealClient implements ServiceClient {
 
   // Chat
   async chat(request: ChatRequest): Promise<ChatResponse> {
-    const res = await httpClient.post<ChatResponse>('/chat', request)
-    return res.data
+    try {
+      const res = await httpClient.post<ChatResponse>('/chat', request)
+      return res.data
+    } catch (err) {
+      const axiosErr = err as import('axios').AxiosError<{ detail?: string; provider?: string; retry_after?: number }>
+      if (axiosErr.response?.status === 503) {
+        const data = axiosErr.response.data
+        if (data?.detail === 'rate_limited') {
+          const rateLimitErr = new Error('rate_limited') as Error & { provider: string; retry_after: number }
+          rateLimitErr.name = 'RateLimitError'
+          rateLimitErr.provider = data.provider ?? 'AI provider'
+          rateLimitErr.retry_after = data.retry_after ?? 60
+          throw rateLimitErr
+        }
+      }
+      throw err
+    }
   }
 }

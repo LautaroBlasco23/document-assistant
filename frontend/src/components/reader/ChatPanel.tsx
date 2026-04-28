@@ -228,6 +228,8 @@ export const ChatPanel = React.forwardRef<ChatPanelHandle, ChatPanelProps>(funct
   const [activeSessionId, setActiveSessionId] = React.useState<string>(initialActiveId)
   const [input, setInput] = React.useState('')
   const [loading, setLoading] = React.useState(false)
+  const [rateLimitCountdown, setRateLimitCountdown] = React.useState<number | null>(null)
+  const rateLimitRetryRef = React.useRef<{ text: string; retriesLeft: number } | null>(null)
   const scrollRef = React.useRef<HTMLDivElement>(null)
 
   const activeSession = sessions.find((s) => s.id === activeSessionId)
@@ -287,7 +289,7 @@ export const ChatPanel = React.forwardRef<ChatPanelHandle, ChatPanelProps>(funct
     )
   }
 
-  const sendText = async (rawText: string) => {
+  const sendText = async (rawText: string, isAutoRetry = false) => {
     const text = rawText.trim()
     if (!text || loading || !activeSession) return
 
@@ -297,31 +299,83 @@ export const ChatPanel = React.forwardRef<ChatPanelHandle, ChatPanelProps>(funct
     }
 
     const userMsg: ChatMessage = { role: 'user', content: text }
-    const updatedMessages = [...activeSession.messages, userMsg]
-    updateSessionMessages(activeSession.id, updatedMessages)
+    const messagesWithUser = isAutoRetry
+      ? activeSession.messages  // auto-retry: user message already in history
+      : [...activeSession.messages, userMsg]
+
+    if (!isAutoRetry) {
+      updateSessionMessages(activeSession.id, messagesWithUser)
+    }
     setLoading(true)
 
     try {
       const context = await getContext().catch(() => '')
       const res = await client.chat({
-        messages: updatedMessages,
+        messages: messagesWithUser,
         context: context || null,
         model: settings.model,
         agent_id: settings.agent_id,
       })
+      rateLimitRetryRef.current = null
+      setRateLimitCountdown(null)
       updateSessionMessages(activeSession.id, [
-        ...updatedMessages,
+        ...messagesWithUser,
         { role: 'assistant', content: res.reply },
       ])
-    } catch {
-      updateSessionMessages(activeSession.id, [
-        ...updatedMessages,
-        { role: 'assistant', content: 'Sorry, something went wrong. Please try again.' },
-      ])
+    } catch (err) {
+      const isRateLimit = err instanceof Error && err.name === 'RateLimitError'
+      if (isRateLimit) {
+        const rlErr = err as Error & { provider: string; retry_after: number }
+        const retryAfter = Math.ceil(rlErr.retry_after)
+        const retriesLeft = (rateLimitRetryRef.current?.retriesLeft ?? 1)
+
+        if (retriesLeft > 0) {
+          rateLimitRetryRef.current = { text, retriesLeft: retriesLeft - 1 }
+          setRateLimitCountdown(retryAfter)
+          updateSessionMessages(activeSession.id, [
+            ...messagesWithUser,
+            {
+              role: 'assistant',
+              content: `⏳ The AI provider (${rlErr.provider}) is rate-limiting requests. Retrying in ${retryAfter}s…`,
+            },
+          ])
+        } else {
+          rateLimitRetryRef.current = null
+          setRateLimitCountdown(null)
+          updateSessionMessages(activeSession.id, [
+            ...messagesWithUser,
+            {
+              role: 'assistant',
+              content: `The AI provider (${rlErr.provider}) is currently rate-limiting requests. Please wait a moment and try again.`,
+            },
+          ])
+        }
+      } else {
+        updateSessionMessages(activeSession.id, [
+          ...messagesWithUser,
+          { role: 'assistant', content: 'Sorry, something went wrong. Please try again.' },
+        ])
+      }
     } finally {
       setLoading(false)
     }
   }
+
+  // Countdown timer for rate-limit auto-retry
+  React.useEffect(() => {
+    if (rateLimitCountdown === null) return
+    if (rateLimitCountdown <= 0) {
+      const pending = rateLimitRetryRef.current
+      setRateLimitCountdown(null)
+      if (pending) {
+        void sendTextRef.current(pending.text, true)
+      }
+      return
+    }
+    const timer = setTimeout(() => setRateLimitCountdown((c) => (c !== null ? c - 1 : null)), 1000)
+    return () => clearTimeout(timer)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rateLimitCountdown])
 
   const handleSend = async () => {
     const text = input.trim()
@@ -330,7 +384,7 @@ export const ChatPanel = React.forwardRef<ChatPanelHandle, ChatPanelProps>(funct
     await sendText(text)
   }
 
-  const sendTextRef = React.useRef(sendText)
+  const sendTextRef = React.useRef<typeof sendText>(sendText)
   sendTextRef.current = sendText
 
   React.useImperativeHandle(
@@ -342,7 +396,7 @@ export const ChatPanel = React.forwardRef<ChatPanelHandle, ChatPanelProps>(funct
         if (!trimmed) return
         setMode('chat')
         const prompt = `Define and explain the following excerpt in the context of this document:\n\n"${trimmed}"`
-        sendTextRef.current(prompt)
+        void sendTextRef.current(prompt)
       },
     }),
     [],
@@ -496,7 +550,9 @@ export const ChatPanel = React.forwardRef<ChatPanelHandle, ChatPanelProps>(funct
             {loading && (
               <div className="flex items-center gap-2 text-xs text-gray-400 dark:text-slate-500">
                 <Loader2 className="h-3 w-3 animate-spin" />
-                Thinking...
+                {rateLimitCountdown !== null
+                  ? `Rate limited — retrying in ${rateLimitCountdown}s…`
+                  : 'Thinking...'}
               </div>
             )}
           </div>

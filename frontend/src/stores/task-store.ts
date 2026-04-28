@@ -3,7 +3,7 @@ import { client } from '../services'
 
 const pollingIntervals = new Map<string, ReturnType<typeof setInterval>>()
 
-export type GenerationTaskType = 'kt_questions' | 'kt_ingest' | 'kt_create_from_file'
+export type GenerationTaskType = 'kt_questions' | 'kt_flashcards' | 'kt_ingest' | 'kt_create_from_file'
 
 export interface GenerationTask {
   taskId: string
@@ -11,7 +11,7 @@ export interface GenerationTask {
   entityId: string
   chapter: number
   entityTitle: string
-  status: 'pending' | 'running' | 'completed' | 'failed'
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'rate_limited'
   progress: string | null
   progressPct: number | null
   result: Record<string, unknown> | null
@@ -91,7 +91,7 @@ function _startPolling(taskId: string) {
           result: (status.result as Record<string, unknown> | null) ?? null,
           error: status.error ?? null,
         }
-        if (status.status === 'completed' || status.status === 'failed') {
+        if (status.status === 'completed' || status.status === 'failed' || status.status === 'rate_limited') {
           clearInterval(interval)
           pollingIntervals.delete(taskId)
           removeFromSession(taskId)

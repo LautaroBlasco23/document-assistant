@@ -28,7 +28,7 @@ export function useTask(
         const status = await client.getTaskStatus(taskId)
         setTask(status)
 
-        if (status.status === 'completed' || status.status === 'failed') {
+        if (status.status === 'completed' || status.status === 'failed' || status.status === 'rate_limited') {
           clearInterval(interval)
           setLoading(false)
 
