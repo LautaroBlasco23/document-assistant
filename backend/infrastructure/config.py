@@ -19,7 +19,9 @@ class GroqConfig(BaseModel):
     model: str = "mixtral-8x7b-32768"
     fast_model: str | None = None  # e.g. "llama-3.1-8b-instant"
     timeout: int = 60
-    max_retries: int = 3  # for 429 backoff
+    max_retries: int = 3  # for 429 backoff in background tasks
+    max_retries_chat: int = 1  # fail-fast for synchronous chat
+    requests_per_minute: int = 25  # proactive rate limiter threshold
 
 
 class OpenRouterConfig(BaseModel):
@@ -29,6 +31,7 @@ class OpenRouterConfig(BaseModel):
     fast_model: str | None = "qwen/qwen2.5-7b-instruct:free"
     timeout: int = 120  # some models are slower
     max_retries: int = 3
+    max_retries_chat: int = 1  # fail-fast for synchronous chat
     requests_per_minute: int = 10  # proactive rate limiter; reduce for :free models
     site_url: str = ""  # optional HTTP-Referer for OpenRouter rankings
     site_name: str = ""  # optional X-Title for OpenRouter rankings
@@ -41,6 +44,8 @@ class HuggingFaceConfig(BaseModel):
     fast_model: str | None = None
     timeout: int = 180  # free tier can be slow (model loading)
     max_retries: int = 3
+    max_retries_chat: int = 1  # fail-fast for synchronous chat
+    requests_per_minute: int = 80  # proactive rate limiter threshold
     wait_for_model: bool = True  # send x-wait-for-model header
 
 
@@ -145,6 +150,8 @@ def save_config(config: AppConfig, config_path: Path | None = None) -> None:
         "model": config.groq.model,
         "timeout": config.groq.timeout,
         "max_retries": config.groq.max_retries,
+        "max_retries_chat": config.groq.max_retries_chat,
+        "requests_per_minute": config.groq.requests_per_minute,
     }
     if config.groq.fast_model:
         groq_data["fast_model"] = config.groq.fast_model
@@ -155,6 +162,8 @@ def save_config(config: AppConfig, config_path: Path | None = None) -> None:
         "model": config.openrouter.model,
         "timeout": config.openrouter.timeout,
         "max_retries": config.openrouter.max_retries,
+        "max_retries_chat": config.openrouter.max_retries_chat,
+        "requests_per_minute": config.openrouter.requests_per_minute,
     }
     if config.openrouter.fast_model:
         openrouter_data["fast_model"] = config.openrouter.fast_model
@@ -169,6 +178,8 @@ def save_config(config: AppConfig, config_path: Path | None = None) -> None:
         "model": config.huggingface.model,
         "timeout": config.huggingface.timeout,
         "max_retries": config.huggingface.max_retries,
+        "max_retries_chat": config.huggingface.max_retries_chat,
+        "requests_per_minute": config.huggingface.requests_per_minute,
         "wait_for_model": config.huggingface.wait_for_model,
     }
     if config.huggingface.fast_model:

@@ -4,21 +4,31 @@ import time
 
 import requests
 
+from core.exceptions import RateLimitError
 from core.ports.llm import LLM, GenerationParams
 from infrastructure.config import HuggingFaceConfig
+from infrastructure.llm.task_context import _current_task
 
 logger = logging.getLogger(__name__)
 
-# Seconds to sleep before retrying a 503 (model cold start on free tier)
 _MODEL_LOADING_RETRY_SLEEP = 10
+
+_limiters: dict[int, "HuggingFaceRateLimiter"] = {}
+_limiters_lock = threading.Lock()
+
+
+def _get_limiter(requests_per_minute: int) -> "HuggingFaceRateLimiter":
+    with _limiters_lock:
+        if requests_per_minute not in _limiters:
+            _limiters[requests_per_minute] = HuggingFaceRateLimiter(
+                limit=requests_per_minute + 20,
+                threshold=requests_per_minute,
+            )
+        return _limiters[requests_per_minute]
 
 
 class HuggingFaceRateLimiter:
-    """Sliding-window rate limiter for HuggingFace Inference API requests.
-
-    The free tier allows ~100 req/min globally. Uses a proactive threshold of
-    80 req/min to avoid hitting the hard limit, matching the Groq limiter pattern.
-    """
+    """Sliding-window rate limiter for HuggingFace Inference API requests."""
 
     def __init__(self, limit: int = 100, threshold: int = 80):
         self._limit = limit
@@ -28,7 +38,6 @@ class HuggingFaceRateLimiter:
         self._lock = threading.Lock()
 
     def acquire(self) -> None:
-        """Block until a request slot is available, then record the request."""
         while True:
             with self._lock:
                 now = time.monotonic()
@@ -51,17 +60,8 @@ class HuggingFaceRateLimiter:
             time.sleep(max(sleep_for, 0.1))
 
 
-# Module-level singleton shared across all HuggingFaceLLM instances
-_rate_limiter = HuggingFaceRateLimiter(limit=100, threshold=80)
-
-
 class HuggingFaceLLM(LLM):
-    """Implements the LLM port using HuggingFace's OpenAI-compatible Inference API.
-
-    Uses the serverless free Inference API at https://router.huggingface.co/v1.
-    Free-tier models may be cold on first request; retries on 503 (model loading)
-    with a fixed sleep. Also retries on 429 (rate limit) with Retry-After backoff.
-    """
+    """Implements the LLM port using HuggingFace's OpenAI-compatible Inference API."""
 
     def __init__(self, config: HuggingFaceConfig):
         if not config.api_key:
@@ -79,10 +79,11 @@ class HuggingFaceLLM(LLM):
         self._api_key = config.api_key
         self._timeout = config.timeout
         self._max_retries = config.max_retries
+        self._max_retries_chat = config.max_retries_chat
         self._wait_for_model = config.wait_for_model
+        self._rate_limiter = _get_limiter(config.requests_per_minute)
 
     def _apply_params(self, payload: dict, params: GenerationParams | None) -> None:
-        """Apply generation parameters to the payload."""
         if params is None:
             return
         if params.temperature is not None:
@@ -93,7 +94,6 @@ class HuggingFaceLLM(LLM):
             payload["max_tokens"] = params.max_tokens
 
     def generate(self, prompt: str, params: GenerationParams | None = None) -> str:
-        """Generate a completion from a plain prompt string."""
         payload: dict = {
             "model": self._model,
             "messages": [{"role": "user", "content": prompt}],
@@ -110,11 +110,7 @@ class HuggingFaceLLM(LLM):
         format: str | None = None,
         params: GenerationParams | None = None,
     ) -> str:
-        """Send system + user messages and return the response.
-
-        When format='json', appends an instruction to the system prompt
-        for portable JSON enforcement across models.
-        """
+        """Send system + user messages and return the response."""
         effective_system = system
         if format == "json":
             effective_system = (
@@ -131,26 +127,29 @@ class HuggingFaceLLM(LLM):
             "stream": False,
         }
         self._apply_params(payload, params)
-        resp = self._request(payload)
+        max_retries = self._max_retries if _current_task.get() is not None else self._max_retries_chat
+        resp = self._request(payload, max_retries_override=max_retries)
         return resp.json()["choices"][0]["message"]["content"]
 
-    def _request(self, payload: dict, stream: bool = False) -> requests.Response:
+    def _request(
+        self, payload: dict, stream: bool = False, max_retries_override: int | None = None
+    ) -> requests.Response:
         """POST to HuggingFace Inference API with retry logic for 429 and 503."""
-        # Proactive rate limiting before sending
-        _rate_limiter.acquire()
+        self._rate_limiter.acquire()
 
         url = f"{self._base_url}/chat/completions"
         headers = {
             "Authorization": f"Bearer {self._api_key}",
             "Content-Type": "application/json",
         }
-        # x-wait-for-model tells the API to wait for model loading instead of
-        # immediately returning 503, reducing the need for client-side retries.
         if self._wait_for_model:
             headers["x-wait-for-model"] = "true"
 
+        max_retries = max_retries_override if max_retries_override is not None else self._max_retries
+        last_retry_after: float = 60.0
         last_exc: Exception | None = None
-        for attempt in range(self._max_retries):
+
+        for attempt in range(max_retries):
             resp = requests.post(
                 url,
                 json=payload,
@@ -161,29 +160,32 @@ class HuggingFaceLLM(LLM):
 
             if resp.status_code == 429:
                 retry_after = resp.headers.get("Retry-After")
-                if retry_after is not None:
-                    wait = float(retry_after)
-                else:
-                    wait = 2.0 * (2 ** attempt)  # exponential: 2, 4, 8
+                wait = float(retry_after) if retry_after is not None else 2.0 * (2**attempt)
+                last_retry_after = wait
                 logger.warning(
                     "HuggingFace HTTP 429 on attempt %d/%d, retrying in %.1fs",
                     attempt + 1,
-                    self._max_retries,
+                    max_retries,
                     wait,
                 )
-                time.sleep(wait)
+                task = _current_task.get()
+                if task is not None:
+                    prev_progress = task.progress
+                    task.progress = f"Rate limited by HuggingFace — retrying in {int(wait)}s"
+                    time.sleep(wait)
+                    task.progress = prev_progress
+                else:
+                    time.sleep(wait)
                 last_exc = requests.HTTPError(response=resp)
                 continue
 
             if resp.status_code == 503:
-                # Model is still loading (cold start on free tier)
                 retry_after = resp.headers.get("Retry-After")
                 wait = float(retry_after) if retry_after is not None else _MODEL_LOADING_RETRY_SLEEP
                 logger.warning(
-                    "HuggingFace HTTP 503 (model loading) on attempt %d/%d, "
-                    "retrying in %.1fs",
+                    "HuggingFace HTTP 503 (model loading) on attempt %d/%d, retrying in %.1fs",
                     attempt + 1,
-                    self._max_retries,
+                    max_retries,
                     wait,
                 )
                 time.sleep(wait)
@@ -196,7 +198,4 @@ class HuggingFaceLLM(LLM):
             resp.raise_for_status()
             return resp
 
-        # All retries exhausted
-        if last_exc is not None:
-            raise last_exc
-        raise RuntimeError("HuggingFace request failed after all retries")
+        raise RateLimitError(provider="huggingface", retry_after=last_retry_after)

@@ -4,6 +4,7 @@ import logging
 
 from application.agents._tokens import count_tokens, truncate_tokens
 from application.agents.base import BaseAgent
+from core.exceptions import RateLimitError
 from core.ports.llm import GenerationParams
 
 logger = logging.getLogger(__name__)
@@ -83,6 +84,8 @@ class DocumentChatAgent(BaseAgent):
 
         try:
             return self._call(system, user_message, params=params)
+        except RateLimitError:
+            raise
         except Exception as e:
             logger.error("Document chat LLM call failed: %s", e)
             return "Sorry, I encountered an error processing your request. Please try again."

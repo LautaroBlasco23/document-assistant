@@ -12,6 +12,7 @@ from fastapi.responses import JSONResponse
 from starlette.requests import Request
 
 from api.services import init_services, shutdown_services
+from core.exceptions import RateLimitError
 
 logger = logging.getLogger(__name__)
 
@@ -102,6 +103,19 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    @app.exception_handler(RateLimitError)
+    async def rate_limit_handler(request: Request, exc: RateLimitError):
+        logger.warning("Rate limit exceeded for provider '%s': retry_after=%.0fs", exc.provider, exc.retry_after)
+        return JSONResponse(
+            status_code=503,
+            headers={"Retry-After": str(int(exc.retry_after))},
+            content={
+                "detail": "rate_limited",
+                "provider": exc.provider,
+                "retry_after": exc.retry_after,
+            },
+        )
 
     @app.exception_handler(Exception)
     async def unhandled_exception_handler(request: Request, exc: Exception):

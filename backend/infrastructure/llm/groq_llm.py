@@ -5,10 +5,28 @@ from collections import deque
 
 import requests
 
+from core.exceptions import RateLimitError
 from core.ports.llm import LLM, GenerationParams
 from infrastructure.config import GroqConfig
+from infrastructure.llm.task_context import _current_task
 
 logger = logging.getLogger(__name__)
+
+# Module-level dict of limiters keyed by (requests_per_minute) so each unique
+# config value gets its own singleton bucket shared across all GroqLLM instances
+# with that config, while still respecting the configured limit.
+_limiters: dict[int, "GroqRateLimiter"] = {}
+_limiters_lock = threading.Lock()
+
+
+def _get_limiter(requests_per_minute: int) -> "GroqRateLimiter":
+    with _limiters_lock:
+        if requests_per_minute not in _limiters:
+            _limiters[requests_per_minute] = GroqRateLimiter(
+                limit=requests_per_minute + 5,
+                threshold=requests_per_minute,
+            )
+        return _limiters[requests_per_minute]
 
 
 class GroqRateLimiter:
@@ -31,7 +49,6 @@ class GroqRateLimiter:
         while True:
             with self._lock:
                 now = time.monotonic()
-                # Expire timestamps older than the window
                 cutoff = now - self._window_seconds
                 while self._timestamps and self._timestamps[0] <= cutoff:
                     self._timestamps.popleft()
@@ -39,11 +56,9 @@ class GroqRateLimiter:
                 current_count = len(self._timestamps)
 
                 if current_count < self._threshold:
-                    # Capacity available -- record and proceed
                     self._timestamps.append(now)
                     return
 
-                # At or over threshold -- calculate how long to sleep
                 oldest = self._timestamps[0]
                 sleep_for = (oldest + self._window_seconds) - now
                 logger.warning(
@@ -53,12 +68,7 @@ class GroqRateLimiter:
                     sleep_for,
                 )
 
-            # Sleep outside the lock so other threads can check
             time.sleep(max(sleep_for, 0.1))
-
-
-# Module-level singleton shared across all GroqLLM instances
-_rate_limiter = GroqRateLimiter(limit=30, threshold=25)
 
 
 class GroqLLM(LLM):
@@ -74,9 +84,10 @@ class GroqLLM(LLM):
         self._api_key = config.api_key
         self._timeout = config.timeout
         self._max_retries = config.max_retries
+        self._max_retries_chat = config.max_retries_chat
+        self._rate_limiter = _get_limiter(config.requests_per_minute)
 
     def _apply_params(self, payload: dict, params: GenerationParams | None) -> None:
-        """Apply generation parameters to the payload."""
         if params is None:
             return
         if params.temperature is not None:
@@ -87,7 +98,6 @@ class GroqLLM(LLM):
             payload["max_tokens"] = params.max_tokens
 
     def generate(self, prompt: str, params: GenerationParams | None = None) -> str:
-        """Generate a completion from a plain prompt string."""
         payload: dict = {
             "model": self._model,
             "messages": [{"role": "user", "content": prompt}],
@@ -126,21 +136,24 @@ class GroqLLM(LLM):
             "stream": False,
         }
         self._apply_params(payload, params)
-        resp = self._request(payload)
+        # Use fail-fast retry count when called from a foreground/synchronous context
+        # (no background task registered in the ContextVar).
+        max_retries = self._max_retries if _current_task.get() is not None else self._max_retries_chat
+        resp = self._request(payload, max_retries_override=max_retries)
         return resp.json()["choices"][0]["message"]["content"]
 
     def _log_error_response(self, resp: requests.Response) -> None:
-        """Log the Groq API error response body for debugging."""
         try:
             err_body = resp.json()
             logger.error("Groq API error (status=%d): %s", resp.status_code, err_body)
         except Exception:
             logger.error("Groq API error (status=%d): %s", resp.status_code, resp.text[:500])
 
-    def _request(self, payload: dict, stream: bool = False) -> requests.Response:
+    def _request(
+        self, payload: dict, stream: bool = False, max_retries_override: int | None = None
+    ) -> requests.Response:
         """POST to Groq with retry logic for 429s."""
-        # Proactive rate limiting before sending
-        _rate_limiter.acquire()
+        self._rate_limiter.acquire()
 
         url = f"{self._base_url}/chat/completions"
         headers = {
@@ -148,8 +161,11 @@ class GroqLLM(LLM):
             "Content-Type": "application/json",
         }
 
+        max_retries = max_retries_override if max_retries_override is not None else self._max_retries
+        last_retry_after: float = 60.0
         last_exc: Exception | None = None
-        for attempt in range(self._max_retries):
+
+        for attempt in range(max_retries):
             resp = requests.post(
                 url,
                 json=payload,
@@ -160,17 +176,22 @@ class GroqLLM(LLM):
 
             if resp.status_code == 429:
                 retry_after = resp.headers.get("Retry-After")
-                if retry_after is not None:
-                    wait = float(retry_after)
-                else:
-                    wait = 2.0 * (2 ** attempt)  # exponential: 2, 4, 8
+                wait = float(retry_after) if retry_after is not None else 2.0 * (2**attempt)
+                last_retry_after = wait
                 logger.warning(
                     "Groq HTTP 429 on attempt %d/%d, retrying in %.1fs",
                     attempt + 1,
-                    self._max_retries,
+                    max_retries,
                     wait,
                 )
-                time.sleep(wait)
+                task = _current_task.get()
+                if task is not None:
+                    prev_progress = task.progress
+                    task.progress = f"Rate limited by Groq — retrying in {int(wait)}s"
+                    time.sleep(wait)
+                    task.progress = prev_progress
+                else:
+                    time.sleep(wait)
                 last_exc = requests.HTTPError(response=resp)
                 continue
 
@@ -182,7 +203,4 @@ class GroqLLM(LLM):
             resp.raise_for_status()
             return resp
 
-        # All retries exhausted
-        if last_exc is not None:
-            raise last_exc
-        raise RuntimeError("Groq request failed after all retries")
+        raise RateLimitError(provider="groq", retry_after=last_retry_after)

@@ -14,6 +14,8 @@ groq:
   fast_model: "llama-3.1-8b-instant"
   timeout: 60
   max_retries: 3
+  max_retries_chat: 1
+  requests_per_minute: 25  # proactive rate limit for Groq free tier
 
 openrouter:
   # api_key: set via DOCASSIST_OPENROUTER__API_KEY env var (never commit keys here)
@@ -30,6 +32,8 @@ huggingface:
   model: "Qwen/Qwen2.5-72B-Instruct"
   timeout: 180
   max_retries: 3
+  max_retries_chat: 1
+  requests_per_minute: 80  # proactive rate limit for HuggingFace free tier
   wait_for_model: true
 
 chunking:
