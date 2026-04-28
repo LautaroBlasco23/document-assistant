@@ -15,11 +15,12 @@ import { Button } from '../../components/ui/button'
 import { Badge } from '../../components/ui/badge'
 import { Select } from '../../components/ui/select'
 import { useKnowledgeTreeStore } from '../../stores/knowledge-tree-store'
+import { useTaskStore } from '../../stores/task-store'
+import { useAppStore } from '../../stores/app-store'
 import { useGenerationSettings } from '../../stores/generation-settings'
 import { useAgents } from '../../hooks/use-agents'
 import { useModels } from '../../hooks/use-models'
 import { AgentCreationDialog } from '../settings/agent-creation-dialog'
-import { client } from '../../services'
 import type {
   KnowledgeChapter,
   TrueFalseQuestion,
@@ -42,55 +43,11 @@ interface ContentTabProps {
 }
 
 // ---------------------------------------------------------------------------
-// Task polling hook for knowledge tree question generation
+// Selector: read a single task's live state from the global store
 // ---------------------------------------------------------------------------
 
-function useQuestionGenerationTask(params: {
-  taskId: string | null
-  onComplete: () => void
-  onFail?: (error: string) => void
-}) {
-  const { taskId, onComplete, onFail } = params
-  const [isPolling, setIsPolling] = React.useState(false)
-  const [progressPct, setProgressPct] = React.useState<number | null>(null)
-  const [progressMsg, setProgressMsg] = React.useState<string | null>(null)
-
-  React.useEffect(() => {
-    if (!taskId) return
-
-    setIsPolling(true)
-    setProgressPct(null)
-    setProgressMsg(null)
-
-    const interval = setInterval(async () => {
-      try {
-        const status = await client.getTaskStatus(taskId)
-        setProgressPct(status.progress_pct ?? null)
-        setProgressMsg(status.progress ?? null)
-
-        if (status.status === 'completed') {
-          clearInterval(interval)
-          setIsPolling(false)
-          onComplete()
-        } else if (status.status === 'failed') {
-          clearInterval(interval)
-          setIsPolling(false)
-          onFail?.(status.error ?? 'Generation failed')
-        }
-      } catch {
-        clearInterval(interval)
-        setIsPolling(false)
-        onFail?.('Lost connection to server')
-      }
-    }, 1500)
-
-    return () => {
-      clearInterval(interval)
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [taskId])
-
-  return { isPolling, progressPct, progressMsg }
+function useTaskEntry(taskId: string | null) {
+  return useTaskStore((s) => (taskId ? (s.tasks[taskId] ?? null) : null))
 }
 
 // ---------------------------------------------------------------------------
@@ -430,49 +387,91 @@ function FlashcardList({
 interface FlashcardGeneratorProps {
   treeId: string
   chapter: number
+  chapterTitle: string
   flashcardCount: number
   onFlashcardsUpdated: () => void
 }
 
-function FlashcardGenerator({ treeId, chapter, flashcardCount, onFlashcardsUpdated }: FlashcardGeneratorProps) {
+function FlashcardGenerator({ treeId, chapter, chapterTitle, flashcardCount, onFlashcardsUpdated }: FlashcardGeneratorProps) {
   const [taskId, setTaskId] = React.useState<string | null>(null)
   const [status, setStatus] = React.useState<GenerateStatus>('idle')
   const [numFlashcards, setNumFlashcards] = React.useState<number | null>(null)
   const [confirmDeleteAll, setConfirmDeleteAll] = React.useState(false)
+  const handledRef = React.useRef<string | null>(null)
 
   const store = useKnowledgeTreeStore()
+  const submitTask = useTaskStore((s) => s.submitTask)
+  const clearTask = useTaskStore((s) => s.clearTask)
+  const addError = useAppStore((s) => s.addError)
+  const taskEntry = useTaskEntry(taskId)
+
+  // On mount: resume any in-flight flashcard task for this chapter
+  React.useEffect(() => {
+    const existing = Object.values(useTaskStore.getState().tasks).find(
+      (t) => t.type === 'kt_flashcards' && t.entityId === treeId && t.chapter === chapter
+    )
+    if (existing) setTaskId(existing.taskId)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   React.useEffect(() => {
     if (flashcardCount > 0 && status === 'idle') setStatus('done')
     else if (flashcardCount === 0 && status === 'done') setStatus('idle')
   }, [flashcardCount, status])
 
-  const { isPolling, progressMsg } = useQuestionGenerationTask({
-    taskId,
-    onComplete: () => {
+  React.useEffect(() => {
+    if (taskId && taskEntry && (taskEntry.status === 'pending' || taskEntry.status === 'running')) {
+      if (status !== 'loading') setStatus('loading')
+    }
+  }, [taskId, taskEntry, status])
+
+  React.useEffect(() => {
+    if (!taskId || !taskEntry) return
+    if (handledRef.current === taskId) return
+
+    if (taskEntry.status === 'completed') {
+      handledRef.current = taskId
       void store.fetchFlashcards(treeId, chapter).then(() => {
         onFlashcardsUpdated()
         setStatus('done')
+        clearTask(taskId)
         setTaskId(null)
       })
-    },
-    onFail: () => {
-      setStatus('idle')
+    } else if (taskEntry.status === 'failed') {
+      handledRef.current = taskId
+      addError(taskEntry.error ?? 'Flashcard generation failed')
+      setStatus(flashcardCount > 0 ? 'done' : 'idle')
+      clearTask(taskId)
       setTaskId(null)
-    },
-  })
-
-  React.useEffect(() => {
-    if (isPolling && status !== 'loading') setStatus('loading')
-  }, [isPolling, status])
+    } else if (taskEntry.status === 'rate_limited') {
+      handledRef.current = taskId
+      const retryAfter = (taskEntry.result as { retry_after?: number } | null)?.retry_after
+      addError(
+        retryAfter
+          ? `AI provider is rate-limiting requests. Please retry in ${Math.ceil(retryAfter)}s.`
+          : (taskEntry.error ?? 'Rate limited by AI provider. Please try again shortly.')
+      )
+      setStatus(flashcardCount > 0 ? 'done' : 'idle')
+      clearTask(taskId)
+      setTaskId(null)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [taskId, taskEntry?.status])
 
   const handleGenerate = async () => {
     setStatus('loading')
     try {
       const id = await store.generateFlashcards(treeId, chapter, numFlashcards)
+      submitTask({
+        taskId: id,
+        type: 'kt_flashcards',
+        entityId: treeId,
+        chapter,
+        entityTitle: `${chapterTitle} — Flashcards`,
+      })
       setTaskId(id)
     } catch {
-      setStatus('idle')
+      setStatus(flashcardCount > 0 ? 'done' : 'idle')
     }
   }
 
@@ -548,7 +547,7 @@ function FlashcardGenerator({ treeId, chapter, flashcardCount, onFlashcardsUpdat
         {status === 'loading' && (
           <div className="flex items-center gap-2 text-xs text-gray-400 dark:text-slate-500 py-1">
             <div className="h-3.5 w-3.5 rounded-full border-2 border-emerald-400 border-t-transparent animate-spin" />
-            {progressMsg ?? 'Generating flashcards from knowledge documents...'}
+            {taskEntry?.progress ?? 'Generating flashcards from knowledge documents...'}
           </div>
         )}
         {status === 'done' && (
@@ -566,6 +565,7 @@ function FlashcardGenerator({ treeId, chapter, flashcardCount, onFlashcardsUpdat
 interface QuestionGeneratorProps {
   treeId: string
   chapter: number
+  chapterTitle: string
   questionType: KnowledgeTreeQuestionType
   icon: React.ReactNode
   title: string
@@ -579,6 +579,7 @@ interface QuestionGeneratorProps {
 function QuestionGenerator({
   treeId,
   chapter,
+  chapterTitle,
   questionType,
   icon,
   title,
@@ -591,45 +592,89 @@ function QuestionGenerator({
   const [taskId, setTaskId] = React.useState<string | null>(null)
   const [status, setStatus] = React.useState<GenerateStatus>('idle')
   const [numQuestions, setNumQuestions] = React.useState<number | null>(null)
+  const handledRef = React.useRef<string | null>(null)
 
   const store = useKnowledgeTreeStore()
+  const submitTask = useTaskStore((s) => s.submitTask)
+  const clearTask = useTaskStore((s) => s.clearTask)
+  const addError = useAppStore((s) => s.addError)
+  const taskEntry = useTaskEntry(taskId)
 
+  // On mount: resume any in-flight task for this chapter+type from the global store.
+  // This covers the "navigated away while generating" case.
   React.useEffect(() => {
-    if (questionCount > 0 && status === 'idle') {
-      setStatus('done')
-    } else if (questionCount === 0 && status === 'done') {
-      setStatus('idle')
-    }
+    const entityId = `${treeId}:${questionType}`
+    const existing = Object.values(useTaskStore.getState().tasks).find(
+      (t) =>
+        t.type === 'kt_questions' &&
+        t.entityId === entityId &&
+        t.chapter === chapter
+    )
+    if (existing) setTaskId(existing.taskId)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Sync questionCount → UI status (only idle↔done, never overrides loading)
+  React.useEffect(() => {
+    if (questionCount > 0 && status === 'idle') setStatus('done')
+    else if (questionCount === 0 && status === 'done') setStatus('idle')
   }, [questionCount, status])
 
-  const { isPolling, progressMsg } = useQuestionGenerationTask({
-    taskId,
-    onComplete: () => {
+  // Keep UI in sync while the task is pending/running
+  React.useEffect(() => {
+    if (taskId && taskEntry && (taskEntry.status === 'pending' || taskEntry.status === 'running')) {
+      if (status !== 'loading') setStatus('loading')
+    }
+  }, [taskId, taskEntry, status])
+
+  // React to terminal task states (completed / failed / rate_limited)
+  React.useEffect(() => {
+    if (!taskId || !taskEntry) return
+    if (handledRef.current === taskId) return
+
+    if (taskEntry.status === 'completed') {
+      handledRef.current = taskId
       void store.fetchQuestions(treeId, chapter).then(() => {
         onQuestionsUpdated()
         setStatus('done')
+        clearTask(taskId)
         setTaskId(null)
       })
-    },
-    onFail: () => {
-      setStatus('idle')
+    } else if (taskEntry.status === 'failed') {
+      handledRef.current = taskId
+      addError(taskEntry.error ?? 'Question generation failed')
+      setStatus(questionCount > 0 ? 'done' : 'idle')
+      clearTask(taskId)
       setTaskId(null)
-    },
-  })
-
-  React.useEffect(() => {
-    if (isPolling && status !== 'loading') {
-      setStatus('loading')
+    } else if (taskEntry.status === 'rate_limited') {
+      handledRef.current = taskId
+      const retryAfter = (taskEntry.result as { retry_after?: number } | null)?.retry_after
+      addError(
+        retryAfter
+          ? `AI provider is rate-limiting requests. Please retry in ${Math.ceil(retryAfter)}s.`
+          : (taskEntry.error ?? 'Rate limited by AI provider. Please try again shortly.')
+      )
+      setStatus(questionCount > 0 ? 'done' : 'idle')
+      clearTask(taskId)
+      setTaskId(null)
     }
-  }, [isPolling, status])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [taskId, taskEntry?.status])
 
   const handleGenerate = async () => {
     setStatus('loading')
     try {
       const id = await store.generateQuestions(treeId, chapter, questionType, numQuestions)
+      submitTask({
+        taskId: id,
+        type: 'kt_questions',
+        entityId: `${treeId}:${questionType}`,
+        chapter,
+        entityTitle: `${chapterTitle} — ${title}`,
+      })
       setTaskId(id)
     } catch {
-      setStatus('idle')
+      setStatus(questionCount > 0 ? 'done' : 'idle')
     }
   }
 
@@ -649,7 +694,7 @@ function QuestionGenerator({
       status={status}
       count={questionCount}
       spinnerColor={spinnerColor}
-      progressMsg={progressMsg}
+      progressMsg={taskEntry?.progress ?? null}
       onGenerate={() => void handleGenerate()}
       onDeleteAll={questionCount > 0 ? () => void handleDeleteAll() : undefined}
       numQuestionsControl={
@@ -798,6 +843,7 @@ export function ContentTab({ treeId, selectedChapter, chapters }: ContentTabProp
           <FlashcardGenerator
             treeId={treeId}
             chapter={selectedChapter}
+            chapterTitle={currentChapter?.title ?? ''}
             flashcardCount={flashcards.length}
             onFlashcardsUpdated={handleQuestionsUpdated}
           />
@@ -812,6 +858,7 @@ export function ContentTab({ treeId, selectedChapter, chapters }: ContentTabProp
             <QuestionGenerator
               treeId={treeId}
               chapter={selectedChapter}
+              chapterTitle={currentChapter?.title ?? ''}
               questionType="true_false"
               icon={<ToggleLeft className="h-4 w-4 text-indigo-400" />}
               title="True / False"
@@ -826,6 +873,7 @@ export function ContentTab({ treeId, selectedChapter, chapters }: ContentTabProp
             <QuestionGenerator
               treeId={treeId}
               chapter={selectedChapter}
+              chapterTitle={currentChapter?.title ?? ''}
               questionType="multiple_choice"
               icon={<ListChecks className="h-4 w-4 text-violet-400" />}
               title="Multiple Choice"
@@ -840,6 +888,7 @@ export function ContentTab({ treeId, selectedChapter, chapters }: ContentTabProp
             <QuestionGenerator
               treeId={treeId}
               chapter={selectedChapter}
+              chapterTitle={currentChapter?.title ?? ''}
               questionType="matching"
               icon={<Link2 className="h-4 w-4 text-amber-400" />}
               title="Matching"
@@ -854,6 +903,7 @@ export function ContentTab({ treeId, selectedChapter, chapters }: ContentTabProp
             <QuestionGenerator
               treeId={treeId}
               chapter={selectedChapter}
+              chapterTitle={currentChapter?.title ?? ''}
               questionType="checkbox"
               icon={<CheckSquare className="h-4 w-4 text-teal-400" />}
               title="Checkbox (Select All That Apply)"
