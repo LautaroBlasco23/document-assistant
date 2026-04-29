@@ -10,9 +10,12 @@ import { cn } from '../../lib/cn'
 import { useGenerationSettings } from '../../stores/generation-settings'
 import { useAgents } from '../../hooks/use-agents'
 import { useModels } from '../../hooks/use-models'
+import { useProviderCredentials } from '../../hooks/useProviderCredentials'
 import { client } from '../../services'
 import { AgentCreationDialog } from './agent-creation-dialog'
 import { ModelSelect } from '../../components/ui/model-select'
+import { ProviderSelect } from '../../components/ui/provider-select'
+import { ApiKeysCard } from './api-keys-card'
 
 const MAX_TOKENS_OPTIONS = [256, 512, 1024, 2048, 4096, 8192]
 
@@ -38,7 +41,10 @@ export function SettingsPage() {
   const { theme, setTheme } = useTheme()
   const { settings, setAgent } = useGenerationSettings()
   const { agents, loading: agentsLoading, refresh: refreshAgents } = useAgents()
-  const { models, currentModel } = useModels()
+  const [selectedProviderForModels, setSelectedProviderForModels] = React.useState<string | undefined>(undefined)
+  const { models, currentModel } = useModels(selectedProviderForModels)
+  const { useCredentials } = useProviderCredentials()
+  const { credentials } = useCredentials()
   const [createDialogOpen, setCreateDialogOpen] = React.useState(false)
 
   const defaultAgent = agents.find((a) => a.is_default)
@@ -47,6 +53,7 @@ export function SettingsPage() {
 
   const [draftName, setDraftName] = React.useState('')
   const [draftPrompt, setDraftPrompt] = React.useState('')
+  const [draftProvider, setDraftProvider] = React.useState('')
   const [draftModel, setDraftModel] = React.useState('')
   const [draftTemperature, setDraftTemperature] = React.useState(0.7)
   const [draftTopP, setDraftTopP] = React.useState(1.0)
@@ -58,10 +65,12 @@ export function SettingsPage() {
     if (selectedAgent) {
       setDraftName(selectedAgent.name)
       setDraftPrompt(selectedAgent.prompt || '')
+      setDraftProvider(selectedAgent.provider)
       setDraftModel(selectedAgent.model)
       setDraftTemperature(selectedAgent.temperature)
       setDraftTopP(selectedAgent.top_p)
       setDraftMaxTokens(selectedAgent.max_tokens)
+      setSelectedProviderForModels(selectedAgent.provider)
       setSaveError('')
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -70,6 +79,7 @@ export function SettingsPage() {
   const isDirty = selectedAgent != null && (
     draftName !== selectedAgent.name ||
     draftPrompt !== (selectedAgent.prompt || '') ||
+    draftProvider !== selectedAgent.provider ||
     draftModel !== selectedAgent.model ||
     draftTemperature !== selectedAgent.temperature ||
     draftTopP !== selectedAgent.top_p ||
@@ -83,6 +93,7 @@ export function SettingsPage() {
     try {
       await client.updateAgent(selectedAgent.id, {
         name: draftName.trim(),
+        provider: draftProvider,
         prompt: draftPrompt.trim(),
         model: draftModel,
         temperature: draftTemperature,
@@ -100,14 +111,6 @@ export function SettingsPage() {
   return (
     <div className="p-6 max-w-3xl mx-auto">
       <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100 mb-6">Settings</h1>
-
-      <div className="bg-primary-light dark:bg-primary/12 border border-primary/20 dark:border-primary/30 text-primary px-4 py-3 rounded-lg text-sm mb-6">
-        Configuration is read-only. Edit{' '}
-        <code className="font-mono text-xs bg-primary/10 dark:bg-primary/20 px-1 py-0.5 rounded">
-          config/default.yml
-        </code>{' '}
-        to change settings.
-      </div>
 
       <div className="flex flex-col gap-4">
         {/* Appearance */}
@@ -144,6 +147,9 @@ export function SettingsPage() {
           </div>
           <Badge variant="neutral">Free</Badge>
         </Link>
+
+        {/* API Keys */}
+        <ApiKeysCard />
 
         {/* Agents */}
         <Card
@@ -217,6 +223,22 @@ export function SettingsPage() {
                     placeholder="e.g. You are a concise academic tutor..."
                     rows={3}
                     className="w-full px-3 py-2 border border-surface-200 dark:border-surface-200 rounded-md text-sm bg-surface dark:bg-surface-200 text-gray-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary resize-vertical"
+                  />
+                </div>
+
+                {/* Provider */}
+                <div>
+                  <label className="flex items-center gap-1.5 text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+                    Provider
+                  </label>
+                  <ProviderSelect
+                    value={draftProvider}
+                    onChange={(v) => {
+                      setDraftProvider(v)
+                      setDraftModel('')
+                      setSelectedProviderForModels(v)
+                    }}
+                    credentials={credentials}
                   />
                 </div>
 
@@ -325,6 +347,7 @@ export function SettingsPage() {
           models={models}
           currentModel={currentModel}
           onCreated={(id) => { refreshAgents(); setAgent(id) }}
+          credentials={credentials}
         />
       </div>
     </div>
