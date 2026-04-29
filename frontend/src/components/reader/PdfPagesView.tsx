@@ -208,7 +208,7 @@ export function PdfPagesView({
   return (
     <div
       ref={scrollContainerRef}
-      className="flex-1 min-w-0 bg-gray-100 dark:bg-slate-900 overflow-auto flex flex-col items-center py-6 px-4 gap-8"
+      className="flex-1 min-w-0 bg-surface-100 dark:bg-bg-inset overflow-auto flex flex-col items-center py-6 px-4 gap-8"
       onContextMenu={onContextMenu}
       onClick={onClickAway}
     >
@@ -217,12 +217,12 @@ export function PdfPagesView({
         options={DOCUMENT_OPTIONS}
         onLoadSuccess={handleDocLoad}
         loading={
-          <div className="w-[600px] h-[800px] flex items-center justify-center text-sm text-gray-400 dark:text-slate-500">
+          <div className="w-[600px] h-[800px] flex items-center justify-center text-sm text-text-tertiary">
             Loading PDF...
           </div>
         }
         error={
-          <div className="w-[600px] h-[200px] flex items-center justify-center text-sm text-red-400 px-6">
+          <div className="w-[600px] h-[200px] flex items-center justify-center text-sm text-danger px-6">
             Failed to load PDF. The file may not be available.
           </div>
         }
@@ -239,7 +239,7 @@ export function PdfPagesView({
                 style={{ minHeight: isActive ? undefined : estimatedPageHeight }}
               >
                 {isActive ? (
-                  <div className="bg-white dark:bg-slate-700 shadow-md">
+                  <div className="bg-surface dark:bg-surface-100 shadow-md">
                     <MemoPage
                       pageNumber={pageNumber}
                       width={displayWidth}
@@ -252,7 +252,7 @@ export function PdfPagesView({
                     style={{ width: displayWidth, height: estimatedPageHeight }}
                   />
                 )}
-                <span className="mt-2 text-xs text-gray-400 dark:text-slate-500 select-none">
+                <span className="mt-2 text-xs text-text-tertiary select-none">
                   {pageNumber} / {numPages}
                 </span>
               </div>

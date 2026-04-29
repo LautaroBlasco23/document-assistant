@@ -11,6 +11,7 @@ import {
 import { useGenerationSettings } from '../../stores/generation-settings'
 import { useAgents } from '../../hooks/use-agents'
 import { useModels } from '../../hooks/use-models'
+import { useProviderCredentials } from '../../hooks/useProviderCredentials'
 import { AgentCreationDialog } from '../../pages/settings/agent-creation-dialog'
 
 interface ContentPanelProps {
@@ -23,6 +24,8 @@ export function ContentPanel({ treeId, chapter }: ContentPanelProps) {
   const { settings, setAgent } = useGenerationSettings()
   const { agents, loading: agentsLoading } = useAgents()
   const { models, currentModel, loading: modelsLoading } = useModels()
+  const { useCredentials } = useProviderCredentials()
+  const { credentials } = useCredentials()
   const [agentDialogOpen, setAgentDialogOpen] = React.useState(false)
 
   const defaultAgent = agents.find((a) => a.is_default)
@@ -41,24 +44,24 @@ export function ContentPanel({ treeId, chapter }: ContentPanelProps) {
     <div className="h-full flex flex-col">
       {!agentsLoading && !modelsLoading && agents.length > 0 && (
         <div className="shrink-0 border-b border-surface-200 dark:border-surface-200 px-2 py-1 flex items-center gap-1.5">
-          <span className="text-[10px] uppercase tracking-wide text-gray-400 dark:text-slate-500 shrink-0">Agent</span>
+          <span className="text-[10px] uppercase tracking-wide text-text-tertiary shrink-0">Agent</span>
           <div className="relative flex-1 min-w-0">
             <select
               value={selectedAgentId}
               onChange={handleAgentChange}
-              className="w-full text-xs px-1.5 py-0.5 rounded border border-surface-200 dark:border-surface-200 bg-surface dark:bg-surface-200 text-gray-700 dark:text-slate-200 appearance-none cursor-pointer"
+              className="w-full text-xs px-1.5 py-0.5 rounded border border-surface-200 dark:border-surface-200 bg-surface dark:bg-surface-200 text-text-primary appearance-none cursor-pointer"
             >
               {agents.map((a) => (
                 <option key={a.id} value={a.id}>
                   {a.name}{a.is_default ? ' (default)' : ''}
                 </option>
               ))}
-              <option value="__create__" disabled className="text-gray-400 dark:text-slate-500">
+              <option value="__create__" disabled className="text-text-tertiary">
                 ──────────────
               </option>
               <option value="__create__">+ Create new agent</option>
             </select>
-            <ChevronDown className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 h-3 w-3 text-gray-400 dark:text-slate-500" />
+            <ChevronDown className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 h-3 w-3 text-text-tertiary" />
           </div>
         </div>
       )}
@@ -68,16 +71,17 @@ export function ContentPanel({ treeId, chapter }: ContentPanelProps) {
         models={models}
         currentModel={currentModel}
         onCreated={(id) => setAgent(id)}
+        credentials={credentials}
       />
 
       {items.length === 0 ? (
         <div className="flex-1 overflow-y-auto p-4">
-          <div className="text-center text-xs text-gray-400 dark:text-slate-500 mt-4">
+          <div className="text-center text-xs text-text-tertiary mt-4">
             Right-click a selection in the document
             <br />
             and choose what to generate.
             <br />
-            <span className="text-gray-300 dark:text-slate-600">
+            <span className="text-text-tertiary">
               Generated items appear here for your review.
             </span>
           </div>
@@ -123,29 +127,29 @@ function CardShell({
     <div className={cn(
       'rounded-lg border bg-surface dark:bg-surface-200 shadow-sm overflow-hidden transition-colors',
       disposition === 'approved'
-        ? 'border-green-300 dark:border-green-700'
+        ? 'border-success/30'
         : disposition === 'rejected'
-          ? 'border-red-300 dark:border-red-700'
+          ? 'border-red-300 dark:border-danger'
           : 'border-surface-200 dark:border-surface-200',
     )}>
       <div className={cn(
         'flex items-center justify-between px-3 py-1.5 border-b bg-surface-100 dark:bg-surface-200/80',
         disposition === 'approved'
-          ? 'border-green-200 dark:border-green-800'
+          ? 'border-success/30 '
           : disposition === 'rejected'
-            ? 'border-red-200 dark:border-red-800'
+            ? 'border-danger/30 '
             : 'border-surface-200 dark:border-surface-200',
       )}>
-        <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-slate-400">
+        <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-text-tertiary">
           {status === 'generating' && <Loader2 className="h-3 w-3 animate-spin" />}
-          {status === 'error' && <AlertCircle className="h-3 w-3 text-red-500" />}
+          {status === 'error' && <AlertCircle className="h-3 w-3 text-danger" />}
           <span>{label}</span>
           {disposition && (
             <span className={cn(
               'ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold',
               disposition === 'approved'
-                ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400'
-                : 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400',
+                ? 'bg-success-light text-success'
+                : 'bg-danger-light text-danger',
             )}>
               {disposition === 'approved' ? 'Approved' : 'Rejected'}
             </span>
@@ -158,7 +162,7 @@ function CardShell({
                 onClick={onReject}
                 disabled={status === 'saving'}
                 title="Reject"
-                  className="p-1 rounded text-gray-400 hover:text-danger hover:bg-danger-light dark:hover:bg-danger/12 transition-colors disabled:opacity-50"
+                  className="p-1 rounded text-text-tertiary hover:text-danger hover:bg-danger-light dark:hover:bg-danger/12 transition-colors disabled:opacity-50"
                 >
                   <X className="h-3.5 w-3.5" />
                 </button>
@@ -166,7 +170,7 @@ function CardShell({
                   onClick={onApprove}
                   disabled={approveDisabled || status === 'saving' || status === 'generating'}
                   title="Approve"
-                  className="p-1 rounded text-gray-400 hover:text-success hover:bg-success-light dark:hover:bg-success/12 transition-colors disabled:opacity-40 disabled:hover:bg-transparent"
+                  className="p-1 rounded text-text-tertiary hover:text-success hover:bg-success-light dark:hover:bg-success/12 transition-colors disabled:opacity-40 disabled:hover:bg-transparent"
               >
                 {status === 'saving' ? (
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -180,7 +184,7 @@ function CardShell({
             <button
               onClick={onDismiss}
               title="Dismiss"
-              className="p-1 rounded text-gray-400 hover:text-gray-600 dark:hover:text-slate-300 hover:bg-surface-100 dark:hover:bg-surface-100 transition-colors"
+              className="p-1 rounded text-text-tertiary hover:text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100 transition-colors"
             >
               <X className="h-3.5 w-3.5" />
             </button>
@@ -210,7 +214,7 @@ function EditableField({
 }) {
   return (
     <label className="block mb-2 last:mb-0">
-      <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-500 dark:text-slate-500 flex items-center gap-1">
+      <span className="text-[10px] font-semibold uppercase tracking-wide text-text-tertiary flex items-center gap-1">
         <Pencil className="h-2.5 w-2.5" /> {label}
       </span>
       <textarea
@@ -219,7 +223,7 @@ function EditableField({
         rows={rows}
         readOnly={readOnly}
         className={cn(
-          'mt-0.5 w-full resize-none rounded border bg-surface dark:bg-surface-200 px-2 py-1 text-sm text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-primary',
+          'mt-0.5 w-full resize-none rounded border bg-surface dark:bg-surface-200 px-2 py-1 text-sm text-text-primary focus:outline-none focus:ring-1 focus:ring-primary',
           readOnly
             ? 'border-surface-200 dark:border-surface-200 cursor-default pointer-events-none'
             : 'border-surface-200 dark:border-surface-200',
@@ -332,7 +336,7 @@ function QuestionCard({
           readOnly={resolved}
         />
         <div className="mb-2">
-          <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-500 dark:text-slate-500">
+          <span className="text-[10px] font-semibold uppercase tracking-wide text-text-tertiary">
             Answer
           </span>
           <div className="mt-1 flex gap-1">
@@ -345,8 +349,8 @@ function QuestionCard({
                   'flex-1 px-2 py-1 text-xs rounded border transition-colors',
                   resolved && 'cursor-default',
                   answer === val
-                    ? 'bg-primary text-white border-primary'
-                    : 'border-surface-200 dark:border-surface-200 text-gray-700 dark:text-slate-300 hover:bg-surface-100 dark:hover:bg-surface-100',
+                    ? 'bg-primary text-text-inverse border-primary'
+                    : 'border-surface-200 dark:border-surface-200 text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100',
                 )}
               >
                 {val ? 'True' : 'False'}
@@ -381,7 +385,7 @@ function QuestionCard({
           rows={2}
           readOnly={resolved}
         />
-        <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-500 dark:text-slate-500">
+        <span className="text-[10px] font-semibold uppercase tracking-wide text-text-tertiary">
           Choices (click radio to mark correct)
         </span>
         <div className="space-y-1 mt-1 mb-2">
@@ -400,7 +404,7 @@ function QuestionCard({
                 onChange={(e) => setChoice(i, e.target.value)}
                 readOnly={resolved}
                 className={cn(
-                  'flex-1 rounded border bg-surface dark:bg-surface-200 px-2 py-1 text-xs text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-primary',
+                  'flex-1 rounded border bg-surface dark:bg-surface-200 px-2 py-1 text-xs text-text-primary focus:outline-none focus:ring-1 focus:ring-primary',
                   resolved
                     ? 'border-surface-200 dark:border-surface-200 cursor-default pointer-events-none'
                     : 'border-surface-200 dark:border-surface-200',
@@ -442,7 +446,7 @@ function QuestionCard({
           rows={2}
           readOnly={resolved}
         />
-        <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-500 dark:text-slate-500">
+        <span className="text-[10px] font-semibold uppercase tracking-wide text-text-tertiary">
           Choices (check all correct answers)
         </span>
         <div className="space-y-1 mt-1 mb-2">
@@ -461,7 +465,7 @@ function QuestionCard({
                 onChange={(e) => setChoice(i, e.target.value)}
                 readOnly={resolved}
                 className={cn(
-                  'flex-1 rounded border bg-surface dark:bg-surface-200 px-2 py-1 text-xs text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-primary',
+                  'flex-1 rounded border bg-surface dark:bg-surface-200 px-2 py-1 text-xs text-text-primary focus:outline-none focus:ring-1 focus:ring-primary',
                   resolved
                     ? 'border-surface-200 dark:border-surface-200 cursor-default pointer-events-none'
                     : 'border-surface-200 dark:border-surface-200',
@@ -480,7 +484,7 @@ function QuestionCard({
     )
   } else {
     body = (
-      <pre className="text-xs whitespace-pre-wrap break-words text-gray-700 dark:text-slate-300">
+      <pre className="text-xs whitespace-pre-wrap break-words text-text-secondary">
         {JSON.stringify(item.questionData, null, 2)}
       </pre>
     )

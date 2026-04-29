@@ -22,7 +22,7 @@ export function LibraryPage() {
     <div className="p-6 max-w-6xl mx-auto">
       {/* Header */}
       <div className="flex items-center gap-3 mb-6">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Knowledge Trees</h1>
+        <h1 className="text-2xl font-bold text-text-primary">Knowledge Trees</h1>
         {trees.length > 0 && (
           <Badge variant="neutral">{trees.length}</Badge>
         )}

@@ -13,13 +13,16 @@ import type {
   FlashcardOut,
   ChatRequest,
   ChatResponse,
+  ProviderInfo,
+  CredentialStatus,
+  TestConnectionResult,
 } from '../types/api'
 import type { KnowledgeTree, KnowledgeChapter, KnowledgeDocument, ExamSession, CreateExamSessionPayload } from '../types/knowledge-tree'
 
 export interface ServiceClient {
   health(): Promise<HealthOut>
   getConfig(): Promise<ConfigOut>
-  getModels(): Promise<ModelsOut>
+  getModels(provider?: string): Promise<ModelsOut>
   getTaskStatus(taskId: string): Promise<TaskStatusOut>
   listActiveTasks(): Promise<ActiveTasksOut>
 
@@ -93,6 +96,13 @@ export interface ServiceClient {
   saveExamSession(treeId: string, chapter: number, payload: CreateExamSessionPayload): Promise<ExamSession>
   listExamSessions(treeId: string, chapter: number): Promise<ExamSession[]>
   getExamSession(treeId: string, chapter: number, sessionId: string): Promise<ExamSession>
+
+  // Provider credentials
+  listProviders(): Promise<ProviderInfo[]>
+  listCredentials(): Promise<CredentialStatus[]>
+  saveCredential(provider: string, apiKey: string): Promise<CredentialStatus>
+  deleteCredential(provider: string): Promise<void>
+  testConnection(provider: string, apiKey?: string): Promise<TestConnectionResult>
 
   // Chat
   chat(request: ChatRequest): Promise<ChatResponse>

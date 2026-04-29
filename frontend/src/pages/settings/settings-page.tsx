@@ -31,7 +31,7 @@ function InfoIcon({ field }: { field: string }) {
   return (
     <Tooltip content={FIELD_INFO[field] ?? ''}>
       <span>
-        <Info className="h-3.5 w-3.5 text-gray-400 dark:text-slate-500 hover:text-blue-500 dark:hover:text-blue-400 cursor-help transition-colors" />
+        <Info className="h-3.5 w-3.5 text-text-tertiary hover:text-blue-500 dark:hover:text-blue-400 cursor-help transition-colors" />
       </span>
     </Tooltip>
   )
@@ -110,7 +110,7 @@ export function SettingsPage() {
 
   return (
     <div className="p-6 max-w-3xl mx-auto">
-      <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100 mb-6">Settings</h1>
+      <h1 className="text-2xl font-bold text-text-primary mb-6">Settings</h1>
 
       <div className="flex flex-col gap-4">
         {/* Appearance */}
@@ -123,8 +123,8 @@ export function SettingsPage() {
                 className={cn(
                   'flex-1 py-2 px-3 rounded-md text-sm font-medium capitalize border transition-colors',
                   theme === t
-                    ? 'bg-primary text-white border-primary'
-                    : 'border-gray-200 dark:border-slate-600 text-gray-600 dark:text-slate-400 hover:bg-surface-100',
+                    ? 'bg-primary text-text-inverse border-primary'
+                    : 'border-border text-text-secondary hover:bg-surface-100',
                 )}
               >
                 {t}
@@ -142,8 +142,8 @@ export function SettingsPage() {
             <CreditCard className="h-5 w-5 text-primary" />
           </div>
           <div className="flex-1">
-            <h3 className="font-semibold text-gray-900 dark:text-slate-100">Plan & Limits</h3>
-            <p className="text-sm text-gray-500 dark:text-slate-400">View your usage and plan limits</p>
+            <h3 className="font-semibold text-text-primary">Plan & Limits</h3>
+            <p className="text-sm text-text-tertiary">View your usage and plan limits</p>
           </div>
           <Badge variant="neutral">Free</Badge>
         </Link>
@@ -154,18 +154,18 @@ export function SettingsPage() {
         {/* Agents */}
         <Card
           title="Agents"
-          actions={<Bot className="h-4 w-4 text-gray-400 dark:text-slate-500" />}
+          actions={<Bot className="h-4 w-4 text-text-tertiary" />}
         >
           <div className="flex flex-col gap-4">
             {/* Default agent selector */}
             <div className="flex flex-col gap-1.5">
-              <label className="text-sm text-gray-600 dark:text-slate-400">Default Agent</label>
+              <label className="text-sm text-text-secondary">Default Agent</label>
               <div className="flex items-center gap-2">
                 <select
                   value={selectedId}
                   onChange={(e) => setAgent(e.target.value)}
                   disabled={agentsLoading}
-                  className="flex-1 px-3 py-2 border border-surface-200 dark:border-surface-200 rounded-md text-sm bg-surface dark:bg-surface-200 text-gray-800 dark:text-slate-200 appearance-none cursor-pointer disabled:opacity-50"
+                  className="flex-1 px-3 py-2 border border-surface-200 dark:border-surface-200 rounded-md text-sm bg-surface dark:bg-surface-200 text-text-primary appearance-none cursor-pointer disabled:opacity-50"
                 >
                   {agents.map((a) => (
                     <option key={a.id} value={a.id}>
@@ -176,7 +176,7 @@ export function SettingsPage() {
                 <button
                   onClick={() => setCreateDialogOpen(true)}
                   title="Create new agent"
-                  className="p-2 rounded-md border border-surface-200 dark:border-surface-200 text-gray-500 dark:text-slate-400 hover:bg-primary-light dark:hover:bg-primary/12 hover:text-primary hover:border-primary/40 dark:hover:border-primary/30 transition-colors"
+                  className="p-2 rounded-md border border-surface-200 dark:border-surface-200 text-text-tertiary hover:bg-primary-light dark:hover:bg-primary/12 hover:text-primary hover:border-primary/40 dark:hover:border-primary/30 transition-colors"
                 >
                   <Plus className="h-4 w-4" />
                 </button>
@@ -187,11 +187,11 @@ export function SettingsPage() {
             {selectedAgent && (
               <div className="border-t border-surface-200 dark:border-surface-200 pt-4 flex flex-col gap-4">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-gray-700 dark:text-slate-300">
+                  <span className="text-sm font-medium text-text-secondary">
                     Agent Config
                   </span>
                   {isDirty && (
-                    <span className="text-xs text-amber-600 dark:text-amber-400 font-medium">
+                    <span className="text-xs text-warning font-medium">
                       Unsaved changes
                     </span>
                   )}
@@ -199,7 +199,7 @@ export function SettingsPage() {
 
                 {/* Name */}
                 <div>
-                  <label className="text-sm font-medium text-gray-700 dark:text-slate-300 mb-1 block">
+                  <label className="text-sm font-medium text-text-secondary mb-1 block">
                     Name
                   </label>
                   <input
@@ -207,13 +207,13 @@ export function SettingsPage() {
                     value={draftName}
                     onChange={(e) => setDraftName(e.target.value)}
                     placeholder="e.g. Creative Writer"
-                    className="w-full px-3 py-2 border border-surface-200 dark:border-surface-200 rounded-md text-sm bg-surface dark:bg-surface-200 text-gray-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                    className="w-full px-3 py-2 border border-surface-200 dark:border-surface-200 rounded-md text-sm bg-surface dark:bg-surface-200 text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                   />
                 </div>
 
                 {/* Prompt */}
                 <div>
-                  <label className="flex items-center gap-1.5 text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+                  <label className="flex items-center gap-1.5 text-sm font-medium text-text-secondary mb-1">
                     Prompt
                     <InfoIcon field="prompt" />
                   </label>
@@ -222,13 +222,13 @@ export function SettingsPage() {
                     onChange={(e) => setDraftPrompt(e.target.value)}
                     placeholder="e.g. You are a concise academic tutor..."
                     rows={3}
-                    className="w-full px-3 py-2 border border-surface-200 dark:border-surface-200 rounded-md text-sm bg-surface dark:bg-surface-200 text-gray-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary resize-vertical"
+                    className="w-full px-3 py-2 border border-surface-200 dark:border-surface-200 rounded-md text-sm bg-surface dark:bg-surface-200 text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary resize-vertical"
                   />
                 </div>
 
                 {/* Provider */}
                 <div>
-                  <label className="flex items-center gap-1.5 text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+                  <label className="flex items-center gap-1.5 text-sm font-medium text-text-secondary mb-1">
                     Provider
                   </label>
                   <ProviderSelect
@@ -244,7 +244,7 @@ export function SettingsPage() {
 
                 {/* Model */}
                 <div>
-                  <label className="flex items-center gap-1.5 text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+                  <label className="flex items-center gap-1.5 text-sm font-medium text-text-secondary mb-1">
                     Model
                     <InfoIcon field="model" />
                   </label>
@@ -258,7 +258,7 @@ export function SettingsPage() {
 
                 {/* Temperature */}
                 <div>
-                  <label className="flex items-center justify-between text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+                  <label className="flex items-center justify-between text-sm font-medium text-text-secondary mb-1">
                     <span className="flex items-center gap-1.5">
                       Temperature
                       <InfoIcon field="temperature" />
@@ -274,7 +274,7 @@ export function SettingsPage() {
                     onChange={(e) => setDraftTemperature(parseFloat(e.target.value))}
                     className="w-full h-2 bg-surface-200 dark:bg-surface-200 rounded-lg appearance-none cursor-pointer accent-primary"
                   />
-                  <div className="flex justify-between text-xs text-gray-400 mt-1">
+                  <div className="flex justify-between text-xs text-text-tertiary mt-1">
                     <span>Deterministic</span>
                     <span>Creative</span>
                   </div>
@@ -282,7 +282,7 @@ export function SettingsPage() {
 
                 {/* Top P */}
                 <div>
-                  <label className="flex items-center justify-between text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+                  <label className="flex items-center justify-between text-sm font-medium text-text-secondary mb-1">
                     <span className="flex items-center gap-1.5">
                       Top P
                       <InfoIcon field="top_p" />
@@ -298,7 +298,7 @@ export function SettingsPage() {
                     onChange={(e) => setDraftTopP(parseFloat(e.target.value))}
                     className="w-full h-2 bg-surface-200 dark:bg-surface-200 rounded-lg appearance-none cursor-pointer accent-primary"
                   />
-                  <div className="flex justify-between text-xs text-gray-400 mt-1">
+                  <div className="flex justify-between text-xs text-text-tertiary mt-1">
                     <span>Narrow</span>
                     <span>Broad</span>
                   </div>
@@ -306,14 +306,14 @@ export function SettingsPage() {
 
                 {/* Max Tokens */}
                 <div>
-                  <label className="flex items-center gap-1.5 text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+                  <label className="flex items-center gap-1.5 text-sm font-medium text-text-secondary mb-1">
                     Max Output Tokens
                     <InfoIcon field="max_tokens" />
                   </label>
                   <select
                     value={draftMaxTokens}
                     onChange={(e) => setDraftMaxTokens(parseInt(e.target.value, 10))}
-                    className="w-full px-3 py-2 border border-surface-200 dark:border-surface-200 rounded-md text-sm bg-surface dark:bg-surface-200 text-gray-800 dark:text-slate-200 appearance-none cursor-pointer"
+                    className="w-full px-3 py-2 border border-surface-200 dark:border-surface-200 rounded-md text-sm bg-surface dark:bg-surface-200 text-text-primary appearance-none cursor-pointer"
                   >
                     {MAX_TOKENS_OPTIONS.map((n) => (
                       <option key={n} value={n}>
@@ -324,7 +324,7 @@ export function SettingsPage() {
                 </div>
 
                 {saveError && (
-                  <div className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-3 py-2 rounded">
+                  <div className="text-sm text-danger bg-danger-light px-3 py-2 rounded">
                     {saveError}
                   </div>
                 )}

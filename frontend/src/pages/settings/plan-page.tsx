@@ -47,7 +47,7 @@ export function PlanPage() {
   if (error || !limits) {
     return (
       <div className="p-6">
-        <div className="text-red-600">{error || 'Failed to load limits'}</div>
+        <div className="text-danger">{error || 'Failed to load limits'}</div>
       </div>
     )
   }
@@ -63,8 +63,8 @@ export function PlanPage() {
         {/* Knowledge Trees */}
         <div className="bg-surface dark:bg-surface-200 border border-surface-200 dark:border-surface-200 rounded-lg p-5">
           <div className="flex justify-between items-center mb-3">
-            <h3 className="font-semibold text-gray-900 dark:text-slate-100">Knowledge Trees</h3>
-            <span className="text-sm font-medium text-gray-600 dark:text-slate-400">
+            <h3 className="font-semibold text-text-primary">Knowledge Trees</h3>
+            <span className="text-sm font-medium text-text-secondary">
               {limits.current_knowledge_trees} / {limits.max_knowledge_trees}
             </span>
           </div>
@@ -77,7 +77,7 @@ export function PlanPage() {
             />
           </div>
           {!limits.can_create_tree && (
-            <p className="text-sm text-red-600">
+            <p className="text-sm text-danger">
               You've reached your knowledge tree limit. Delete some trees or contact admin to upgrade.
             </p>
           )}
@@ -86,8 +86,8 @@ export function PlanPage() {
         {/* Documents */}
         <div className="bg-surface dark:bg-surface-200 border border-surface-200 dark:border-surface-200 rounded-lg p-5">
           <div className="flex justify-between items-center mb-3">
-            <h3 className="font-semibold text-gray-900 dark:text-slate-100">Documents</h3>
-            <span className="text-sm font-medium text-gray-600 dark:text-slate-400">
+            <h3 className="font-semibold text-text-primary">Documents</h3>
+            <span className="text-sm font-medium text-text-secondary">
               {limits.current_documents} / {limits.max_documents}
             </span>
           </div>
@@ -100,7 +100,7 @@ export function PlanPage() {
             />
           </div>
           {!limits.can_create_document && (
-            <p className="text-sm text-red-600">
+            <p className="text-sm text-danger">
               You've reached your document limit. Delete some documents or contact admin to upgrade.
             </p>
           )}

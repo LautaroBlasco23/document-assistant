@@ -25,9 +25,9 @@ export function KnowledgeTreeCard({ tree, onDelete }: KnowledgeTreeCardProps) {
         {/* Icon + title */}
         <div className="flex items-start justify-between gap-2">
           <div className="flex items-center gap-2 flex-1 min-w-0">
-            <TreePine className="h-4 w-4 text-green-600 shrink-0" />
+            <TreePine className="h-4 w-4 text-success shrink-0" />
             <span
-              className="font-medium text-gray-800 dark:text-slate-200 truncate"
+              className="font-medium text-text-primary truncate"
               title={tree.title}
             >
               {tree.title}
@@ -38,11 +38,11 @@ export function KnowledgeTreeCard({ tree, onDelete }: KnowledgeTreeCardProps) {
 
         {/* Description */}
         {tree.description && (
-          <p className="text-xs text-gray-500 dark:text-slate-400 line-clamp-2">{tree.description}</p>
+          <p className="text-xs text-text-tertiary line-clamp-2">{tree.description}</p>
         )}
 
         {/* Stats */}
-        <div className="flex items-center gap-4 text-xs text-gray-400 dark:text-slate-500">
+        <div className="flex items-center gap-4 text-xs text-text-tertiary">
           <span className="flex items-center gap-1">
             <Layers className="h-3.5 w-3.5" />
             {tree.num_chapters} {tree.num_chapters === 1 ? 'chapter' : 'chapters'}
@@ -50,7 +50,7 @@ export function KnowledgeTreeCard({ tree, onDelete }: KnowledgeTreeCardProps) {
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between pt-1 border-t border-gray-100 dark:border-slate-700 mt-auto">
+        <div className="flex items-center justify-between pt-1 border-t border-border-subtle mt-auto">
           <Button
             variant="primary"
             size="sm"
@@ -62,7 +62,7 @@ export function KnowledgeTreeCard({ tree, onDelete }: KnowledgeTreeCardProps) {
             variant="ghost"
             size="sm"
             onClick={(e) => { e.stopPropagation(); setDeleteOpen(true) }}
-            className="text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
+            className="text-red-500 hover:text-danger hover:bg-danger-light dark:hover:bg-red-900/20"
             aria-label="Delete tree"
           >
             <Trash2 className="h-4 w-4" />

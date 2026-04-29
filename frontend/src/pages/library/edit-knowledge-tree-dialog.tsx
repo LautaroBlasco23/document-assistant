@@ -42,14 +42,14 @@ export function EditKnowledgeTreeDialog({ tree, open, onClose }: EditKnowledgeTr
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
       <div className="bg-surface dark:bg-surface-200 rounded-xl shadow-xl w-full max-w-md mx-4 p-6 flex flex-col gap-5">
         <div>
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-100">Edit Knowledge Tree</h2>
-          <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">Update the title and description.</p>
+          <h2 className="text-lg font-semibold text-text-primary">Edit Knowledge Tree</h2>
+          <p className="text-sm text-text-tertiary mt-1">Update the title and description.</p>
         </div>
 
         <form onSubmit={(e) => void handleSubmit(e)} className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
-            <label htmlFor="edit-tree-title" className="text-sm font-medium text-gray-700 dark:text-slate-300">
-              Title <span className="text-red-400">*</span>
+            <label htmlFor="edit-tree-title" className="text-sm font-medium text-text-secondary">
+              Title <span className="text-danger">*</span>
             </label>
             <Input
               id="edit-tree-title"
@@ -61,15 +61,15 @@ export function EditKnowledgeTreeDialog({ tree, open, onClose }: EditKnowledgeTr
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label htmlFor="edit-tree-description" className="text-sm font-medium text-gray-700 dark:text-slate-300">
-              Description <span className="text-gray-400 dark:text-slate-500 font-normal">(optional)</span>
+            <label htmlFor="edit-tree-description" className="text-sm font-medium text-text-secondary">
+              Description <span className="text-text-tertiary font-normal">(optional)</span>
             </label>
             <textarea
               id="edit-tree-description"
               rows={3}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              className="w-full rounded-md border border-surface-200 dark:border-surface-200 bg-surface dark:bg-surface-200 px-3 py-2 text-sm text-gray-700 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-500 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary resize-none"
+              className="w-full rounded-md border border-surface-200 dark:border-surface-200 bg-surface dark:bg-surface-200 px-3 py-2 text-sm text-text-secondary placeholder-gray-400 dark:placeholder-slate-500 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary resize-none"
             />
           </div>
 

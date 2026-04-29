@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useAppStore } from '../../stores/app-store'
 import type { AppError } from '../../stores/app-store'
 
@@ -6,19 +7,35 @@ const AUTO_DISMISS_MS = 5000
 
 function ErrorToast({ error }: { error: AppError }) {
   const removeError = useAppStore((s) => s.removeError)
+  const navigate = useNavigate()
 
   useEffect(() => {
     const timer = setTimeout(() => removeError(error.id), AUTO_DISMISS_MS)
     return () => clearTimeout(timer)
   }, [error.id, removeError])
 
+  const handleLinkClick = () => {
+    removeError(error.id)
+    if (error.link) navigate(error.link)
+  }
+
   return (
-    <div className="flex items-start gap-3 bg-red-900/90 border border-red-700 text-red-100 rounded-lg px-4 py-3 shadow-lg max-w-sm w-full">
-      <span className="text-red-400 mt-0.5">✕</span>
-      <p className="text-sm flex-1 break-words">{error.message}</p>
+    <div className="flex items-start gap-3 bg-danger border border-danger text-text-inverse rounded-lg px-4 py-3 shadow-lg max-w-sm w-full">
+      <span className="text-danger mt-0.5">✕</span>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm break-words">{error.message}</p>
+        {error.link && (
+          <button
+            onClick={handleLinkClick}
+            className="text-sm text-accent hover:text-accent underline mt-1"
+          >
+            {error.linkText ?? error.link}
+          </button>
+        )}
+      </div>
       <button
         onClick={() => removeError(error.id)}
-        className="text-red-400 hover:text-red-200 ml-1 shrink-0"
+        className="text-danger hover:text-danger ml-1 shrink-0"
         aria-label="Dismiss"
       >
         ×

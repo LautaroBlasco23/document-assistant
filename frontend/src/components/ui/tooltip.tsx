@@ -18,7 +18,7 @@ export function Tooltip({ content, children, className }: TooltipProps) {
         <RadixTooltip.Portal>
           <RadixTooltip.Content
             className={cn(
-              'bg-surface-200 dark:bg-surface-200 text-gray-800 dark:text-slate-200 text-xs px-2 py-1 rounded z-50',
+              'bg-surface-200 dark:bg-surface-200 text-text-primary text-xs px-2 py-1 rounded z-50',
               'animate-fade-in',
               className,
             )}

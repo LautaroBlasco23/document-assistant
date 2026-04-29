@@ -55,6 +55,13 @@ export default {
           light: 'var(--color-primary-light)',
           border: 'var(--color-primary-border)',
         },
+        secondary: {
+          DEFAULT: 'var(--color-secondary)',
+          hover: 'var(--color-secondary-hover)',
+          active: 'var(--color-secondary-active)',
+          light: 'var(--color-secondary-light)',
+          border: 'var(--color-secondary-border)',
+        },
         accent: {
           DEFAULT: 'var(--color-accent)',
           hover: 'var(--color-accent-hover)',

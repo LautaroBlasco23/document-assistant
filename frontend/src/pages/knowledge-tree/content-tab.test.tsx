@@ -26,7 +26,7 @@ vi.mock('@/services', () => ({
   client: {
     getTaskStatus: mockGetTaskStatus,
     listAgents: vi.fn().mockResolvedValue([
-      { id: 'agent-default', name: 'Default', prompt: '', model: 'llama-3.3-70b-versatile', temperature: 0.7, top_p: 1.0, max_tokens: 1024, is_default: true, created_at: '2025-01-01T00:00:00' },
+      { id: 'agent-default', name: 'Default', provider: 'groq', prompt: '', model: 'llama-3.3-70b-versatile', temperature: 0.7, top_p: 1.0, max_tokens: 1024, is_default: true, created_at: '2025-01-01T00:00:00' },
     ]),
     getModels: vi.fn().mockResolvedValue({
       provider: 'groq',
@@ -35,6 +35,12 @@ vi.mock('@/services', () => ({
         { id: 'llama-3.3-70b-versatile', label: 'Llama 3.3 70B', role: 'smart' },
       ],
     }),
+    listProviders: vi.fn().mockResolvedValue([
+      { slug: 'groq', label: 'Groq', key_required: true, models_endpoint: null, key_format_hint: 'gsk_...' },
+    ]),
+    listCredentials: vi.fn().mockResolvedValue([
+      { provider: 'groq', configured: true, last4: 'abcd', last_tested_at: null, last_test_ok: true },
+    ]),
   },
 }))
 

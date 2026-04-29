@@ -45,15 +45,15 @@ export function AllDocumentsTab({ treeId, chapters }: AllDocumentsTabProps) {
   const sortedChapters = [...docsByChapter.keys()].sort((a, b) => a - b)
 
   if (loading) {
-    return <div className="text-sm text-gray-400 dark:text-slate-500 mt-4">Loading documents...</div>
+    return <div className="text-sm text-text-tertiary mt-4">Loading documents...</div>
   }
 
   if (allDocs.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-12 text-center">
-        <FolderOpen className="h-8 w-8 text-gray-300 dark:text-slate-600 mb-3" />
-        <p className="text-sm text-gray-500 dark:text-slate-400 font-medium">No documents yet</p>
-        <p className="text-xs text-gray-400 dark:text-slate-500 mt-1">
+        <FolderOpen className="h-8 w-8 text-text-tertiary mb-3" />
+        <p className="text-sm text-text-tertiary font-medium">No documents yet</p>
+        <p className="text-xs text-text-tertiary mt-1">
           Import PDF/EPUB files into chapters to see them here.
         </p>
       </div>
@@ -64,11 +64,11 @@ export function AllDocumentsTab({ treeId, chapters }: AllDocumentsTabProps) {
     <div className="flex flex-col gap-4 min-w-0">
       {/* Source Document — highlighted top subsection */}
       {sourceFiles.length > 0 ? (
-        <div className="flex flex-col gap-2 rounded-xl border border-amber-200 dark:border-amber-800/40 bg-amber-50/40 dark:bg-amber-900/10 p-4">
-          <div className="flex items-center gap-2 pb-2 border-b border-amber-200/60 dark:border-amber-800/40">
-            <Layers className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-            <h3 className="text-sm font-semibold text-amber-800 dark:text-amber-300">Original Source Document</h3>
-            <Badge variant="neutral" className="text-xs bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800/40">{sourceFiles.length}</Badge>
+        <div className="flex flex-col gap-2 rounded-xl border border-warning/30 dark:border-warning/30 bg-warning-light dark:bg-warning-light/30 p-4">
+          <div className="flex items-center gap-2 pb-2 border-b border-warning/20 dark:border-warning/25">
+            <Layers className="h-4 w-4 text-warning" />
+            <h3 className="text-sm font-semibold text-warning">Original Source Document</h3>
+            <Badge variant="neutral" className="text-xs bg-warning-light text-warning border-warning/30 dark:border-warning/30">{sourceFiles.length}</Badge>
           </div>
           <div className="flex flex-col gap-2">
             {sourceFiles.map((doc) => (
@@ -78,7 +78,7 @@ export function AllDocumentsTab({ treeId, chapters }: AllDocumentsTabProps) {
         </div>
       ) : (
         <div className="rounded-lg border border-dashed border-surface-200 dark:border-surface-200 bg-surface-100/50 dark:bg-surface-200/50 p-4 text-center">
-          <p className="text-xs text-gray-400 dark:text-slate-500">
+          <p className="text-xs text-text-tertiary">
             No original source document found. This is only available for trees imported after the latest update.
           </p>
         </div>
@@ -94,7 +94,7 @@ export function AllDocumentsTab({ treeId, chapters }: AllDocumentsTabProps) {
           <div key={chNum} className="flex flex-col gap-2">
             <div className="flex items-center gap-2 pb-1 border-b border-surface-200 dark:border-surface-200">
               <FileText className="h-4 w-4 text-primary" />
-              <h3 className="text-sm font-semibold text-gray-800 dark:text-slate-200">{chapterTitle}</h3>
+              <h3 className="text-sm font-semibold text-text-primary">{chapterTitle}</h3>
               <Badge variant="neutral" className="text-xs">{docs.length}</Badge>
             </div>
             <div className="flex flex-col gap-2 pl-1">
@@ -172,13 +172,13 @@ function SourceDocumentRow({ doc, onReadUnified }: { doc: KnowledgeDocument; onR
         )}
       </div>
       <div className="flex-1 min-w-0">
-        <span className="text-sm font-semibold text-gray-900 dark:text-slate-100 truncate">{doc.title}</span>
+        <span className="text-sm font-semibold text-text-primary truncate">{doc.title}</span>
         {doc.source_file_name && (
-          <p className="text-xs text-gray-500 dark:text-slate-400 truncate">{doc.source_file_name}</p>
+          <p className="text-xs text-text-tertiary truncate">{doc.source_file_name}</p>
         )}
       </div>
       <div className="flex items-center gap-2 shrink-0">
-        <Badge variant="neutral" className="text-xs bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800/40 hover:bg-amber-100 dark:hover:bg-amber-900/30">
+        <Badge variant="neutral" className="text-xs bg-warning-light text-warning border-warning/30 dark:border-warning/30 hover:bg-warning-light">
           Original
         </Badge>
       </div>
@@ -223,15 +223,15 @@ function DocumentRow({ doc, onRead, onReadUnified }: DocumentRowProps) {
             onError={() => setThumbError(true)}
           />
         ) : hasSourceFile && !isPdf ? (
-          <BookOpen className="h-5 w-5 text-gray-400 dark:text-slate-500" />
+          <BookOpen className="h-5 w-5 text-text-tertiary" />
         ) : (
-          <FileText className="h-5 w-5 text-gray-400 dark:text-slate-500" />
+          <FileText className="h-5 w-5 text-text-tertiary" />
         )}
       </div>
       <div className="flex-1 min-w-0">
-        <span className="text-sm font-medium text-gray-800 dark:text-slate-200 truncate">{doc.title}</span>
+        <span className="text-sm font-medium text-text-primary truncate">{doc.title}</span>
         {doc.source_file_name && (
-          <p className="text-xs text-gray-400 dark:text-slate-500 truncate">{doc.source_file_name}</p>
+          <p className="text-xs text-text-tertiary truncate">{doc.source_file_name}</p>
         )}
       </div>
       <div className="flex items-center gap-2 shrink-0">

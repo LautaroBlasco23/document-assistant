@@ -18,6 +18,9 @@ import type {
   FlashcardOut,
   ChatRequest,
   ChatResponse,
+  ProviderInfo,
+  CredentialStatus,
+  TestConnectionResult,
 } from '../types/api'
 import type { ServiceClient } from './client.interface'
 
@@ -39,6 +42,7 @@ export class MockClient implements ServiceClient {
     {
       id: 'agent-default',
       name: 'Default',
+      provider: '',
       prompt: '',
       model: 'mock-model',
       temperature: 0.7,
@@ -60,9 +64,9 @@ export class MockClient implements ServiceClient {
     return { ...mockConfig }
   }
 
-  async getModels(): Promise<ModelsOut> {
+  async getModels(_provider?: string): Promise<ModelsOut> {
     await delay(100)
-    return { provider: 'mock', current_model: 'mock-model', models: [] }
+    return { provider: _provider ?? 'mock', current_model: 'mock-model', models: [] }
   }
 
   // Agents
@@ -77,6 +81,7 @@ export class MockClient implements ServiceClient {
     const agent: AgentOut = {
       id: `agent-${this.agentCounter}`,
       name: req.name,
+      provider: req.provider,
       prompt: req.prompt ?? '',
       model: req.model,
       temperature: req.temperature ?? 0.7,
@@ -97,6 +102,7 @@ export class MockClient implements ServiceClient {
     const updated: AgentOut = {
       ...agent,
       name: req.name ?? agent.name,
+      provider: req.provider ?? agent.provider,
       model: req.model ?? agent.model,
       temperature: req.temperature ?? agent.temperature,
       top_p: req.top_p ?? agent.top_p,
@@ -534,6 +540,37 @@ export class MockClient implements ServiceClient {
     const session = this.examSessions.find((s) => s.id === sessionId)
     if (!session) throw new Error('Exam session not found')
     return session
+  }
+
+  // Provider credentials
+  async listProviders(): Promise<ProviderInfo[]> {
+    await delay(100)
+    return [
+      { slug: 'groq', label: 'Groq', key_required: true, models_endpoint: null, key_format_hint: 'gsk_...' },
+      { slug: 'ollama', label: 'Ollama', key_required: false, models_endpoint: 'http://localhost:11434', key_format_hint: '' },
+    ]
+  }
+
+  async listCredentials(): Promise<CredentialStatus[]> {
+    await delay(100)
+    return [
+      { provider: 'groq', configured: false, last4: null, last_tested_at: null, last_test_ok: false },
+      { provider: 'ollama', configured: true, last4: null, last_tested_at: null, last_test_ok: false },
+    ]
+  }
+
+  async saveCredential(provider: string, apiKey: string): Promise<CredentialStatus> {
+    await delay(150)
+    return { provider, configured: true, last4: apiKey.slice(-4), last_tested_at: null, last_test_ok: false }
+  }
+
+  async deleteCredential(_provider: string): Promise<void> {
+    await delay(100)
+  }
+
+  async testConnection(_provider: string, _apiKey?: string): Promise<TestConnectionResult> {
+    await delay(300)
+    return { ok: true, model_count: 5 }
   }
 
   async chat(_request: ChatRequest): Promise<ChatResponse> {

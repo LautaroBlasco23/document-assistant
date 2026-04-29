@@ -42,9 +42,9 @@ function formatDate(iso: string): string {
 }
 
 function scoreColor(score: number): string {
-  if (score >= 80) return 'text-green-600'
+  if (score >= 80) return 'text-success'
   if (score >= 50) return 'text-amber-600'
-  return 'text-red-600'
+  return 'text-danger'
 }
 
 // ---------------------------------------------------------------------------
@@ -114,9 +114,9 @@ export function ExamTab({ treeId, selectedChapter, chapters }: ExamTabProps) {
   if (chapters.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-16 text-center">
-        <Sparkles className="h-10 w-10 text-gray-200 mb-4" />
+        <Sparkles className="h-10 w-10 text-text-tertiary mb-4" />
         <p className="text-sm font-medium text-gray-500">No chapters yet</p>
-        <p className="text-xs text-gray-400 mt-1">
+        <p className="text-xs text-text-tertiary mt-1">
           Add chapters in the Knowledge Documents tab, then come back here to take exams.
         </p>
       </div>
@@ -174,7 +174,7 @@ export function ExamTab({ treeId, selectedChapter, chapters }: ExamTabProps) {
         <div className="flex flex-col gap-3">
           <div className="flex items-center gap-2">
             <Clock className="h-4 w-4 text-gray-400" />
-            <span className="text-sm font-medium text-gray-700 dark:text-slate-200">Exam History</span>
+            <span className="text-sm font-medium text-text-primary">Exam History</span>
           </div>
 
           <div className="flex flex-col gap-2">
@@ -194,7 +194,7 @@ export function ExamTab({ treeId, selectedChapter, chapters }: ExamTabProps) {
                       {session.correct_count}/{session.total_questions} correct
                     </Badge>
                   </div>
-                  <p className="text-xs text-gray-400 dark:text-slate-400 mt-0.5">{formatDate(session.created_at)}</p>
+                  <p className="text-xs text-text-tertiary mt-0.5">{formatDate(session.created_at)}</p>
                 </div>
                 <ArrowRight className="h-4 w-4 shrink-0 text-gray-300" />
               </button>

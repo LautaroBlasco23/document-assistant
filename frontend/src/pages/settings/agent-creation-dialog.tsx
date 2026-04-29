@@ -4,8 +4,11 @@ import { Info } from 'lucide-react'
 import { Button } from '../../components/ui/button'
 import { Tooltip } from '../../components/ui/tooltip'
 import { client } from '../../services'
-import type { ModelInfo, AgentOut } from '../../types/api'
+import type { ModelInfo, AgentOut, CredentialStatus } from '../../types/api'
 import { ModelSelect } from '../../components/ui/model-select'
+import { ProviderSelect } from '../../components/ui/provider-select'
+import { useModels } from '../../hooks/use-models'
+import { useProviderCredentials } from '../../hooks/useProviderCredentials'
 
 interface AgentCreationDialogProps {
   open: boolean
@@ -16,6 +19,7 @@ interface AgentCreationDialogProps {
   onUpdated?: () => void
   editAgent?: AgentOut | null
   onClose?: () => void
+  credentials?: CredentialStatus[]
 }
 
 const MAX_TOKENS_OPTIONS = [256, 512, 1024, 2048, 4096, 8192]
@@ -33,7 +37,7 @@ function InfoIcon({ field, className = '' }: { field: string; className?: string
   return (
     <Tooltip content={FIELD_INFO[field] ?? ''}>
       <span className={className}>
-        <Info className="h-3.5 w-3.5 text-gray-400 dark:text-slate-500 hover:text-primary cursor-help transition-colors" />
+        <Info className="h-3.5 w-3.5 text-text-tertiary hover:text-primary cursor-help transition-colors" />
       </span>
     </Tooltip>
   )
@@ -42,17 +46,27 @@ function InfoIcon({ field, className = '' }: { field: string; className?: string
 export function AgentCreationDialog({
   open,
   onOpenChange,
-  models,
-  currentModel,
+  models: externalModels,
+  currentModel: externalCurrentModel,
   onCreated,
   onUpdated,
   editAgent,
   onClose,
+  credentials,
 }: AgentCreationDialogProps) {
   const isEdit = !!editAgent
+  const [provider, setProvider] = React.useState('')
+  const { models: providerModels } = useModels(provider || undefined)
+  const { useCredentials } = useProviderCredentials()
+  const { credentials: internalCredentials } = useCredentials()
+  const resolvedCredentials = credentials ?? internalCredentials
+
+  const models = provider ? providerModels : externalModels
+  const currentModel = provider ? '' : externalCurrentModel
+
   const [name, setName] = React.useState('')
   const [prompt, setPrompt] = React.useState('')
-  const [model, setModel] = React.useState(currentModel)
+  const [model, setModel] = React.useState(externalCurrentModel)
   const [temperature, setTemperature] = React.useState(0.7)
   const [topP, setTopP] = React.useState(1.0)
   const [maxTokens, setMaxTokens] = React.useState(1024)
@@ -64,6 +78,7 @@ export function AgentCreationDialog({
       if (editAgent) {
         setName(editAgent.name)
         setPrompt(editAgent.prompt || '')
+        setProvider(editAgent.provider || '')
         setModel(editAgent.model)
         setTemperature(editAgent.temperature)
         setTopP(editAgent.top_p)
@@ -71,18 +86,24 @@ export function AgentCreationDialog({
       } else {
         setName('')
         setPrompt('')
-        setModel(currentModel)
+        const firstConfigured = resolvedCredentials.find((c) => c.last_test_ok)?.provider ?? ''
+        setProvider(firstConfigured)
+        setModel('')
         setTemperature(0.7)
         setTopP(1.0)
         setMaxTokens(1024)
       }
       setError('')
     }
-  }, [open, editAgent, currentModel])
+  }, [open, editAgent, resolvedCredentials])
 
   const handleSubmit = async () => {
     if (!name.trim()) {
       setError('Name is required')
+      return
+    }
+    if (!provider) {
+      setError('Provider is required')
       return
     }
     setSubmitting(true)
@@ -91,6 +112,7 @@ export function AgentCreationDialog({
       if (isEdit && editAgent) {
         await client.updateAgent(editAgent.id, {
           name: name.trim(),
+          provider,
           prompt: prompt.trim(),
           model,
           temperature,
@@ -101,6 +123,7 @@ export function AgentCreationDialog({
       } else {
         const agent = await client.createAgent({
           name: name.trim(),
+          provider,
           prompt: prompt.trim(),
           model,
           temperature,
@@ -125,10 +148,10 @@ export function AgentCreationDialog({
         <RadixDialog.Content
           className="fixed z-50 left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-lg bg-surface dark:bg-surface-200 rounded-lg shadow-lg p-6 animate-fade-in max-h-[90vh] overflow-y-auto"
         >
-          <RadixDialog.Title className="text-lg font-semibold text-gray-900 dark:text-slate-100 mb-2">
+          <RadixDialog.Title className="text-lg font-semibold text-text-primary mb-2">
             {isEdit ? 'Edit Agent' : 'Create New Agent'}
           </RadixDialog.Title>
-          <RadixDialog.Description className="text-sm text-gray-600 dark:text-slate-400 mb-6">
+          <RadixDialog.Description className="text-sm text-text-secondary mb-6">
             {isEdit
               ? 'Update this agent\'s model and generation settings.'
               : 'Define a new agent with its own model and generation settings.'}
@@ -136,13 +159,27 @@ export function AgentCreationDialog({
 
           <div className="flex flex-col gap-4">
             {error && (
-              <div className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-3 py-2 rounded">
+              <div className="text-sm text-danger bg-danger-light px-3 py-2 rounded">
                 {error}
               </div>
             )}
 
             <div>
-              <label className="flex items-center gap-1.5 text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+              <label className="flex items-center gap-1.5 text-sm font-medium text-text-secondary mb-1">
+                Provider
+              </label>
+              <ProviderSelect
+                value={provider}
+                onChange={(v) => {
+                  setProvider(v)
+                  setModel('')
+                }}
+                credentials={resolvedCredentials}
+              />
+            </div>
+
+            <div>
+              <label className="flex items-center gap-1.5 text-sm font-medium text-text-secondary mb-1">
                 Agent Name
                 <InfoIcon field="name" />
               </label>
@@ -151,13 +188,13 @@ export function AgentCreationDialog({
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="e.g. Creative Writer"
-                className="w-full px-3 py-2 border border-surface-200 dark:border-surface-200 rounded-md text-sm bg-surface dark:bg-surface-200 text-gray-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                className="w-full px-3 py-2 border border-surface-200 dark:border-surface-200 rounded-md text-sm bg-surface dark:bg-surface-200 text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                 autoFocus
               />
             </div>
 
             <div>
-              <label className="flex items-center gap-1.5 text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+              <label className="flex items-center gap-1.5 text-sm font-medium text-text-secondary mb-1">
                 Main Prompt
                 <InfoIcon field="prompt" />
               </label>
@@ -166,12 +203,12 @@ export function AgentCreationDialog({
                 onChange={(e) => setPrompt(e.target.value)}
                 placeholder="e.g. You are a concise academic tutor..."
                 rows={3}
-                className="w-full px-3 py-2 border border-surface-200 dark:border-surface-200 rounded-md text-sm bg-surface dark:bg-surface-200 text-gray-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary resize-vertical"
+                className="w-full px-3 py-2 border border-surface-200 dark:border-surface-200 rounded-md text-sm bg-surface dark:bg-surface-200 text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary resize-vertical"
               />
             </div>
 
             <div>
-              <label className="flex items-center gap-1.5 text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+              <label className="flex items-center gap-1.5 text-sm font-medium text-text-secondary mb-1">
                 Model
                 <InfoIcon field="model" />
               </label>
@@ -184,7 +221,7 @@ export function AgentCreationDialog({
             </div>
 
             <div>
-              <label className="flex items-center gap-1.5 justify-between text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+              <label className="flex items-center gap-1.5 justify-between text-sm font-medium text-text-secondary mb-1">
                 <span className="flex items-center gap-1.5">
                   Temperature
                   <InfoIcon field="temperature" />
@@ -200,14 +237,14 @@ export function AgentCreationDialog({
                 onChange={(e) => setTemperature(parseFloat(e.target.value))}
                 className="w-full h-2 bg-surface-200 dark:bg-surface-200 rounded-lg appearance-none cursor-pointer accent-primary"
               />
-              <div className="flex justify-between text-xs text-gray-400 mt-1">
+              <div className="flex justify-between text-xs text-text-tertiary mt-1">
                 <span>Deterministic</span>
                 <span>Creative</span>
               </div>
             </div>
 
             <div>
-              <label className="flex items-center gap-1.5 justify-between text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+              <label className="flex items-center gap-1.5 justify-between text-sm font-medium text-text-secondary mb-1">
                 <span className="flex items-center gap-1.5">
                   Top P
                   <InfoIcon field="top_p" />
@@ -223,21 +260,21 @@ export function AgentCreationDialog({
                 onChange={(e) => setTopP(parseFloat(e.target.value))}
                 className="w-full h-2 bg-surface-200 dark:bg-surface-200 rounded-lg appearance-none cursor-pointer accent-primary"
               />
-              <div className="flex justify-between text-xs text-gray-400 mt-1">
+              <div className="flex justify-between text-xs text-text-tertiary mt-1">
                 <span>Narrow</span>
                 <span>Broad</span>
               </div>
             </div>
 
             <div>
-              <label className="flex items-center gap-1.5 text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+              <label className="flex items-center gap-1.5 text-sm font-medium text-text-secondary mb-1">
                 Max Output Tokens
                 <InfoIcon field="max_tokens" />
               </label>
               <select
                 value={maxTokens}
                 onChange={(e) => setMaxTokens(parseInt(e.target.value, 10))}
-                className="w-full px-3 py-2 border border-surface-200 dark:border-surface-200 rounded-md text-sm bg-surface dark:bg-surface-200 text-gray-800 dark:text-slate-200 appearance-none cursor-pointer"
+                className="w-full px-3 py-2 border border-surface-200 dark:border-surface-200 rounded-md text-sm bg-surface dark:bg-surface-200 text-text-primary appearance-none cursor-pointer"
               >
                 {MAX_TOKENS_OPTIONS.map((n) => (
                   <option key={n} value={n}>
@@ -252,7 +289,7 @@ export function AgentCreationDialog({
             <Button variant="secondary" onClick={() => onOpenChange(false)} disabled={submitting}>
               Cancel
             </Button>
-            <Button variant="primary" onClick={handleSubmit} disabled={submitting || !name.trim()}>
+            <Button variant="primary" onClick={handleSubmit} disabled={submitting || !name.trim() || !provider}>
               {submitting ? 'Saving...' : isEdit ? 'Save' : 'Create'}
             </Button>
           </div>

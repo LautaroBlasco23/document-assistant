@@ -7,6 +7,7 @@ import { useGenerationSettings } from '../../stores/generation-settings'
 import { usePendingContent } from '../../stores/pending-content-store'
 import { useAgents } from '../../hooks/use-agents'
 import { useModels } from '../../hooks/use-models'
+import { useProviderCredentials } from '../../hooks/useProviderCredentials'
 import { AgentCreationDialog } from '../../pages/settings/agent-creation-dialog'
 import { ContentPanel } from './ContentPanel'
 import type { ChatMessage } from '../../types/api'
@@ -68,7 +69,7 @@ function MessageContent({ content, role }: { content: string; role: string }) {
             <pre
               className={cn(
                 'block text-xs font-mono whitespace-pre-wrap break-words p-2 rounded my-1 overflow-x-auto',
-                isUser ? 'bg-primary/20' : 'bg-surface-100 dark:bg-surface-100 text-gray-800 dark:text-slate-200'
+                isUser ? 'bg-primary/20' : 'bg-surface-100 dark:bg-surface-100 text-text-primary'
               )}
               {...props}
             >
@@ -130,7 +131,7 @@ function MessageContent({ content, role }: { content: string; role: string }) {
             <blockquote
               className={cn(
                 'border-l-2 pl-2 my-1 italic',
-                isUser ? 'border-primary text-primary-light' : 'border-surface-200 dark:border-surface-200 text-gray-600 dark:text-slate-400'
+                isUser ? 'border-primary text-primary-light' : 'border-surface-200 dark:border-surface-200 text-text-secondary'
               )}
             >
               {children}
@@ -193,6 +194,8 @@ export const ChatPanel = React.forwardRef<ChatPanelHandle, ChatPanelProps>(funct
   const { agents, loading: agentsLoading } = useAgents()
   const { models, currentModel, loading: modelsLoading } = useModels()
   const [mode, setMode] = React.useState<PanelMode>('chat')
+  const { useCredentials } = useProviderCredentials()
+  const { credentials } = useCredentials()
   const pendingCount = usePendingContent((s) => s.items.filter((it) => !it.disposition).length)
   const [dropdownOpen, setDropdownOpen] = React.useState(false)
   const [agentDialogOpen, setAgentDialogOpen] = React.useState(false)
@@ -324,6 +327,9 @@ export const ChatPanel = React.forwardRef<ChatPanelHandle, ChatPanelProps>(funct
       ])
     } catch (err) {
       const isRateLimit = err instanceof Error && err.name === 'RateLimitError'
+      const axiosErr = err as { response?: { status?: number } } | undefined
+      const isProviderNotConfigured = axiosErr?.response?.status === 412
+
       if (isRateLimit) {
         const rlErr = err as Error & { provider: string; retry_after: number }
         const retryAfter = Math.ceil(rlErr.retry_after)
@@ -350,6 +356,14 @@ export const ChatPanel = React.forwardRef<ChatPanelHandle, ChatPanelProps>(funct
             },
           ])
         }
+      } else if (isProviderNotConfigured) {
+        updateSessionMessages(activeSession.id, [
+          ...messagesWithUser,
+          {
+            role: 'assistant',
+            content: 'No API key configured for this agent\'s provider. Go to [Settings](/settings) to configure your API keys.',
+          },
+        ])
       } else {
         updateSessionMessages(activeSession.id, [
           ...messagesWithUser,
@@ -418,7 +432,7 @@ export const ChatPanel = React.forwardRef<ChatPanelHandle, ChatPanelProps>(funct
             'flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-medium transition-colors',
             mode === 'chat'
               ? 'text-primary border-b-2 border-primary bg-primary-light dark:bg-primary/12'
-              : 'text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-300'
+              : 'text-text-tertiary hover:text-text-secondary'
           )}
         >
           <MessageSquare className="h-3.5 w-3.5" />
@@ -430,13 +444,13 @@ export const ChatPanel = React.forwardRef<ChatPanelHandle, ChatPanelProps>(funct
             'flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-medium transition-colors',
             mode === 'content'
               ? 'text-primary border-b-2 border-primary bg-primary-light dark:bg-primary/12'
-              : 'text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-300'
+              : 'text-text-tertiary hover:text-text-secondary'
           )}
         >
           <FileText className="h-3.5 w-3.5" />
           Content
           {pendingCount > 0 && (
-            <span className="ml-0.5 inline-flex items-center justify-center min-w-[1rem] h-4 px-1 text-[10px] font-semibold rounded-full bg-amber-500 text-white">
+            <span className="ml-0.5 inline-flex items-center justify-center min-w-[1rem] h-4 px-1 text-[10px] font-semibold rounded-full bg-warning text-white">
               {pendingCount}
             </span>
           )}
@@ -450,12 +464,12 @@ export const ChatPanel = React.forwardRef<ChatPanelHandle, ChatPanelProps>(funct
             <div ref={dropdownRef} className="relative flex-1 min-w-0">
               <button
                 onClick={() => setDropdownOpen((o) => !o)}
-                className="w-full flex items-center justify-between gap-1 text-xs px-2 py-1 rounded border border-surface-200 dark:border-surface-200 bg-surface dark:bg-surface-200 text-gray-700 dark:text-slate-200 hover:bg-surface-100 dark:hover:bg-surface-100 transition-colors truncate"
+                className="w-full flex items-center justify-between gap-1 text-xs px-2 py-1 rounded border border-surface-200 dark:border-surface-200 bg-surface dark:bg-surface-200 text-text-primary hover:bg-surface-100 dark:hover:bg-surface-100 transition-colors truncate"
               >
                 <span className="truncate">
                   {activeSession?.name} ({activeSession?.messages.length} msgs)
                 </span>
-                <ChevronDown className={cn('h-3 w-3 shrink-0 text-gray-400 dark:text-slate-500 transition-transform', dropdownOpen && 'rotate-180')} />
+                <ChevronDown className={cn('h-3 w-3 shrink-0 text-text-tertiary transition-transform', dropdownOpen && 'rotate-180')} />
               </button>
               {dropdownOpen && (
                 <div className="absolute top-full left-0 right-0 mt-1 z-50 rounded-md border border-surface-200 dark:border-surface-200 bg-surface dark:bg-surface-200 shadow-lg max-h-48 overflow-y-auto">
@@ -467,7 +481,7 @@ export const ChatPanel = React.forwardRef<ChatPanelHandle, ChatPanelProps>(funct
                         'w-full text-left text-xs px-3 py-1.5 truncate transition-colors',
                         s.id === activeSessionId
                           ? 'bg-primary-light dark:bg-primary/12 text-primary font-medium'
-                          : 'text-gray-700 dark:text-slate-300 hover:bg-surface-100 dark:hover:bg-surface-100'
+                          : 'text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100'
                       )}
                     >
                       {s.name} ({s.messages.length} msgs)
@@ -479,7 +493,7 @@ export const ChatPanel = React.forwardRef<ChatPanelHandle, ChatPanelProps>(funct
             <button
               onClick={handleNewSession}
               title="New chat"
-              className="p-1 rounded text-gray-400 dark:text-slate-500 hover:text-primary dark:hover:text-primary hover:bg-primary-light dark:hover:bg-primary/12 transition-colors"
+              className="p-1 rounded text-text-tertiary hover:text-primary dark:hover:text-primary hover:bg-primary-light dark:hover:bg-primary/12 transition-colors"
             >
               <Plus className="h-3.5 w-3.5" />
             </button>
@@ -487,7 +501,7 @@ export const ChatPanel = React.forwardRef<ChatPanelHandle, ChatPanelProps>(funct
               <button
                 onClick={() => activeSession && handleDeleteSession(activeSession.id)}
                 title="Delete chat"
-                className="p-1 rounded text-gray-400 dark:text-slate-500 hover:text-danger dark:hover:text-danger hover:bg-danger-light dark:hover:bg-danger/12 transition-colors"
+                className="p-1 rounded text-text-tertiary hover:text-danger dark:hover:text-danger hover:bg-danger-light dark:hover:bg-danger/12 transition-colors"
               >
                 <Trash2 className="h-3.5 w-3.5" />
               </button>
@@ -497,24 +511,24 @@ export const ChatPanel = React.forwardRef<ChatPanelHandle, ChatPanelProps>(funct
           {/* Agent selector */}
           {!agentsLoading && !modelsLoading && agents.length > 0 && (
             <div className="shrink-0 border-b border-surface-200 dark:border-surface-200 px-2 py-1 flex items-center gap-1.5">
-              <span className="text-[10px] uppercase tracking-wide text-gray-400 dark:text-slate-500 shrink-0">Agent</span>
+              <span className="text-[10px] uppercase tracking-wide text-text-tertiary shrink-0">Agent</span>
               <div className="relative flex-1 min-w-0">
                 <select
                   value={selectedAgentId}
                   onChange={handleAgentChange}
-                  className="w-full text-xs px-1.5 py-0.5 rounded border border-surface-200 dark:border-surface-200 bg-surface dark:bg-surface-200 text-gray-700 dark:text-slate-200 appearance-none cursor-pointer"
+                  className="w-full text-xs px-1.5 py-0.5 rounded border border-surface-200 dark:border-surface-200 bg-surface dark:bg-surface-200 text-text-primary appearance-none cursor-pointer"
                 >
                   {agents.map((a) => (
                     <option key={a.id} value={a.id}>
                       {a.name}{a.is_default ? ' (default)' : ''}
                     </option>
                   ))}
-                  <option value="__create__" disabled className="text-gray-400 dark:text-slate-500">
+                  <option value="__create__" disabled className="text-text-tertiary">
                     ──────────────
                   </option>
                   <option value="__create__">+ Create new agent</option>
                 </select>
-                <ChevronDown className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 h-3 w-3 text-gray-400 dark:text-slate-500" />
+                <ChevronDown className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 h-3 w-3 text-text-tertiary" />
               </div>
             </div>
           )}
@@ -524,14 +538,15 @@ export const ChatPanel = React.forwardRef<ChatPanelHandle, ChatPanelProps>(funct
             models={models}
             currentModel={currentModel}
             onCreated={handleAgentCreated}
+            credentials={credentials}
           />
 
           <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 space-y-3">
             {(!activeSession || activeSession.messages.length === 0) && (
-              <div className="text-center text-xs text-gray-400 dark:text-slate-500 mt-4">
+              <div className="text-center text-xs text-text-tertiary mt-4">
                 Ask questions about this document
                 <br />
-                <span className="text-gray-300 dark:text-slate-600">Type /clear to reset context</span>
+                <span className="text-text-tertiary">Type /clear to reset context</span>
               </div>
             )}
             {activeSession?.messages.map((msg, i) => (
@@ -540,15 +555,15 @@ export const ChatPanel = React.forwardRef<ChatPanelHandle, ChatPanelProps>(funct
                 className={cn(
                   'text-sm leading-relaxed rounded-lg px-3 py-2 max-w-[90%]',
                   msg.role === 'user'
-                    ? 'bg-primary text-white ml-auto'
-                    : 'bg-surface-100 dark:bg-surface-200 text-gray-800 dark:text-slate-200'
+                    ? 'bg-primary text-text-inverse ml-auto'
+                    : 'bg-surface-100 dark:bg-surface-200 text-text-primary'
                 )}
               >
                 <MessageContent content={msg.content} role={msg.role} />
               </div>
             ))}
             {loading && (
-              <div className="flex items-center gap-2 text-xs text-gray-400 dark:text-slate-500">
+              <div className="flex items-center gap-2 text-xs text-text-tertiary">
                 <Loader2 className="h-3 w-3 animate-spin" />
                 {rateLimitCountdown !== null
                   ? `Rate limited — retrying in ${rateLimitCountdown}s…`
@@ -564,7 +579,7 @@ export const ChatPanel = React.forwardRef<ChatPanelHandle, ChatPanelProps>(funct
                 onKeyDown={handleKeyDown}
                 placeholder="Ask a question..."
                 rows={2}
-                className="flex-1 resize-none rounded-lg border border-surface-200 dark:border-surface-200 bg-surface dark:bg-surface-200 px-3 py-2 text-sm text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary placeholder:text-gray-400 dark:placeholder:text-slate-500"
+                className="flex-1 resize-none rounded-lg border border-surface-200 dark:border-surface-200 bg-surface dark:bg-surface-200 px-3 py-2 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary placeholder:text-text-tertiary"
                 disabled={loading}
               />
               <button
@@ -573,8 +588,8 @@ export const ChatPanel = React.forwardRef<ChatPanelHandle, ChatPanelProps>(funct
                 className={cn(
                   'p-2 rounded-lg transition-colors shrink-0',
                   input.trim() && !loading
-                    ? 'bg-primary text-white hover:bg-primary-hover'
-                    : 'bg-surface-100 dark:bg-surface-200 text-gray-400 dark:text-slate-500 cursor-not-allowed'
+                    ? 'bg-primary text-text-inverse hover:bg-primary-hover'
+                    : 'bg-surface-100 dark:bg-surface-200 text-text-tertiary cursor-not-allowed'
                 )}
               >
                 <Send className="h-4 w-4" />

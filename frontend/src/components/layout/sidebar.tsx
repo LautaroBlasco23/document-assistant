@@ -42,7 +42,7 @@ export function Sidebar() {
           <span className="text-white text-xs font-bold">D</span>
         </div>
         {!collapsed && (
-          <span className="font-semibold text-gray-900 dark:text-slate-100 text-sm truncate">
+          <span className="font-semibold text-text-primary text-sm truncate">
             Doc Assistant
           </span>
         )}
@@ -61,7 +61,7 @@ export function Sidebar() {
                   'flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors',
                   isActive
                     ? 'bg-primary-light dark:bg-primary/12 text-primary border-l-2 border-primary'
-                    : 'text-gray-500 dark:text-slate-400 hover:bg-surface-100 dark:hover:bg-surface-100 hover:text-gray-700 dark:hover:text-slate-300',
+                    : 'text-text-tertiary hover:bg-surface-100 dark:hover:bg-surface-100 hover:text-text-secondary',
                   collapsed && 'justify-center px-2',
                 )
               }
@@ -90,7 +90,7 @@ export function Sidebar() {
       {/* Collapse toggle */}
       <button
         onClick={toggleSidebar}
-        className="flex items-center justify-center h-10 text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-300 hover:bg-surface-100 dark:hover:bg-surface-100 transition-colors"
+        className="flex items-center justify-center h-10 text-text-tertiary hover:text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100 transition-colors"
         aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
       >
         {collapsed ? (
@@ -124,7 +124,7 @@ function UserSection({ collapsed }: UserSectionProps) {
 
   const content = (
     <div className={cn(
-      'flex items-center border-t border-surface-200 dark:border-surface-200 text-gray-500 dark:text-slate-400',
+      'flex items-center border-t border-surface-200 dark:border-surface-200 text-text-tertiary',
       collapsed ? 'justify-center px-2 py-3' : 'px-4 py-3 gap-3'
     )}>
       <div className="h-8 w-8 rounded-full bg-primary-light dark:bg-primary/12 flex items-center justify-center shrink-0">
@@ -133,14 +133,14 @@ function UserSection({ collapsed }: UserSectionProps) {
       {!collapsed && (
         <>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-gray-900 dark:text-slate-100 truncate">
+            <p className="text-sm font-medium text-text-primary truncate">
               {user.display_name || user.email}
             </p>
-            <p className="text-xs text-gray-400 dark:text-slate-500 truncate">{user.email}</p>
+            <p className="text-xs text-text-tertiary truncate">{user.email}</p>
           </div>
           <button
             onClick={handleLogout}
-            className="p-1.5 rounded-md hover:bg-surface-100 dark:hover:bg-surface-100 text-gray-400 dark:text-slate-500 hover:text-danger dark:hover:text-danger transition-colors"
+            className="p-1.5 rounded-md hover:bg-surface-100 dark:hover:bg-surface-100 text-text-tertiary hover:text-danger dark:hover:text-danger transition-colors"
             aria-label="Logout"
           >
             <LogOut className="h-4 w-4" />

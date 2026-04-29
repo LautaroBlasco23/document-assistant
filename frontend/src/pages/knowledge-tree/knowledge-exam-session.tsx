@@ -66,18 +66,18 @@ function TrueFalseCard({ question, onAnswer, answered }: TrueFalseCardProps) {
     if (selected === value) return base + 'border-primary bg-primary/10 text-primary'
     return (
       base +
-      'border-slate-300 dark:border-slate-500 bg-surface dark:bg-surface-200 text-gray-700 dark:text-slate-300' +
-      (!answered ? ' hover:border-slate-400 dark:hover:border-slate-400 hover:bg-surface-100 dark:hover:bg-surface-100 cursor-pointer' : '')
+      'border-border bg-surface dark:bg-surface-200 text-text-secondary' +
+      (!answered ? ' hover:border-border-strong hover:bg-surface-100 dark:hover:bg-surface-100 cursor-pointer' : '')
     )
   }
 
   return (
     <div className="border border-surface-200 dark:border-surface-200 rounded-xl bg-surface dark:bg-surface-200 shadow-sm overflow-hidden">
       <div className="px-6 pt-5 pb-4">
-        <div className="text-xs font-medium text-indigo-500 uppercase tracking-wide mb-3">
+        <div className="text-xs font-medium text-accent uppercase tracking-wide mb-3">
           True or False
         </div>
-        <p className="text-base text-gray-800 dark:text-slate-200 font-medium leading-relaxed">
+        <p className="text-base text-text-primary font-medium leading-relaxed">
           {question.statement}
         </p>
       </div>
@@ -94,12 +94,12 @@ function TrueFalseCard({ question, onAnswer, answered }: TrueFalseCardProps) {
       {answered && selected !== null && (
         <div className="px-6 pb-5">
           {selected === question.answer ? (
-            <p className="text-sm font-medium text-green-600 dark:text-green-400">Correct!</p>
+            <p className="text-sm font-medium text-success">Correct!</p>
           ) : (
-            <p className="text-sm font-medium text-red-600 dark:text-red-400">Incorrect</p>
+            <p className="text-sm font-medium text-danger">Incorrect</p>
           )}
           {question.explanation && (
-            <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">{question.explanation}</p>
+            <p className="text-xs text-text-tertiary mt-1">{question.explanation}</p>
           )}
         </div>
       )}
@@ -143,18 +143,18 @@ function MultipleChoiceCard({ question, onAnswer, answered }: MultipleChoiceCard
     if (selected === index) return base + 'border-primary bg-primary/10 text-primary'
     return (
       base +
-      'border-slate-300 dark:border-slate-500 bg-surface dark:bg-surface-200 text-gray-700 dark:text-slate-300' +
-      (!answered ? ' hover:border-slate-400 dark:hover:border-slate-400 hover:bg-surface-100 dark:hover:bg-surface-100 cursor-pointer' : '')
+      'border-border bg-surface dark:bg-surface-200 text-text-secondary' +
+      (!answered ? ' hover:border-border-strong hover:bg-surface-100 dark:hover:bg-surface-100 cursor-pointer' : '')
     )
   }
 
   return (
     <div className="border border-surface-200 dark:border-surface-200 rounded-xl bg-surface dark:bg-surface-200 shadow-sm overflow-hidden">
       <div className="px-6 pt-5 pb-4">
-        <div className="text-xs font-medium text-violet-500 uppercase tracking-wide mb-3">
+        <div className="text-xs font-medium text-secondary uppercase tracking-wide mb-3">
           Multiple Choice
         </div>
-        <p className="text-base text-gray-800 dark:text-slate-200 font-medium leading-relaxed">
+        <p className="text-base text-text-primary font-medium leading-relaxed">
           {question.question}
         </p>
       </div>
@@ -162,7 +162,7 @@ function MultipleChoiceCard({ question, onAnswer, answered }: MultipleChoiceCard
       <div className="px-6 pb-4 flex flex-col gap-2">
         {question.choices.map((choice, i) => (
           <button key={i} className={optionClass(i)} onClick={() => handleSelect(i)} disabled={answered}>
-            <span className="text-gray-400 dark:text-slate-500 mr-2">{String.fromCharCode(65 + i)}.</span>
+            <span className="text-text-tertiary mr-2">{String.fromCharCode(65 + i)}.</span>
             {choice}
           </button>
         ))}
@@ -172,7 +172,7 @@ function MultipleChoiceCard({ question, onAnswer, answered }: MultipleChoiceCard
         <div className="px-6 pb-5">
           <button
             onClick={handleUnknown}
-            className="text-xs text-gray-400 dark:text-slate-500 hover:text-gray-600 dark:hover:text-slate-300 underline underline-offset-2 transition-colors"
+            className="text-xs text-text-tertiary hover:text-text-secondary underline underline-offset-2 transition-colors"
           >
             I don&apos;t know
           </button>
@@ -182,12 +182,12 @@ function MultipleChoiceCard({ question, onAnswer, answered }: MultipleChoiceCard
       {answered && selected !== null && (
         <div className="px-6 pb-5">
           {selected === question.correctIndex ? (
-            <p className="text-sm font-medium text-green-600 dark:text-green-400">Correct!</p>
+            <p className="text-sm font-medium text-success">Correct!</p>
           ) : (
-            <p className="text-sm font-medium text-red-600 dark:text-red-400">Incorrect</p>
+            <p className="text-sm font-medium text-danger">Incorrect</p>
           )}
           {question.explanation && (
-            <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">{question.explanation}</p>
+            <p className="text-xs text-text-tertiary mt-1">{question.explanation}</p>
           )}
         </div>
       )}
@@ -245,10 +245,10 @@ function MatchingCard({ question, onAnswer, answered }: MatchingCardProps) {
         <div className="text-xs font-medium text-amber-500 uppercase tracking-wide mb-3">
           Matching
         </div>
-        <p className="text-base text-gray-800 dark:text-slate-200 font-medium leading-relaxed mb-1">
+        <p className="text-base text-text-primary font-medium leading-relaxed mb-1">
           {question.prompt}
         </p>
-        <p className="text-xs text-gray-400 dark:text-slate-500">Match each term to its correct definition.</p>
+        <p className="text-xs text-text-tertiary">Match each term to its correct definition.</p>
       </div>
 
       <div className="px-6 pb-5 flex flex-col gap-3">
@@ -257,7 +257,7 @@ function MatchingCard({ question, onAnswer, answered }: MatchingCardProps) {
 
           return (
             <div key={termIndex} className="flex gap-3 items-start">
-              <div className="w-40 shrink-0 rounded-lg border border-surface-200 dark:border-surface-200 bg-surface-100 dark:bg-surface-200 px-3 py-2 text-sm font-medium text-gray-700 dark:text-slate-300">
+              <div className="w-40 shrink-0 rounded-lg border border-surface-200 dark:border-surface-200 bg-surface-100 dark:bg-surface-200 px-3 py-2 text-sm font-medium text-text-secondary">
                 {pair.term}
               </div>
               <div className="flex-1">
@@ -265,7 +265,7 @@ function MatchingCard({ question, onAnswer, answered }: MatchingCardProps) {
                   value={selected ?? ''}
                   disabled={answered || submitted}
                   onChange={(e) => handleSelect(termIndex, Number(e.target.value))}
-                  className="w-full rounded-lg border-2 px-3 py-2 text-sm bg-surface dark:bg-surface-200 border-slate-300 dark:border-slate-500 text-gray-700 dark:text-slate-300 focus:outline-none focus:border-primary"
+                  className="w-full rounded-lg border-2 px-3 py-2 text-sm bg-surface dark:bg-surface-200 border-border text-text-secondary focus:outline-none focus:border-primary"
                 >
                   <option value="" disabled>— Select definition —</option>
                   {shuffledIndices.map((pairIndex) => (
@@ -294,11 +294,11 @@ function MatchingCard({ question, onAnswer, answered }: MatchingCardProps) {
         {submitted && isCorrect !== null && (
           <div className="mt-2">
             {isCorrect ? (
-              <p className="text-sm font-medium text-green-600 dark:text-green-400">
+              <p className="text-sm font-medium text-success">
                 Correct! {correctCount} of {question.pairs.length} pairs matched correctly.
               </p>
             ) : (
-              <p className="text-sm font-medium text-red-600 dark:text-red-400">
+              <p className="text-sm font-medium text-danger">
                 Incorrect. {correctCount} of {question.pairs.length} pairs matched correctly.
               </p>
             )}
@@ -350,18 +350,18 @@ function CheckboxCard({ question, onAnswer, answered }: CheckboxCardProps) {
     if (checked.has(index)) return base + 'border-primary bg-primary/10 text-primary' + (!submitted ? ' cursor-pointer' : '')
     return (
       base +
-      'border-slate-300 dark:border-slate-500 bg-surface dark:bg-surface-200 text-gray-700 dark:text-slate-300' +
-      (!submitted ? ' hover:border-slate-400 dark:hover:border-slate-400 hover:bg-surface-100 dark:hover:bg-surface-100 cursor-pointer' : '')
+      'border-border bg-surface dark:bg-surface-200 text-text-secondary' +
+      (!submitted ? ' hover:border-border-strong hover:bg-surface-100 dark:hover:bg-surface-100 cursor-pointer' : '')
     )
   }
 
   return (
     <div className="border border-surface-200 dark:border-surface-200 rounded-xl bg-surface dark:bg-surface-200 shadow-sm overflow-hidden">
       <div className="px-6 pt-5 pb-4">
-        <div className="text-xs font-medium text-teal-500 uppercase tracking-wide mb-3">
+        <div className="text-xs font-medium text-accent uppercase tracking-wide mb-3">
           Select All That Apply
         </div>
-        <p className="text-base text-gray-800 dark:text-slate-200 font-medium leading-relaxed">
+        <p className="text-base text-text-primary font-medium leading-relaxed">
           {question.question}
         </p>
       </div>
@@ -379,7 +379,7 @@ function CheckboxCard({ question, onAnswer, answered }: CheckboxCardProps) {
                 'mt-0.5 h-4 w-4 shrink-0 rounded border-2 flex items-center justify-center',
                 checked.has(i)
                   ? 'border-primary bg-primary'
-                  : 'border-gray-300 dark:border-slate-500 bg-surface dark:bg-surface-200',
+                  : 'border-border-subtle bg-surface dark:bg-surface-200',
               ].join(' ')}
             >
               {checked.has(i) && <Check className="h-2.5 w-2.5 text-white" strokeWidth={3} />}
@@ -403,12 +403,12 @@ function CheckboxCard({ question, onAnswer, answered }: CheckboxCardProps) {
         {submitted && isCorrect !== null && (
           <div className="mt-2">
             {isCorrect ? (
-              <p className="text-sm font-medium text-green-600 dark:text-green-400">Correct!</p>
+              <p className="text-sm font-medium text-success">Correct!</p>
             ) : (
-              <p className="text-sm font-medium text-red-600 dark:text-red-400">Incorrect</p>
+              <p className="text-sm font-medium text-danger">Incorrect</p>
             )}
             {question.explanation && (
-              <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">{question.explanation}</p>
+              <p className="text-xs text-text-tertiary mt-1">{question.explanation}</p>
             )}
           </div>
         )}
@@ -461,10 +461,10 @@ function FlashcardCard({ question, onAnswer, answered }: FlashcardCardProps) {
             className="absolute inset-0 bg-surface dark:bg-surface-200 border border-surface-200 dark:border-surface-200 rounded-xl p-8 flex flex-col justify-between shadow-sm"
           >
             <div className="text-xs font-medium text-primary uppercase tracking-wide">Flashcard</div>
-            <p className="text-lg text-gray-800 dark:text-slate-200 font-medium text-center flex-1 flex items-center justify-center py-4">
+            <p className="text-lg text-text-primary font-medium text-center flex-1 flex items-center justify-center py-4">
               {question.front}
             </p>
-            <p className="text-sm text-gray-400 dark:text-slate-500 text-center">Click to reveal answer</p>
+            <p className="text-sm text-text-tertiary text-center">Click to reveal answer</p>
           </div>
 
           {/* Back */}
@@ -473,7 +473,7 @@ function FlashcardCard({ question, onAnswer, answered }: FlashcardCardProps) {
             className="absolute inset-0 bg-primary-light dark:bg-primary/12 border border-primary/20 dark:border-primary/30 rounded-xl p-8 flex flex-col justify-between shadow-sm"
           >
             <div className="text-xs font-medium text-primary uppercase tracking-wide">Answer</div>
-            <p className="text-base text-gray-700 dark:text-slate-300 text-center flex-1 flex items-center justify-center py-4">
+            <p className="text-base text-text-secondary text-center flex-1 flex items-center justify-center py-4">
               {question.back}
             </p>
             {flipped && !answered && (
@@ -482,7 +482,7 @@ function FlashcardCard({ question, onAnswer, answered }: FlashcardCardProps) {
                   variant="ghost"
                   size="sm"
                   onClick={(e) => { e.stopPropagation(); onAnswer(false, "Didn't know", question.back) }}
-                  className="border border-red-200 text-red-600 hover:bg-red-50 gap-1"
+                  className="border border-danger/30 text-danger hover:bg-danger-light gap-1"
                 >
                   <XCircle className="h-4 w-4" /> Didn't know
                 </Button>
@@ -490,7 +490,7 @@ function FlashcardCard({ question, onAnswer, answered }: FlashcardCardProps) {
                   variant="ghost"
                   size="sm"
                   onClick={(e) => { e.stopPropagation(); onAnswer(true, 'Got it', question.back) }}
-                  className="border border-green-200 text-green-600 hover:bg-green-50 gap-1"
+                  className="border border-success/30 text-success hover:bg-success-light gap-1"
                 >
                   <Check className="h-4 w-4" /> Got it
                 </Button>
@@ -501,7 +501,7 @@ function FlashcardCard({ question, onAnswer, answered }: FlashcardCardProps) {
       </div>
 
       {!flipped && (
-        <p className="text-center text-sm text-gray-400 dark:text-slate-500">
+        <p className="text-center text-sm text-text-tertiary">
           Click the card to reveal the answer
         </p>
       )}
@@ -553,24 +553,24 @@ function ResultsScreen({ questions, results, correctCount, total, onFinish }: Re
   return (
     <div className="flex flex-col items-center gap-6 py-8">
       <div className="text-center">
-        <h2 className="text-2xl font-bold text-gray-800 dark:text-slate-200 mb-1">
+        <h2 className="text-2xl font-bold text-text-primary mb-1">
           {passed ? 'Exam Passed!' : 'Exam Complete'}
         </h2>
-        <p className="text-gray-500 dark:text-slate-400 text-sm">
+        <p className="text-text-tertiary text-sm">
           {passed ? 'All questions answered correctly.' : 'Review the missed questions and try again.'}
         </p>
       </div>
 
       <div className="flex flex-col items-center gap-1">
-        <span className="text-5xl font-bold text-gray-800 dark:text-slate-200">{pct}%</span>
-        <span className="text-sm text-gray-500 dark:text-slate-400">
+        <span className="text-5xl font-bold text-text-primary">{pct}%</span>
+        <span className="text-sm text-text-tertiary">
           {correctCount} / {total} correct
         </span>
       </div>
 
       {!passed && (
         <div className="w-full max-w-lg">
-          <p className="text-sm font-medium text-gray-600 dark:text-slate-400 mb-2">Missed questions:</p>
+          <p className="text-sm font-medium text-text-secondary mb-2">Missed questions:</p>
           <ul className="flex flex-col gap-2">
             {Object.entries(results)
               .filter(([, r]) => !r.correct)
@@ -583,15 +583,15 @@ function ResultsScreen({ questions, results, correctCount, total, onFinish }: Re
                   : q.type === 'matching' ? q.prompt
                   : q.question
                 return (
-                  <li key={idx} className="rounded-lg border border-red-200 dark:border-red-800/50 bg-red-50/50 dark:bg-red-900/10 px-3 py-3 flex gap-2.5">
-                    <HelpCircle className="h-4 w-4 shrink-0 mt-0.5 text-red-400" />
+                  <li key={idx} className="rounded-lg border border-danger/30 bg-danger-light/50 px-3 py-3 flex gap-2.5">
+                    <HelpCircle className="h-4 w-4 shrink-0 mt-0.5 text-danger" />
                     <div className="flex flex-col gap-1.5 min-w-0">
-                      <p className="text-sm text-red-800 dark:text-red-300 font-medium leading-snug">{label}</p>
+                      <p className="text-sm text-danger font-medium leading-snug">{label}</p>
                       <div className="flex flex-col gap-0.5 text-xs">
-                        <span className="text-red-500 dark:text-red-400">
+                        <span className="text-danger">
                           <span className="font-semibold">Your answer:</span> {r.userAnswer}
                         </span>
-                        <span className="text-green-600 dark:text-green-400">
+                        <span className="text-success">
                           <span className="font-semibold">Correct:</span> {r.correctAnswer}
                         </span>
                       </div>
@@ -680,7 +680,7 @@ export function KnowledgeExamSession({ questions, onFinish, onSave }: KnowledgeE
       <div className="flex items-center gap-3">
         <div className="flex-1">
           <Progress value={progressValue} />
-          <p className="text-xs text-gray-500 dark:text-slate-300 mt-1">
+          <p className="text-xs text-text-tertiary mt-1">
             {currentIndex + 1} / {total}
           </p>
         </div>

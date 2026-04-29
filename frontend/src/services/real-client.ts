@@ -15,6 +15,9 @@ import type {
   FlashcardOut,
   ChatRequest,
   ChatResponse,
+  ProviderInfo,
+  CredentialStatus,
+  TestConnectionResult,
 } from '../types/api'
 import type { ServiceClient } from './client.interface'
 import type { KnowledgeTree, KnowledgeChapter, KnowledgeDocument, ExamSession, CreateExamSessionPayload } from '../types/knowledge-tree'
@@ -67,6 +70,15 @@ httpClient.interceptors.response.use(
       return Promise.reject(new Error(message))
     }
 
+    // Handle 412 - Provider not configured
+    if (error.response?.status === 412) {
+      const data = error.response?.data
+      const detail = data?.detail as string | undefined
+      const message = detail ? String(detail) : 'Configure a provider first'
+      useAppStore.getState().addError(message, { link: '/settings', linkText: 'Go to Settings to configure' })
+      return Promise.reject(error)
+    }
+
     const data = error.response?.data
     let message: string
     if (Array.isArray(data?.detail)) {
@@ -90,8 +102,10 @@ export class RealClient implements ServiceClient {
     return res.data
   }
 
-  async getModels(): Promise<ModelsOut> {
-    const res = await httpClient.get<ModelsOut>('/models')
+  async getModels(provider?: string): Promise<ModelsOut> {
+    const params: Record<string, unknown> = {}
+    if (provider) params.provider = provider
+    const res = await httpClient.get<ModelsOut>('/models', { params })
     return res.data
   }
 
@@ -438,6 +452,33 @@ export class RealClient implements ServiceClient {
     const res = await httpClient.get<ExamSession>(
       `/knowledge-trees/${treeId}/chapters/${chapter}/exam-sessions/${sessionId}`
     )
+    return res.data
+  }
+
+  // Provider credentials
+  async listProviders(): Promise<ProviderInfo[]> {
+    const res = await httpClient.get<ProviderInfo[]>('/providers')
+    return res.data
+  }
+
+  async listCredentials(): Promise<CredentialStatus[]> {
+    const res = await httpClient.get<CredentialStatus[]>('/credentials')
+    return res.data
+  }
+
+  async saveCredential(provider: string, apiKey: string): Promise<CredentialStatus> {
+    const res = await httpClient.put<CredentialStatus>(`/credentials/${provider}`, { api_key: apiKey })
+    return res.data
+  }
+
+  async deleteCredential(provider: string): Promise<void> {
+    await httpClient.delete(`/credentials/${provider}`)
+  }
+
+  async testConnection(provider: string, apiKey?: string): Promise<TestConnectionResult> {
+    const body: Record<string, unknown> = {}
+    if (apiKey) body.api_key = apiKey
+    const res = await httpClient.post<TestConnectionResult>(`/credentials/${provider}/test`, body)
     return res.data
   }
 

@@ -211,7 +211,7 @@ export function DocumentReader({ doc, treeId, chapter, onClose }: DocumentReader
         {/* Top bar */}
         <div className="flex items-center justify-between px-4 py-2 border-b border-surface-200 dark:border-surface-200 shrink-0 bg-surface-100 dark:bg-surface-100">
           <div className="flex items-center gap-3 min-w-0 flex-1">
-            <h2 className="text-sm font-semibold text-gray-900 dark:text-slate-100 truncate">{doc.title}</h2>
+            <h2 className="text-sm font-semibold text-text-primary truncate">{doc.title}</h2>
           </div>
           {/* Zoom controls */}
           {isPdf && (
@@ -219,19 +219,19 @@ export function DocumentReader({ doc, treeId, chapter, onClose }: DocumentReader
               <button
                 onClick={zoomOut}
                 disabled={zoom <= 0.5}
-                className="p-0.5 rounded text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-300 hover:bg-surface-100 dark:hover:bg-surface-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                className="p-0.5 rounded text-text-tertiary hover:text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                 aria-label="Zoom out"
                 title="Zoom out"
               >
                 <ZoomOut className="h-3.5 w-3.5" />
               </button>
-              <span className="text-xs tabular-nums text-gray-500 dark:text-slate-400 min-w-[3ch] text-center select-none">
+              <span className="text-xs tabular-nums text-text-tertiary min-w-[3ch] text-center select-none">
                 {Math.round(zoom * 100)}%
               </span>
               <button
                 onClick={zoomIn}
                 disabled={zoom >= 2}
-                className="p-0.5 rounded text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-300 hover:bg-surface-100 dark:hover:bg-surface-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                className="p-0.5 rounded text-text-tertiary hover:text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                 aria-label="Zoom in"
                 title="Zoom in"
               >
@@ -242,7 +242,7 @@ export function DocumentReader({ doc, treeId, chapter, onClose }: DocumentReader
           <div className="flex items-center gap-1 flex-1 justify-end">
             <button
               onClick={() => setIsFullscreen(!isFullscreen)}
-              className="p-1.5 rounded-md transition-colors text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-300 hover:bg-surface-100 dark:hover:bg-surface-100"
+              className="p-1.5 rounded-md transition-colors text-text-tertiary hover:text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100"
               aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
               title={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
             >
@@ -255,7 +255,7 @@ export function DocumentReader({ doc, treeId, chapter, onClose }: DocumentReader
                   'p-1.5 rounded-md transition-colors',
                   showLeft
                     ? 'text-primary bg-primary-light hover:bg-primary-light dark:bg-primary/12 dark:hover:bg-primary/12'
-                    : 'text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-300 hover:bg-surface-100 dark:hover:bg-surface-100'
+                    : 'text-text-tertiary hover:text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100'
                 )}
                 aria-label="Toggle page sidebar"
                 title="Toggle page sidebar"
@@ -269,7 +269,7 @@ export function DocumentReader({ doc, treeId, chapter, onClose }: DocumentReader
                 'p-1.5 rounded-md transition-colors',
                 showRight
                     ? 'text-primary bg-primary-light hover:bg-primary-light dark:bg-primary/12 dark:hover:bg-primary/12'
-                    : 'text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-300 hover:bg-surface-100 dark:hover:bg-surface-100'
+                    : 'text-text-tertiary hover:text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100'
               )}
               aria-label="Toggle chat panel"
               title="Toggle chat & notes"
@@ -278,7 +278,7 @@ export function DocumentReader({ doc, treeId, chapter, onClose }: DocumentReader
             </button>
             <button
               onClick={onClose}
-              className="p-1.5 text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-300 hover:bg-surface-100 dark:hover:bg-surface-100 rounded-md transition-colors ml-2"
+              className="p-1.5 text-text-tertiary hover:text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100 rounded-md transition-colors ml-2"
               aria-label="Close reader"
             >
               <X className="h-4 w-4" />
@@ -371,44 +371,44 @@ export function DocumentReader({ doc, treeId, chapter, onClose }: DocumentReader
             className="fixed z-[60] bg-surface dark:bg-surface-100 rounded-lg shadow-lg border border-surface-200 dark:border-surface-200 py-1 min-w-[200px]"
             style={{ left: contextMenu.x, top: contextMenu.y }}
           >
-            <div className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-slate-500">
+            <div className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-text-tertiary">
               Ask
             </div>
             <button
               onClick={handleAskDefinition}
-              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-slate-300 hover:bg-surface-100 dark:hover:bg-surface-100 transition-colors"
+              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100 transition-colors"
             >
               <MessageCircleQuestion className="h-3.5 w-3.5 text-accent" />
               Ask definition in chat
             </button>
             <div className="my-1 border-t border-surface-200 dark:border-surface-200" />
-            <div className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-slate-500">
+            <div className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-text-tertiary">
               Generate
             </div>
             <button
               onClick={handleMakeFlashcard}
-              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-slate-300 hover:bg-surface-100 dark:hover:bg-surface-100 transition-colors"
+              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100 transition-colors"
             >
               <Sparkles className="h-3.5 w-3.5 text-warning" />
               Flashcard
             </button>
             <button
               onClick={() => handleMakeQuestion('true_false')}
-              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-slate-300 hover:bg-surface-100 dark:hover:bg-surface-100 transition-colors"
+              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100 transition-colors"
             >
               <Sparkles className="h-3.5 w-3.5 text-success" />
               True / False question
             </button>
             <button
               onClick={() => handleMakeQuestion('multiple_choice')}
-              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-slate-300 hover:bg-surface-100 dark:hover:bg-surface-100 transition-colors"
+              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100 transition-colors"
             >
               <Sparkles className="h-3.5 w-3.5 text-primary" />
               Multiple choice question
             </button>
             <button
               onClick={() => handleMakeQuestion('checkbox')}
-              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-slate-300 hover:bg-surface-100 dark:hover:bg-surface-100 transition-colors"
+              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100 transition-colors"
             >
               <Sparkles className="h-3.5 w-3.5 text-accent" />
               Select all that apply

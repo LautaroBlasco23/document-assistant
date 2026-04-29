@@ -27,7 +27,7 @@ export function Card({ title, actions, className, children, onClick }: CardProps
         <>
           <div className="flex items-center justify-between">
             {title && (
-              <h3 className="font-semibold text-gray-900 dark:text-slate-100">{title}</h3>
+              <h3 className="font-semibold text-text-primary">{title}</h3>
             )}
             {actions && (
               <div className="ml-auto flex items-center gap-2">{actions}</div>

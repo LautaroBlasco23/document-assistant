@@ -38,9 +38,9 @@ function rebuildQuestionOrder(
 }
 
 function scoreColor(score: number): string {
-  if (score >= 80) return 'text-green-600'
-  if (score >= 50) return 'text-amber-600'
-  return 'text-red-600'
+  if (score >= 80) return 'text-success'
+  if (score >= 50) return 'text-warning'
+  return 'text-danger'
 }
 
 function formatDate(iso: string): string {
@@ -66,9 +66,9 @@ function ReviewQuestionCard({
   wasCorrect: boolean
 }) {
   const icon = wasCorrect ? (
-    <Check className="h-4 w-4 text-green-500" />
+    <Check className="h-4 w-4 text-success" />
   ) : (
-    <XCircle className="h-4 w-4 text-red-400" />
+    <XCircle className="h-4 w-4 text-danger" />
   )
 
   const questionLabel = (q: ExamQuestion): string => {
@@ -128,8 +128,8 @@ function ReviewQuestionCard({
     <div
       className={`rounded-lg border px-4 py-3 flex items-start gap-3 text-sm ${
         wasCorrect
-          ? 'border-green-200 bg-green-50 dark:bg-green-900/20 text-green-800 dark:text-green-300'
-          : 'border-red-200 bg-red-50 dark:bg-red-900/20 text-red-800 dark:text-red-300'
+          ? 'border-success/30 bg-success-light text-success'
+          : 'border-danger/30 bg-danger-light text-danger'
       }`}
     >
       <div className="shrink-0 mt-0.5">{icon}</div>
@@ -138,7 +138,7 @@ function ReviewQuestionCard({
           <span className="text-[10px] uppercase tracking-wide opacity-60 font-medium">
             {questionType(question)}
           </span>
-          <span className={`text-xs font-semibold ${wasCorrect ? 'text-green-600' : 'text-red-600'}`}>
+          <span className={`text-xs font-semibold ${wasCorrect ? 'text-success' : 'text-danger'}`}>
             {wasCorrect ? 'Correct' : 'Missed'}
           </span>
         </div>
@@ -172,10 +172,10 @@ export function ExamReview({ session, allQuestions }: ExamReviewProps) {
       {/* Summary header */}
       <div className="text-center">
         <Trophy className="h-8 w-8 text-amber-400 mx-auto mb-2" />
-        <h2 className="text-xl font-bold text-gray-800 dark:text-slate-200">
+        <h2 className="text-xl font-bold text-text-primary">
           Exam Review
         </h2>
-        <p className="text-sm text-gray-400 mt-0.5">
+        <p className="text-sm text-text-tertiary mt-0.5">
           {formatDate(session.created_at)}
         </p>
       </div>
@@ -192,7 +192,7 @@ export function ExamReview({ session, allQuestions }: ExamReviewProps) {
 
       {/* All questions review */}
       <div className="flex flex-col gap-2">
-        <p className="text-sm font-medium text-gray-600 mb-1">
+        <p className="text-sm font-medium text-text-secondary mb-1">
           All questions ({orderedQuestions.length})
         </p>
         {orderedQuestions.map((q) => {

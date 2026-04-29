@@ -52,16 +52,16 @@ export function Dialog({
         <RadixDialog.Content
           className={cn(
             'fixed z-50 left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2',
-            'w-full max-w-md bg-white dark:bg-surface rounded-card shadow-lg p-6',
+            'w-full max-w-md bg-surface dark:bg-surface rounded-card shadow-lg p-6',
             'animate-fade-in',
             className,
           )}
         >
-          <RadixDialog.Title className="text-lg font-semibold text-gray-900 dark:text-slate-100 mb-2">
+          <RadixDialog.Title className="text-lg font-semibold text-text-primary mb-2">
             {title}
           </RadixDialog.Title>
           {description && (
-              <RadixDialog.Description className="text-sm text-gray-500 dark:text-slate-400 mb-6">
+              <RadixDialog.Description className="text-sm text-text-tertiary mb-6">
               {description}
             </RadixDialog.Description>
           )}

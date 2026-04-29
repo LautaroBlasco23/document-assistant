@@ -185,7 +185,7 @@ export function KnowledgeDocumentsTab({
   return (
     <div className="flex flex-col gap-3 min-w-0">
         {loading ? (
-          <div className="text-sm text-gray-400 dark:text-slate-500 mt-4">Loading documents...</div>
+          <div className="text-sm text-text-tertiary mt-4">Loading documents...</div>
         ) : isMain ? (
           /* Tree-level: single main document (editable inline) */
           <MainDocEditor
@@ -198,10 +198,10 @@ export function KnowledgeDocumentsTab({
           <>
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-sm font-semibold text-gray-800 dark:text-slate-200">
+                <h3 className="text-sm font-semibold text-text-primary">
                   {chapters.find((c) => c.number === selectedChapter)?.title ?? `Chapter ${selectedChapter}`}
                 </h3>
-                <p className="text-xs text-gray-400 dark:text-slate-500">{docs.length} {docs.length === 1 ? 'document' : 'documents'}</p>
+                <p className="text-xs text-text-tertiary">{docs.length} {docs.length === 1 ? 'document' : 'documents'}</p>
               </div>
               {editor === null && (
                 <div className="flex items-center gap-2">
@@ -276,9 +276,9 @@ export function KnowledgeDocumentsTab({
             {/* Documents list */}
             {docs.length === 0 && editor === null ? (
               <div className="flex flex-col items-center justify-center py-12 text-center">
-                <FileText className="h-8 w-8 text-gray-300 dark:text-slate-600 mb-3" />
-                <p className="text-sm text-gray-500 dark:text-slate-400 font-medium">No documents yet</p>
-                <p className="text-xs text-gray-400 dark:text-slate-500 mt-1">
+                <FileText className="h-8 w-8 text-text-tertiary mb-3" />
+                <p className="text-sm text-text-tertiary font-medium">No documents yet</p>
+                <p className="text-xs text-text-tertiary mt-1">
                   Add knowledge documents for this chapter. They will be used to generate summaries and flashcards.
                 </p>
               </div>
@@ -349,8 +349,8 @@ function MainDocEditor({ doc, saving, onSave }: MainDocEditorProps) {
     <div className="flex flex-col gap-2">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-sm font-semibold text-gray-800 dark:text-slate-200">Overview Document</h3>
-          <p className="text-xs text-gray-400 dark:text-slate-500">Describes the overall scope of this knowledge tree.</p>
+          <h3 className="text-sm font-semibold text-text-primary">Overview Document</h3>
+          <p className="text-xs text-text-tertiary">Describes the overall scope of this knowledge tree.</p>
         </div>
         {dirty && (
           <Button
@@ -365,13 +365,13 @@ function MainDocEditor({ doc, saving, onSave }: MainDocEditorProps) {
         )}
       </div>
       <textarea
-        className="w-full rounded-lg border border-surface-200 dark:border-surface-200 bg-surface-100 dark:bg-surface px-3 py-2.5 text-sm text-gray-700 dark:text-slate-300 placeholder-gray-400 dark:placeholder-slate-500 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary resize-none font-mono leading-relaxed"
+        className="w-full rounded-lg border border-surface-200 dark:border-surface-200 bg-surface-100 dark:bg-surface px-3 py-2.5 text-sm text-text-secondary placeholder-gray-400 dark:placeholder-slate-500 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary resize-none font-mono leading-relaxed"
         rows={18}
         placeholder="Write an overview of this knowledge tree. Describe the main topics, goals, and structure..."
         value={content}
         onChange={(e) => handleChange(e.target.value)}
       />
-      <p className="text-xs text-gray-400 dark:text-slate-500">
+      <p className="text-xs text-text-tertiary">
         This document describes the overall scope. The AI will use it to provide context when generating content for each chapter.
       </p>
     </div>
@@ -417,7 +417,7 @@ function DocumentCard({ doc, chapter, onEdit, onDelete, onRead }: DocumentCardPr
           variant="ghost"
           size="sm"
           onClick={(e) => { e.stopPropagation(); onEdit(); }}
-          className="h-8 w-8 p-0 text-gray-400 dark:text-slate-500 hover:text-gray-700 dark:hover:text-slate-200 hover:bg-surface-100 dark:hover:bg-surface-100"
+          className="h-8 w-8 p-0 text-text-tertiary hover:text-gray-700 dark:hover:text-slate-200 hover:bg-surface-100 dark:hover:bg-surface-100"
           title="Edit document"
         >
           <Pencil className="h-4 w-4" />
@@ -427,7 +427,7 @@ function DocumentCard({ doc, chapter, onEdit, onDelete, onRead }: DocumentCardPr
           size="sm"
           onClick={(e) => { e.stopPropagation(); onDelete(); }}
           aria-label="Delete document"
-          className="h-8 w-8 p-0 text-red-400 hover:text-danger dark:hover:text-danger hover:bg-danger-light dark:hover:bg-danger/12"
+          className="h-8 w-8 p-0 text-danger hover:text-danger dark:hover:text-danger hover:bg-danger-light dark:hover:bg-danger/12"
           title="Delete document"
         >
           <Trash2 className="h-4 w-4" />
@@ -444,12 +444,12 @@ function DocumentCard({ doc, chapter, onEdit, onDelete, onRead }: DocumentCardPr
             onError={() => setThumbError(true)}
           />
         ) : hasSourceFile && !isPdf ? (
-          <div className="flex flex-col items-center gap-1 text-gray-400 dark:text-slate-500">
+          <div className="flex flex-col items-center gap-1 text-text-tertiary">
             <BookOpen className="h-8 w-8" />
             <span className="text-[10px] font-medium">EPUB</span>
           </div>
         ) : (
-          <div className="flex flex-col items-center gap-1 text-gray-400 dark:text-slate-500">
+          <div className="flex flex-col items-center gap-1 text-text-tertiary">
             <FileText className="h-8 w-8" />
             <span className="text-[10px] font-medium">TXT</span>
           </div>
@@ -458,9 +458,9 @@ function DocumentCard({ doc, chapter, onEdit, onDelete, onRead }: DocumentCardPr
 
       {/* Content */}
       <div className="flex-1 min-w-0 flex flex-col gap-2">
-        <span className="text-sm font-medium text-gray-800 dark:text-slate-200 truncate">{doc.title}</span>
+        <span className="text-sm font-medium text-text-primary truncate">{doc.title}</span>
         {preview && (
-          <p className="text-xs text-gray-500 dark:text-slate-400 line-clamp-3 leading-relaxed font-mono">
+          <p className="text-xs text-text-tertiary line-clamp-3 leading-relaxed font-mono">
             {preview}{doc.content.length > 200 ? '...' : ''}
           </p>
         )}
@@ -502,7 +502,7 @@ function DocumentEditorCard({ editor, saving, isNew, onChange, onSave, onCancel 
         />
       </div>
       <textarea
-        className="w-full rounded-md border border-surface-200 dark:border-surface-200 bg-surface dark:bg-surface-200 px-3 py-2.5 text-sm text-gray-700 dark:text-slate-300 placeholder-gray-400 dark:placeholder-slate-500 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary resize-none font-mono leading-relaxed"
+        className="w-full rounded-md border border-surface-200 dark:border-surface-200 bg-surface dark:bg-surface-200 px-3 py-2.5 text-sm text-text-secondary placeholder-gray-400 dark:placeholder-slate-500 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary resize-none font-mono leading-relaxed"
         rows={10}
         placeholder="Write the knowledge document content here..."
         value={editor.content}

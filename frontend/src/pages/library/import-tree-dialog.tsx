@@ -271,8 +271,8 @@ function UploadStep({
   return (
     <div className="p-6 flex flex-col gap-5">
       <div>
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-100">Import from Document</h2>
-        <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">
+        <h2 className="text-lg font-semibold text-text-primary">Import from Document</h2>
+        <p className="text-sm text-text-tertiary mt-1">
           Upload a PDF or EPUB to automatically create a knowledge tree with chapters extracted from the document.
         </p>
       </div>
@@ -280,8 +280,8 @@ function UploadStep({
       <div className="flex flex-col gap-4">
         {/* File picker */}
         <div className="flex flex-col gap-1.5">
-          <label htmlFor="import-file" className="text-sm font-medium text-gray-700 dark:text-slate-300">
-            File <span className="text-red-400">*</span>
+          <label htmlFor="import-file" className="text-sm font-medium text-text-secondary">
+            File <span className="text-danger">*</span>
           </label>
           <div className="flex items-center gap-2">
             <input
@@ -304,7 +304,7 @@ function UploadStep({
               Choose file
             </Button>
             {file && (
-              <span className="text-sm text-gray-600 dark:text-slate-400 truncate" title={file.name}>
+              <span className="text-sm text-text-secondary truncate" title={file.name}>
                 {file.name}
               </span>
             )}
@@ -313,7 +313,7 @@ function UploadStep({
 
         {/* Title input */}
         <div className="flex flex-col gap-1.5">
-          <label htmlFor="import-title" className="text-sm font-medium text-gray-700 dark:text-slate-300">
+          <label htmlFor="import-title" className="text-sm font-medium text-text-secondary">
             Title <span className="text-gray-400 font-normal">(optional)</span>
           </label>
           <Input
@@ -327,7 +327,7 @@ function UploadStep({
 
         {/* Previewing spinner */}
         {state === 'previewing' && (
-          <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-slate-400">
+          <div className="flex items-center gap-2 text-sm text-text-tertiary">
             <Loader2 className="w-4 h-4 animate-spin" />
             Analyzing document structure...
           </div>
@@ -335,7 +335,7 @@ function UploadStep({
 
         {/* Error message */}
         {state === 'error' && errorMsg && (
-          <p className="text-sm text-red-600">{errorMsg}</p>
+          <p className="text-sm text-danger">{errorMsg}</p>
         )}
       </div>
 
@@ -410,12 +410,12 @@ function SelectChaptersStep({
       {/* Header */}
       <div className="p-6 border-b border-surface-200 dark:border-surface-200">
         <div className="flex items-center justify-between mb-1">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-100">Select chapters to import</h2>
-          <span className="text-sm text-gray-500 dark:text-slate-400">
+          <h2 className="text-lg font-semibold text-text-primary">Select chapters to import</h2>
+          <span className="text-sm text-text-tertiary">
             {selectedCount} of {totalCount} selected
           </span>
         </div>
-        <p className="text-sm text-gray-500 dark:text-slate-400 truncate">{file?.name ?? ''}</p>
+        <p className="text-sm text-text-tertiary truncate">{file?.name ?? ''}</p>
       </div>
 
       {/* Chapter list */}
@@ -429,7 +429,7 @@ function SelectChaptersStep({
                 disabled={isRunning}
                 className={cn(
                   'flex items-center gap-2 text-sm font-medium transition-colors',
-                  selectedCount === totalCount ? 'text-primary' : 'text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-100',
+                  selectedCount === totalCount ? 'text-primary' : 'text-text-secondary hover:text-gray-900 dark:hover:text-slate-100',
                 )}
               >
                 <div
@@ -446,7 +446,7 @@ function SelectChaptersStep({
               </button>
             </div>
 
-            <div className="text-xs text-gray-400 dark:text-slate-500 mb-2">
+            <div className="text-xs text-text-tertiary mb-2">
               {selectedCount === 0
                 ? 'No chapters selected — select at least one to import'
                 : `${selectedCount} chapter${selectedCount !== 1 ? 's' : ''} will be imported`}
@@ -467,7 +467,7 @@ function SelectChaptersStep({
         )}
 
         {!preview && (
-          <div className="flex flex-col items-center justify-center py-12 text-gray-400 dark:text-slate-500">
+          <div className="flex flex-col items-center justify-center py-12 text-text-tertiary">
             <FileText className="h-8 w-8 mb-3" />
             <p className="text-sm">No chapters found</p>
           </div>
@@ -481,9 +481,9 @@ function SelectChaptersStep({
           <div className="flex flex-col gap-2 mb-4">
             <Progress value={progress > 0 ? progress : undefined} indeterminate={progress === 0} />
             <div className="flex items-center justify-between">
-              <p className="text-xs text-gray-500 dark:text-slate-400">{progressMsg || 'Processing...'}</p>
+              <p className="text-xs text-text-tertiary">{progressMsg || 'Processing...'}</p>
               {progress > 0 && (
-                <span className="text-xs font-medium text-gray-500 dark:text-slate-400">{progress}%</span>
+                <span className="text-xs font-medium text-text-tertiary">{progress}%</span>
               )}
             </div>
           </div>
@@ -491,7 +491,7 @@ function SelectChaptersStep({
 
         {/* Error message */}
         {state === 'error' && errorMsg && (
-          <p className="text-sm text-red-600 mb-4">{errorMsg}</p>
+          <p className="text-sm text-danger mb-4">{errorMsg}</p>
         )}
 
         <div className="flex justify-between items-center">
@@ -572,7 +572,7 @@ function ChapterItem({
         <button
           type="button"
           onClick={onToggleExpand}
-          className="flex-shrink-0 text-gray-400 hover:text-gray-600"
+          className="flex-shrink-0 text-text-tertiary hover:text-gray-600"
         >
           {isExpanded ? (
             <ChevronDown className="h-4 w-4" />
@@ -597,7 +597,7 @@ function ChapterItem({
         <div
           className={cn(
             'text-xs px-2 py-1 rounded-full',
-            isSelected ? 'bg-primary/10 text-primary' : 'bg-surface-100 dark:bg-surface-200 text-gray-500 dark:text-slate-400',
+            isSelected ? 'bg-primary/10 text-primary' : 'bg-surface-100 dark:bg-surface-200 text-text-tertiary',
           )}
         >
           {isSelected ? 'Selected' : 'Skipped'}
