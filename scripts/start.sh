@@ -84,6 +84,10 @@ if [ "$ENV_MODE" = "dev" ]; then
 
     echo "Starting infrastructure services (PostgreSQL)..."
     $DOCKER_COMPOSE up -d postgres
+    echo "Waiting for PostgreSQL to be ready..."
+    until $DOCKER_COMPOSE exec -T postgres pg_isready -U docassist > /dev/null 2>&1; do
+        sleep 1
+    done
 
     echo "Installing Python dependencies..."
     (cd "$BACKEND_DIR" && uv sync) || { echo "Failed to install Python dependencies. Is 'uv' installed?"; exit 1; }

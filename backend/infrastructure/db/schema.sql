@@ -188,3 +188,63 @@ CREATE INDEX IF NOT EXISTS idx_kt_questions_tree_chapter ON knowledge_tree_quest
 CREATE INDEX IF NOT EXISTS idx_kt_questions_tree_chapter_type ON knowledge_tree_questions(tree_id, chapter_id, question_type);
 CREATE INDEX IF NOT EXISTS idx_flashcards_chapter ON flashcards(chapter_id);
 CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
+
+-- ============================================
+-- USER LLM CREDENTIALS
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS user_llm_credentials (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    provider TEXT NOT NULL,
+    api_key_encrypted BYTEA NOT NULL,
+    api_key_last4 TEXT,
+    last_tested_at TIMESTAMPTZ,
+    last_test_ok BOOLEAN,
+    last_test_error TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE(user_id, provider)
+);
+CREATE INDEX IF NOT EXISTS idx_user_llm_credentials_user ON user_llm_credentials(user_id);
+
+-- ============================================
+-- AGENTS
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS agents (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name VARCHAR(255) NOT NULL,
+    prompt TEXT NOT NULL DEFAULT '',
+    model VARCHAR(255) NOT NULL,
+    provider TEXT NOT NULL DEFAULT 'groq',
+    temperature FLOAT NOT NULL DEFAULT 0.7,
+    top_p FLOAT NOT NULL DEFAULT 1.0,
+    max_tokens INT NOT NULL DEFAULT 1024,
+    is_default BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE(user_id, name)
+);
+
+CREATE INDEX IF NOT EXISTS idx_agents_user_id ON agents(user_id);
+CREATE INDEX IF NOT EXISTS idx_agents_user_default ON agents(user_id, is_default) WHERE is_default = TRUE;
+
+-- ============================================
+-- EXAM SESSIONS
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS exam_sessions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tree_id UUID NOT NULL REFERENCES knowledge_trees(id) ON DELETE CASCADE,
+    chapter_id UUID NOT NULL REFERENCES knowledge_chapters(id) ON DELETE CASCADE,
+    score FLOAT NOT NULL,
+    total_questions INT NOT NULL,
+    correct_count INT NOT NULL,
+    question_ids JSONB NOT NULL DEFAULT '[]'::jsonb,
+    results JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_exam_sessions_tree_chapter ON exam_sessions(tree_id, chapter_id);

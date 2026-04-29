@@ -1,4 +1,4 @@
-.PHONY: start dev dev-backend mock stop dev-kill check clean prune help env-check dev-deps infra-deps tools jwt-secret
+.PHONY: start dev dev-backend mock stop dev-kill check clean prune help env-check dev-deps infra-deps tools jwt-secret encryption-key
 
 DOCKER_COMPOSE := docker compose
 BACKEND_DIR := backend
@@ -35,6 +35,8 @@ help:
 	@echo "    make prune                          Remove orphaned documents"
 	@echo ""
 	@echo "  \033[1;32mHelp\033[0m"
+	@echo "    make encryption-key                 Generate a Fernet encryption key for .env"
+	@echo ""
 	@echo "    make help                           Show this help message"
 
 tools-check:
@@ -55,6 +57,9 @@ tools:
 jwt-secret:
 	@bash scripts/generate-jwt-secret.sh
 
+encryption-key:
+	@bash scripts/generate-encryption-key.sh
+
 start: env-check tools-check
 	@PROVIDER=$(PROVIDER) bash scripts/start.sh
 
@@ -66,6 +71,8 @@ dev-backend: env-check tools-check
 	@echo "Starting backend only..."
 	@echo "Starting PostgreSQL..."
 	$(DOCKER_COMPOSE) up -d postgres
+	@echo "Waiting for PostgreSQL to be ready..."
+	@until $(DOCKER_COMPOSE) exec -T postgres pg_isready -U docassist > /dev/null 2>&1; do sleep 1; done
 	@echo "Installing Python dependencies..."
 	cd $(BACKEND_DIR) && uv sync
 	@echo "Starting backend on port 8000..."

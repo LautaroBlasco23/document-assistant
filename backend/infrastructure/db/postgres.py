@@ -9,7 +9,6 @@ from infrastructure.config import PostgresConfig
 logger = logging.getLogger(__name__)
 
 _SCHEMA_FILE = Path(__file__).parent / "schema.sql"
-_MIGRATIONS_DIR = Path(__file__).parent / "migrations"
 
 
 class PostgresPool:
@@ -31,23 +30,11 @@ class PostgresPool:
         logger.info("PostgreSQL connected")
 
     def _init_schema(self) -> None:
-        """Execute schema.sql to create tables if they don't exist, then apply migrations."""
+        """Execute schema.sql to create tables if they don't exist."""
         sql = _SCHEMA_FILE.read_text()
         with self._conn.cursor() as cur:
             cur.execute(sql)
         self._conn.commit()
-        self._apply_migrations()
-
-    def _apply_migrations(self) -> None:
-        """Run all .sql files in the migrations directory (idempotent)."""
-        if not _MIGRATIONS_DIR.is_dir():
-            return
-        for path in sorted(_MIGRATIONS_DIR.glob("*.sql")):
-            logger.info("Applying migration: %s", path.name)
-            sql = path.read_text()
-            with self._conn.cursor() as cur:
-                cur.execute(sql)
-            self._conn.commit()
 
     def connection(self) -> psycopg.Connection:
         """Return the active connection."""
