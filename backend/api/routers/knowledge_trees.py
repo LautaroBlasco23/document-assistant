@@ -41,77 +41,16 @@ from application.agents.question_generator import QuestionGeneratorAgent
 from core.model.chunk import Chunk, ChunkMetadata
 from core.model.knowledge_tree import ExamSession, Flashcard, KnowledgeChunk
 from core.model.question import Question, QuestionType
+from application.llm_resolver import resolve_llm_for_agent
+from core.exceptions import ProviderNotConfigured
 from infrastructure.chunking.splitter import ChapterAwareSplitter
 from infrastructure.config import PROJECT_ROOT
 from infrastructure.ingest.epub_loader import preview_epub
 from infrastructure.ingest.pdf_loader import preview_pdf
-from infrastructure.llm.factory import create_llm_with_model
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
-
-
-# ---------------------------------------------------------------------------
-# Shared helpers for agent resolution
-# ---------------------------------------------------------------------------
-
-def _resolve_agent_llm(
-    services: ServicesDep,
-    model: str | None,
-    agent_id: str | None,
-    fallback_llm,
-):
-    """Resolve agent, returning (llm, agent_prompt | None)."""
-    if agent_id:
-        try:
-            agent_uid = UUID(agent_id)
-        except ValueError:
-            raise HTTPException(status_code=422, detail="Invalid agent_id")
-        agent = services.agent_store.get_by_id(agent_uid)
-        if agent is None:
-            raise HTTPException(status_code=404, detail="Agent not found")
-        return create_llm_with_model(services.config, agent.model), agent.prompt
-    if model:
-        return create_llm_with_model(services.config, model), None
-    return fallback_llm, None
-
-
-def _resolve_agent_params(
-    services: ServicesDep,
-    body_temperature: float | None,
-    body_top_p: float | None,
-    body_max_tokens: int | None,
-    agent_id: str | None,
-):
-    """Resolve generation params from agent config or request body."""
-    if agent_id:
-        try:
-            agent_uid = UUID(agent_id)
-        except ValueError:
-            return {}
-        agent = services.agent_store.get_by_id(agent_uid)
-        if agent:
-            return {
-                "temperature": (
-                    body_temperature
-                    if body_temperature is not None
-                    else agent.temperature
-                ),
-                "top_p": (
-                    body_top_p if body_top_p is not None else agent.top_p
-                ),
-                "max_tokens": (
-                    body_max_tokens
-                    if body_max_tokens is not None
-                    else agent.max_tokens
-                ),
-            }
-    return {
-        "temperature": body_temperature,
-        "top_p": body_top_p,
-        "max_tokens": body_max_tokens,
-    }
 
 
 # ---------------------------------------------------------------------------
@@ -886,6 +825,7 @@ def _questions_background(
     chapter_id: UUID,
     chapter_number: int,
     services: ServicesDep,
+    user_id: UUID,
     requested_types: list[QuestionType] | None,
     model: str | None = None,
     agent_id: str | None = None,
@@ -915,7 +855,8 @@ def _questions_background(
         ]
 
         _set_progress(task, 15, "Starting question generation...")
-        llm, agent_prompt = _resolve_agent_llm(services, model, agent_id, services.fast_llm)
+        agent_uid = UUID(agent_id) if agent_id else None
+        llm, agent_prompt, _ = resolve_llm_for_agent(user_id, agent_uid, services, model_override=model)
         agent = QuestionGeneratorAgent(llm)
 
         # Divide progress range 20-85 evenly across requested types
@@ -997,6 +938,7 @@ def _questions_background(
 async def generate_questions(
     tree_id: str,
     number: int,
+    current_user: CurrentUser,
     services: ServicesDep,
     req: GenerateQuestionsRequest | None = None,
 ) -> dict:
@@ -1022,6 +964,7 @@ async def generate_questions(
         chapter.id,
         number,
         services,
+        current_user.id,
         requested_types,
         model,
         agent_id,
@@ -1305,6 +1248,7 @@ def _flashcards_bulk_background(
     chapter_id: UUID,
     chapter_number: int,
     services: ServicesDep,
+    user_id: UUID,
     num_flashcards: int | None = None,
     model: str | None = None,
     agent_id: str | None = None,
@@ -1333,7 +1277,8 @@ def _flashcards_bulk_background(
         ]
 
         _set_progress(task, 15, "Starting flashcard generation...")
-        llm, agent_prompt = _resolve_agent_llm(services, model, agent_id, services.fast_llm)
+        agent_uid = UUID(agent_id) if agent_id else None
+        llm, agent_prompt, _ = resolve_llm_for_agent(user_id, agent_uid, services, model_override=model)
         agent = FlashcardGeneratorAgent(llm)
 
         def on_progress(batch_i: int, total_batches: int) -> None:
@@ -1372,6 +1317,7 @@ def _flashcards_bulk_background(
 async def generate_flashcards_bulk(
     tree_id: str,
     number: int,
+    current_user: CurrentUser,
     services: ServicesDep,
     req: GenerateFlashcardsRequest | None = None,
 ) -> dict:
@@ -1386,6 +1332,7 @@ async def generate_flashcards_bulk(
         chapter.id,
         number,
         services,
+        current_user.id,
         num_flashcards,
         model,
         agent_id,
@@ -1450,14 +1397,20 @@ def _chapter_context(
 
 @router.post("/knowledge-trees/{tree_id}/chapters/{number}/flashcards/draft")
 async def draft_flashcard(
-    tree_id: str, number: int, req: DraftFlashcardRequest, services: ServicesDep
+    tree_id: str, number: int, req: DraftFlashcardRequest, current_user: CurrentUser, services: ServicesDep
 ) -> dict:
     """Generate a flashcard from a selection synchronously without persisting."""
     uid, chapter = _resolve_chapter(services, tree_id, number)
     if not req.selected_text.strip():
         raise HTTPException(status_code=400, detail="selected_text is required")
     context = _chapter_context(services, uid, number, selected_text=req.selected_text)
-    llm, agent_prompt = _resolve_agent_llm(services, req.model, req.agent_id, services.fast_llm)
+    agent_uid = UUID(req.agent_id) if req.agent_id else None
+    try:
+        llm, agent_prompt, _ = resolve_llm_for_agent(current_user.id, agent_uid, services, model_override=req.model)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except ProviderNotConfigured as e:
+        raise HTTPException(status_code=412, detail=f"Provider not configured: {e.provider}")
     agent = FlashcardGeneratorAgent(llm)
     try:
         data = agent.generate(
@@ -1497,14 +1450,20 @@ async def save_flashcard(
 
 @router.post("/knowledge-trees/{tree_id}/chapters/{number}/questions/draft")
 async def draft_question(
-    tree_id: str, number: int, req: DraftQuestionRequest, services: ServicesDep
+    tree_id: str, number: int, req: DraftQuestionRequest, current_user: CurrentUser, services: ServicesDep
 ) -> dict:
     """Generate a single question of the given type from a selection without persisting."""
     uid, chapter = _resolve_chapter(services, tree_id, number)
     if not req.selected_text.strip():
         raise HTTPException(status_code=400, detail="selected_text is required")
     context = _chapter_context(services, uid, number, selected_text=req.selected_text)
-    llm, agent_prompt = _resolve_agent_llm(services, req.model, req.agent_id, services.fast_llm)
+    agent_uid = UUID(req.agent_id) if req.agent_id else None
+    try:
+        llm, agent_prompt, _ = resolve_llm_for_agent(current_user.id, agent_uid, services, model_override=req.model)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except ProviderNotConfigured as e:
+        raise HTTPException(status_code=412, detail=f"Provider not configured: {e.provider}")
     agent = QuestionGeneratorAgent(llm)
     try:
         question_data = agent.generate_one(
