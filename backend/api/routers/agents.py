@@ -12,12 +12,15 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/agents", tags=["agents"])
 
+_KNOWN_PROVIDERS = frozenset({"groq", "openrouter", "huggingface", "nvidia", "gemini", "ollama"})
+
 
 class AgentOut(BaseModel):
     id: str
     name: str
     prompt: str
     model: str
+    provider: str
     temperature: float
     top_p: float
     max_tokens: int
@@ -29,6 +32,7 @@ class CreateAgentRequest(BaseModel):
     name: str = Field(min_length=1, max_length=255)
     prompt: str = ""
     model: str
+    provider: str
     temperature: float = Field(default=0.7, ge=0, le=2)
     top_p: float = Field(default=1.0, ge=0, le=1)
     max_tokens: int = Field(default=1024, ge=1, le=32768)
@@ -38,6 +42,7 @@ class UpdateAgentRequest(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=255)
     prompt: str | None = None
     model: str | None = None
+    provider: str | None = None
     temperature: float | None = Field(default=None, ge=0, le=2)
     top_p: float | None = Field(default=None, ge=0, le=1)
     max_tokens: int | None = Field(default=None, ge=1, le=32768)
@@ -49,6 +54,7 @@ def _agent_out(agent) -> AgentOut:
         name=agent.name,
         prompt=agent.prompt or "",
         model=agent.model,
+        provider=agent.provider,
         temperature=agent.temperature,
         top_p=agent.top_p,
         max_tokens=agent.max_tokens,
@@ -64,7 +70,19 @@ async def list_agents(
 ) -> list[AgentOut]:
     """List all agents for the current user, ensuring a default exists."""
     # Ensure default agent exists
-    current_model = services.config.groq.model if services.config.llm_provider == "groq" else ""
+    provider = services.config.llm_provider
+    if provider == "groq":
+        current_model = services.config.groq.model
+    elif provider == "nvidia":
+        current_model = services.config.nvidia.model
+    elif provider == "gemini":
+        current_model = services.config.gemini.model
+    elif provider == "openrouter":
+        current_model = services.config.openrouter.model
+    elif provider == "huggingface":
+        current_model = services.config.huggingface.model
+    else:
+        current_model = services.config.ollama.generation_model
     services.agent_store.ensure_default(current_user.id, current_model)
     agents = services.agent_store.list_by_user(current_user.id)
     return [_agent_out(a) for a in agents]
@@ -79,11 +97,15 @@ async def create_agent(
     """Create a new agent for the current user."""
     from core.model.agent import Agent
 
+    if req.provider not in _KNOWN_PROVIDERS:
+        raise HTTPException(status_code=422, detail=f"Unknown provider: {req.provider}")
+
     agent = Agent(
         user_id=current_user.id,
         name=req.name,
         prompt=req.prompt or "",
         model=req.model,
+        provider=req.provider,
         temperature=req.temperature,
         top_p=req.top_p,
         max_tokens=req.max_tokens,
@@ -122,6 +144,10 @@ async def update_agent(
         agent.prompt = req.prompt
     if req.model is not None:
         agent.model = req.model
+    if req.provider is not None:
+        if req.provider not in _KNOWN_PROVIDERS:
+            raise HTTPException(status_code=422, detail=f"Unknown provider: {req.provider}")
+        agent.provider = req.provider
     if req.temperature is not None:
         agent.temperature = req.temperature
     if req.top_p is not None:
