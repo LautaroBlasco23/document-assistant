@@ -5,9 +5,11 @@ from dataclasses import dataclass
 
 from api.tasks import TaskRegistry
 from core.ports.llm import LLM
-from infrastructure.auth.jwt_handler import validate_jwt_config
+from infrastructure.auth.encryption import EncryptionService
+from infrastructure.auth.jwt_handler import validate_encryption_config, validate_jwt_config
 from infrastructure.config import AppConfig, load_config
 from infrastructure.db.agent_repository import PostgresAgentRepository
+from infrastructure.db.llm_credential_repository import PostgresLLMCredentialStore
 from infrastructure.db.knowledge_tree_repository import (
     PostgresExamSessionStore,
     PostgresFlashcardStore,
@@ -48,6 +50,8 @@ class Services:
     kt_flashcard_store: PostgresFlashcardStore
     kt_exam_store: PostgresExamSessionStore
     agent_store: PostgresAgentRepository
+    llm_credential_store: PostgresLLMCredentialStore
+    encryption: EncryptionService
     _pg_pool: PostgresPool
 
 
@@ -62,8 +66,9 @@ def init_services(config: AppConfig | None = None) -> Services:
     if config is None:
         config = load_config()
 
-    # Validate JWT configuration early
+    # Validate JWT and encryption configuration early
     validate_jwt_config()
+    validate_encryption_config()
 
     llm = create_llm(config)
     fast_llm = create_fast_llm(config, llm)
@@ -87,6 +92,11 @@ def init_services(config: AppConfig | None = None) -> Services:
     kt_flashcard_store = PostgresFlashcardStore(pg_pool)
     kt_exam_store = PostgresExamSessionStore(pg_pool)
     agent_store = PostgresAgentRepository(pg_pool)
+    llm_credential_store = PostgresLLMCredentialStore(pg_pool)
+    _enc_key = config.auth.encryption_key
+    encryption = EncryptionService(
+        _enc_key if isinstance(_enc_key, bytes) else _enc_key.encode()
+    )
 
     _services = Services(
         config=config,
@@ -104,6 +114,8 @@ def init_services(config: AppConfig | None = None) -> Services:
         kt_flashcard_store=kt_flashcard_store,
         kt_exam_store=kt_exam_store,
         agent_store=agent_store,
+        llm_credential_store=llm_credential_store,
+        encryption=encryption,
         _pg_pool=pg_pool,
     )
 

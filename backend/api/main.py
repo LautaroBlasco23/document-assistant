@@ -12,7 +12,7 @@ from fastapi.responses import JSONResponse
 from starlette.requests import Request
 
 from api.services import init_services, shutdown_services
-from core.exceptions import RateLimitError
+from core.exceptions import ProviderNotConfigured, RateLimitError
 
 logger = logging.getLogger(__name__)
 
@@ -117,6 +117,17 @@ def create_app() -> FastAPI:
             },
         )
 
+    @app.exception_handler(ProviderNotConfigured)
+    async def provider_not_configured_handler(request: Request, exc: ProviderNotConfigured):
+        return JSONResponse(
+            status_code=412,
+            content={
+                "detail": "provider_not_configured",
+                "provider": exc.provider,
+                "message": str(exc),
+            },
+        )
+
     @app.exception_handler(Exception)
     async def unhandled_exception_handler(request: Request, exc: Exception):
         logger.error("Unhandled exception: %s", traceback.format_exc())
@@ -149,6 +160,7 @@ def create_app() -> FastAPI:
         auth,
         chat,
         config,
+        credentials,
         health,
         knowledge_trees,
         tasks,
@@ -163,6 +175,7 @@ def create_app() -> FastAPI:
     app.include_router(knowledge_trees.router, prefix="/api", tags=["knowledge-trees"])
     app.include_router(chat.router, prefix="/api", tags=["chat"])
     app.include_router(agents.router, prefix="/api", tags=["agents"])
+    app.include_router(credentials.router, prefix="/api", tags=["credentials"])
 
     return app
 

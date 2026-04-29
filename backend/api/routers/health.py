@@ -34,13 +34,22 @@ async def get_health(services: ServicesDep) -> HealthOut:
         except Exception as e:
             statuses.append(ServiceStatus(name="llm", healthy=False, error=str(e)))
     else:
-        # Groq, OpenRouter, HuggingFace — check that API key is set
-        api_key = services.config.groq.api_key if hasattr(services.config, "groq") else ""
+        # Check that the active provider has an API key configured
+        provider = services.config.llm_provider
+        key_map = {
+            "groq": lambda c: c.groq.api_key,
+            "openrouter": lambda c: c.openrouter.api_key,
+            "huggingface": lambda c: c.huggingface.api_key,
+            "nvidia": lambda c: c.nvidia.api_key,
+            "gemini": lambda c: c.gemini.api_key,
+        }
+        getter = key_map.get(provider)
+        api_key = getter(services.config) if getter else ""
         if api_key:
             statuses.append(ServiceStatus(name="llm", healthy=True))
         else:
             statuses.append(
-                ServiceStatus(name="llm", healthy=False, error="API key not set")
+                ServiceStatus(name="llm", healthy=False, error=f"{provider} API key not set")
             )
 
     # Check PostgreSQL
