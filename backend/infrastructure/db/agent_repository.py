@@ -41,6 +41,7 @@ class PostgresAgentRepository(AgentRepository):
             user_id=user_id,
             name="Default",
             model=model,
+            provider="groq",
             temperature=0.7,
             top_p=1.0,
             max_tokens=1024,
@@ -58,7 +59,7 @@ class PostgresAgentRepository(AgentRepository):
         conn = self._conn()
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT id, user_id, name, prompt, model, temperature, top_p, "
+                "SELECT id, user_id, name, prompt, model, provider, temperature, top_p, "
                 "max_tokens, is_default, created_at, updated_at "
                 "FROM agents WHERE user_id = %s ORDER BY is_default DESC, created_at ASC",
                 (user_id,),
@@ -70,7 +71,7 @@ class PostgresAgentRepository(AgentRepository):
         conn = self._conn()
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT id, user_id, name, prompt, model, temperature, top_p, "
+                "SELECT id, user_id, name, prompt, model, provider, temperature, top_p, "
                 "max_tokens, is_default, created_at, updated_at "
                 "FROM agents WHERE id = %s",
                 (agent_id,),
@@ -84,7 +85,7 @@ class PostgresAgentRepository(AgentRepository):
         conn = self._conn()
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT id, user_id, name, prompt, model, temperature, top_p, "
+                "SELECT id, user_id, name, prompt, model, provider, temperature, top_p, "
                 "max_tokens, is_default, created_at, updated_at "
                 "FROM agents WHERE user_id = %s AND is_default = TRUE",
                 (user_id,),
@@ -101,16 +102,17 @@ class PostgresAgentRepository(AgentRepository):
                 with conn.cursor() as cur:
                     try:
                         cur.execute(
-                            "INSERT INTO agents (user_id, name, prompt, model, temperature, "
+                            "INSERT INTO agents (user_id, name, prompt, model, provider, temperature, "
                             "top_p, max_tokens, is_default) "
-                            "VALUES (%s, %s, %s, %s, %s, %s, %s, %s) "
-                            "RETURNING id, user_id, name, prompt, model, temperature, "
+                            "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) "
+                            "RETURNING id, user_id, name, prompt, model, provider, temperature, "
                             "top_p, max_tokens, is_default, created_at, updated_at",
                             (
                                 agent.user_id,
                                 agent.name,
                                 agent.prompt,
                                 agent.model,
+                                agent.provider,
                                 agent.temperature,
                                 agent.top_p,
                                 agent.max_tokens,
@@ -133,15 +135,16 @@ class PostgresAgentRepository(AgentRepository):
                     try:
                         cur.execute(
                             "UPDATE agents SET name = %s, prompt = %s, model = %s, "
-                            "temperature = %s, top_p = %s, max_tokens = %s, "
+                            "provider = %s, temperature = %s, top_p = %s, max_tokens = %s, "
                             "updated_at = NOW() "
                             "WHERE id = %s "
-                            "RETURNING id, user_id, name, prompt, model, temperature, "
+                            "RETURNING id, user_id, name, prompt, model, provider, temperature, "
                             "top_p, max_tokens, is_default, created_at, updated_at",
                             (
                                 agent.name,
                                 agent.prompt,
                                 agent.model,
+                                agent.provider,
                                 agent.temperature,
                                 agent.top_p,
                                 agent.max_tokens,
@@ -178,6 +181,7 @@ class PostgresAgentRepository(AgentRepository):
             name=row["name"],
             prompt=row.get("prompt", ""),
             model=row["model"],
+            provider=row.get("provider", "groq"),
             temperature=row["temperature"],
             top_p=row["top_p"],
             max_tokens=row["max_tokens"],
