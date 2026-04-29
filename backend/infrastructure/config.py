@@ -49,6 +49,28 @@ class HuggingFaceConfig(BaseModel):
     wait_for_model: bool = True  # send x-wait-for-model header
 
 
+class NvidiaConfig(BaseModel):
+    api_key: str = ""  # set via DOCASSIST_NVIDIA__API_KEY
+    base_url: str = "https://integrate.api.nvidia.com/v1"
+    model: str = "meta/llama-3.3-70b-instruct"
+    fast_model: str | None = "meta/llama-3.1-8b-instruct"
+    timeout: int = 120
+    max_retries: int = 3
+    max_retries_chat: int = 1  # fail-fast for synchronous chat
+    requests_per_minute: int = 35  # proactive rate limiter threshold
+
+
+class GeminiConfig(BaseModel):
+    api_key: str = ""  # set via DOCASSIST_GEMINI__API_KEY
+    base_url: str = "https://generativelanguage.googleapis.com/v1beta/openai/"
+    model: str = "gemini-2.5-flash"
+    fast_model: str | None = "gemini-2.5-flash-lite"
+    timeout: int = 120
+    max_retries: int = 3
+    max_retries_chat: int = 1  # fail-fast for synchronous chat
+    requests_per_minute: int = 8  # Flash has hard 250 RPD cap
+
+
 class ChunkingConfig(BaseModel):
     max_tokens: int = 512
     overlap_tokens: int = 128
@@ -76,6 +98,7 @@ class EpubConfig(BaseModel):
 
 class AuthConfig(BaseModel):
     jwt_secret: str = ""  # Set via DOCASSIST_AUTH__JWT_SECRET
+    encryption_key: str = ""  # Set via DOCASSIST_AUTH__ENCRYPTION_KEY (32-byte url-safe base64)
     token_expire_days: int = 7
 
 
@@ -84,12 +107,15 @@ class AppConfig(BaseSettings):
     groq: GroqConfig = GroqConfig()
     openrouter: OpenRouterConfig = OpenRouterConfig()
     huggingface: HuggingFaceConfig = HuggingFaceConfig()
+    nvidia: NvidiaConfig = NvidiaConfig()
+    gemini: GeminiConfig = GeminiConfig()
     chunking: ChunkingConfig = ChunkingConfig()
     postgres: PostgresConfig = PostgresConfig()
     exam: ExamConfig = ExamConfig()
     epub: EpubConfig = EpubConfig()
     auth: AuthConfig = AuthConfig()
-    llm_provider: str = "groq"  # "ollama" | "groq" | "openrouter" | "huggingface"
+    llm_provider: str = "groq"
+    # supported: ollama | groq | openrouter | huggingface | nvidia | gemini
     flashcard_model: str = "main"  # "main" | "fast"
 
     model_config = {
@@ -186,6 +212,30 @@ def save_config(config: AppConfig, config_path: Path | None = None) -> None:
         huggingface_data["fast_model"] = config.huggingface.fast_model
     # api_key is never written to YAML -- set via env var
 
+    nvidia_data: dict = {
+        "base_url": config.nvidia.base_url,
+        "model": config.nvidia.model,
+        "timeout": config.nvidia.timeout,
+        "max_retries": config.nvidia.max_retries,
+        "max_retries_chat": config.nvidia.max_retries_chat,
+        "requests_per_minute": config.nvidia.requests_per_minute,
+    }
+    if config.nvidia.fast_model:
+        nvidia_data["fast_model"] = config.nvidia.fast_model
+    # api_key is never written to YAML -- set via env var
+
+    gemini_data: dict = {
+        "base_url": config.gemini.base_url,
+        "model": config.gemini.model,
+        "timeout": config.gemini.timeout,
+        "max_retries": config.gemini.max_retries,
+        "max_retries_chat": config.gemini.max_retries_chat,
+        "requests_per_minute": config.gemini.requests_per_minute,
+    }
+    if config.gemini.fast_model:
+        gemini_data["fast_model"] = config.gemini.fast_model
+    # api_key is never written to YAML -- set via env var
+
     data = {
         "llm_provider": config.llm_provider,
         "flashcard_model": config.flashcard_model,
@@ -193,6 +243,8 @@ def save_config(config: AppConfig, config_path: Path | None = None) -> None:
         "groq": groq_data,
         "openrouter": openrouter_data,
         "huggingface": huggingface_data,
+        "nvidia": nvidia_data,
+        "gemini": gemini_data,
         "chunking": {
             "max_tokens": config.chunking.max_tokens,
             "overlap_tokens": config.chunking.overlap_tokens,
