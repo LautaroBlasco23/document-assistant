@@ -9,6 +9,7 @@ import jwt
 JWT_SECRET = os.getenv("DOCASSIST_AUTH__JWT_SECRET")
 JWT_ALGORITHM = "HS256"
 JWT_ACCESS_TOKEN_EXPIRE_DAYS = 7
+ENCRYPTION_KEY = os.getenv("DOCASSIST_AUTH__ENCRYPTION_KEY")
 
 
 def validate_jwt_config() -> None:
@@ -24,6 +25,22 @@ def validate_jwt_config() -> None:
         raise RuntimeError(
             "JWT secret must be at least 32 characters long for security. "
             "Run 'make jwt-secret' to generate a secure secret."
+        )
+
+
+def validate_encryption_config() -> None:
+    """Validate encryption key is configured. Raises RuntimeError if not."""
+    if not ENCRYPTION_KEY:
+        raise RuntimeError(
+            "Encryption key is not configured. "
+            "Set DOCASSIST_AUTH__ENCRYPTION_KEY environment variable. "
+            "Run 'make encryption-key' to generate one."
+        )
+
+    if len(ENCRYPTION_KEY) < 32:
+        raise RuntimeError(
+            "Encryption key must be at least 32 characters long for security. "
+            "Run 'make encryption-key' to generate a secure key."
         )
 
 
