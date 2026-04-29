@@ -20,6 +20,7 @@ import { useAppStore } from '../../stores/app-store'
 import { useGenerationSettings } from '../../stores/generation-settings'
 import { useAgents } from '../../hooks/use-agents'
 import { useModels } from '../../hooks/use-models'
+import { useProviderCredentials } from '../../hooks/useProviderCredentials'
 import { AgentCreationDialog } from '../settings/agent-creation-dialog'
 import type {
   KnowledgeChapter,
@@ -98,7 +99,7 @@ function GeneratorSection({
       <div className="flex items-center justify-between px-4 py-3 border-b border-surface-200 dark:border-surface-200 bg-surface-100 dark:bg-surface">
         <div className="flex items-center gap-2">
           {icon}
-          <span className="text-sm font-medium text-gray-700 dark:text-slate-300">{title}</span>
+          <span className="text-sm font-medium text-text-secondary">{title}</span>
           {status === 'done' && (
             <Badge variant="success" className="text-xs py-0">
               {count} {count === 1 ? 'question' : 'questions'}
@@ -137,10 +138,10 @@ function GeneratorSection({
       {/* Body */}
       <div className="px-4 py-3">
         {status === 'idle' && (
-          <p className="text-xs text-gray-400 dark:text-slate-500">{description}</p>
+          <p className="text-xs text-text-tertiary">{description}</p>
         )}
         {status === 'loading' && (
-          <div className="flex items-center gap-2 text-xs text-gray-400 dark:text-slate-500 py-1">
+          <div className="flex items-center gap-2 text-xs text-text-tertiary py-1">
             <div
               className={`h-3.5 w-3.5 rounded-full border-2 ${spinnerColor} border-t-transparent animate-spin`}
             />
@@ -174,17 +175,17 @@ function TrueFalseList({
           <span
             className={`mt-0.5 shrink-0 rounded px-1 py-0.5 font-semibold uppercase text-[10px] ${
               q.answer
-                ? 'bg-green-100 text-green-700'
-                : 'bg-red-100 text-red-600'
+                ? 'bg-success-light text-green-700'
+                : 'bg-danger-light text-danger'
             }`}
           >
             {q.answer ? 'True' : 'False'}
           </span>
-          <span className="text-gray-700 dark:text-slate-200 leading-relaxed flex-1">{q.statement}</span>
+          <span className="text-text-primary leading-relaxed flex-1">{q.statement}</span>
           {onDelete && (
             <button
               onClick={() => onDelete(q.id)}
-              className="ml-1 shrink-0 text-gray-300 hover:text-red-400 transition-colors"
+              className="ml-1 shrink-0 text-text-tertiary hover:text-danger transition-colors"
               aria-label="Delete question"
             >
               <Trash2 className="h-3.5 w-3.5" />
@@ -211,11 +212,11 @@ function MultipleChoiceList({
           className="rounded-md border border-surface-200 dark:border-surface-200 bg-surface-100 dark:bg-surface px-3 py-2"
         >
           <div className="flex items-start justify-between mb-1.5">
-            <p className="text-xs font-medium text-gray-700 dark:text-slate-200">{q.question}</p>
+            <p className="text-xs font-medium text-text-primary">{q.question}</p>
             {onDelete && (
               <button
                 onClick={() => onDelete(q.id)}
-                className="ml-2 shrink-0 text-gray-300 hover:text-red-400 transition-colors"
+                className="ml-2 shrink-0 text-text-tertiary hover:text-danger transition-colors"
                 aria-label="Delete question"
               >
                 <Trash2 className="h-3.5 w-3.5" />
@@ -228,8 +229,8 @@ function MultipleChoiceList({
                 key={i}
                 className={`flex items-center gap-1.5 text-xs rounded px-1.5 py-0.5 ${
                   i === q.correctIndex
-                    ? 'text-green-600 dark:text-green-400'
-                    : 'text-gray-600 dark:text-slate-300'
+                    ? 'text-success'
+                    : 'text-text-secondary'
                 }`}
               >
                 {i === q.correctIndex ? (
@@ -259,11 +260,11 @@ function MatchingList({
       {questions.map((q) => (
         <li key={q.id} className="rounded-md border border-surface-200 dark:border-surface-200 bg-surface-100 dark:bg-surface px-3 py-2">
           <div className="flex items-start justify-between mb-1.5">
-            <p className="text-xs font-medium text-gray-700 dark:text-slate-200">{q.prompt}</p>
+            <p className="text-xs font-medium text-text-primary">{q.prompt}</p>
             {onDelete && (
               <button
                 onClick={() => onDelete(q.id)}
-                className="ml-2 shrink-0 text-gray-300 hover:text-red-400 transition-colors"
+                className="ml-2 shrink-0 text-text-tertiary hover:text-danger transition-colors"
                 aria-label="Delete question"
               >
                 <Trash2 className="h-3.5 w-3.5" />
@@ -274,10 +275,10 @@ function MatchingList({
             <tbody>
               {q.pairs.map((pair, i) => (
                 <tr key={i} className={i % 2 === 0 ? 'bg-surface dark:bg-surface-200' : 'bg-surface-100 dark:bg-surface'}>
-                  <td className="rounded-l px-2 py-1 font-medium text-gray-700 dark:text-slate-200 w-36 align-top border border-surface-200 dark:border-surface-200">
+                  <td className="rounded-l px-2 py-1 font-medium text-text-primary w-36 align-top border border-surface-200 dark:border-surface-200">
                     {pair.term}
                   </td>
-                  <td className="rounded-r px-2 py-1 text-gray-600 dark:text-slate-300 align-top border border-surface-200 dark:border-surface-200">
+                  <td className="rounded-r px-2 py-1 text-text-secondary align-top border border-surface-200 dark:border-surface-200">
                     {pair.definition}
                   </td>
                 </tr>
@@ -302,11 +303,11 @@ function CheckboxList({
       {questions.map((q) => (
         <li key={q.id} className="rounded-md border border-surface-200 dark:border-surface-200 bg-surface-100 dark:bg-surface px-3 py-2">
           <div className="flex items-start justify-between mb-1.5">
-            <p className="text-xs font-medium text-gray-700 dark:text-slate-200">{q.question}</p>
+            <p className="text-xs font-medium text-text-primary">{q.question}</p>
             {onDelete && (
               <button
                 onClick={() => onDelete(q.id)}
-                className="ml-2 shrink-0 text-gray-300 hover:text-red-400 transition-colors"
+                className="ml-2 shrink-0 text-text-tertiary hover:text-danger transition-colors"
                 aria-label="Delete question"
               >
                 <Trash2 className="h-3.5 w-3.5" />
@@ -321,13 +322,13 @@ function CheckboxList({
                   key={i}
                   className={`flex items-center gap-1.5 text-xs rounded px-1.5 py-0.5 ${
                     correct
-                      ? 'text-green-600 dark:text-green-400 border border-green-500 dark:border-green-500'
-                      : 'text-gray-600 dark:text-slate-300'
+                      ? 'text-success border border-success'
+                      : 'text-text-secondary'
                   }`}
                 >
                   <span
                     className={`h-3 w-3 shrink-0 rounded border flex items-center justify-center ${
-                      correct ? 'border-green-500 bg-green-500' : 'border-gray-300'
+                      correct ? 'border-success bg-success' : 'border-border-subtle'
                     }`}
                   >
                     {correct && <Check className="h-2 w-2 text-white" strokeWidth={3} />}
@@ -362,18 +363,18 @@ function FlashcardList({
           className="rounded-md border border-surface-200 dark:border-surface-200 bg-surface-100 dark:bg-surface px-3 py-2"
         >
           <div className="flex items-start justify-between mb-1">
-            <p className="text-xs font-semibold text-gray-700 dark:text-slate-300 flex-1">{card.front}</p>
+            <p className="text-xs font-semibold text-text-secondary flex-1">{card.front}</p>
             {onDelete && (
               <button
                 onClick={() => onDelete(card.id)}
-                className="ml-2 shrink-0 text-gray-300 hover:text-red-400 transition-colors"
+                className="ml-2 shrink-0 text-text-tertiary hover:text-danger transition-colors"
                 aria-label="Delete flashcard"
               >
                 <Trash2 className="h-3.5 w-3.5" />
               </button>
             )}
           </div>
-          <p className="text-xs text-gray-600 dark:text-slate-300 leading-relaxed">{card.back}</p>
+          <p className="text-xs text-text-secondary leading-relaxed">{card.back}</p>
         </li>
       ))}
     </ul>
@@ -493,7 +494,7 @@ function FlashcardGenerator({ treeId, chapter, chapterTitle, flashcardCount, onF
       <div className="flex items-center justify-between px-4 py-3 border-b border-surface-200 dark:border-surface-200 bg-surface-100 dark:bg-surface">
         <div className="flex items-center gap-2">
           <BookOpen className="h-4 w-4 text-emerald-400" />
-          <span className="text-sm font-medium text-gray-700 dark:text-slate-300">Flashcards</span>
+          <span className="text-sm font-medium text-text-secondary">Flashcards</span>
           {status === 'done' && (
             <Badge variant="success" className="text-xs py-0">
               {flashcardCount} {flashcardCount === 1 ? 'card' : 'cards'}
@@ -523,11 +524,11 @@ function FlashcardGenerator({ treeId, chapter, chapterTitle, flashcardCount, onF
               }}
               className="w-[168px] h-8 text-xs py-1"
             >
-              <option value="" className="text-gray-900 dark:text-slate-100">Let the model choose</option>
-              <option value="5" className="text-gray-900 dark:text-slate-100">5 flashcards</option>
-              <option value="10" className="text-gray-900 dark:text-slate-100">10 flashcards</option>
-              <option value="20" className="text-gray-900 dark:text-slate-100">20 flashcards</option>
-              <option value="30" className="text-gray-900 dark:text-slate-100">30 flashcards</option>
+              <option value="" className="text-text-primary">Let the model choose</option>
+              <option value="5" className="text-text-primary">5 flashcards</option>
+              <option value="10" className="text-text-primary">10 flashcards</option>
+              <option value="20" className="text-text-primary">20 flashcards</option>
+              <option value="30" className="text-text-primary">30 flashcards</option>
             </Select>
           )}
           {status !== 'loading' && (
@@ -540,12 +541,12 @@ function FlashcardGenerator({ treeId, chapter, chapterTitle, flashcardCount, onF
       </div>
       <div className="px-4 py-3">
         {status === 'idle' && (
-          <p className="text-xs text-gray-400 dark:text-slate-500">
+          <p className="text-xs text-text-tertiary">
             Generate flashcards from the knowledge documents, or approve individual ones from the PDF viewer.
           </p>
         )}
         {status === 'loading' && (
-          <div className="flex items-center gap-2 text-xs text-gray-400 dark:text-slate-500 py-1">
+          <div className="flex items-center gap-2 text-xs text-text-tertiary py-1">
             <div className="h-3.5 w-3.5 rounded-full border-2 border-emerald-400 border-t-transparent animate-spin" />
             {taskEntry?.progress ?? 'Generating flashcards from knowledge documents...'}
           </div>
@@ -707,19 +708,19 @@ function QuestionGenerator({
             }}
             className="w-[168px] h-8 text-xs py-1"
           >
-            <option value="" className="text-gray-900 dark:text-slate-100">
+            <option value="" className="text-text-primary">
               Let the model choose
             </option>
-            <option value="5" className="text-gray-900 dark:text-slate-100">
+            <option value="5" className="text-text-primary">
               5 questions
             </option>
-            <option value="10" className="text-gray-900 dark:text-slate-100">
+            <option value="10" className="text-text-primary">
               10 questions
             </option>
-            <option value="15" className="text-gray-900 dark:text-slate-100">
+            <option value="15" className="text-text-primary">
               15 questions
             </option>
-            <option value="20" className="text-gray-900 dark:text-slate-100">
+            <option value="20" className="text-text-primary">
               20 questions
             </option>
           </Select>
@@ -741,7 +742,9 @@ export function ContentTab({ treeId, selectedChapter, chapters }: ContentTabProp
   const store = useKnowledgeTreeStore()
   const { settings, setAgent } = useGenerationSettings()
   const { agents, loading: agentsLoading } = useAgents()
-  const { models, currentModel, loading: modelsLoading } = useModels()
+  const { models, currentModel, loading: modelsLoading } = useModels({ recommendedFor: 'questions' })
+  const { useCredentials } = useProviderCredentials()
+  const { credentials } = useCredentials()
 
   const defaultAgent = agents.find((a) => a.is_default)
   const selectedAgentId = settings.agent_id ?? defaultAgent?.id ?? ''
@@ -785,9 +788,9 @@ export function ContentTab({ treeId, selectedChapter, chapters }: ContentTabProp
     <div className="flex flex-col gap-5">
       {chapters.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-center">
-          <Sparkles className="h-10 w-10 text-gray-200 mb-4" />
+          <Sparkles className="h-10 w-10 text-text-tertiary mb-4" />
           <p className="text-sm font-medium text-gray-500">No chapters yet</p>
-          <p className="text-xs text-gray-400 mt-1">
+          <p className="text-xs text-text-tertiary mt-1">
             Add chapters in the Knowledge Documents tab, then come back here to generate questions.
           </p>
         </div>
@@ -802,26 +805,26 @@ export function ContentTab({ treeId, selectedChapter, chapters }: ContentTabProp
           {/* Agent selector */}
           {!agentsLoading && !modelsLoading && agents.length > 0 && (
             <div className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-surface-200 dark:border-surface-200 bg-surface-100 dark:bg-surface">
-              <span className="text-[10px] uppercase tracking-wide text-gray-400 dark:text-slate-500 shrink-0">
+              <span className="text-[10px] uppercase tracking-wide text-text-tertiary shrink-0">
                 Agent
               </span>
               <div className="relative flex-1 min-w-0">
                 <select
                   value={selectedAgentId}
                   onChange={handleAgentChange}
-                  className="w-full text-xs px-1.5 py-0.5 rounded border border-surface-200 dark:border-surface-200 bg-surface dark:bg-surface-200 text-gray-700 dark:text-slate-200 appearance-none cursor-pointer"
+                  className="w-full text-xs px-1.5 py-0.5 rounded border border-surface-200 dark:border-surface-200 bg-surface dark:bg-surface-200 text-text-primary appearance-none cursor-pointer"
                 >
                   {agents.map((a) => (
                     <option key={a.id} value={a.id}>
                       {a.name}{a.is_default ? ' (default)' : ''}
                     </option>
                   ))}
-                  <option value="__create__" disabled className="text-gray-400 dark:text-slate-500">
+                  <option value="__create__" disabled className="text-text-tertiary">
                     ──────────────
                   </option>
                   <option value="__create__">+ Create new agent</option>
                 </select>
-                <ChevronDown className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 h-3 w-3 text-gray-400 dark:text-slate-500" />
+                <ChevronDown className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 h-3 w-3 text-text-tertiary" />
               </div>
             </div>
           )}
@@ -831,11 +834,12 @@ export function ContentTab({ treeId, selectedChapter, chapters }: ContentTabProp
             models={models}
             currentModel={currentModel}
             onCreated={(id) => setAgent(id)}
+            credentials={credentials}
           />
 
-          <p className="text-xs text-gray-500 dark:text-slate-400">
+          <p className="text-xs text-text-tertiary">
             Questions are generated from the knowledge documents in{' '}
-            <span className="font-medium text-gray-700 dark:text-slate-200">{currentChapter?.title}</span>.
+            <span className="font-medium text-text-primary">{currentChapter?.title}</span>.
             Make sure you&apos;ve added documents in the Knowledge Documents tab first.
           </p>
 
@@ -850,7 +854,7 @@ export function ContentTab({ treeId, selectedChapter, chapters }: ContentTabProp
 
           {/* Question generators */}
           <div className="flex flex-col gap-4">
-            <p className="text-xs text-gray-400 dark:text-slate-400">
+            <p className="text-xs text-text-tertiary">
               Generate each question type independently. All generated questions will be
               available in the Exam tab.
             </p>
@@ -860,10 +864,10 @@ export function ContentTab({ treeId, selectedChapter, chapters }: ContentTabProp
               chapter={selectedChapter}
               chapterTitle={currentChapter?.title ?? ''}
               questionType="true_false"
-              icon={<ToggleLeft className="h-4 w-4 text-indigo-400" />}
+              icon={<ToggleLeft className="h-4 w-4 text-secondary" />}
               title="True / False"
               description="Statements the student must evaluate as true or false, with explanations."
-              spinnerColor="border-indigo-400"
+              spinnerColor="border-secondary"
               onQuestionsUpdated={handleQuestionsUpdated}
               questionCount={tfQuestions.length}
             >
@@ -875,10 +879,10 @@ export function ContentTab({ treeId, selectedChapter, chapters }: ContentTabProp
               chapter={selectedChapter}
               chapterTitle={currentChapter?.title ?? ''}
               questionType="multiple_choice"
-              icon={<ListChecks className="h-4 w-4 text-violet-400" />}
+              icon={<ListChecks className="h-4 w-4 text-accent" />}
               title="Multiple Choice"
               description="Questions with four options where only one is correct."
-              spinnerColor="border-violet-400"
+              spinnerColor="border-accent"
               onQuestionsUpdated={handleQuestionsUpdated}
               questionCount={mcQuestions.length}
             >
@@ -890,10 +894,10 @@ export function ContentTab({ treeId, selectedChapter, chapters }: ContentTabProp
               chapter={selectedChapter}
               chapterTitle={currentChapter?.title ?? ''}
               questionType="matching"
-              icon={<Link2 className="h-4 w-4 text-amber-400" />}
+              icon={<Link2 className="h-4 w-4 text-warning" />}
               title="Matching"
               description="Term-to-definition pairs the student must connect correctly."
-              spinnerColor="border-amber-400"
+              spinnerColor="border-warning"
               onQuestionsUpdated={handleQuestionsUpdated}
               questionCount={matchingQuestions.length}
             >
@@ -905,10 +909,10 @@ export function ContentTab({ treeId, selectedChapter, chapters }: ContentTabProp
               chapter={selectedChapter}
               chapterTitle={currentChapter?.title ?? ''}
               questionType="checkbox"
-              icon={<CheckSquare className="h-4 w-4 text-teal-400" />}
+              icon={<CheckSquare className="h-4 w-4 text-primary" />}
               title="Checkbox (Select All That Apply)"
               description="Questions where multiple answers may be correct."
-              spinnerColor="border-teal-400"
+              spinnerColor="border-primary"
               onQuestionsUpdated={handleQuestionsUpdated}
               questionCount={cbQuestions.length}
             >

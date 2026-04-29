@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { ChevronDown, Check } from 'lucide-react'
+import { ChevronDown, Check, Star, Zap, Sparkles } from 'lucide-react'
 import { cn } from '../../lib/cn'
 import type { ModelInfo } from '../../types/api'
 
@@ -38,8 +38,8 @@ function RoleBadge({ role }: { role: string | null }) {
       className={cn(
         'ml-auto shrink-0 text-xs font-semibold px-1.5 py-0.5 rounded',
         isMain
-          ? 'text-green-700 dark:text-green-400 bg-green-100 dark:bg-green-900/30'
-          : 'text-orange-700 dark:text-orange-400 bg-orange-100 dark:bg-orange-900/30',
+          ? 'text-success bg-success-light'
+          : 'text-warning bg-warning-light',
       )}
     >
       {role}
@@ -47,15 +47,45 @@ function RoleBadge({ role }: { role: string | null }) {
   )
 }
 
-function RoleDot({ role, className }: { role: string | null; className?: string }) {
-  if (!role) return null
+const TIER_CONFIG: Record<string, { label: string; icon: typeof Star; color: string; dotColor: string }> = {
+  high: {
+    label: 'high',
+    icon: Star,
+    color: 'text-warning bg-warning-light',
+    dotColor: 'bg-warning',
+  },
+  medium: {
+    label: 'medium',
+    icon: Zap,
+    color: 'text-info bg-info-light',
+    dotColor: 'bg-info',
+  },
+  low: {
+    label: 'low',
+    icon: Sparkles,
+    color: 'text-text-secondary bg-surface-100',
+    dotColor: 'bg-surface-200',
+  },
+}
+
+function QualityBadge({ tier }: { tier: string }) {
+  const config = TIER_CONFIG[tier]
+  if (!config) return null
+  const Icon = config.icon
+  return (
+    <span className={cn('text-xs font-semibold px-1.5 py-0.5 rounded', config.color)}>
+      <Icon className="inline-block w-3 h-3 mr-0.5 -mt-0.5" />
+      {config.label}
+    </span>
+  )
+}
+
+function QualityDot({ tier, className }: { tier: string; className?: string }) {
+  const config = TIER_CONFIG[tier]
+  if (!config) return null
   return (
     <span
-      className={cn(
-        'inline-block w-2 h-2 rounded-full shrink-0',
-        role === 'main' ? 'bg-green-500' : 'bg-orange-500',
-        className,
-      )}
+      className={cn('inline-block w-2 h-2 rounded-full shrink-0', config.dotColor, className)}
     />
   )
 }
@@ -94,16 +124,17 @@ export function ModelSelect({ value, onChange, models, fallback, className }: Mo
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center justify-between gap-2 px-3 py-2 border border-surface-200 dark:border-surface-200 rounded-md text-sm bg-surface dark:bg-surface-200 text-gray-800 dark:text-slate-200 cursor-pointer hover:border-gray-300 dark:hover:border-slate-500 transition-colors"
+        className="w-full flex items-center justify-between gap-2 px-3 py-2 border border-surface-200 dark:border-surface-200 rounded-md text-sm bg-surface dark:bg-surface-200 text-text-primary cursor-pointer hover:border-border-strong transition-colors"
       >
         <span className="flex items-center gap-2 min-w-0">
-          <RoleDot role={selectedModel?.role ?? null} />
+          <QualityDot tier={selectedModel?.quality_tier ?? 'medium'} />
           <span className="truncate">{displayLabel}</span>
           {selectedModel?.role && <RoleBadge role={selectedModel.role} />}
+          {selectedModel?.quality_tier && <QualityBadge tier={selectedModel.quality_tier} />}
         </span>
         <ChevronDown
           className={cn(
-            'h-4 w-4 text-gray-400 shrink-0 transition-transform duration-150',
+            'h-4 w-4 text-text-tertiary shrink-0 transition-transform duration-150',
             open && 'rotate-180',
           )}
         />
@@ -123,21 +154,22 @@ export function ModelSelect({ value, onChange, models, fallback, className }: Mo
                     'relative w-full flex items-center gap-2 px-3 py-2.5 text-sm text-left overflow-hidden transition-colors',
                     isSelected
                       ? 'bg-primary-light dark:bg-primary/12 text-primary'
-                      : 'text-gray-800 dark:text-slate-200 hover:bg-surface-100 dark:hover:bg-surface-100',
+                      : 'text-text-primary hover:bg-surface-100 dark:hover:bg-surface-100',
                   )}
                 >
                   <OptionParticles role={m.role} />
-                  <RoleDot role={m.role} />
+                  <QualityDot tier={m.quality_tier ?? 'medium'} />
                   <span className="truncate">{m.label}</span>
                   <RoleBadge role={m.role} />
-                    {isSelected && (
-                      <Check className="h-3.5 w-3.5 shrink-0 ml-1 text-primary" />
-                    )}
+                  <QualityBadge tier={m.quality_tier ?? 'medium'} />
+                  {isSelected && (
+                    <Check className="h-3.5 w-3.5 shrink-0 ml-1 text-primary" />
+                  )}
                 </button>
               )
             })
           ) : (
-            <div className="px-3 py-2 text-sm text-gray-500 dark:text-slate-400">
+            <div className="px-3 py-2 text-sm text-text-tertiary">
               {fallback ?? value}
             </div>
           )}

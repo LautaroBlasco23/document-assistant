@@ -109,6 +109,8 @@ export interface ModelInfo {
   id: string
   label: string
   role: string | null
+  quality_tier: string
+  recommended_for: string[]
 }
 
 export interface ModelsOut {
@@ -117,9 +119,32 @@ export interface ModelsOut {
   models: ModelInfo[]
 }
 
+export interface ProviderInfo {
+  slug: string
+  label: string
+  key_required: boolean
+  models_endpoint: string | null
+  key_format_hint: string
+}
+
+export interface CredentialStatus {
+  provider: string
+  configured: boolean
+  last4: string | null
+  last_tested_at: string | null
+  last_test_ok: boolean
+}
+
+export interface TestConnectionResult {
+  ok: boolean
+  error?: string
+  model_count?: number
+}
+
 export interface AgentOut {
   id: string
   name: string
+  provider: string
   prompt: string
   model: string
   temperature: number
@@ -131,6 +156,7 @@ export interface AgentOut {
 
 export interface CreateAgentRequest {
   name: string
+  provider: string
   prompt?: string
   model: string
   temperature?: number
@@ -140,6 +166,7 @@ export interface CreateAgentRequest {
 
 export interface UpdateAgentRequest {
   name?: string
+  provider?: string
   prompt?: string
   model?: string
   temperature?: number
