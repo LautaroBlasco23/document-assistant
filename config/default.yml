@@ -36,6 +36,26 @@ huggingface:
   requests_per_minute: 80  # proactive rate limit for HuggingFace free tier
   wait_for_model: true
 
+nvidia:
+  # api_key: set via DOCASSIST_NVIDIA__API_KEY env var (never commit keys here)
+  base_url: "https://integrate.api.nvidia.com/v1"
+  model: "meta/llama-3.3-70b-instruct"
+  fast_model: "meta/llama-3.1-8b-instruct"
+  timeout: 120
+  max_retries: 3
+  max_retries_chat: 1
+  requests_per_minute: 35  # proactive rate limit for NVIDIA free tier
+
+gemini:
+  # api_key: set via DOCASSIST_GEMINI__API_KEY env var (never commit keys here)
+  base_url: "https://generativelanguage.googleapis.com/v1beta/openai/"
+  model: "gemini-2.5-flash"
+  fast_model: "gemini-2.5-flash-lite"
+  timeout: 120
+  max_retries: 3
+  max_retries_chat: 1
+  requests_per_minute: 8  # Flash has hard 250 RPD cap; Flash-Lite 1000 RPD
+
 chunking:
   max_tokens: 512
   overlap_tokens: 128
