@@ -193,3 +193,143 @@ def fetch_openrouter_models(
         return stale[1]
 
     return fallback or []
+
+
+# ---------------------------------------------------------------------------
+# Nvidia model fetching
+# ---------------------------------------------------------------------------
+
+_NVIDIA_LABELS: dict[str, str] = {
+    "meta/llama-3.3-70b-instruct": "Llama 3.3 70B Instruct",
+    "meta/llama-3.1-8b-instruct": "Llama 3.1 8B Instruct",
+    "mistralai/mistral-7b-instruct-v0.3": "Mistral 7B Instruct",
+    "mistralai/mixtral-8x7b-instruct-v0.1": "Mixtral 8x7B Instruct",
+    "google/gemma-2-27b-it": "Gemma 2 27B",
+    "google/gemma-2-9b-it": "Gemma 2 9B",
+    "microsoft/phi-3-mini-4k-instruct": "Phi 3 Mini 4K",
+    "nvidia/llama-3.1-nemotron-70b-instruct": "Llama 3.1 Nemotron 70B",
+}
+
+
+def _nvidia_label(model_id: str) -> str:
+    if model_id in _NVIDIA_LABELS:
+        return _NVIDIA_LABELS[model_id]
+    return model_id.replace("-", " ").title()
+
+
+def _fetch_nvidia_live(api_key: str, base_url: str) -> list[dict]:
+    """Fetch available Nvidia models via GET /models."""
+    url = f"{base_url.rstrip('/')}/models"
+    resp = requests.get(
+        url,
+        headers={"Authorization": f"Bearer {api_key}"},
+        timeout=15,
+    )
+    resp.raise_for_status()
+    data = resp.json().get("data", [])
+    if not isinstance(data, list):
+        logger.warning("Nvidia /models returned unexpected format: %s", type(data))
+        return []
+
+    models: list[dict] = []
+    for entry in data:
+        mid = entry.get("id", "")
+        if not mid or not isinstance(mid, str):
+            continue
+        models.append({"id": mid, "label": _nvidia_label(mid), "role": None})
+    return models
+
+
+def fetch_nvidia_models(
+    api_key: str, base_url: str, fallback: list[dict] | None = None
+) -> list[dict]:
+    """Return Nvidia models (cached 1 h), falling back to *fallback* on failure."""
+    cached = _cache_get("nvidia")
+    if cached is not None:
+        return cached
+
+    try:
+        live = _fetch_nvidia_live(api_key, base_url)
+        if live:
+            _cache_set("nvidia", live)
+            return live
+    except Exception:
+        logger.warning("Failed to fetch live Nvidia models", exc_info=True)
+
+    stale = _model_cache.get("nvidia")
+    if stale is not None:
+        logger.info("Using stale Nvidia model cache")
+        return stale[1]
+
+    return fallback or []
+
+
+# ---------------------------------------------------------------------------
+# Gemini model fetching
+# ---------------------------------------------------------------------------
+
+_GEMINI_LABELS: dict[str, str] = {
+    "gemini-2.5-flash": "Gemini 2.5 Flash",
+    "gemini-2.5-flash-lite": "Gemini 2.5 Flash Lite",
+    "gemini-2.5-pro": "Gemini 2.5 Pro",
+}
+
+
+def _gemini_label(model_id: str) -> str:
+    if model_id in _GEMINI_LABELS:
+        return _GEMINI_LABELS[model_id]
+    return model_id.replace("-", " ").title()
+
+
+def _fetch_gemini_live(api_key: str, base_url: str) -> list[dict]:
+    """Fetch available Gemini models via GET /models.
+
+    Normalises model IDs by stripping any leading ``models/`` prefix that the
+    Gemini API may return.
+    """
+    url = f"{base_url.rstrip('/')}/models"
+    resp = requests.get(
+        url,
+        headers={"Authorization": f"Bearer {api_key}"},
+        timeout=15,
+    )
+    resp.raise_for_status()
+    data = resp.json().get("data", [])
+    if not isinstance(data, list):
+        logger.warning("Gemini /models returned unexpected format: %s", type(data))
+        return []
+
+    models: list[dict] = []
+    for entry in data:
+        mid = entry.get("id", "")
+        if not mid or not isinstance(mid, str):
+            continue
+        # Normalise: strip leading "models/" prefix if present
+        if mid.startswith("models/"):
+            mid = mid[len("models/"):]
+        models.append({"id": mid, "label": _gemini_label(mid), "role": None})
+    return models
+
+
+def fetch_gemini_models(
+    api_key: str, base_url: str, fallback: list[dict] | None = None
+) -> list[dict]:
+    """Return Gemini models (cached 1 h), falling back to *fallback* on failure."""
+    cached = _cache_get("gemini")
+    if cached is not None:
+        return cached
+
+    try:
+        live = _fetch_gemini_live(api_key, base_url)
+        if live:
+            _cache_set("gemini", live)
+            return live
+    except Exception:
+        logger.warning("Failed to fetch live Gemini models", exc_info=True)
+
+    stale = _model_cache.get("gemini")
+    if stale is not None:
+        logger.info("Using stale Gemini model cache")
+        return stale[1]
+
+    return fallback or []
