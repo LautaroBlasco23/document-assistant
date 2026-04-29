@@ -34,6 +34,24 @@ def create_llm(config: AppConfig) -> LLM:
         from infrastructure.llm.huggingface_llm import HuggingFaceLLM
         logger.info("Using HuggingFace LLM: model=%s", config.huggingface.model)
         return HuggingFaceLLM(config.huggingface)
+    elif config.llm_provider == "nvidia":
+        if not config.nvidia.api_key:
+            raise ValueError(
+                "Nvidia API key required. "
+                "Set DOCASSIST_NVIDIA__API_KEY environment variable."
+            )
+        from infrastructure.llm.nvidia_llm import NvidiaLLM
+        logger.info("Using Nvidia LLM: model=%s", config.nvidia.model)
+        return NvidiaLLM(config.nvidia)
+    elif config.llm_provider == "gemini":
+        if not config.gemini.api_key:
+            raise ValueError(
+                "Gemini API key required. "
+                "Set DOCASSIST_GEMINI__API_KEY environment variable."
+            )
+        from infrastructure.llm.gemini_llm import GeminiLLM
+        logger.info("Using Gemini LLM: model=%s", config.gemini.model)
+        return GeminiLLM(config.gemini)
     else:
         from infrastructure.llm.ollama import OllamaLLM
         logger.info("Using Ollama LLM: model=%s", config.ollama.generation_model)
@@ -65,6 +83,20 @@ def create_fast_llm(config: AppConfig, fallback: LLM) -> LLM:
             logger.info("Using HuggingFace fast LLM: model=%s", fast_cfg.model)
             return HuggingFaceLLM(fast_cfg)
         return fallback
+    elif config.llm_provider == "nvidia":
+        if config.nvidia.fast_model:
+            from infrastructure.llm.nvidia_llm import NvidiaLLM
+            fast_cfg = config.nvidia.model_copy(update={"model": config.nvidia.fast_model})
+            logger.info("Using Nvidia fast LLM: model=%s", fast_cfg.model)
+            return NvidiaLLM(fast_cfg)
+        return fallback
+    elif config.llm_provider == "gemini":
+        if config.gemini.fast_model:
+            from infrastructure.llm.gemini_llm import GeminiLLM
+            fast_cfg = config.gemini.model_copy(update={"model": config.gemini.fast_model})
+            logger.info("Using Gemini fast LLM: model=%s", fast_cfg.model)
+            return GeminiLLM(fast_cfg)
+        return fallback
     else:
         if config.ollama.fast_model:
             from infrastructure.llm.ollama import OllamaLLM
@@ -93,8 +125,76 @@ def create_llm_with_model(config: AppConfig, model_name: str) -> LLM:
         cfg = config.huggingface.model_copy(update={"model": model_name})
         logger.info("Using HuggingFace LLM with override: model=%s", model_name)
         return HuggingFaceLLM(cfg)
+    elif config.llm_provider == "nvidia":
+        from infrastructure.llm.nvidia_llm import NvidiaLLM
+        cfg = config.nvidia.model_copy(update={"model": model_name})
+        logger.info("Using Nvidia LLM with override: model=%s", model_name)
+        return NvidiaLLM(cfg)
+    elif config.llm_provider == "gemini":
+        from infrastructure.llm.gemini_llm import GeminiLLM
+        cfg = config.gemini.model_copy(update={"model": model_name})
+        logger.info("Using Gemini LLM with override: model=%s", model_name)
+        return GeminiLLM(cfg)
     else:
         from infrastructure.llm.ollama import OllamaLLM
         cfg = config.ollama.model_copy(update={"generation_model": model_name})
         logger.info("Using Ollama LLM with override: model=%s", model_name)
         return OllamaLLM(cfg)
+
+
+def create_llm_for_agent(provider: str, model: str, api_key: str, config: AppConfig) -> LLM:
+    """Create an LLM instance with explicit credentials (api_key + model override).
+
+    Each provider branch creates a ``model_copy`` of its config with the supplied
+    *api_key* and *model* overridden so that the returned LLM instance uses the
+    provided credentials rather than environment variables.
+
+    Args:
+        provider: Provider slug (``groq``, ``nvidia``, ``gemini``, ``openrouter``,
+                  ``huggingface``, ``ollama``).
+        model: Model name to use.
+        api_key: API key string. Ignored for ``ollama``.
+        config: Full :class:`AppConfig` — the provider sub-config is copied and
+                overridden.
+
+    Returns:
+        A configured :class:`LLM` instance.
+    """
+    if provider == "groq":
+        from infrastructure.llm.groq_llm import GroqLLM
+
+        cfg = config.groq.model_copy(update={"api_key": api_key, "model": model})
+        logger.info("Creating Groq LLM for agent: model=%s", model)
+        return GroqLLM(cfg)
+    elif provider == "nvidia":
+        from infrastructure.llm.nvidia_llm import NvidiaLLM
+
+        cfg = config.nvidia.model_copy(update={"api_key": api_key, "model": model})
+        logger.info("Creating Nvidia LLM for agent: model=%s", model)
+        return NvidiaLLM(cfg)
+    elif provider == "gemini":
+        from infrastructure.llm.gemini_llm import GeminiLLM
+
+        cfg = config.gemini.model_copy(update={"api_key": api_key, "model": model})
+        logger.info("Creating Gemini LLM for agent: model=%s", model)
+        return GeminiLLM(cfg)
+    elif provider == "openrouter":
+        from infrastructure.llm.openrouter_llm import OpenRouterLLM
+
+        cfg = config.openrouter.model_copy(update={"api_key": api_key, "model": model})
+        logger.info("Creating OpenRouter LLM for agent: model=%s", model)
+        return OpenRouterLLM(cfg)
+    elif provider == "huggingface":
+        from infrastructure.llm.huggingface_llm import HuggingFaceLLM
+
+        cfg = config.huggingface.model_copy(update={"api_key": api_key, "model": model})
+        logger.info("Creating HuggingFace LLM for agent: model=%s", model)
+        return HuggingFaceLLM(cfg)
+    elif provider == "ollama":
+        from infrastructure.llm.ollama import OllamaLLM
+
+        cfg = config.ollama.model_copy(update={"generation_model": model})
+        logger.info("Creating Ollama LLM for agent: model=%s", model)
+        return OllamaLLM(cfg)
+    else:
+        raise ValueError(f"Unknown LLM provider: {provider}")
