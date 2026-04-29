@@ -10,6 +10,7 @@ class Agent:
     name: str = ""
     prompt: str = ""
     model: str = ""
+    provider: str = "groq"
     temperature: float = 0.7
     top_p: float = 1.0
     max_tokens: int = 1024
