@@ -38,6 +38,7 @@ export const mockKnowledgeDocuments: KnowledgeDocument[] = [
     chapter_number: null,
     is_main: true,
     title: 'ML Overview',
+    original_content: null,
     content: `Machine Learning is a subset of Artificial Intelligence that enables systems to learn and improve from experience without being explicitly programmed.
 
 This knowledge tree covers the foundational concepts of ML, starting from supervised learning algorithms, moving through unsupervised techniques, and concluding with neural networks and deep learning.
@@ -57,6 +58,7 @@ Key themes:
     chapter_number: 1,
     is_main: false,
     title: 'Linear Regression',
+    original_content: null,
     content: `Linear regression models the relationship between a dependent variable and one or more independent variables.
 
 The model assumes a linear relationship: y = β₀ + β₁x₁ + ... + βₙxₙ + ε
@@ -76,6 +78,7 @@ Key concepts:
     chapter_number: 1,
     is_main: false,
     title: 'Classification Algorithms',
+    original_content: null,
     content: `Classification assigns input data to predefined categories.
 
 Common algorithms:
@@ -96,6 +99,7 @@ Evaluation metrics: accuracy, precision, recall, F1-score, ROC-AUC`,
     chapter_number: 2,
     is_main: false,
     title: 'Clustering Methods',
+    original_content: null,
     content: `Unsupervised learning finds structure in unlabeled data.
 
 K-Means Clustering:
@@ -121,6 +125,7 @@ DBSCAN:
     chapter_number: null,
     is_main: true,
     title: 'Architecture Overview',
+    original_content: null,
     content: `Clean Architecture is a software design philosophy that emphasizes separation of concerns and independence of frameworks, UI, databases, and external agencies.
 
 The central idea: business rules should not depend on implementation details. Dependencies should always point inward, toward the domain.
@@ -137,6 +142,7 @@ This knowledge tree explores the principles behind clean architecture, covering 
     chapter_number: 1,
     is_main: false,
     title: 'SOLID Principles',
+    original_content: null,
     content: `SOLID is an acronym for five design principles aimed at making software more maintainable and extensible.
 
 S — Single Responsibility Principle: A class should have only one reason to change.

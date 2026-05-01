@@ -227,6 +227,22 @@ export class RealClient implements ServiceClient {
     await httpClient.delete(`/knowledge-trees/_/documents/${id}`)
   }
 
+  async improveKnowledgeDocument(treeId: string, docId: string): Promise<KnowledgeDocument> {
+    const res = await httpClient.post<KnowledgeDocument>(
+      `/knowledge-trees/${treeId}/documents/${docId}/improve`,
+      {}
+    )
+    return res.data
+  }
+
+  async revertKnowledgeDocument(treeId: string, docId: string): Promise<KnowledgeDocument> {
+    const res = await httpClient.post<KnowledgeDocument>(
+      `/knowledge-trees/${treeId}/documents/${docId}/revert`,
+      {}
+    )
+    return res.data
+  }
+
   async previewKnowledgeTreeFile(file: File): Promise<DocumentPreviewOut> {
     const formData = new FormData()
     formData.append('file', file)

@@ -38,11 +38,12 @@ from application.agents._batching import chunks_around_selection
 from application.agents._tokens import truncate_tokens
 from application.agents.flashcard_generator import FlashcardGeneratorAgent
 from application.agents.question_generator import QuestionGeneratorAgent
+from application.agents.text_improvement import TextImprovementAgent
+from application.llm_resolver import resolve_llm_for_agent
+from core.exceptions import ProviderNotConfigured
 from core.model.chunk import Chunk, ChunkMetadata
 from core.model.knowledge_tree import ExamSession, Flashcard, KnowledgeChunk
 from core.model.question import Question, QuestionType
-from application.llm_resolver import resolve_llm_for_agent
-from core.exceptions import ProviderNotConfigured
 from infrastructure.chunking.splitter import ChapterAwareSplitter
 from infrastructure.config import PROJECT_ROOT
 from infrastructure.ingest.epub_loader import preview_epub
@@ -86,6 +87,7 @@ def _doc_out(doc) -> KnowledgeDocumentOut:
         chapter_number=doc.chapter_number,
         title=doc.title,
         content=doc.content,
+        original_content=doc.original_content,
         is_main=doc.is_main,
         created_at=doc.created_at.isoformat(),
         updated_at=doc.updated_at.isoformat(),
@@ -605,6 +607,67 @@ async def delete_document(tree_id: str, doc_id: str, services: ServicesDep) -> N
     services.kt_doc_store.delete_document(doc_uid)
 
 
+class ImproveDocumentRequest(BaseModel):
+    temperature: float | None = None
+    top_p: float | None = None
+    max_tokens: int | None = None
+
+
+@router.post(
+    "/knowledge-trees/{tree_id}/documents/{doc_id}/improve",
+    response_model=KnowledgeDocumentOut,
+)
+async def improve_document(
+    tree_id: str,
+    doc_id: str,
+    req: ImproveDocumentRequest,
+    _user: CurrentUser,
+    services: ServicesDep,
+) -> KnowledgeDocumentOut:
+    """Improve document text style, apply Markdown formatting, and save atomically."""
+    uid = _parse_uuid(tree_id, "tree_id")
+    doc_uid = _parse_uuid(doc_id, "doc_id")
+    doc = services.kt_doc_store.get_document(doc_uid)
+    if doc is None or doc.tree_id != uid:
+        raise HTTPException(status_code=404, detail="Knowledge document not found")
+    if not doc.content or not doc.content.strip():
+        raise HTTPException(status_code=422, detail="Document has no content to improve")
+
+    from core.ports.llm import GenerationParams
+
+    params = GenerationParams(
+        temperature=req.temperature,
+        top_p=req.top_p,
+        max_tokens=req.max_tokens,
+    )
+    agent = TextImprovementAgent(services.llm)
+    improved = agent.improve(doc.content, params=params)
+    updated = services.kt_doc_store.save_improvement(doc_uid, improved)
+    return _doc_out(updated)
+
+
+@router.post(
+    "/knowledge-trees/{tree_id}/documents/{doc_id}/revert",
+    response_model=KnowledgeDocumentOut,
+)
+async def revert_document(
+    tree_id: str,
+    doc_id: str,
+    _user: CurrentUser,
+    services: ServicesDep,
+) -> KnowledgeDocumentOut:
+    """Revert a document to its pre-improvement original content."""
+    uid = _parse_uuid(tree_id, "tree_id")
+    doc_uid = _parse_uuid(doc_id, "doc_id")
+    doc = services.kt_doc_store.get_document(doc_uid)
+    if doc is None or doc.tree_id != uid:
+        raise HTTPException(status_code=404, detail="Knowledge document not found")
+    if doc.original_content is None:
+        raise HTTPException(status_code=422, detail="Document has no improvement to revert")
+    updated = services.kt_doc_store.revert_improvement(doc_uid)
+    return _doc_out(updated)
+
+
 @router.get("/knowledge-trees/{tree_id}/documents/{doc_id}/file")
 async def get_document_file(tree_id: str, doc_id: str, services: ServicesDep):
     uid = _parse_uuid(tree_id, "tree_id")
@@ -856,7 +919,9 @@ def _questions_background(
 
         _set_progress(task, 15, "Starting question generation...")
         agent_uid = UUID(agent_id) if agent_id else None
-        llm, agent_prompt, _ = resolve_llm_for_agent(user_id, agent_uid, services, model_override=model)
+        llm, agent_prompt, _ = resolve_llm_for_agent(
+            user_id, agent_uid, services, model_override=model
+        )
         agent = QuestionGeneratorAgent(llm)
 
         # Divide progress range 20-85 evenly across requested types
@@ -1278,7 +1343,9 @@ def _flashcards_bulk_background(
 
         _set_progress(task, 15, "Starting flashcard generation...")
         agent_uid = UUID(agent_id) if agent_id else None
-        llm, agent_prompt, _ = resolve_llm_for_agent(user_id, agent_uid, services, model_override=model)
+        llm, agent_prompt, _ = resolve_llm_for_agent(
+            user_id, agent_uid, services, model_override=model
+        )
         agent = FlashcardGeneratorAgent(llm)
 
         def on_progress(batch_i: int, total_batches: int) -> None:
@@ -1397,7 +1464,11 @@ def _chapter_context(
 
 @router.post("/knowledge-trees/{tree_id}/chapters/{number}/flashcards/draft")
 async def draft_flashcard(
-    tree_id: str, number: int, req: DraftFlashcardRequest, current_user: CurrentUser, services: ServicesDep
+    tree_id: str,
+    number: int,
+    req: DraftFlashcardRequest,
+    current_user: CurrentUser,
+    services: ServicesDep,
 ) -> dict:
     """Generate a flashcard from a selection synchronously without persisting."""
     uid, chapter = _resolve_chapter(services, tree_id, number)
@@ -1406,7 +1477,9 @@ async def draft_flashcard(
     context = _chapter_context(services, uid, number, selected_text=req.selected_text)
     agent_uid = UUID(req.agent_id) if req.agent_id else None
     try:
-        llm, agent_prompt, _ = resolve_llm_for_agent(current_user.id, agent_uid, services, model_override=req.model)
+        llm, agent_prompt, _ = resolve_llm_for_agent(
+            current_user.id, agent_uid, services, model_override=req.model
+        )
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except ProviderNotConfigured as e:
@@ -1450,7 +1523,11 @@ async def save_flashcard(
 
 @router.post("/knowledge-trees/{tree_id}/chapters/{number}/questions/draft")
 async def draft_question(
-    tree_id: str, number: int, req: DraftQuestionRequest, current_user: CurrentUser, services: ServicesDep
+    tree_id: str,
+    number: int,
+    req: DraftQuestionRequest,
+    current_user: CurrentUser,
+    services: ServicesDep,
 ) -> dict:
     """Generate a single question of the given type from a selection without persisting."""
     uid, chapter = _resolve_chapter(services, tree_id, number)
@@ -1459,7 +1536,9 @@ async def draft_question(
     context = _chapter_context(services, uid, number, selected_text=req.selected_text)
     agent_uid = UUID(req.agent_id) if req.agent_id else None
     try:
-        llm, agent_prompt, _ = resolve_llm_for_agent(current_user.id, agent_uid, services, model_override=req.model)
+        llm, agent_prompt, _ = resolve_llm_for_agent(
+            current_user.id, agent_uid, services, model_override=req.model
+        )
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except ProviderNotConfigured as e:

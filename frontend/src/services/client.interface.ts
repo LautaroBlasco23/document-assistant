@@ -46,6 +46,8 @@ export interface ServiceClient {
   createKnowledgeDocument(treeId: string, chapterId: string | null, title: string, content: string, isMain?: boolean): Promise<KnowledgeDocument>
   updateKnowledgeDocument(id: string, title: string, content: string): Promise<KnowledgeDocument>
   deleteKnowledgeDocument(id: string): Promise<void>
+  improveKnowledgeDocument(treeId: string, docId: string): Promise<KnowledgeDocument>
+  revertKnowledgeDocument(treeId: string, docId: string): Promise<KnowledgeDocument>
   ingestFileAsKnowledgeDocument(treeId: string, chapter: number, file: File): Promise<{ task_id: string }>
   previewKnowledgeTreeFile(file: File): Promise<DocumentPreviewOut>
   createKnowledgeTreeFromFile(file: File, title?: string, chapterIndices?: number[]): Promise<{ task_id: string }>

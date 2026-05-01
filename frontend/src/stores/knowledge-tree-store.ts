@@ -48,6 +48,8 @@ interface KnowledgeTreeState {
   createDocument: (treeId: string, chapter: number | null, title: string, content: string, isMain?: boolean) => Promise<KnowledgeDocument>
   updateDocument: (id: string, title: string, content: string, treeId: string, chapter: number | null) => Promise<KnowledgeDocument>
   deleteDocument: (id: string, treeId: string, chapter: number | null) => Promise<void>
+  improveDocument: (treeId: string, docId: string, chapter: number | null) => Promise<KnowledgeDocument>
+  revertDocument: (treeId: string, docId: string, chapter: number | null) => Promise<KnowledgeDocument>
   ingestFileAsDocument: (treeId: string, chapter: number, file: File) => Promise<{ task_id: string }>
   createTreeFromFile: (file: File, title?: string, chapterIndices?: number[]) => Promise<string>
 
@@ -214,6 +216,30 @@ export const useKnowledgeTreeStore = create<KnowledgeTreeState>((set, get) => ({
         [key]: (s.documents[key] ?? []).filter((d) => d.id !== id),
       },
     }))
+  },
+
+  improveDocument: async (treeId, docId, chapter) => {
+    const doc = await client.improveKnowledgeDocument(treeId, docId)
+    const key = docKey(treeId, chapter)
+    set((s) => ({
+      documents: {
+        ...s.documents,
+        [key]: (s.documents[key] ?? []).map((d) => d.id === docId ? doc : d),
+      },
+    }))
+    return doc
+  },
+
+  revertDocument: async (treeId, docId, chapter) => {
+    const doc = await client.revertKnowledgeDocument(treeId, docId)
+    const key = docKey(treeId, chapter)
+    set((s) => ({
+      documents: {
+        ...s.documents,
+        [key]: (s.documents[key] ?? []).map((d) => d.id === docId ? doc : d),
+      },
+    }))
+    return doc
   },
 
   ingestFileAsDocument: async (treeId, chapter, file) => {

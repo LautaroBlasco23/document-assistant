@@ -83,6 +83,9 @@ CREATE TABLE IF NOT EXISTS knowledge_documents (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- Idempotent: add original_content if it doesn't exist yet (tracks pre-improvement text)
+ALTER TABLE knowledge_documents ADD COLUMN IF NOT EXISTS original_content TEXT;
+
 -- ============================================
 -- KNOWLEDGE CONTENT (chunks)
 -- ============================================

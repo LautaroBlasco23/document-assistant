@@ -1,8 +1,9 @@
 import * as React from 'react'
-import { Plus, Pencil, Trash2, Check, X, FileText, Upload, BookOpen, Files } from 'lucide-react'
+import { Plus, Pencil, Trash2, Check, X, FileText, Upload, BookOpen, Files, Wand2, RotateCcw } from 'lucide-react'
 import { Button } from '../../components/ui/button'
 import { Input } from '../../components/ui/input'
 import { Badge } from '../../components/ui/badge'
+import { ConfirmDialog } from '../../components/ui/confirm-dialog'
 import { useKnowledgeTreeStore, docKey } from '../../stores/knowledge-tree-store'
 import { useAppStore } from '../../stores/app-store'
 import { client } from '../../services'
@@ -34,6 +35,8 @@ export function KnowledgeDocumentsTab({
     createDocument,
     updateDocument,
     deleteDocument,
+    improveDocument,
+    revertDocument,
     ingestFileAsDocument,
   } = useKnowledgeTreeStore()
   const addError = useAppStore((s) => s.addError)
@@ -162,9 +165,14 @@ export function KnowledgeDocumentsTab({
     })
 
   const handleDelete = async (doc: KnowledgeDocument) => {
-    if (!window.confirm(`Delete "${doc.title}"? This cannot be undone.`)) return
     await deleteDocument(doc.id, treeId, selectedChapter)
   }
+
+  const handleImprove = (doc: KnowledgeDocument) => () =>
+    improveDocument(treeId, doc.id, selectedChapter)
+
+  const handleRevert = (doc: KnowledgeDocument) => () =>
+    revertDocument(treeId, doc.id, selectedChapter)
 
   const isMain = selectedChapter === null
   const mainDoc = isMain ? docs.find((d) => d.is_main) : undefined
@@ -302,6 +310,8 @@ export function KnowledgeDocumentsTab({
                      onEdit={() => handleOpenEdit(doc)}
                      onDelete={() => void handleDelete(doc)}
                      onRead={setReaderDoc}
+                     onImprove={handleImprove(doc)}
+                     onRevert={handleRevert(doc)}
                    />
                  )
                ))
@@ -384,9 +394,43 @@ interface DocumentCardProps {
   onEdit: () => void
   onDelete: () => void
   onRead: (doc: KnowledgeDocument) => void
+  onImprove: () => Promise<KnowledgeDocument>
+  onRevert: () => Promise<KnowledgeDocument>
 }
 
-function DocumentCard({ doc, chapter, onEdit, onDelete, onRead }: DocumentCardProps) {
+function DocumentCard({ doc, chapter, onEdit, onDelete, onRead, onImprove, onRevert }: DocumentCardProps) {
+  const [improveOpen, setImproveOpen] = React.useState(false)
+  const [revertOpen, setRevertOpen] = React.useState(false)
+  const [acting, setActing] = React.useState(false)
+  const [thumbError, setThumbError] = React.useState(false)
+  const addError = useAppStore((s) => s.addError)
+
+  const isImproved = doc.original_content !== null
+
+  const handleConfirmImprove = async () => {
+    setActing(true)
+    try {
+      await onImprove()
+      setImproveOpen(false)
+    } catch {
+      addError('Failed to improve document. Please try again.')
+    } finally {
+      setActing(false)
+    }
+  }
+
+  const handleConfirmRevert = async () => {
+    setActing(true)
+    try {
+      await onRevert()
+      setRevertOpen(false)
+    } catch {
+      addError('Failed to revert document. Please try again.')
+    } finally {
+      setActing(false)
+    }
+  }
+
   const preview = doc.content.trim().slice(0, 200)
   const hasSourceFile = !!doc.source_file_path
   const isPdf = hasSourceFile && (
@@ -395,7 +439,6 @@ function DocumentCard({ doc, chapter, onEdit, onDelete, onRead }: DocumentCardPr
   )
   const canRead = hasSourceFile && chapter !== null
   const thumbnailUrl = canRead ? client.getDocumentThumbnailUrl(doc.tree_id, doc.id) : ''
-  const [thumbError, setThumbError] = React.useState(false)
 
   const handleCardClick = () => {
     if (canRead && isPdf) {
@@ -411,7 +454,7 @@ function DocumentCard({ doc, chapter, onEdit, onDelete, onRead }: DocumentCardPr
       )}
       onClick={handleCardClick}
     >
-      {/* Edit/Delete buttons */}
+      {/* Action buttons */}
       <div className="shrink-0 flex flex-col gap-1.5 justify-center">
         <Button
           variant="ghost"
@@ -422,6 +465,29 @@ function DocumentCard({ doc, chapter, onEdit, onDelete, onRead }: DocumentCardPr
         >
           <Pencil className="h-4 w-4" />
         </Button>
+
+        {isImproved ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={(e) => { e.stopPropagation(); setRevertOpen(true); }}
+            className="h-8 w-8 p-0 text-amber-500 hover:text-amber-600 dark:hover:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20"
+            title="Revert improvement"
+          >
+            <RotateCcw className="h-4 w-4" />
+          </Button>
+        ) : (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={(e) => { e.stopPropagation(); setImproveOpen(true); }}
+            className="h-8 w-8 p-0 text-text-tertiary hover:text-primary dark:hover:text-primary hover:bg-surface-100 dark:hover:bg-surface-100"
+            title="Improve text with AI"
+          >
+            <Wand2 className="h-4 w-4" />
+          </Button>
+        )}
+
         <Button
           variant="ghost"
           size="sm"
@@ -433,6 +499,36 @@ function DocumentCard({ doc, chapter, onEdit, onDelete, onRead }: DocumentCardPr
           <Trash2 className="h-4 w-4" />
         </Button>
       </div>
+
+      {/* Improve confirmation dialog */}
+      <ConfirmDialog
+        open={improveOpen}
+        onOpenChange={(o) => { if (!acting) setImproveOpen(o) }}
+        title="Improve text with AI?"
+        description="The document will be rewritten with improved style and Markdown formatting. The original version is saved so you can revert at any time."
+        confirmLabel="Improve"
+        loading={acting}
+        onConfirm={() => void handleConfirmImprove()}
+      />
+
+      {/* Revert confirmation dialog */}
+      <ConfirmDialog
+        open={revertOpen}
+        onOpenChange={(o) => { if (!acting) setRevertOpen(o) }}
+        title="Revert to original?"
+        description="This will replace the current (improved) content with the original version shown below."
+        confirmLabel="Revert"
+        cancelLabel="Keep improved"
+        loading={acting}
+        onConfirm={() => void handleConfirmRevert()}
+        className="max-w-2xl"
+      >
+        <textarea
+          readOnly
+          value={doc.original_content ?? ''}
+          className="w-full h-48 rounded-lg border border-surface-200 dark:border-surface-200 bg-surface-100 dark:bg-surface px-3 py-2.5 text-xs text-text-secondary font-mono leading-relaxed resize-none focus:outline-none"
+        />
+      </ConfirmDialog>
 
       {/* Thumbnail */}
       <div className="shrink-0 w-[100px] h-[130px] rounded-md overflow-hidden bg-surface-100 dark:bg-surface-200 flex items-center justify-center">

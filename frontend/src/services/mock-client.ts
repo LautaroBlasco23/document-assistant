@@ -285,6 +285,25 @@ export class MockClient implements ServiceClient {
     this.documents = this.documents.filter((d) => d.id !== id)
   }
 
+  async improveKnowledgeDocument(_treeId: string, docId: string): Promise<KnowledgeDocument> {
+    await delay(1200)
+    const doc = this.documents.find((d) => d.id === docId)
+    if (!doc) throw new Error('Document not found')
+    const improved = '## Improved Document\n\nThis is a **mock-improved** version of the document with proper Markdown formatting.\n\n- Bullet point one\n- Bullet point two\n\nThe content has been restructured for clarity.'
+    const updated = { ...doc, content: improved, original_content: doc.original_content ?? doc.content }
+    this.documents = this.documents.map((d) => d.id === docId ? updated : d)
+    return updated
+  }
+
+  async revertKnowledgeDocument(_treeId: string, docId: string): Promise<KnowledgeDocument> {
+    await delay(300)
+    const doc = this.documents.find((d) => d.id === docId)
+    if (!doc || !doc.original_content) throw new Error('Document not found or has no improvement to revert')
+    const updated = { ...doc, content: doc.original_content, original_content: null }
+    this.documents = this.documents.map((d) => d.id === docId ? updated : d)
+    return updated
+  }
+
   async ingestFileAsKnowledgeDocument(treeId: string, chapter: number, file: File): Promise<{ task_id: string }> {
     await delay(1500)
     const extractedContent = `[Extracted from ${file.name}]\n\nSimulated text content from ${file.type || 'file'}.\n\nFile size: ${(file.size / 1024).toFixed(1)} KB`

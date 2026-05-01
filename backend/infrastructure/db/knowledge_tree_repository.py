@@ -235,7 +235,7 @@ class PostgresKnowledgeDocumentStore(_BaseKnowledgeRepo):
                 cur.execute(
                     "SELECT d.id, d.tree_id, d.chapter_id, d.title, d.content, d.is_main,"
                     " d.created_at, d.updated_at, d.source_file_path, d.source_file_name,"
-                    " d.page_start, d.page_end, c.number AS chapter_number"
+                    " d.page_start, d.page_end, d.original_content, c.number AS chapter_number"
                     " FROM knowledge_documents d"
                     " LEFT JOIN knowledge_chapters c ON c.id = d.chapter_id"
                     " WHERE d.tree_id = %s AND d.chapter_id = %s"
@@ -246,7 +246,7 @@ class PostgresKnowledgeDocumentStore(_BaseKnowledgeRepo):
                 cur.execute(
                     "SELECT d.id, d.tree_id, d.chapter_id, d.title, d.content, d.is_main,"
                     " d.created_at, d.updated_at, d.source_file_path, d.source_file_name,"
-                    " d.page_start, d.page_end, c.number AS chapter_number"
+                    " d.page_start, d.page_end, d.original_content, c.number AS chapter_number"
                     " FROM knowledge_documents d"
                     " LEFT JOIN knowledge_chapters c ON c.id = d.chapter_id"
                     " WHERE d.tree_id = %s"
@@ -277,7 +277,7 @@ class PostgresKnowledgeDocumentStore(_BaseKnowledgeRepo):
                         " (tree_id, chapter_id, title, content, is_main,"
                         " source_file_path, source_file_name, page_start, page_end)"
                         " VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)"
-                        " RETURNING id, tree_id, chapter_id, title, content,"
+                        " RETURNING id, tree_id, chapter_id, title, content, original_content,"
                         " is_main, created_at, updated_at,"
                         " source_file_path, source_file_name, page_start, page_end",
                         (
@@ -302,7 +302,7 @@ class PostgresKnowledgeDocumentStore(_BaseKnowledgeRepo):
             cur.execute(
                 "SELECT d.id, d.tree_id, d.chapter_id, d.title, d.content, d.is_main,"
                 " d.created_at, d.updated_at, d.source_file_path, d.source_file_name,"
-                " d.page_start, d.page_end, c.number AS chapter_number"
+                " d.page_start, d.page_end, d.original_content, c.number AS chapter_number"
                 " FROM knowledge_documents d"
                 " LEFT JOIN knowledge_chapters c ON c.id = d.chapter_id"
                 " WHERE d.id = %s",
@@ -322,7 +322,7 @@ class PostgresKnowledgeDocumentStore(_BaseKnowledgeRepo):
                         "UPDATE knowledge_documents"
                         " SET title = %s, content = %s, updated_at = NOW()"
                         " WHERE id = %s"
-                        " RETURNING id, tree_id, chapter_id, title, content,"
+                        " RETURNING id, tree_id, chapter_id, title, content, original_content,"
                         " is_main, created_at, updated_at,"
                         " source_file_path, source_file_name, page_start, page_end",
                         (title, content, id),
@@ -331,6 +331,50 @@ class PostgresKnowledgeDocumentStore(_BaseKnowledgeRepo):
         if row is None:
             raise ValueError(f"Knowledge document not found: {id}")
         logger.debug("Updated knowledge document id=%s", id)
+        return _row_to_doc(row)
+
+    def save_improvement(self, id: UUID, improved_content: str) -> KnowledgeDocument:
+        """Save AI-improved text, preserving the original if not already improved."""
+        with self._lock:
+            conn = self._conn()
+            with conn.transaction():
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "UPDATE knowledge_documents"
+                        " SET content = %s,"
+                        "     original_content = CASE WHEN original_content IS NULL THEN content ELSE original_content END,"
+                        "     updated_at = NOW()"
+                        " WHERE id = %s"
+                        " RETURNING id, tree_id, chapter_id, title, content, original_content,"
+                        " is_main, created_at, updated_at,"
+                        " source_file_path, source_file_name, page_start, page_end",
+                        (improved_content, id),
+                    )
+                    row = cur.fetchone()
+        if row is None:
+            raise ValueError(f"Knowledge document not found: {id}")
+        logger.debug("Saved improvement for document id=%s", id)
+        return _row_to_doc(row)
+
+    def revert_improvement(self, id: UUID) -> KnowledgeDocument:
+        """Revert to original content, clearing the improvement."""
+        with self._lock:
+            conn = self._conn()
+            with conn.transaction():
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "UPDATE knowledge_documents"
+                        " SET content = original_content, original_content = NULL, updated_at = NOW()"
+                        " WHERE id = %s AND original_content IS NOT NULL"
+                        " RETURNING id, tree_id, chapter_id, title, content, original_content,"
+                        " is_main, created_at, updated_at,"
+                        " source_file_path, source_file_name, page_start, page_end",
+                        (id,),
+                    )
+                    row = cur.fetchone()
+        if row is None:
+            raise ValueError(f"Document not found or has no improvement to revert: {id}")
+        logger.debug("Reverted improvement for document id=%s", id)
         return _row_to_doc(row)
 
     def update_document_source_file(self, id: UUID, path: str | None, name: str | None) -> None:
@@ -678,4 +722,5 @@ def _row_to_doc(row: dict) -> KnowledgeDocument:
         chapter_number=row.get("chapter_number"),
         page_start=row.get("page_start"),
         page_end=row.get("page_end"),
+        original_content=row.get("original_content"),
     )

@@ -61,6 +61,7 @@ class KnowledgeDocumentOut(BaseModel):
     chapter_number: int | None = None
     title: str
     content: str
+    original_content: str | None = None
     is_main: bool
     created_at: str
     updated_at: str

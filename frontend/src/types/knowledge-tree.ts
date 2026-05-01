@@ -22,6 +22,8 @@ export interface KnowledgeDocument {
   chapter_number: number | null  // null = tree-level (main doc)
   title: string
   content: string
+  /** Set when content has been AI-improved; holds the original pre-improvement text */
+  original_content: string | null
   is_main: boolean
   created_at: string
   updated_at: string
