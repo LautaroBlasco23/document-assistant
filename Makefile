@@ -65,7 +65,7 @@ start: env-check tools-check
 
 dev: env-check tools-check
 	@echo "Starting dev server with defaults (dev mode, provider: $(or $(PROVIDER),groq))..."
-	@AUTO_DEFAULTS=1 PROVIDER=$${PROVIDER:-groq} bash scripts/start.sh
+	@AUTO_DEFAULTS=1 PROVIDER=$(or $(PROVIDER),groq) bash scripts/start.sh
 
 dev-backend: env-check tools-check
 	@echo "Starting backend only..."
