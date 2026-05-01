@@ -74,8 +74,8 @@ export DOCASSIST_LLM_PROVIDER="$CHOSEN_PROVIDER"
 
 if [ "$ENV_MODE" = "dev" ]; then
 
-    # Kill any lingering frontend dev ports
-    for port in 5173 5174 5175 5176 5177; do
+    # Kill any lingering backend and frontend dev ports
+    for port in 8000 5173 5174 5175 5176 5177; do
         if lsof -Pi :"$port" -sTCP:LISTEN -t >/dev/null 2>&1; then
             echo "Killing process on port $port..."
             lsof -ti:"$port" | xargs kill -9 2>/dev/null || true
