@@ -32,7 +32,7 @@ const baseURL = isElectron ? 'http://127.0.0.1:8000/api' : '/api'
 
 const httpClient: AxiosInstance = axios.create({
   baseURL,
-  timeout: 30000,
+  timeout: 120000,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -499,9 +499,9 @@ export class RealClient implements ServiceClient {
   }
 
   // Chat
-  async chat(request: ChatRequest): Promise<ChatResponse> {
+  async chat(request: ChatRequest, signal?: AbortSignal): Promise<ChatResponse> {
     try {
-      const res = await httpClient.post<ChatResponse>('/chat', request)
+      const res = await httpClient.post<ChatResponse>('/chat', request, { signal })
       return res.data
     } catch (err) {
       const axiosErr = err as import('axios').AxiosError<{ detail?: string; provider?: string; retry_after?: number }>

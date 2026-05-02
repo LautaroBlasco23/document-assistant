@@ -177,6 +177,7 @@ export class MockClient implements ServiceClient {
       is_main: true,
       title: 'Overview',
       content: '',
+      original_content: null,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     }
@@ -264,6 +265,7 @@ export class MockClient implements ServiceClient {
       is_main: isMain,
       title,
       content,
+      original_content: null,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     }
@@ -592,7 +594,7 @@ export class MockClient implements ServiceClient {
     return { ok: true, model_count: 5 }
   }
 
-  async chat(_request: ChatRequest): Promise<ChatResponse> {
+  async chat(_request: ChatRequest, _signal?: AbortSignal): Promise<ChatResponse> {
     await delay(500)
     return {
       reply: "This is a mock response. The AI assistant would answer your question here based on the document context provided."

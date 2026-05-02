@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Send, Loader2, MessageSquare, FileText, Plus, Trash2, ChevronDown } from 'lucide-react'
+import { Send, Loader2, MessageSquare, FileText, Plus, Trash2, ChevronDown, X } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import { client } from '../../services'
 import { cn } from '../../lib/cn'
@@ -231,6 +231,7 @@ export const ChatPanel = React.forwardRef<ChatPanelHandle, ChatPanelProps>(funct
   const [activeSessionId, setActiveSessionId] = React.useState<string>(initialActiveId)
   const [input, setInput] = React.useState('')
   const [loading, setLoading] = React.useState(false)
+  const [loadingAbortController, setLoadingAbortController] = React.useState<AbortController | null>(null)
   const [rateLimitCountdown, setRateLimitCountdown] = React.useState<number | null>(null)
   const rateLimitRetryRef = React.useRef<{ text: string; retriesLeft: number } | null>(null)
   const scrollRef = React.useRef<HTMLDivElement>(null)
@@ -310,6 +311,8 @@ export const ChatPanel = React.forwardRef<ChatPanelHandle, ChatPanelProps>(funct
       updateSessionMessages(activeSession.id, messagesWithUser)
     }
     setLoading(true)
+    const abortController = new AbortController()
+    setLoadingAbortController(abortController)
 
     try {
       const context = await getContext().catch(() => '')
@@ -318,7 +321,7 @@ export const ChatPanel = React.forwardRef<ChatPanelHandle, ChatPanelProps>(funct
         context: context || null,
         model: settings.model,
         agent_id: settings.agent_id,
-      })
+      }, abortController.signal)
       rateLimitRetryRef.current = null
       setRateLimitCountdown(null)
       updateSessionMessages(activeSession.id, [
@@ -326,52 +329,61 @@ export const ChatPanel = React.forwardRef<ChatPanelHandle, ChatPanelProps>(funct
         { role: 'assistant', content: res.reply },
       ])
     } catch (err) {
-      const isRateLimit = err instanceof Error && err.name === 'RateLimitError'
-      const axiosErr = err as { response?: { status?: number } } | undefined
-      const isProviderNotConfigured = axiosErr?.response?.status === 412
+      const isAbort = err instanceof Error && err.name === 'Canceled'
+      if (isAbort) {
+        updateSessionMessages(activeSession.id, [
+          ...messagesWithUser,
+          { role: 'assistant', content: '_Request cancelled._' },
+        ])
+      } else {
+        const isRateLimit = err instanceof Error && err.name === 'RateLimitError'
+        const axiosErr = err as { response?: { status?: number } } | undefined
+        const isProviderNotConfigured = axiosErr?.response?.status === 412
 
-      if (isRateLimit) {
-        const rlErr = err as Error & { provider: string; retry_after: number }
-        const retryAfter = Math.ceil(rlErr.retry_after)
-        const retriesLeft = (rateLimitRetryRef.current?.retriesLeft ?? 1)
+        if (isRateLimit) {
+          const rlErr = err as Error & { provider: string; retry_after: number }
+          const retryAfter = Math.ceil(rlErr.retry_after)
+          const retriesLeft = (rateLimitRetryRef.current?.retriesLeft ?? 1)
 
-        if (retriesLeft > 0) {
-          rateLimitRetryRef.current = { text, retriesLeft: retriesLeft - 1 }
-          setRateLimitCountdown(retryAfter)
+          if (retriesLeft > 0) {
+            rateLimitRetryRef.current = { text, retriesLeft: retriesLeft - 1 }
+            setRateLimitCountdown(retryAfter)
+            updateSessionMessages(activeSession.id, [
+              ...messagesWithUser,
+              {
+                role: 'assistant',
+                content: `⏳ The AI provider (${rlErr.provider}) is rate-limiting requests. Retrying in ${retryAfter}s…`,
+              },
+            ])
+          } else {
+            rateLimitRetryRef.current = null
+            setRateLimitCountdown(null)
+            updateSessionMessages(activeSession.id, [
+              ...messagesWithUser,
+              {
+                role: 'assistant',
+                content: `The AI provider (${rlErr.provider}) is currently rate-limiting requests. Please wait a moment and try again.`,
+              },
+            ])
+          }
+        } else if (isProviderNotConfigured) {
           updateSessionMessages(activeSession.id, [
             ...messagesWithUser,
             {
               role: 'assistant',
-              content: `⏳ The AI provider (${rlErr.provider}) is rate-limiting requests. Retrying in ${retryAfter}s…`,
+              content: 'No API key configured for this agent\'s provider. Go to [Settings](/settings) to configure your API keys.',
             },
           ])
         } else {
-          rateLimitRetryRef.current = null
-          setRateLimitCountdown(null)
           updateSessionMessages(activeSession.id, [
             ...messagesWithUser,
-            {
-              role: 'assistant',
-              content: `The AI provider (${rlErr.provider}) is currently rate-limiting requests. Please wait a moment and try again.`,
-            },
+            { role: 'assistant', content: 'Sorry, something went wrong. Please try again.' },
           ])
         }
-      } else if (isProviderNotConfigured) {
-        updateSessionMessages(activeSession.id, [
-          ...messagesWithUser,
-          {
-            role: 'assistant',
-            content: 'No API key configured for this agent\'s provider. Go to [Settings](/settings) to configure your API keys.',
-          },
-        ])
-      } else {
-        updateSessionMessages(activeSession.id, [
-          ...messagesWithUser,
-          { role: 'assistant', content: 'Sorry, something went wrong. Please try again.' },
-        ])
       }
     } finally {
       setLoading(false)
+      setLoadingAbortController(null)
     }
   }
 
@@ -400,6 +412,12 @@ export const ChatPanel = React.forwardRef<ChatPanelHandle, ChatPanelProps>(funct
 
   const sendTextRef = React.useRef<typeof sendText>(sendText)
   sendTextRef.current = sendText
+
+  const handleCancel = () => {
+    if (loadingAbortController) {
+      loadingAbortController.abort()
+    }
+  }
 
   React.useImperativeHandle(
     ref,
@@ -568,6 +586,13 @@ export const ChatPanel = React.forwardRef<ChatPanelHandle, ChatPanelProps>(funct
                 {rateLimitCountdown !== null
                   ? `Rate limited — retrying in ${rateLimitCountdown}s…`
                   : 'Thinking...'}
+                <button
+                  onClick={handleCancel}
+                  className="ml-1 flex items-center gap-1 px-1.5 py-0.5 rounded text-text-tertiary hover:text-danger hover:bg-danger-light dark:hover:bg-danger/12 transition-colors"
+                >
+                  <X className="h-3 w-3" />
+                  Cancel
+                </button>
               </div>
             )}
           </div>

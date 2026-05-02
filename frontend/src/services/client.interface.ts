@@ -107,7 +107,7 @@ export interface ServiceClient {
   testConnection(provider: string, apiKey?: string): Promise<TestConnectionResult>
 
   // Chat
-  chat(request: ChatRequest): Promise<ChatResponse>
+  chat(request: ChatRequest, signal?: AbortSignal): Promise<ChatResponse>
 }
 
 export type { ServiceClient as ServiceClientType }
