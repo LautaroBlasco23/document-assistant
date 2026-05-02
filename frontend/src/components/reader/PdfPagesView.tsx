@@ -1,5 +1,6 @@
 import * as React from 'react'
 import { Document, Page } from 'react-pdf'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 
 import 'react-pdf/dist/Page/TextLayer.css'
 
@@ -17,6 +18,8 @@ interface PdfPagesViewProps {
   onContextMenu?: (e: React.MouseEvent) => void
   onClickAway?: () => void
   scrollRef?: React.MutableRefObject<PdfPagesViewHandle | null>
+  mode?: 'scroll' | 'paged'
+  initialPage?: number
 }
 
 const PAGE_BUFFER_VIEWPORTS = 3
@@ -37,6 +40,8 @@ export function PdfPagesView({
   onContextMenu,
   onClickAway,
   scrollRef,
+  mode = 'scroll',
+  initialPage,
 }: PdfPagesViewProps) {
   const [numPages, setNumPages] = React.useState(0)
   const [baseWidth, setBaseWidth] = React.useState(() =>
@@ -46,18 +51,18 @@ export function PdfPagesView({
   const [activePages, setActivePages] = React.useState<Set<number>>(() => new Set())
   const [estimatedPageHeight, setEstimatedPageHeight] = React.useState(FALLBACK_PAGE_HEIGHT)
 
+  // Paged mode: current page (0 = not yet initialized)
+  const [pagedPage, setPagedPage] = React.useState<number>(0)
+  const pagedInitDoneRef = React.useRef(false)
+
   const scrollContainerRef = React.useRef<HTMLDivElement>(null)
   const pageSlotRefs = React.useRef<Map<number, HTMLDivElement>>(new Map())
   const observerRef = React.useRef<IntersectionObserver | null>(null)
   const onCurrentPageChangeRef = React.useRef(onCurrentPageChange)
   const onNumPagesChangeRef = React.useRef(onNumPagesChange)
 
-  React.useEffect(() => {
-    onCurrentPageChangeRef.current = onCurrentPageChange
-  }, [onCurrentPageChange])
-  React.useEffect(() => {
-    onNumPagesChangeRef.current = onNumPagesChange
-  }, [onNumPagesChange])
+  React.useEffect(() => { onCurrentPageChangeRef.current = onCurrentPageChange }, [onCurrentPageChange])
+  React.useEffect(() => { onNumPagesChangeRef.current = onNumPagesChange }, [onNumPagesChange])
 
   const pageList = React.useMemo(() => {
     if (visiblePages && visiblePages.length > 0) return visiblePages
@@ -65,7 +70,33 @@ export function PdfPagesView({
     return []
   }, [visiblePages, numPages])
 
-  // ResizeObserver tracks the scroll container width so pages re-fit on layout changes.
+  // Paged mode: initialize current page when pageList first populates
+  React.useEffect(() => {
+    if (mode !== 'paged' || pageList.length === 0 || pagedInitDoneRef.current) return
+    pagedInitDoneRef.current = true
+    const target = (initialPage && pageList.includes(initialPage)) ? initialPage : pageList[0]
+    setPagedPage(target)
+  }, [pageList.length, mode, initialPage])
+
+  // Paged mode: report current page to parent
+  React.useEffect(() => {
+    if (mode === 'paged' && pagedPage > 0) {
+      onCurrentPageChangeRef.current?.(pagedPage)
+    }
+  }, [pagedPage, mode])
+
+  // Scroll mode: scroll to initialPage after PDF loads
+  const initialScrollDoneRef = React.useRef(false)
+  React.useEffect(() => {
+    if (mode === 'paged' || initialScrollDoneRef.current || !numPages || !initialPage) return
+    if (!pageList.includes(initialPage)) return
+    initialScrollDoneRef.current = true
+    requestAnimationFrame(() => {
+      pageSlotRefs.current.get(initialPage)?.scrollIntoView({ behavior: 'instant', block: 'start' })
+    })
+  }, [numPages, initialPage, mode, pageList])
+
+  // ResizeObserver: tracks scroll container width for page re-fit on layout changes.
   React.useEffect(() => {
     const el = scrollContainerRef.current
     if (!el) return
@@ -79,9 +110,9 @@ export function PdfPagesView({
     return () => ro.disconnect()
   }, [])
 
-  // Single IntersectionObserver shared across all page slots. Tracks which pages
-  // are within ~3 viewports of the visible area; only those are rendered fully.
+  // IntersectionObserver for virtualization — scroll mode only.
   React.useEffect(() => {
+    if (mode === 'paged') return
     const root = scrollContainerRef.current
     if (!root) return
     const margin = `${PAGE_BUFFER_VIEWPORTS * 100}% 0px`
@@ -107,19 +138,18 @@ export function PdfPagesView({
       { root, rootMargin: margin, threshold: 0 }
     )
     observerRef.current = observer
-    // Observe any slots already mounted.
     pageSlotRefs.current.forEach((el) => observer.observe(el))
     return () => {
       observer.disconnect()
       observerRef.current = null
     }
-  }, [])
+  }, [mode])
 
-  // Separate observer with no rootMargin: tracks pages actually visible in the
-  // viewport so we can report the topmost one as the current page.
+  // Viewport observer: tracks topmost visible page to report as current — scroll mode only.
   const viewportObserverRef = React.useRef<IntersectionObserver | null>(null)
   const viewportVisibleRef = React.useRef<Set<number>>(new Set())
   React.useEffect(() => {
+    if (mode === 'paged') return
     const root = scrollContainerRef.current
     if (!root) return
     const observer = new IntersectionObserver(
@@ -146,13 +176,10 @@ export function PdfPagesView({
       observer.disconnect()
       viewportObserverRef.current = null
     }
-  }, [])
+  }, [mode])
 
-  // Mirror activePages into a ref so the observer callback can merge without re-subscribing.
   const activePagesRef = React.useRef<Set<number>>(activePages)
-  React.useEffect(() => {
-    activePagesRef.current = activePages
-  }, [activePages])
+  React.useEffect(() => { activePagesRef.current = activePages }, [activePages])
 
   // Stable per-page ref factory: same identity per pageNumber across renders.
   const refFactoryCache = React.useRef<Map<number, (el: HTMLDivElement | null) => void>>(new Map())
@@ -180,16 +207,59 @@ export function PdfPagesView({
     return cached
   }, [])
 
-  // Imperative handle for parent-driven scroll.
+  // Paged mode navigation helpers
+  const pagedPageIdx = pageList.indexOf(pagedPage)
+  const canPrev = pagedPageIdx > 0
+  const canNext = pagedPageIdx < pageList.length - 1
+
+  const gotoPrev = React.useCallback(() => {
+    setPagedPage((p) => {
+      const idx = pageList.indexOf(p)
+      return idx > 0 ? pageList[idx - 1] : p
+    })
+  }, [pageList])
+
+  const gotoNext = React.useCallback(() => {
+    setPagedPage((p) => {
+      const idx = pageList.indexOf(p)
+      return idx < pageList.length - 1 ? pageList[idx + 1] : p
+    })
+  }, [pageList])
+
+  // Keyboard navigation in paged mode
+  React.useEffect(() => {
+    if (mode !== 'paged') return
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+        e.preventDefault()
+        gotoPrev()
+      } else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+        e.preventDefault()
+        gotoNext()
+      }
+    }
+    window.addEventListener('keydown', handleKey)
+    return () => window.removeEventListener('keydown', handleKey)
+  }, [mode, gotoPrev, gotoNext])
+
+  // Imperative scroll handle
   React.useImperativeHandle(
     scrollRef as React.MutableRefObject<PdfPagesViewHandle | null> | undefined,
     () => ({
       scrollToPage: (pageNumber: number) => {
+        if (mode === 'paged') {
+          if (pageList.includes(pageNumber)) setPagedPage(pageNumber)
+          return
+        }
+        // Instant scroll; second pass after nearby pages have rendered and heights settle.
         const el = pageSlotRefs.current.get(pageNumber)
-        el?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        el?.scrollIntoView({ behavior: 'instant', block: 'start' })
+        setTimeout(() => {
+          pageSlotRefs.current.get(pageNumber)?.scrollIntoView({ behavior: 'instant', block: 'start' })
+        }, 150)
       },
     }),
-    []
+    [mode, pageList]
   )
 
   const handleDocLoad = React.useCallback(({ numPages: n }: { numPages: number }) => {
@@ -198,13 +268,80 @@ export function PdfPagesView({
   }, [])
 
   const handleFirstPageRender = React.useCallback(() => {
-    // After the first page paints, capture its height as the placeholder estimate.
     const first = pageSlotRefs.current.values().next().value as HTMLDivElement | undefined
     if (!first) return
     const h = first.getBoundingClientRect().height
     if (h > 100) setEstimatedPageHeight(h)
   }, [])
 
+  // ── PAGED MODE ───────────────────────────────────────────────────────────────
+  if (mode === 'paged') {
+    return (
+      <div
+        ref={scrollContainerRef}
+        className="flex-1 min-w-0 bg-surface-100 dark:bg-bg-inset flex flex-col items-center relative overflow-hidden"
+        onContextMenu={onContextMenu}
+        onClick={onClickAway}
+      >
+        <Document
+          file={fileUrl}
+          options={DOCUMENT_OPTIONS}
+          onLoadSuccess={handleDocLoad}
+          loading={
+            <div className="flex-1 flex items-center justify-center text-sm text-text-tertiary">
+              Loading PDF...
+            </div>
+          }
+          error={
+            <div className="flex-1 flex items-center justify-center text-sm text-danger px-6">
+              Failed to load PDF. The file may not be available.
+            </div>
+          }
+        >
+          {pagedPage > 0 && (
+            <div className="flex-1 w-full flex flex-col items-center justify-start py-6 px-4 overflow-auto pb-16">
+              {renderPageHeader?.(pagedPage)}
+              <div className="bg-surface dark:bg-surface-100 shadow-md">
+                <MemoPage pageNumber={pagedPage} width={displayWidth} />
+              </div>
+              <span className="mt-2 text-xs text-text-tertiary select-none">
+                {pagedPage} / {numPages}
+              </span>
+            </div>
+          )}
+        </Document>
+
+        {/* Floating prev / next bar */}
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 bg-surface dark:bg-surface-200 border border-surface-200 dark:border-surface-200 rounded-full px-3 py-1.5 shadow-lg select-none z-10">
+          <button
+            onClick={(e) => { e.stopPropagation(); gotoPrev() }}
+            disabled={!canPrev}
+            className="p-1 rounded-full text-text-secondary hover:text-text-primary hover:bg-surface-100 dark:hover:bg-surface-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            aria-label="Previous page"
+            title="Previous page (←)"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+          <span className="text-xs tabular-nums text-text-tertiary min-w-[6ch] text-center">
+            {pagedPage > 0 && pageList.length > 0
+              ? `${pagedPageIdx + 1} / ${pageList.length}`
+              : '—'}
+          </span>
+          <button
+            onClick={(e) => { e.stopPropagation(); gotoNext() }}
+            disabled={!canNext}
+            className="p-1 rounded-full text-text-secondary hover:text-text-primary hover:bg-surface-100 dark:hover:bg-surface-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            aria-label="Next page"
+            title="Next page (→)"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // ── SCROLL MODE ──────────────────────────────────────────────────────────────
   return (
     <div
       ref={scrollContainerRef}

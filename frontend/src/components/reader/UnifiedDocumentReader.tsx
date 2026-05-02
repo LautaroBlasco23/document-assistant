@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { X, Sparkles, PanelLeft, PanelRight, BookOpen, MessageCircleQuestion, Maximize, Minimize, ZoomIn, ZoomOut } from 'lucide-react'
+import { X, Sparkles, PanelLeft, PanelRight, BookOpen, MessageCircleQuestion, Maximize, Minimize, ZoomIn, ZoomOut, AlignJustify } from 'lucide-react'
 import ePub from 'epubjs'
 import { client } from '../../services'
 import { useKnowledgeTreeStore } from '../../stores/knowledge-tree-store'
@@ -12,6 +12,8 @@ import { PdfPagesView, type PdfPagesViewHandle } from './PdfPagesView'
 import { ResizeHandle } from './ResizeHandle'
 import { useGenerationSettings } from '../../stores/generation-settings'
 
+type ReadMode = 'scroll' | 'paged'
+
 interface UnifiedDocumentReaderProps {
   doc: KnowledgeDocument
   treeId: string
@@ -19,13 +21,58 @@ interface UnifiedDocumentReaderProps {
   onClose: () => void
 }
 
+function loadReadMode(): ReadMode {
+  try {
+    const saved = localStorage.getItem('docassist_read_mode')
+    if (saved === 'scroll' || saved === 'paged') return saved
+  } catch { /* ignore */ }
+  return 'scroll'
+}
+
+function loadLastPage(treeId: string, docId: string): number | undefined {
+  try {
+    const saved = localStorage.getItem(`docassist_reader_page:${treeId}:${docId}`)
+    if (saved) return parseInt(saved, 10) || undefined
+  } catch { /* ignore */ }
+  return undefined
+}
+
 export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: UnifiedDocumentReaderProps) {
   const [currentPage, setCurrentPage] = React.useState<number>(1)
+  const [numPages, setNumPages] = React.useState<number>(0)
   const [showLeft, setShowLeft] = React.useState(true)
   const [showRight, setShowRight] = React.useState(true)
   const [isFullscreen, setIsFullscreen] = React.useState(false)
   const [zoom, setZoom] = React.useState(1)
   const [contextMenu, setContextMenu] = React.useState<{ x: number; y: number; text: string } | null>(null)
+
+  // Read mode and resume-page state
+  const [readMode, setReadMode] = React.useState<ReadMode>(loadReadMode)
+  // pdfInitialPage and readerKey drive remount-on-mode-switch to correctly apply the new initialPage.
+  const [pdfInitialPage, setPdfInitialPage] = React.useState<number | undefined>(() =>
+    loadLastPage(treeId, doc.id)
+  )
+  const [readerKey, setReaderKey] = React.useState(0)
+
+  const savePageTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const handlePageChange = React.useCallback((page: number) => {
+    setCurrentPage(page)
+    if (savePageTimerRef.current) clearTimeout(savePageTimerRef.current)
+    savePageTimerRef.current = setTimeout(() => {
+      try {
+        localStorage.setItem(`docassist_reader_page:${treeId}:${doc.id}`, String(page))
+      } catch { /* ignore */ }
+    }, 1000)
+  }, [treeId, doc.id])
+
+  const handleModeChange = React.useCallback((newMode: ReadMode) => {
+    setReadMode(newMode)
+    setPdfInitialPage(currentPage)
+    setReaderKey((k) => k + 1)
+    try { localStorage.setItem('docassist_read_mode', newMode) } catch { /* ignore */ }
+  }, [currentPage])
+
   const epubContainerRef = React.useRef<HTMLDivElement>(null)
   const overlayRef = React.useRef<HTMLDivElement>(null)
   const pdfScrollRef = React.useRef<PdfPagesViewHandle | null>(null)
@@ -72,7 +119,6 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
   const isPdf = doc.source_file_name?.toLowerCase().endsWith('.pdf') || doc.source_file_path?.toLowerCase().endsWith('.pdf')
   const fileUrl = client.getDocumentFileUrl(treeId, doc.id)
 
-  // Read already-fetched documents from store (AllDocumentsTab fetched them)
   const allDocs = useKnowledgeTreeStore((s) => s.documents[`${treeId}:all`] ?? [])
   const chapterDocs = React.useMemo(() => {
     return allDocs
@@ -80,7 +126,6 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
       .sort((a, b) => (a.chapter_number ?? 0) - (b.chapter_number ?? 0))
   }, [allDocs])
 
-  // Visible pages: only pages that belong to any chapter's page range
   const visiblePages = React.useMemo(() => {
     if (!isPdf || chapterDocs.length === 0) return null
     const pages: number[] = []
@@ -95,7 +140,6 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
     return pages.length > 0 ? pages : null
   }, [chapterDocs, isPdf])
 
-  // Compute active chapter from current page
   const activeChapter = React.useMemo(() => {
     if (!isPdf || !currentPage) return null
     const chDoc = chapterDocs.find(
@@ -289,32 +333,75 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
               </span>
             )}
           </div>
-          {/* Zoom controls */}
-          {isPdf && (
-            <div className="flex items-center gap-0.5 bg-surface dark:bg-surface-200 rounded-md shadow-sm border border-surface-200 dark:border-surface-200 px-1.5 py-0.5">
-              <button
-                onClick={zoomOut}
-                disabled={zoom <= 0.5}
-                className="p-0.5 rounded text-text-tertiary hover:text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                aria-label="Zoom out"
-                title="Zoom out"
-              >
-                <ZoomOut className="h-3.5 w-3.5" />
-              </button>
-              <span className="text-xs tabular-nums text-text-tertiary min-w-[3ch] text-center select-none">
-                {Math.round(zoom * 100)}%
+
+          <div className="flex items-center gap-2 shrink-0">
+            {/* Page progress */}
+            {isPdf && numPages > 0 && (
+              <span className="text-xs tabular-nums text-text-tertiary select-none">
+                {currentPage} / {numPages}
               </span>
-              <button
-                onClick={zoomIn}
-                disabled={zoom >= 2}
-                className="p-0.5 rounded text-text-tertiary hover:text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                aria-label="Zoom in"
-                title="Zoom in"
-              >
-                <ZoomIn className="h-3.5 w-3.5" />
-              </button>
-            </div>
-          )}
+            )}
+
+            {/* Zoom controls */}
+            {isPdf && (
+              <div className="flex items-center gap-0.5 bg-surface dark:bg-surface-200 rounded-md shadow-sm border border-surface-200 dark:border-surface-200 px-1.5 py-0.5">
+                <button
+                  onClick={zoomOut}
+                  disabled={zoom <= 0.5}
+                  className="p-0.5 rounded text-text-tertiary hover:text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                  aria-label="Zoom out"
+                  title="Zoom out"
+                >
+                  <ZoomOut className="h-3.5 w-3.5" />
+                </button>
+                <span className="text-xs tabular-nums text-text-tertiary min-w-[3ch] text-center select-none">
+                  {Math.round(zoom * 100)}%
+                </span>
+                <button
+                  onClick={zoomIn}
+                  disabled={zoom >= 2}
+                  className="p-0.5 rounded text-text-tertiary hover:text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                  aria-label="Zoom in"
+                  title="Zoom in"
+                >
+                  <ZoomIn className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            )}
+
+            {/* Read mode toggle */}
+            {isPdf && (
+              <div className="flex items-center gap-0.5 bg-surface dark:bg-surface-200 rounded-md shadow-sm border border-surface-200 dark:border-surface-200 px-0.5 py-0.5">
+                <button
+                  onClick={() => readMode !== 'scroll' && handleModeChange('scroll')}
+                  className={cn(
+                    'p-1 rounded transition-colors',
+                    readMode === 'scroll'
+                      ? 'bg-primary-light dark:bg-primary/20 text-primary'
+                      : 'text-text-tertiary hover:text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100'
+                  )}
+                  aria-label="Scroll mode"
+                  title="Scroll mode — continuous pages"
+                >
+                  <AlignJustify className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  onClick={() => readMode !== 'paged' && handleModeChange('paged')}
+                  className={cn(
+                    'p-1 rounded transition-colors',
+                    readMode === 'paged'
+                      ? 'bg-primary-light dark:bg-primary/20 text-primary'
+                      : 'text-text-tertiary hover:text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100'
+                  )}
+                  aria-label="Paged mode"
+                  title="Paged mode — one page at a time (← →)"
+                >
+                  <BookOpen className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            )}
+          </div>
+
           <div className="flex items-center gap-1 flex-1 justify-end">
             <button
               onClick={() => setIsFullscreen(!isFullscreen)}
@@ -424,11 +511,15 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
           {/* Center: Document content */}
           {isPdf ? (
             <PdfPagesView
+              key={readerKey}
               fileUrl={fileUrl}
               visiblePages={visiblePages}
               zoom={zoom}
+              mode={readMode}
+              initialPage={pdfInitialPage}
               renderPageHeader={renderChapterBanner}
-              onCurrentPageChange={setCurrentPage}
+              onCurrentPageChange={handlePageChange}
+              onNumPagesChange={setNumPages}
               onContextMenu={handleContextMenu}
               onClickAway={hideContextMenu}
               scrollRef={pdfScrollRef}
