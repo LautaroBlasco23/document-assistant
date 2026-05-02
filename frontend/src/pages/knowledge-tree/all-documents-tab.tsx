@@ -79,7 +79,7 @@ export function AllDocumentsTab({ treeId, chapters }: AllDocumentsTabProps) {
       ) : (
         <div className="rounded-lg border border-dashed border-surface-200 dark:border-surface-200 bg-surface-100/50 dark:bg-surface-200/50 p-4 text-center">
           <p className="text-xs text-text-tertiary">
-            No original source document found. This is only available for trees imported after the latest update.
+            No source documents found for this tree.
           </p>
         </div>
       )}
