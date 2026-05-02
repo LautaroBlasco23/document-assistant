@@ -42,7 +42,7 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
   const [numPages, setNumPages] = React.useState<number>(0)
   const [showLeft, setShowLeft] = React.useState(true)
   const [showRight, setShowRight] = React.useState(true)
-  const [isFullscreen, setIsFullscreen] = React.useState(false)
+  const [isFullscreen, setIsFullscreen] = React.useState(true)
   const [zoom, setZoom] = React.useState(1)
   const [contextMenu, setContextMenu] = React.useState<{ x: number; y: number; text: string } | null>(null)
 
