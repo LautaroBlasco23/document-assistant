@@ -401,6 +401,7 @@ interface DocumentCardProps {
 function DocumentCard({ doc, chapter, onEdit, onDelete, onRead, onImprove, onRevert }: DocumentCardProps) {
   const [improveOpen, setImproveOpen] = React.useState(false)
   const [revertOpen, setRevertOpen] = React.useState(false)
+  const [deleteOpen, setDeleteOpen] = React.useState(false)
   const [acting, setActing] = React.useState(false)
   const [thumbError, setThumbError] = React.useState(false)
   const addError = useAppStore((s) => s.addError)
@@ -426,6 +427,18 @@ function DocumentCard({ doc, chapter, onEdit, onDelete, onRead, onImprove, onRev
       setRevertOpen(false)
     } catch {
       addError('Failed to revert document. Please try again.')
+    } finally {
+      setActing(false)
+    }
+  }
+
+  const handleConfirmDelete = async () => {
+    setActing(true)
+    try {
+      await onDelete()
+      setDeleteOpen(false)
+    } catch {
+      addError('Failed to delete document. Please try again.')
     } finally {
       setActing(false)
     }
@@ -491,7 +504,7 @@ function DocumentCard({ doc, chapter, onEdit, onDelete, onRead, onImprove, onRev
         <Button
           variant="ghost"
           size="sm"
-          onClick={(e) => { e.stopPropagation(); onDelete(); }}
+          onClick={(e) => { e.stopPropagation(); setDeleteOpen(true); }}
           aria-label="Delete document"
           className="h-8 w-8 p-0 text-danger hover:text-danger dark:hover:text-danger hover:bg-danger-light dark:hover:bg-danger/12"
           title="Delete document"
@@ -499,6 +512,18 @@ function DocumentCard({ doc, chapter, onEdit, onDelete, onRead, onImprove, onRev
           <Trash2 className="h-4 w-4" />
         </Button>
       </div>
+
+      {/* Delete confirmation dialog */}
+      <ConfirmDialog
+        open={deleteOpen}
+        onOpenChange={(o) => { if (!acting) setDeleteOpen(o) }}
+        title="Delete document?"
+        description={`This will permanently delete "${doc.title}" and remove it from this knowledge tree. This action cannot be undone.`}
+        confirmLabel="Delete"
+        variant="destructive"
+        loading={acting}
+        onConfirm={() => void handleConfirmDelete()}
+      />
 
       {/* Improve confirmation dialog */}
       <ConfirmDialog

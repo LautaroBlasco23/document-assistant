@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import { cn } from '../../lib/cn'
 import { Tooltip } from '../ui/tooltip'
+import { ConfirmDialog } from '../ui/confirm-dialog'
 
 import { useAppStore } from '../../stores/app-store'
 import { useAuth } from '../../auth/auth-context'
@@ -110,10 +111,11 @@ interface UserSectionProps {
 function UserSection({ collapsed }: UserSectionProps) {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
+  const [signOutOpen, setSignOutOpen] = React.useState(false)
 
   if (!user) return null
 
-  const handleLogout = () => {
+  const handleSignOut = () => {
     logout()
     navigate('/login')
   }
@@ -139,7 +141,7 @@ function UserSection({ collapsed }: UserSectionProps) {
             <p className="text-xs text-text-tertiary truncate">{user.email}</p>
           </div>
           <button
-            onClick={handleLogout}
+            onClick={() => setSignOutOpen(true)}
             className="p-1.5 rounded-md hover:bg-surface-100 dark:hover:bg-surface-100 text-text-tertiary hover:text-danger dark:hover:text-danger transition-colors"
             aria-label="Logout"
           >
@@ -158,7 +160,20 @@ function UserSection({ collapsed }: UserSectionProps) {
     )
   }
 
-  return content
+  return (
+    <>
+      {content}
+      <ConfirmDialog
+        open={signOutOpen}
+        onOpenChange={setSignOutOpen}
+        title="Sign out?"
+        description="You will need to sign in again to access your knowledge trees and documents."
+        confirmLabel="Sign out"
+        variant="destructive"
+        onConfirm={handleSignOut}
+      />
+    </>
+  )
 }
 
 interface ServiceHealthDotsProps {
