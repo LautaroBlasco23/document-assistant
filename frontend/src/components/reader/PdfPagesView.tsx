@@ -295,10 +295,22 @@ export function PdfPagesView({
   if (mode === 'paged') {
     return (
       <div
-        className="flex-1 min-w-0 flex flex-col bg-surface-100 dark:bg-bg-inset"
+        className="flex-1 min-w-0 flex bg-surface-100 dark:bg-bg-inset"
         onContextMenu={onContextMenu}
         onClick={onClickAway}
       >
+        {/* Left arrow — full height strip */}
+        <button
+          onClick={(e) => { e.stopPropagation(); gotoPrev() }}
+          disabled={!canPrev}
+          className="flex items-center justify-center w-10 shrink-0 text-text-tertiary hover:text-text-primary hover:bg-surface-200 dark:hover:bg-surface-100 disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
+          aria-label="Previous page"
+          title="Previous page (←)"
+        >
+          <ChevronLeft className="h-6 w-6" />
+        </button>
+
+        {/* Page content */}
         <div ref={scrollContainerRef} className="flex-1 overflow-y-auto">
           <Document
             file={fileUrl}
@@ -316,41 +328,28 @@ export function PdfPagesView({
             }
           >
             {pagedPage > 0 && (
-              <div className="w-full flex flex-col items-center py-6 px-4">
+              <div className="w-full flex flex-col items-center py-6">
                 <div className="bg-surface dark:bg-surface-100 shadow-md">
                   <MemoPage pageNumber={pagedPage} width={displayWidth} />
+                </div>
+                <div className="mt-3 text-xs tabular-nums text-text-tertiary select-none">
+                  {pagedPageIdx + 1} / {pageList.length}
                 </div>
               </div>
             )}
           </Document>
         </div>
 
-        {/* Prev / next bar — always visible at the bottom */}
-        <div className="shrink-0 flex items-center justify-center gap-2 border-t border-surface-200 dark:border-surface-200 bg-surface dark:bg-surface-200 py-2 select-none">
-          <button
-            onClick={(e) => { e.stopPropagation(); gotoPrev() }}
-            disabled={!canPrev}
-            className="p-1 rounded-full text-text-secondary hover:text-text-primary hover:bg-surface-100 dark:hover:bg-surface-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-            aria-label="Previous page"
-            title="Previous page (←)"
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </button>
-          <span className="text-xs tabular-nums text-text-tertiary min-w-[6ch] text-center">
-            {pagedPage > 0 && pageList.length > 0
-              ? `${pagedPageIdx + 1} / ${pageList.length}`
-              : '—'}
-          </span>
-          <button
-            onClick={(e) => { e.stopPropagation(); gotoNext() }}
-            disabled={!canNext}
-            className="p-1 rounded-full text-text-secondary hover:text-text-primary hover:bg-surface-100 dark:hover:bg-surface-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-            aria-label="Next page"
-            title="Next page (→)"
-          >
-            <ChevronRight className="h-4 w-4" />
-          </button>
-        </div>
+        {/* Right arrow — full height strip */}
+        <button
+          onClick={(e) => { e.stopPropagation(); gotoNext() }}
+          disabled={!canNext}
+          className="flex items-center justify-center w-10 shrink-0 text-text-tertiary hover:text-text-primary hover:bg-surface-200 dark:hover:bg-surface-100 disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
+          aria-label="Next page"
+          title="Next page (→)"
+        >
+          <ChevronRight className="h-6 w-6" />
+        </button>
       </div>
     )
   }
