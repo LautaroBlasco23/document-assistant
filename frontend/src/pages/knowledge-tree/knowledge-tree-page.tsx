@@ -214,7 +214,7 @@ export function KnowledgeTreePage() {
 
   // Single shared chapter selection (null = Overview)
   const [selectedChapter, setSelectedChapter] = React.useState<number | null>(null)
-  const [showAllDocuments, setShowAllDocuments] = React.useState(false)
+  const [showAllDocuments, setShowAllDocuments] = React.useState(true)
 
   const rawTab = searchParams.get('tab')
   const activeTab: KnowledgeTreeTab = isValidTab(rawTab) ? rawTab : 'documents'
