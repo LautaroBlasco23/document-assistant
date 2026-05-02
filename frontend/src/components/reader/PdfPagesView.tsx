@@ -11,7 +11,6 @@ export interface PdfPagesViewHandle {
 interface PdfPagesViewProps {
   fileUrl: string
   visiblePages?: number[] | null
-  renderPageHeader?: (pageNumber: number) => React.ReactNode
   zoom?: number
   onCurrentPageChange?: (pageNumber: number) => void
   onNumPagesChange?: (numPages: number) => void
@@ -33,7 +32,6 @@ const DOCUMENT_OPTIONS = {
 export function PdfPagesView({
   fileUrl,
   visiblePages,
-  renderPageHeader,
   zoom = 1,
   onCurrentPageChange,
   onNumPagesChange,
@@ -251,12 +249,26 @@ export function PdfPagesView({
           if (pageList.includes(pageNumber)) setPagedPage(pageNumber)
           return
         }
-        // Instant scroll; second pass after nearby pages have rendered and heights settle.
-        const el = pageSlotRefs.current.get(pageNumber)
-        el?.scrollIntoView({ behavior: 'instant', block: 'start' })
+
+        // Force the target and its immediate neighbors into activePages so their real heights
+        // are in the DOM before we correct the scroll position. Without this, placeholder divs
+        // with estimated heights cause layout shifts that push the target out from under us.
+        const idx = pageList.indexOf(pageNumber)
+        if (idx !== -1) {
+          const toActivate = new Set(activePagesRef.current)
+          for (let i = Math.max(0, idx - 1); i <= Math.min(pageList.length - 1, idx + 2); i++) {
+            toActivate.add(pageList[i])
+          }
+          activePagesRef.current = toActivate
+          setActivePages(toActivate)
+        }
+
+        // First pass: instant jump to approximate position (page may still be a placeholder).
+        pageSlotRefs.current.get(pageNumber)?.scrollIntoView({ behavior: 'instant', block: 'start' })
+        // Smooth correction once the pre-activated pages have actually rendered.
         setTimeout(() => {
-          pageSlotRefs.current.get(pageNumber)?.scrollIntoView({ behavior: 'instant', block: 'start' })
-        }, 150)
+          pageSlotRefs.current.get(pageNumber)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        }, 250)
       },
     }),
     [mode, pageList]
@@ -275,44 +287,46 @@ export function PdfPagesView({
   }, [])
 
   // ── PAGED MODE ───────────────────────────────────────────────────────────────
+  // Scroll back to top whenever the user moves to a new page.
+  React.useEffect(() => {
+    if (mode === 'paged') scrollContainerRef.current?.scrollTo({ top: 0 })
+  }, [pagedPage, mode])
+
   if (mode === 'paged') {
     return (
       <div
-        ref={scrollContainerRef}
-        className="flex-1 min-w-0 bg-surface-100 dark:bg-bg-inset flex flex-col items-center relative overflow-hidden"
+        className="flex-1 min-w-0 flex flex-col bg-surface-100 dark:bg-bg-inset"
         onContextMenu={onContextMenu}
         onClick={onClickAway}
       >
-        <Document
-          file={fileUrl}
-          options={DOCUMENT_OPTIONS}
-          onLoadSuccess={handleDocLoad}
-          loading={
-            <div className="flex-1 flex items-center justify-center text-sm text-text-tertiary">
-              Loading PDF...
-            </div>
-          }
-          error={
-            <div className="flex-1 flex items-center justify-center text-sm text-danger px-6">
-              Failed to load PDF. The file may not be available.
-            </div>
-          }
-        >
-          {pagedPage > 0 && (
-            <div className="flex-1 w-full flex flex-col items-center justify-start py-6 px-4 overflow-auto pb-16">
-              {renderPageHeader?.(pagedPage)}
-              <div className="bg-surface dark:bg-surface-100 shadow-md">
-                <MemoPage pageNumber={pagedPage} width={displayWidth} />
+        <div ref={scrollContainerRef} className="flex-1 overflow-y-auto">
+          <Document
+            file={fileUrl}
+            options={DOCUMENT_OPTIONS}
+            onLoadSuccess={handleDocLoad}
+            loading={
+              <div className="h-full flex items-center justify-center text-sm text-text-tertiary">
+                Loading PDF...
               </div>
-              <span className="mt-2 text-xs text-text-tertiary select-none">
-                {pagedPage} / {numPages}
-              </span>
-            </div>
-          )}
-        </Document>
+            }
+            error={
+              <div className="h-full flex items-center justify-center text-sm text-danger px-6">
+                Failed to load PDF. The file may not be available.
+              </div>
+            }
+          >
+            {pagedPage > 0 && (
+              <div className="w-full flex flex-col items-center py-6 px-4">
+                <div className="bg-surface dark:bg-surface-100 shadow-md">
+                  <MemoPage pageNumber={pagedPage} width={displayWidth} />
+                </div>
+              </div>
+            )}
+          </Document>
+        </div>
 
-        {/* Floating prev / next bar */}
-        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 bg-surface dark:bg-surface-200 border border-surface-200 dark:border-surface-200 rounded-full px-3 py-1.5 shadow-lg select-none z-10">
+        {/* Prev / next bar — always visible at the bottom */}
+        <div className="shrink-0 flex items-center justify-center gap-2 border-t border-surface-200 dark:border-surface-200 bg-surface dark:bg-surface-200 py-2 select-none">
           <button
             onClick={(e) => { e.stopPropagation(); gotoPrev() }}
             disabled={!canPrev}
@@ -367,33 +381,28 @@ export function PdfPagesView({
         {pageList.map((pageNumber, idx) => {
           const isActive = activePages.has(pageNumber)
           return (
-            <React.Fragment key={pageNumber}>
-              {renderPageHeader?.(pageNumber)}
-              <div
-                ref={getSlotRef(pageNumber)}
-                data-page={pageNumber}
-                className="flex flex-col items-center"
-                style={{ minHeight: isActive ? undefined : estimatedPageHeight }}
-              >
-                {isActive ? (
-                  <div className="bg-surface dark:bg-surface-100 shadow-md">
-                    <MemoPage
-                      pageNumber={pageNumber}
-                      width={displayWidth}
-                      onRenderSuccess={idx === 0 ? handleFirstPageRender : undefined}
-                    />
-                  </div>
-                ) : (
-                  <div
-                    className="bg-white shadow-md"
-                    style={{ width: displayWidth, height: estimatedPageHeight }}
+            <div
+              key={pageNumber}
+              ref={getSlotRef(pageNumber)}
+              data-page={pageNumber}
+              className="flex flex-col items-center"
+              style={{ minHeight: isActive ? undefined : estimatedPageHeight }}
+            >
+              {isActive ? (
+                <div className="bg-surface dark:bg-surface-100 shadow-md">
+                  <MemoPage
+                    pageNumber={pageNumber}
+                    width={displayWidth}
+                    onRenderSuccess={idx === 0 ? handleFirstPageRender : undefined}
                   />
-                )}
-                <span className="mt-2 text-xs text-text-tertiary select-none">
-                  {pageNumber} / {numPages}
-                </span>
-              </div>
-            </React.Fragment>
+                </div>
+              ) : (
+                <div
+                  className="bg-white shadow-md"
+                  style={{ width: displayWidth, height: estimatedPageHeight }}
+                />
+              )}
+            </div>
           )
         })}
       </Document>

@@ -283,26 +283,6 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [isFullscreen])
 
-  const renderChapterBanner = React.useCallback(
-    (pageNumber: number) => {
-      const chStart = chapterDocs.find((d) => d.page_start === pageNumber)
-      if (!chStart) return null
-      const title =
-        chapters.find((c) => c.number === chStart.chapter_number)?.title ??
-        `Chapter ${chStart.chapter_number}`
-      return (
-        <div className="w-full max-w-[800px] mb-2">
-          <div className="bg-primary-light dark:bg-primary/12 border border-primary/20 dark:border-primary/30 rounded-lg px-4 py-2">
-            <span className="text-xs font-semibold text-primary uppercase tracking-wide">
-              {title}
-            </span>
-          </div>
-        </div>
-      )
-    },
-    [chapterDocs, chapters]
-  )
-
   return (
     <div
       ref={overlayRef}
@@ -517,7 +497,6 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
               zoom={zoom}
               mode={readMode}
               initialPage={pdfInitialPage}
-              renderPageHeader={renderChapterBanner}
               onCurrentPageChange={handlePageChange}
               onNumPagesChange={setNumPages}
               onContextMenu={handleContextMenu}
