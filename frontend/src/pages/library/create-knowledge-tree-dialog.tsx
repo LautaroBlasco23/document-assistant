@@ -23,6 +23,9 @@ export function CreateKnowledgeTreeDialog({ open, onClose }: CreateKnowledgeTree
       setTitle('')
       setDescription('')
       onClose()
+    } catch {
+      // error already shown via app store toast
+      onClose()
     } finally {
       setLoading(false)
     }

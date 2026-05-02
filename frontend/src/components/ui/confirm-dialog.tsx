@@ -46,6 +46,7 @@ export function ConfirmDialog({
             'animate-fade-in flex flex-col gap-4',
             className,
           )}
+          onClick={(e) => e.stopPropagation()}
         >
           <div>
             <RadixDialog.Title className="text-base font-semibold text-text-primary">
