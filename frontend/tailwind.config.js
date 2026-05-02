@@ -19,6 +19,7 @@ export default {
           DEFAULT: 'var(--color-border-default)',
           strong: 'var(--color-border-strong)',
           focus: 'var(--color-border-focus)',
+          input: 'var(--color-border-input)',
           subtle: 'var(--color-border-subtle)',
         },
         text: {

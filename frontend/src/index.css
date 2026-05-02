@@ -29,6 +29,7 @@
   --color-border-default: #e5e7eb;
   --color-border-strong: #d1d5db;
   --color-border-focus: #00a6fb;
+  --color-border-input: rgba(0, 166, 251, 0.5);
   --color-border-subtle: #f3f4f6;
 
   /* ── Primary ── */
@@ -127,6 +128,7 @@
   --color-border-default: rgba(100, 116, 139, 0.15);
   --color-border-strong: rgba(100, 116, 139, 0.25);
   --color-border-focus: #00a6fb;
+  --color-border-input: rgba(0, 166, 251, 0.4);
   --color-border-subtle: rgba(100, 116, 139, 0.08);
 
   /* ── Primary ── */

@@ -579,7 +579,7 @@ export const ChatPanel = React.forwardRef<ChatPanelHandle, ChatPanelProps>(funct
                 onKeyDown={handleKeyDown}
                 placeholder="Ask a question..."
                 rows={2}
-                className="flex-1 resize-none rounded-lg border border-surface-200 dark:border-surface-200 bg-surface dark:bg-surface-200 px-3 py-2 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary placeholder:text-text-tertiary"
+                className="flex-1 resize-none rounded-lg border border-border-input bg-surface dark:bg-surface-200 px-3 py-2 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary placeholder:text-text-tertiary"
                 disabled={loading}
               />
               <button
