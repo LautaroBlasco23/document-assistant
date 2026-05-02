@@ -25,7 +25,7 @@ export function DocumentReader({ doc, treeId, chapter, onClose }: DocumentReader
   const [currentPage, setCurrentPage] = React.useState<number>(1)
   const [showLeft, setShowLeft] = React.useState(true)
   const [showRight, setShowRight] = React.useState(true)
-  const [isFullscreen, setIsFullscreen] = React.useState(false)
+  const [isFullscreen, setIsFullscreen] = React.useState(true)
   const [zoom, setZoom] = React.useState(1)
   const [contextMenu, setContextMenu] = React.useState<{ x: number; y: number; text: string } | null>(null)
   const epubContainerRef = React.useRef<HTMLDivElement>(null)
