@@ -1,5 +1,4 @@
 import { useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { useAppStore } from '../../stores/app-store'
 import type { AppError } from '../../stores/app-store'
 
@@ -7,7 +6,6 @@ const AUTO_DISMISS_MS = 5000
 
 function ErrorToast({ error }: { error: AppError }) {
   const removeError = useAppStore((s) => s.removeError)
-  const navigate = useNavigate()
 
   useEffect(() => {
     const timer = setTimeout(() => removeError(error.id), AUTO_DISMISS_MS)
@@ -16,7 +14,7 @@ function ErrorToast({ error }: { error: AppError }) {
 
   const handleLinkClick = () => {
     removeError(error.id)
-    if (error.link) navigate(error.link)
+    if (error.link) window.location.href = error.link
   }
 
   return (
