@@ -83,7 +83,11 @@ if [ "$ENV_MODE" = "dev" ]; then
     done
 
     echo "Starting infrastructure services (PostgreSQL)..."
-    $DOCKER_COMPOSE up -d postgres
+    if docker inspect docassist_postgres > /dev/null 2>&1; then
+        docker start docassist_postgres > /dev/null
+    else
+        $DOCKER_COMPOSE up -d postgres
+    fi
     echo "Waiting for PostgreSQL to be ready..."
     until $DOCKER_COMPOSE exec -T postgres pg_isready -U docassist > /dev/null 2>&1; do
         sleep 1
