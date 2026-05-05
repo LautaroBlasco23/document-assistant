@@ -5,6 +5,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '../../components/ui/ta
 import { Badge } from '../../components/ui/badge'
 import { Button } from '../../components/ui/button'
 import { Input } from '../../components/ui/input'
+import { ConfirmDialog } from '../../components/ui/confirm-dialog'
 import { useKnowledgeTreeStore } from '../../stores/knowledge-tree-store'
 import { useAppStore } from '../../stores/app-store'
 import { KnowledgeDocumentsTab } from './knowledge-documents-tab'
@@ -53,6 +54,9 @@ function SectionsSidebar({
   const [showNewChapter, setShowNewChapter] = React.useState(false)
   const [newChapterTitle, setNewChapterTitle] = React.useState('')
   const [creatingChapter, setCreatingChapter] = React.useState(false)
+  const [deleteChapterOpen, setDeleteChapterOpen] = React.useState(false)
+  const [deletingChapterNumber, setDeletingChapterNumber] = React.useState<number | null>(null)
+  const [deletingChapter, setDeletingChapter] = React.useState(false)
 
   const handleCreateChapter = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -75,12 +79,23 @@ function SectionsSidebar({
     onChaptersRefresh()
   }
 
-  const handleDeleteChapter = async (chapterNumber: number) => {
-    const ch = chapters.find((c) => c.number === chapterNumber)
-    if (!window.confirm(`Delete chapter "${ch?.title ?? chapterNumber}"? All its documents will be removed.`)) return
-    await deleteChapter(treeId, chapterNumber)
-    onChapterChange(null)
-    onChaptersRefresh()
+  const handleDeleteChapter = (chapterNumber: number) => {
+    setDeletingChapterNumber(chapterNumber)
+    setDeleteChapterOpen(true)
+  }
+
+  const handleConfirmDeleteChapter = async () => {
+    if (deletingChapterNumber === null) return
+    setDeletingChapter(true)
+    try {
+      await deleteChapter(treeId, deletingChapterNumber)
+      onChapterChange(null)
+      onChaptersRefresh()
+    } finally {
+      setDeletingChapter(false)
+      setDeleteChapterOpen(false)
+      setDeletingChapterNumber(null)
+    }
   }
 
   return (
@@ -199,6 +214,18 @@ function SectionsSidebar({
           New Chapter
         </button>
       )}
+
+      <ConfirmDialog
+        open={deleteChapterOpen}
+        onOpenChange={setDeleteChapterOpen}
+        title="Delete chapter?"
+        description={deletingChapterNumber !== null ? `Delete "${chapters.find((c) => c.number === deletingChapterNumber)?.title ?? deletingChapterNumber}"? All its documents will be removed.` : ''}
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        variant="destructive"
+        loading={deletingChapter}
+        onConfirm={handleConfirmDeleteChapter}
+      />
     </aside>
   )
 }
