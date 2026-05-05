@@ -9,16 +9,10 @@ from application.llm_resolver import resolve_llm_for_agent
 from core.exceptions import ProviderNotConfigured
 
 
-def _make_services(*, encrypted_key=None, config_key="", provider="groq"):
+def _make_services(*, encrypted_key=None, provider="groq"):
     """Build a minimal mock Services object."""
     services = MagicMock()
     services.config.llm_provider = provider
-
-    # Per-provider config stubs
-    for p in ("groq", "openrouter", "huggingface", "nvidia", "gemini"):
-        cfg = MagicMock()
-        cfg.api_key = config_key if p == provider else ""
-        setattr(services.config, p, cfg)
 
     services.llm_credential_store.get_encrypted_key.return_value = encrypted_key
     services.encryption.decrypt.return_value = "decrypted-key"
@@ -27,21 +21,19 @@ def _make_services(*, encrypted_key=None, config_key="", provider="groq"):
 
 
 @patch("application.llm_resolver.create_llm_for_agent")
-def test_env_fallback(mock_create):
-    services = _make_services(config_key="admin-key", provider="groq")
+def test_no_credential_raises(mock_create):
+    services = _make_services(encrypted_key=None, provider="groq")
     user_id = uuid4()
-    resolve_llm_for_agent(user_id, None, services, model_override="llama-3.3-70b-versatile", provider_override="groq")
-    mock_create.assert_called_once()
-    _, _, api_key, _ = mock_create.call_args[0]
-    assert api_key == "admin-key"
+    with pytest.raises(ProviderNotConfigured):
+        resolve_llm_for_agent(user_id, None, services, model_override="llama-3.3-70b-versatile", provider_override="groq")
+    mock_create.assert_not_called()
 
 
 @patch("application.llm_resolver.create_llm_for_agent")
-def test_user_credential_takes_precedence(mock_create):
-    services = _make_services(encrypted_key=b"blob", config_key="admin-key", provider="groq")
+def test_user_credential_used(mock_create):
+    services = _make_services(encrypted_key=b"blob", provider="groq")
     user_id = uuid4()
     resolve_llm_for_agent(user_id, None, services, provider_override="groq", model_override="m")
-    # Should decrypt user key, not use admin key
     services.encryption.decrypt.assert_called_once_with(b"blob")
     _, _, api_key, _ = mock_create.call_args[0]
     assert api_key == "decrypted-key"
@@ -49,7 +41,7 @@ def test_user_credential_takes_precedence(mock_create):
 
 @patch("application.llm_resolver.create_llm_for_agent")
 def test_provider_not_configured_raises(mock_create):
-    services = _make_services(encrypted_key=None, config_key="", provider="gemini")
+    services = _make_services(encrypted_key=None, provider="gemini")
     user_id = uuid4()
     with pytest.raises(ProviderNotConfigured) as exc_info:
         resolve_llm_for_agent(user_id, None, services, provider_override="gemini", model_override="m")
@@ -77,7 +69,7 @@ def test_agent_id_resolution(mock_create):
     agent.temperature = 0.5
     agent.top_p = 1.0
     agent.max_tokens = 512
-    services = _make_services(config_key="nv-key", provider="nvidia")
+    services = _make_services(encrypted_key=b"blob", provider="nvidia")
     services.agent_store.get_by_id.return_value = agent
     user_id = uuid4()
     agent_id = uuid4()

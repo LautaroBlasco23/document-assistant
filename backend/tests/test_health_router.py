@@ -24,12 +24,11 @@ from api.routers import health as health_router
 # ---------------------------------------------------------------------------
 
 
-def _make_services(llm_provider="groq", api_key="", ollama_base_url="http://localhost:11434"):
+def _make_services(llm_provider="groq", ollama_base_url="http://localhost:11434", **_ignored):
     """Return a mocked Services object configured for the given LLM provider."""
     services = MagicMock()
     services.config.llm_provider = llm_provider
     services.config.ollama.base_url = ollama_base_url
-    services.config.groq.api_key = api_key
     services._pg_pool = MagicMock()
     return services
 
@@ -51,8 +50,8 @@ def test_client():
 
 
 def test_health_all_healthy_groq(test_client):
-    """When Groq API key is set and Postgres is up, health must be 200/healthy."""
-    services = _make_services(llm_provider="groq", api_key="sk-test")
+    """When Groq is the configured provider and Postgres is up, health must be 200/healthy."""
+    services = _make_services(llm_provider="groq")
     client = test_client(services)
 
     response = client.get("/api/health")
@@ -120,19 +119,17 @@ def test_health_llm_unhealthy_ollama_connection_error(test_client):
     assert "refused" in llm_status["error"]
 
 
-def test_health_llm_unhealthy_groq_missing_key(test_client):
-    """An empty Groq API key must be reflected as unhealthy LLM status."""
-    services = _make_services(llm_provider="groq", api_key="")
+def test_health_groq_no_admin_key_still_healthy(test_client):
+    """LLM health must be reported healthy even without an admin key (keys are per-user)."""
+    services = _make_services(llm_provider="groq")
     client = test_client(services)
 
     response = client.get("/api/health")
 
     assert response.status_code == 200
     body = response.json()
-    assert body["status"] == "degraded"
     llm_status = next(s for s in body["services"] if s["name"] == "llm")
-    assert llm_status["healthy"] is False
-    assert "API key not set" in llm_status["error"]
+    assert llm_status["healthy"] is True
 
 
 # ---------------------------------------------------------------------------
@@ -142,7 +139,7 @@ def test_health_llm_unhealthy_groq_missing_key(test_client):
 
 def test_health_postgres_unhealthy(test_client):
     """A PostgreSQL connection failure must be reflected as unhealthy PG status."""
-    services = _make_services(llm_provider="groq", api_key="sk-test")
+    services = _make_services(llm_provider="groq")
     services._pg_pool.connection.return_value.cursor.side_effect = RuntimeError(
         "connection failed"
     )
@@ -163,9 +160,9 @@ def test_health_postgres_unhealthy(test_client):
 # ---------------------------------------------------------------------------
 
 
-def test_health_both_unhealthy(test_client):
-    """When both LLM and Postgres are down, status must be degraded with both errors."""
-    services = _make_services(llm_provider="groq", api_key="")
+def test_health_postgres_down_degrades_overall(test_client):
+    """When Postgres is down, overall status must be degraded."""
+    services = _make_services(llm_provider="groq")
     services._pg_pool.connection.return_value.cursor.side_effect = RuntimeError("pg down")
     client = test_client(services)
 
@@ -175,5 +172,5 @@ def test_health_both_unhealthy(test_client):
     body = response.json()
     assert body["status"] == "degraded"
     services_names = {s["name"]: s["healthy"] for s in body["services"]}
-    assert services_names["llm"] is False
+    assert services_names["llm"] is True
     assert services_names["postgres"] is False

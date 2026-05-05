@@ -62,41 +62,15 @@ def _resolve_api_key(user_id: UUID, provider: str, services) -> str:
     Look up the API key for (user_id, provider).
 
     Priority:
-    1. Per-user encrypted credential from DB
-    2. Env-var / config fallback (admin key)
-    3. Ollama: no key needed → return ""
-    4. Raise ProviderNotConfigured
+    1. Ollama: no key needed → return ""
+    2. Per-user encrypted credential from DB
+    3. Raise ProviderNotConfigured (keys must be supplied by users)
     """
     if provider == "ollama":
         return ""
 
-    # Per-user credential
     encrypted = services.llm_credential_store.get_encrypted_key(user_id, provider)
     if encrypted is not None:
         return services.encryption.decrypt(encrypted)
 
-    # Admin env-var fallback
-    fallback = _get_config_key(provider, services.config)
-    if fallback:
-        logger.debug("Using admin env-var key for provider=%s user=%s", provider, user_id)
-        return fallback
-
     raise ProviderNotConfigured(provider)
-
-
-def _get_config_key(provider: str, config) -> str:
-    """Read the operator-level API key for a provider from AppConfig."""
-    mapping = {
-        "groq": lambda c: c.groq.api_key,
-        "openrouter": lambda c: c.openrouter.api_key,
-        "huggingface": lambda c: c.huggingface.api_key,
-        "nvidia": lambda c: c.nvidia.api_key,
-        "gemini": lambda c: c.gemini.api_key,
-    }
-    getter = mapping.get(provider)
-    if getter is None:
-        return ""
-    try:
-        return getter(config) or ""
-    except AttributeError:
-        return ""
