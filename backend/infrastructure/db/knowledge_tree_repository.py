@@ -235,7 +235,8 @@ class PostgresKnowledgeDocumentStore(_BaseKnowledgeRepo):
                 cur.execute(
                     "SELECT d.id, d.tree_id, d.chapter_id, d.title, d.content, d.is_main,"
                     " d.created_at, d.updated_at, d.source_file_path, d.source_file_name,"
-                    " d.page_start, d.page_end, d.original_content, c.number AS chapter_number"
+                    " d.page_start, d.page_end, d.original_content, d.source_type, d.source_url,"
+                    " c.number AS chapter_number"
                     " FROM knowledge_documents d"
                     " LEFT JOIN knowledge_chapters c ON c.id = d.chapter_id"
                     " WHERE d.tree_id = %s AND d.chapter_id = %s"
@@ -246,7 +247,8 @@ class PostgresKnowledgeDocumentStore(_BaseKnowledgeRepo):
                 cur.execute(
                     "SELECT d.id, d.tree_id, d.chapter_id, d.title, d.content, d.is_main,"
                     " d.created_at, d.updated_at, d.source_file_path, d.source_file_name,"
-                    " d.page_start, d.page_end, d.original_content, c.number AS chapter_number"
+                    " d.page_start, d.page_end, d.original_content, d.source_type, d.source_url,"
+                    " c.number AS chapter_number"
                     " FROM knowledge_documents d"
                     " LEFT JOIN knowledge_chapters c ON c.id = d.chapter_id"
                     " WHERE d.tree_id = %s"
@@ -279,7 +281,8 @@ class PostgresKnowledgeDocumentStore(_BaseKnowledgeRepo):
                         " VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)"
                         " RETURNING id, tree_id, chapter_id, title, content, original_content,"
                         " is_main, created_at, updated_at,"
-                        " source_file_path, source_file_name, page_start, page_end",
+                        " source_file_path, source_file_name, page_start, page_end,"
+                        " source_type, source_url",
                         (
                             tree_id,
                             chapter_id,
@@ -296,13 +299,40 @@ class PostgresKnowledgeDocumentStore(_BaseKnowledgeRepo):
         logger.debug("Created knowledge document tree=%s title=%s", tree_id, title)
         return _row_to_doc(row)
 
+    def create_youtube_document(
+        self,
+        tree_id: UUID,
+        chapter_id: UUID | None,
+        title: str,
+        content: str,
+        source_url: str,
+    ) -> KnowledgeDocument:
+        with self._lock:
+            conn = self._conn()
+            with conn.transaction():
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "INSERT INTO knowledge_documents"
+                        " (tree_id, chapter_id, title, content, is_main, source_type, source_url)"
+                        " VALUES (%s, %s, %s, %s, FALSE, 'youtube', %s)"
+                        " RETURNING id, tree_id, chapter_id, title, content, original_content,"
+                        " is_main, created_at, updated_at,"
+                        " source_file_path, source_file_name, page_start, page_end,"
+                        " source_type, source_url",
+                        (tree_id, chapter_id, title, content, source_url),
+                    )
+                    row = cur.fetchone()
+        logger.debug("Created YouTube document tree=%s title=%s", tree_id, title)
+        return _row_to_doc(row)
+
     def get_document(self, id: UUID) -> KnowledgeDocument | None:
         conn = self._conn()
         with conn.cursor() as cur:
             cur.execute(
                 "SELECT d.id, d.tree_id, d.chapter_id, d.title, d.content, d.is_main,"
                 " d.created_at, d.updated_at, d.source_file_path, d.source_file_name,"
-                " d.page_start, d.page_end, d.original_content, c.number AS chapter_number"
+                " d.page_start, d.page_end, d.original_content, d.source_type, d.source_url,"
+                " c.number AS chapter_number"
                 " FROM knowledge_documents d"
                 " LEFT JOIN knowledge_chapters c ON c.id = d.chapter_id"
                 " WHERE d.id = %s",
@@ -324,7 +354,8 @@ class PostgresKnowledgeDocumentStore(_BaseKnowledgeRepo):
                         " WHERE id = %s"
                         " RETURNING id, tree_id, chapter_id, title, content, original_content,"
                         " is_main, created_at, updated_at,"
-                        " source_file_path, source_file_name, page_start, page_end",
+                        " source_file_path, source_file_name, page_start, page_end,"
+                        " source_type, source_url",
                         (title, content, id),
                     )
                     row = cur.fetchone()
@@ -347,7 +378,8 @@ class PostgresKnowledgeDocumentStore(_BaseKnowledgeRepo):
                         " WHERE id = %s"
                         " RETURNING id, tree_id, chapter_id, title, content, original_content,"
                         " is_main, created_at, updated_at,"
-                        " source_file_path, source_file_name, page_start, page_end",
+                        " source_file_path, source_file_name, page_start, page_end,"
+                        " source_type, source_url",
                         (improved_content, id),
                     )
                     row = cur.fetchone()
@@ -368,7 +400,8 @@ class PostgresKnowledgeDocumentStore(_BaseKnowledgeRepo):
                         " WHERE id = %s AND original_content IS NOT NULL"
                         " RETURNING id, tree_id, chapter_id, title, content, original_content,"
                         " is_main, created_at, updated_at,"
-                        " source_file_path, source_file_name, page_start, page_end",
+                        " source_file_path, source_file_name, page_start, page_end,"
+                        " source_type, source_url",
                         (id,),
                     )
                     row = cur.fetchone()
@@ -723,4 +756,6 @@ def _row_to_doc(row: dict) -> KnowledgeDocument:
         page_start=row.get("page_start"),
         page_end=row.get("page_end"),
         original_content=row.get("original_content"),
+        source_type=row.get("source_type") or "file",
+        source_url=row.get("source_url"),
     )

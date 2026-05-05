@@ -49,6 +49,7 @@ export interface ServiceClient {
   improveKnowledgeDocument(treeId: string, docId: string): Promise<KnowledgeDocument>
   revertKnowledgeDocument(treeId: string, docId: string): Promise<KnowledgeDocument>
   ingestFileAsKnowledgeDocument(treeId: string, chapter: number, file: File): Promise<{ task_id: string }>
+  importYouTubeDocument(treeId: string, url: string, chapterId?: string | null): Promise<{ task_id: string }>
   previewKnowledgeTreeFile(file: File): Promise<DocumentPreviewOut>
   createKnowledgeTreeFromFile(file: File, title?: string, chapterIndices?: number[]): Promise<{ task_id: string }>
 
@@ -105,6 +106,9 @@ export interface ServiceClient {
   saveCredential(provider: string, apiKey: string): Promise<CredentialStatus>
   deleteCredential(provider: string): Promise<void>
   testConnection(provider: string, apiKey?: string): Promise<TestConnectionResult>
+
+  // Export
+  exportKnowledgeTree(treeId: string): Promise<Blob>
 
   // Chat
   chat(request: ChatRequest, signal?: AbortSignal): Promise<ChatResponse>

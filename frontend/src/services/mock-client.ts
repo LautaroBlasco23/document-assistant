@@ -315,6 +315,15 @@ export class MockClient implements ServiceClient {
     return { task_id: `mock-task-${Math.random().toString(36).slice(2, 10)}` }
   }
 
+  async importYouTubeDocument(treeId: string, url: string, chapterId?: string | null): Promise<{ task_id: string }> {
+    await delay(2000)
+    const videoId = url.match(/(?:v=|youtu\.be\/)([A-Za-z0-9_-]{11})/)?.[1] ?? 'unknown'
+    const title = `YouTube: ${videoId}`
+    const content = `[00:00] Simulated transcript for video ${videoId} from ${url}\n\n[00:30] This is mock content for development.`
+    await this.createKnowledgeDocument(treeId, chapterId ?? null, title, content)
+    return { task_id: `mock-task-${Math.random().toString(36).slice(2, 10)}` }
+  }
+
   async previewKnowledgeTreeFile(file: File): Promise<DocumentPreviewOut> {
     await delay(600)
     return {
@@ -335,6 +344,11 @@ export class MockClient implements ServiceClient {
     await delay(200)
     const taskId = `mock-task-${Math.random().toString(36).slice(2, 10)}`
     return { task_id: taskId }
+  }
+
+  async exportKnowledgeTree(_treeId: string): Promise<Blob> {
+    await delay(500)
+    return new Blob(['PK stub zip'], { type: 'application/zip' })
   }
 
   // Document Reader

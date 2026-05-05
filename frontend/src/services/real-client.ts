@@ -280,6 +280,19 @@ export class RealClient implements ServiceClient {
     return { task_id: res.data.task_id }
   }
 
+  async importYouTubeDocument(treeId: string, url: string, chapterId?: string | null): Promise<{ task_id: string }> {
+    const res = await httpClient.post<{ task_id: string }>(
+      `/knowledge-trees/${treeId}/documents/import-youtube`,
+      { url, chapter_id: chapterId ?? null }
+    )
+    return { task_id: res.data.task_id }
+  }
+
+  async exportKnowledgeTree(treeId: string): Promise<Blob> {
+    const res = await httpClient.get(`/knowledge-trees/${treeId}/export`, { responseType: 'blob' })
+    return res.data as Blob
+  }
+
   // Document Reader
   getDocumentFileUrl(treeId: string, docId: string): string {
     const token = localStorage.getItem('auth_token')

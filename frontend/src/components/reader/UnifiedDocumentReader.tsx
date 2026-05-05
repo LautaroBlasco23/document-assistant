@@ -116,8 +116,15 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
     try { localStorage.setItem('docassist_panel_width:right', String(rightWidth)) } catch { /* ignore */ }
   }, [rightWidth])
 
-  const isPdf = doc.source_file_name?.toLowerCase().endsWith('.pdf') || doc.source_file_path?.toLowerCase().endsWith('.pdf')
+  const isYouTube = doc.source_type === 'youtube'
+  const isPdf = !isYouTube && (doc.source_file_name?.toLowerCase().endsWith('.pdf') || doc.source_file_path?.toLowerCase().endsWith('.pdf'))
   const fileUrl = client.getDocumentFileUrl(treeId, doc.id)
+
+  const youtubeEmbedId = React.useMemo(() => {
+    if (!isYouTube || !doc.source_url) return null
+    const m = doc.source_url.match(/(?:v=|youtu\.be\/|shorts\/)([A-Za-z0-9_-]{11})/)
+    return m?.[1] ?? null
+  }, [isYouTube, doc.source_url])
 
   const allDocs = useKnowledgeTreeStore((s) => s.documents[`${treeId}:all`] ?? [])
   const chapterDocs = React.useMemo(() => {
@@ -163,7 +170,7 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
 
   // EPUB rendering
   React.useEffect(() => {
-    if (isPdf || !epubContainerRef.current) return
+    if (isPdf || isYouTube || !epubContainerRef.current) return
 
     const book = ePub(fileUrl)
     const rendition = book.renderTo(epubContainerRef.current, {
@@ -503,6 +510,29 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
               onClickAway={hideContextMenu}
               scrollRef={pdfScrollRef}
             />
+          ) : isYouTube ? (
+            <div className="flex-1 min-w-0 flex flex-col overflow-auto bg-surface-100 dark:bg-surface">
+              {youtubeEmbedId && (
+                <div className="shrink-0 w-full bg-black">
+                  <div className="mx-auto max-w-4xl aspect-video">
+                    <iframe
+                      src={`https://www.youtube.com/embed/${youtubeEmbedId}`}
+                      title={doc.title}
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      allowFullScreen
+                      className="w-full h-full border-0"
+                    />
+                  </div>
+                </div>
+              )}
+              <div
+                className="flex-1 overflow-auto px-6 py-4 font-mono text-sm text-text-secondary whitespace-pre-wrap leading-relaxed"
+                onContextMenu={handleContextMenu}
+                onClick={hideContextMenu}
+              >
+                {doc.content}
+              </div>
+            </div>
           ) : (
             <div
               className="flex-1 min-w-0 bg-surface-100 dark:bg-surface overflow-auto flex flex-col items-center py-6 px-4 gap-8"

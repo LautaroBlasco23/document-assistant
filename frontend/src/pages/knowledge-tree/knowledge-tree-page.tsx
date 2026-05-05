@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { useParams, Link, useSearchParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, TreePine, Layers, Pencil, Plus, FileText, BookMarked, Check, X, Trash2, FolderOpen } from 'lucide-react'
+import { ArrowLeft, TreePine, Layers, Pencil, Plus, FileText, BookMarked, Check, X, Trash2, FolderOpen, Download } from 'lucide-react'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../../components/ui/tabs'
 import { Badge } from '../../components/ui/badge'
 import { Button } from '../../components/ui/button'
@@ -8,6 +8,7 @@ import { Input } from '../../components/ui/input'
 import { ConfirmDialog } from '../../components/ui/confirm-dialog'
 import { useKnowledgeTreeStore } from '../../stores/knowledge-tree-store'
 import { useAppStore } from '../../stores/app-store'
+import { client } from '../../services'
 import { KnowledgeDocumentsTab } from './knowledge-documents-tab'
 import { AllDocumentsTab } from './all-documents-tab'
 import { ContentTab } from './content-tab'
@@ -281,6 +282,25 @@ export function KnowledgeTreePage() {
   }, [treesFetched, treesLoading, tree, addError, navigate])
 
   const [editOpen, setEditOpen] = React.useState(false)
+  const [exporting, setExporting] = React.useState(false)
+
+  const handleExport = async () => {
+    if (!treeId || !tree) return
+    setExporting(true)
+    try {
+      const blob = await client.exportKnowledgeTree(treeId)
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${tree.title}.zip`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch {
+      addError('Export failed. Please try again.')
+    } finally {
+      setExporting(false)
+    }
+  }
 
   const handleChaptersRefresh = () => {
     if (treeId) void fetchChapters(treeId)
@@ -332,6 +352,9 @@ export function KnowledgeTreePage() {
         </Badge>
         <Button variant="ghost" size="sm" onClick={() => setEditOpen(true)} aria-label="Edit tree">
           <Pencil className="h-4 w-4" />
+        </Button>
+        <Button variant="ghost" size="sm" onClick={() => void handleExport()} disabled={exporting} aria-label="Export tree">
+          <Download className="h-4 w-4" />
         </Button>
       </div>
 

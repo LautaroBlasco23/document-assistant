@@ -51,6 +51,7 @@ interface KnowledgeTreeState {
   improveDocument: (treeId: string, docId: string, chapter: number | null) => Promise<KnowledgeDocument>
   revertDocument: (treeId: string, docId: string, chapter: number | null) => Promise<KnowledgeDocument>
   ingestFileAsDocument: (treeId: string, chapter: number, file: File) => Promise<{ task_id: string }>
+  importYouTubeDocument: (treeId: string, url: string, chapterId?: string | null) => Promise<{ task_id: string }>
   createTreeFromFile: (file: File, title?: string, chapterIndices?: number[]) => Promise<string>
 
   generateQuestions: (treeId: string, chapter: number, questionType: KnowledgeTreeQuestionType, numQuestions?: number | null) => Promise<string>
@@ -244,6 +245,10 @@ export const useKnowledgeTreeStore = create<KnowledgeTreeState>((set, get) => ({
 
   ingestFileAsDocument: async (treeId, chapter, file) => {
     return client.ingestFileAsKnowledgeDocument(treeId, chapter, file)
+  },
+
+  importYouTubeDocument: async (treeId, url, chapterId) => {
+    return client.importYouTubeDocument(treeId, url, chapterId)
   },
 
   createTreeFromFile: async (file, title, chapterIndices) => {

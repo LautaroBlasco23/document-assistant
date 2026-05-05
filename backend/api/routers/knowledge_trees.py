@@ -10,12 +10,12 @@ from uuid import UUID, uuid4
 
 import fitz  # PyMuPDF
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import FileResponse, Response, StreamingResponse
 from pydantic import BaseModel
 
 from api.auth import CurrentUser
 from api.deps import ServicesDep
-from api.limit_checks import PlanLimitExceeded, check_can_create_tree
+from api.limit_checks import PlanLimitExceeded, check_can_create_document, check_can_create_tree
 from api.schemas.knowledge_tree import (
     ChapterPreviewOut,
     CreateChapterRequest,
@@ -24,6 +24,7 @@ from api.schemas.knowledge_tree import (
     CreateTreeRequest,
     DocumentPreviewOut,
     ExamSessionOut,
+    ImportYouTubeRequest,
     KnowledgeChapterOut,
     KnowledgeChunkOut,
     KnowledgeDocumentOut,
@@ -95,6 +96,8 @@ def _doc_out(doc) -> KnowledgeDocumentOut:
         source_file_name=doc.source_file_name,
         page_start=doc.page_start,
         page_end=doc.page_end,
+        source_type=doc.source_type,
+        source_url=doc.source_url,
     )
 
 
@@ -444,6 +447,131 @@ def _create_tree_from_document_background(
         raise
 
 
+@router.post("/knowledge-trees/{tree_id}/documents/import-youtube", status_code=202)
+async def import_youtube_document(
+    tree_id: str,
+    req: ImportYouTubeRequest,
+    current_user: CurrentUser,
+    services: ServicesDep,
+) -> dict:
+    """Import a YouTube video as a knowledge document via transcript extraction."""
+    uid = _parse_uuid(tree_id, "tree_id")
+    tree = services.kt_tree_store.get_tree(uid)
+    if tree is None or tree.user_id != current_user.id:
+        raise HTTPException(status_code=404, detail="Knowledge tree not found")
+
+    limits = services.subscription_store.get_user_limits(current_user.id)
+    check_can_create_document(limits)
+
+    chapter_uid: UUID | None = None
+    chapter_number: int | None = None
+    if req.chapter_id:
+        chapter_uid = _parse_uuid(req.chapter_id, "chapter_id")
+        chapter = next(
+            (c for c in services.kt_chapter_store.list_chapters(uid) if c.id == chapter_uid),
+            None,
+        )
+        if chapter is None:
+            raise HTTPException(status_code=404, detail="Chapter not found")
+        chapter_number = chapter.number
+
+    task_id = services.task_registry.submit(
+        _import_youtube_background,
+        req.url,
+        uid,
+        chapter_uid,
+        chapter_number,
+        services,
+        task_type="kt_import_youtube",
+    )
+    return {"task_id": task_id}
+
+
+def _import_youtube_background(
+    task: Task,
+    url: str,
+    tree_id: UUID,
+    chapter_id: UUID | None,
+    chapter_number: int | None,
+    services,
+) -> dict:
+    """Background task: fetch YouTube transcript and store as a knowledge document."""
+    from infrastructure.ingest.youtube_loader import (
+        TranscriptUnavailable,
+        VideoUnavailable,
+        extract_video_id,
+        fetch_metadata,
+        fetch_transcript,
+    )
+
+    try:
+        _set_progress(task, 5, "Extracting video ID...")
+        try:
+            video_id = extract_video_id(url)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc))
+
+        _set_progress(task, 15, "Fetching video metadata...")
+        try:
+            meta = fetch_metadata(video_id)
+        except VideoUnavailable as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+
+        _set_progress(task, 35, "Fetching transcript...")
+        try:
+            transcript = fetch_transcript(video_id)
+        except TranscriptUnavailable as exc:
+            raise HTTPException(status_code=422, detail=str(exc))
+
+        _set_progress(task, 65, "Creating knowledge document...")
+        kt_doc = services.kt_doc_store.create_youtube_document(
+            tree_id=tree_id,
+            chapter_id=chapter_id,
+            title=meta.title,
+            content=transcript,
+            source_url=url,
+        )
+
+        if chapter_id is not None and chapter_number is not None:
+            _set_progress(task, 80, "Chunking transcript...")
+            from core.model.document import Chapter, Document, Page
+            from infrastructure.chunking.splitter import ChapterAwareSplitter
+
+            lines = transcript.splitlines()
+            pages = [Page(number=i + 1, text=line) for i, line in enumerate(lines) if line.strip()]
+            chapter_obj = Chapter(index=0, title=meta.title, pages=pages)
+            doc_obj = Document(
+                source_path="",
+                title=meta.title,
+                file_hash="",
+                original_filename="",
+                chapters=[chapter_obj],
+            )
+            splitter = ChapterAwareSplitter()
+            chunks = splitter.split(doc_obj)
+            kt_chunks = [
+                KnowledgeChunk(
+                    id=UUID(c.id) if c.id else uuid4(),
+                    tree_id=tree_id,
+                    chapter_id=chapter_id,
+                    doc_id=kt_doc.id,
+                    chunk_index=j,
+                    text=c.text,
+                    token_count=c.token_count,
+                )
+                for j, c in enumerate(chunks)
+            ]
+            if kt_chunks:
+                services.kt_content_store.save_chunks(kt_chunks)
+
+        _set_progress(task, 100, "Done")
+        logger.info("Imported YouTube video %s as document %s", video_id, kt_doc.id)
+        return {"doc_id": str(kt_doc.id), "title": meta.title}
+    except Exception as exc:
+        logger.error("YouTube import failed: %s", exc)
+        raise
+
+
 @router.get("/knowledge-trees/{tree_id}", response_model=KnowledgeTreeOut)
 async def get_tree(tree_id: str, services: ServicesDep) -> KnowledgeTreeOut:
     """Get a knowledge tree by ID."""
@@ -467,6 +595,32 @@ async def update_tree(
     updated = services.kt_tree_store.update_tree(uid, req.title, req.description)
     chapters = services.kt_chapter_store.list_chapters(uid)
     return _tree_out(updated, len(chapters))
+
+
+@router.get("/knowledge-trees/{tree_id}/export")
+async def export_tree(
+    tree_id: str,
+    current_user: CurrentUser,
+    services: ServicesDep,
+) -> StreamingResponse:
+    """Export a knowledge tree as a downloadable zip archive."""
+    from io import BytesIO
+
+    from application.export.tree_exporter import export_tree as _export_tree
+    from application.export.tree_exporter import slugify
+
+    uid = _parse_uuid(tree_id, "tree_id")
+    tree = services.kt_tree_store.get_tree(uid)
+    if tree is None or tree.user_id != current_user.id:
+        raise HTTPException(status_code=404, detail="Knowledge tree not found")
+
+    zip_bytes = _export_tree(uid, services)
+    fname = f"{slugify(tree.title)}.zip"
+    return StreamingResponse(
+        BytesIO(zip_bytes),
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{fname}"'},
+    )
 
 
 @router.delete("/knowledge-trees/{tree_id}", status_code=204)

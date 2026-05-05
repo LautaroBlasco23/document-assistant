@@ -31,6 +31,8 @@ export interface KnowledgeDocument {
   source_file_name?: string
   page_start?: number
   page_end?: number
+  source_type?: string  // 'file' | 'youtube'
+  source_url?: string   // YouTube URL when source_type === 'youtube'
 }
 
 export type KnowledgeTreeTab = 'documents' | 'content' | 'exam'

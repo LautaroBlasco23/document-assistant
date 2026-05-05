@@ -54,6 +54,11 @@ class KnowledgeChapterOut(BaseModel):
     created_at: str
 
 
+class ImportYouTubeRequest(BaseModel):
+    url: str
+    chapter_id: str | None = None
+
+
 class KnowledgeDocumentOut(BaseModel):
     id: str
     tree_id: str
@@ -69,6 +74,8 @@ class KnowledgeDocumentOut(BaseModel):
     source_file_name: str | None = None
     page_start: int | None = None
     page_end: int | None = None
+    source_type: str = "file"
+    source_url: str | None = None
 
 
 class KnowledgeChunkOut(BaseModel):

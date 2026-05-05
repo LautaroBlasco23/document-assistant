@@ -86,6 +86,10 @@ CREATE TABLE IF NOT EXISTS knowledge_documents (
 -- Idempotent: add original_content if it doesn't exist yet (tracks pre-improvement text)
 ALTER TABLE knowledge_documents ADD COLUMN IF NOT EXISTS original_content TEXT;
 
+-- Idempotent: add YouTube source fields
+ALTER TABLE knowledge_documents ADD COLUMN IF NOT EXISTS source_type TEXT NOT NULL DEFAULT 'file';
+ALTER TABLE knowledge_documents ADD COLUMN IF NOT EXISTS source_url TEXT;
+
 -- ============================================
 -- KNOWLEDGE CONTENT (chunks)
 -- ============================================

@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Plus, Pencil, Trash2, Check, X, FileText, Upload, BookOpen, Files, Wand2, RotateCcw } from 'lucide-react'
+import { Plus, Pencil, Trash2, Check, X, FileText, Upload, BookOpen, Files, Wand2, RotateCcw, Youtube } from 'lucide-react'
 import { Button } from '../../components/ui/button'
 import { Input } from '../../components/ui/input'
 import { Badge } from '../../components/ui/badge'
@@ -38,6 +38,7 @@ export function KnowledgeDocumentsTab({
     improveDocument,
     revertDocument,
     ingestFileAsDocument,
+    importYouTubeDocument,
   } = useKnowledgeTreeStore()
   const addError = useAppStore((s) => s.addError)
 
@@ -46,6 +47,9 @@ export function KnowledgeDocumentsTab({
   const [ingesting, setIngesting] = React.useState(false)
   const [multiIngestProgress, setMultiIngestProgress] = React.useState<{ current: number; total: number } | null>(null)
   const [readerDoc, setReaderDoc] = React.useState<KnowledgeDocument | null>(null)
+  const [youtubeModalOpen, setYoutubeModalOpen] = React.useState(false)
+  const [youtubeUrl, setYoutubeUrl] = React.useState('')
+  const [youtubeImporting, setYoutubeImporting] = React.useState(false)
   const fileInputRef = React.useRef<HTMLInputElement>(null)
   const multiFileInputRef = React.useRef<HTMLInputElement>(null)
 
@@ -119,6 +123,23 @@ export function KnowledgeDocumentsTab({
       }
     } finally {
       setMultiIngestProgress(null)
+    }
+  }
+
+  const handleYoutubeImport = async () => {
+    if (!youtubeUrl.trim()) return
+    setYoutubeImporting(true)
+    try {
+      const chapterId = selectedChapterId
+      const { task_id } = await importYouTubeDocument(treeId, youtubeUrl.trim(), chapterId)
+      setYoutubeModalOpen(false)
+      setYoutubeUrl('')
+      await pollIngestTask(task_id, treeId, selectedChapter ?? 0, chapterId)
+    } catch (err: unknown) {
+      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+      addError(detail ?? 'Failed to import YouTube video. Please try again.')
+    } finally {
+      setYoutubeImporting(false)
     }
   }
 
@@ -261,6 +282,16 @@ export function KnowledgeDocumentsTab({
                     )}
                     {ingesting ? 'Importing...' : 'Import from PDF/EPUB'}
                   </Button>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => setYoutubeModalOpen(true)}
+                    disabled={ingesting || multiIngestProgress !== null || youtubeImporting}
+                    title="Import transcript from a YouTube video"
+                  >
+                    <Youtube className="h-3.5 w-3.5 mr-1" />
+                    YouTube
+                  </Button>
                   <Button variant="primary" size="sm" onClick={handleOpenCreate}>
                     <Plus className="h-3.5 w-3.5 mr-1" />
                     Add Document
@@ -328,6 +359,63 @@ export function KnowledgeDocumentsTab({
              )}
            </>
          )}
+
+      {/* YouTube Import Modal */}
+      {youtubeModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-surface-elevated rounded-lg shadow-xl p-6 w-full max-w-md mx-4">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-base font-semibold text-text-primary flex items-center gap-2">
+                <Youtube className="h-4 w-4 text-red-500" />
+                Import from YouTube
+              </h2>
+              <button
+                onClick={() => { setYoutubeModalOpen(false); setYoutubeUrl('') }}
+                className="text-text-tertiary hover:text-text-primary"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <p className="text-xs text-text-tertiary mb-3">
+              Paste a YouTube URL. The video's transcript (captions) will be imported as a document.
+              The video must have captions available.
+            </p>
+            <Input
+              type="url"
+              placeholder="https://www.youtube.com/watch?v=..."
+              value={youtubeUrl}
+              onChange={(e) => setYoutubeUrl(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') void handleYoutubeImport() }}
+              disabled={youtubeImporting}
+              className="mb-4"
+              autoFocus
+            />
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => { setYoutubeModalOpen(false); setYoutubeUrl('') }}
+                disabled={youtubeImporting}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => void handleYoutubeImport()}
+                disabled={!youtubeUrl.trim() || youtubeImporting}
+              >
+                {youtubeImporting ? (
+                  <>
+                    <div className="h-3.5 w-3.5 rounded-full border-2 border-white border-t-transparent animate-spin mr-1" />
+                    Importing...
+                  </>
+                ) : 'Import'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
      </div>
    )
  }

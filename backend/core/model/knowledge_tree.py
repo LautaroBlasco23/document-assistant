@@ -39,6 +39,8 @@ class KnowledgeDocument:
     page_start: int | None = None
     page_end: int | None = None
     original_content: str | None = None  # set when document has been AI-improved; null = never improved
+    source_type: str = "file"  # 'file' | 'youtube'
+    source_url: str | None = None  # YouTube URL when source_type == 'youtube'
 
 
 @dataclass
