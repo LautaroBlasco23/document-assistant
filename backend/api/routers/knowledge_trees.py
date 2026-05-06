@@ -49,6 +49,7 @@ from infrastructure.chunking.splitter import ChapterAwareSplitter
 from infrastructure.config import PROJECT_ROOT
 from infrastructure.ingest.epub_loader import preview_epub
 from infrastructure.ingest.pdf_loader import preview_pdf
+from infrastructure.ingest.txt_loader import preview_txt
 
 logger = logging.getLogger(__name__)
 
@@ -117,12 +118,14 @@ def _set_progress(task: Task, pct: int, message: str) -> None:
 def _preview_file(
     tmp_path: Path, suffix: str, file_bytes: bytes, epub_config
 ) -> "DocumentPreviewOut | None":
-    """Preview a PDF or EPUB file and return chapter structure."""
+    """Preview a PDF, EPUB, or TXT file and return chapter structure."""
     file_hash = hashlib.sha256(file_bytes).hexdigest()
     if suffix == ".pdf":
         doc, chapters = preview_pdf(tmp_path, file_hash)
     elif suffix == ".epub":
         doc, chapters = preview_epub(tmp_path, file_hash, epub_config)
+    elif suffix == ".txt":
+        doc, chapters = preview_txt(tmp_path, file_hash)
     else:
         return None
     if doc is None:
@@ -184,8 +187,8 @@ async def preview_tree_document(
     """Preview chapter structure of a PDF or EPUB without creating a tree."""
     filename = file.filename or "upload"
     suffix = Path(filename).suffix.lower()
-    if suffix not in (".pdf", ".epub"):
-        raise HTTPException(status_code=422, detail="Only PDF and EPUB files are supported")
+    if suffix not in (".pdf", ".epub", ".txt"):
+        raise HTTPException(status_code=422, detail="Only PDF, EPUB, and TXT files are supported")
 
     content = await file.read()
     with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
@@ -224,8 +227,8 @@ async def import_tree_from_document(
 
     filename = file.filename or "upload"
     suffix = Path(filename).suffix.lower()
-    if suffix not in (".pdf", ".epub"):
-        raise HTTPException(status_code=422, detail="Only PDF and EPUB files are supported")
+    if suffix not in (".pdf", ".epub", ".txt"):
+        raise HTTPException(status_code=422, detail="Only PDF, EPUB, and TXT files are supported")
 
     parsed_indices: list[int] | None = None
     if chapter_indices is not None:
@@ -291,10 +294,14 @@ def _create_tree_from_document_background(
                 from infrastructure.ingest.pdf_loader import load_pdf as _load_pdf
 
                 doc = _load_pdf(tmp_path, file_hash, filename)
-            elif suffix in (".epub",):
+            elif suffix == ".epub":
                 from infrastructure.ingest.epub_loader import load_epub as _load_epub
 
                 doc = _load_epub(tmp_path, file_hash, filename)
+            elif suffix == ".txt":
+                from infrastructure.ingest.txt_loader import load_txt as _load_txt
+
+                doc = _load_txt(tmp_path, file_hash, filename)
             else:
                 raise ValueError(f"Unsupported file type: {suffix}")
 
@@ -832,7 +839,12 @@ async def get_document_file(tree_id: str, doc_id: str, services: ServicesDep):
     path = Path(doc.source_file_path)
     if not path.exists():
         raise HTTPException(status_code=404, detail="File not found on disk")
-    media_type = "application/pdf" if path.suffix == ".pdf" else "application/epub+zip"
+    if path.suffix == ".pdf":
+        media_type = "application/pdf"
+    elif path.suffix == ".epub":
+        media_type = "application/epub+zip"
+    else:
+        media_type = "text/plain; charset=utf-8"
     return FileResponse(path, filename=doc.source_file_name or path.name, media_type=media_type)
 
 
