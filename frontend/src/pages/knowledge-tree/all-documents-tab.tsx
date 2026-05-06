@@ -2,7 +2,6 @@ import * as React from 'react'
 import { BookOpen, FileText, FolderOpen, Layers } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useKnowledgeTreeStore } from '../../stores/knowledge-tree-store'
-import { DocumentReader } from '../../components/reader/DocumentReader'
 import { UnifiedDocumentReader } from '../../components/reader/UnifiedDocumentReader'
 import { client } from '../../services'
 import { cn } from '../../lib/cn'
@@ -17,7 +16,6 @@ export function AllDocumentsTab({ treeId, chapters }: AllDocumentsTabProps) {
   const { documents: docsByKey, documentsLoading, fetchAllDocuments } = useKnowledgeTreeStore()
 
   const [readerDoc, setReaderDoc] = React.useState<KnowledgeDocument | null>(null)
-  const [unifiedReaderDoc, setUnifiedReaderDoc] = React.useState<KnowledgeDocument | null>(null)
 
   const key = `${treeId}:all`
   const allDocs = docsByKey[key] ?? []
@@ -54,7 +52,7 @@ export function AllDocumentsTab({ treeId, chapters }: AllDocumentsTabProps) {
         <FolderOpen className="h-8 w-8 text-text-tertiary mb-3" />
         <p className="text-sm text-text-tertiary font-medium">No documents yet</p>
         <p className="text-xs text-text-tertiary mt-1">
-          Import PDF/EPUB files into chapters to see them here.
+          Import PDF, EPUB, or TXT files into chapters to see them here.
         </p>
       </div>
     )
@@ -72,7 +70,7 @@ export function AllDocumentsTab({ treeId, chapters }: AllDocumentsTabProps) {
           </div>
           <div className="flex flex-col gap-2">
             {sourceFiles.map((doc) => (
-              <SourceDocumentRow key={doc.id} doc={doc} onReadUnified={setUnifiedReaderDoc} />
+              <SourceDocumentRow key={doc.id} doc={doc} onReadUnified={setReaderDoc} />
             ))}
           </div>
         </div>
@@ -99,7 +97,7 @@ export function AllDocumentsTab({ treeId, chapters }: AllDocumentsTabProps) {
             </div>
             <div className="flex flex-col gap-2 pl-1">
               {docs.map((doc) => (
-                <DocumentRow key={doc.id} doc={doc} onRead={setReaderDoc} onReadUnified={setUnifiedReaderDoc} />
+                <DocumentRow key={doc.id} doc={doc} onRead={setReaderDoc} />
               ))}
             </div>
           </div>
@@ -108,21 +106,11 @@ export function AllDocumentsTab({ treeId, chapters }: AllDocumentsTabProps) {
 
       {/* Document Reader Modal */}
       {readerDoc && (
-        <DocumentReader
+        <UnifiedDocumentReader
           doc={readerDoc}
           treeId={treeId}
-          chapter={readerDoc.chapter_number ?? 0}
-          onClose={() => setReaderDoc(null)}
-        />
-      )}
-
-      {/* Unified Document Reader Modal */}
-      {unifiedReaderDoc && (
-        <UnifiedDocumentReader
-          doc={unifiedReaderDoc}
-          treeId={treeId}
           chapters={chapters}
-          onClose={() => setUnifiedReaderDoc(null)}
+          onClose={() => setReaderDoc(null)}
         />
       )}
     </div>
@@ -132,43 +120,39 @@ export function AllDocumentsTab({ treeId, chapters }: AllDocumentsTabProps) {
 interface DocumentRowProps {
   doc: KnowledgeDocument
   onRead: (doc: KnowledgeDocument) => void
-  onReadUnified: (doc: KnowledgeDocument) => void
 }
 
 function SourceDocumentRow({ doc, onReadUnified }: { doc: KnowledgeDocument; onReadUnified: (doc: KnowledgeDocument) => void }) {
   const hasSourceFile = !!doc.source_file_path
-  const isPdf = hasSourceFile && (
-    doc.source_file_name?.toLowerCase().endsWith('.pdf') ||
-    doc.source_file_path?.toLowerCase().endsWith('.pdf')
-  )
-  const canOpen = hasSourceFile && isPdf
-  const thumbnailUrl = hasSourceFile ? client.getDocumentThumbnailUrl(doc.tree_id, doc.id) : ''
+  const fileName = (doc.source_file_name ?? doc.source_file_path ?? '').toLowerCase()
+  const isPdf = hasSourceFile && fileName.endsWith('.pdf')
+  const isViewable = hasSourceFile && (fileName.endsWith('.pdf') || fileName.endsWith('.epub') || fileName.endsWith('.txt'))
+  const canOpen = isViewable
+  const thumbnailUrl = isPdf ? client.getDocumentThumbnailUrl(doc.tree_id, doc.id) : ''
   const [thumbError, setThumbError] = React.useState(false)
 
   return (
     <div
       className={cn(
         'source-doc-animated-border transition-all duration-200 ease-out',
-        canOpen && !thumbError && 'cursor-pointer hover:shadow-xl hover:scale-[1.02]'
+        canOpen && 'cursor-pointer hover:shadow-xl hover:scale-[1.02]'
       )}
     >
     <div
       className="flex items-center gap-3 px-3 py-3 rounded-[9px] bg-surface dark:bg-surface-200 shadow-sm"
-      onClick={() => canOpen && !thumbError && onReadUnified(doc)}
+      onClick={() => canOpen && onReadUnified(doc)}
     >
       {/* Thumbnail */}
       <div className="shrink-0 w-[72px] h-[96px] rounded overflow-hidden bg-surface-100 dark:bg-surface-200 flex items-center justify-center">
-        {hasSourceFile && isPdf && !thumbError ? (
+        {isPdf && !thumbError ? (
           <img
             src={thumbnailUrl}
             alt={`Preview of ${doc.title}`}
             className="w-full h-full object-cover"
             onError={() => setThumbError(true)}
           />
-        ) : hasSourceFile && !isPdf ? (
-          <BookOpen className="h-6 w-6 text-amber-500" />
         ) : (
-          <FileText className="h-6 w-6 text-amber-500" />
+          <BookOpen className="h-6 w-6 text-amber-500" />
         )}
       </div>
       <div className="flex-1 min-w-0">
@@ -187,42 +171,38 @@ function SourceDocumentRow({ doc, onReadUnified }: { doc: KnowledgeDocument; onR
   )
 }
 
-function DocumentRow({ doc, onRead, onReadUnified }: DocumentRowProps) {
+function DocumentRow({ doc, onRead }: DocumentRowProps) {
   const hasSourceFile = !!doc.source_file_path
-  const isPdf = hasSourceFile && (
-    doc.source_file_name?.toLowerCase().endsWith('.pdf') ||
-    doc.source_file_path?.toLowerCase().endsWith('.pdf')
-  )
-  const canOpen = hasSourceFile && isPdf
-  const isSourceFile = doc.chapter_number == null && !doc.is_main
-  const thumbnailUrl = canOpen ? client.getDocumentThumbnailUrl(doc.tree_id, doc.id) : ''
+  const fileName = (doc.source_file_name ?? doc.source_file_path ?? '').toLowerCase()
+  const isPdf = hasSourceFile && fileName.endsWith('.pdf')
+  const isViewable = hasSourceFile && (fileName.endsWith('.pdf') || fileName.endsWith('.epub') || fileName.endsWith('.txt'))
+  const hasContent = (doc.content ?? '').trim().length > 0
+  const canOpen = isViewable || hasContent
+  const thumbnailUrl = isPdf ? client.getDocumentThumbnailUrl(doc.tree_id, doc.id) : ''
   const [thumbError, setThumbError] = React.useState(false)
 
   const handleClick = () => {
-    if (canOpen && !thumbError) {
-      if (isSourceFile) onReadUnified(doc)
-      else onRead(doc)
-    }
+    if (canOpen) onRead(doc)
   }
 
   return (
     <div
       className={cn(
         'flex items-center gap-3 px-3 py-2 rounded-lg border border-surface-200 dark:border-surface-200 bg-surface dark:bg-surface-200 transition-all duration-200 ease-out',
-        canOpen && !thumbError && 'cursor-pointer hover:shadow-xl hover:scale-[1.02]'
+        canOpen && 'cursor-pointer hover:shadow-xl hover:scale-[1.02]'
       )}
       onClick={handleClick}
     >
       {/* Thumbnail */}
       <div className="shrink-0 w-[60px] h-[80px] rounded overflow-hidden bg-surface-100 dark:bg-surface-200 flex items-center justify-center">
-        {hasSourceFile && isPdf && !thumbError ? (
+        {isPdf && !thumbError ? (
           <img
             src={thumbnailUrl}
             alt={`Preview of ${doc.title}`}
             className="w-full h-full object-cover"
             onError={() => setThumbError(true)}
           />
-        ) : hasSourceFile && !isPdf ? (
+        ) : hasSourceFile ? (
           <BookOpen className="h-5 w-5 text-text-tertiary" />
         ) : (
           <FileText className="h-5 w-5 text-text-tertiary" />

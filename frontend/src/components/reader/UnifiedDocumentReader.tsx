@@ -1,6 +1,5 @@
 import * as React from 'react'
 import { X, Sparkles, PanelLeft, PanelRight, BookOpen, MessageCircleQuestion, Maximize, Minimize, ZoomIn, ZoomOut, AlignJustify } from 'lucide-react'
-import ePub from 'epubjs'
 import { client } from '../../services'
 import { useKnowledgeTreeStore } from '../../stores/knowledge-tree-store'
 import { cn } from '../../lib/cn'
@@ -9,6 +8,7 @@ import { ChatPanel, type ChatPanelHandle } from './ChatPanel'
 import { usePendingContent, makePendingId } from '../../stores/pending-content-store'
 import type { KnowledgeTreeQuestionType } from '../../types/api'
 import { PdfPagesView, type PdfPagesViewHandle } from './PdfPagesView'
+import { TextPagesView, type TextPagesViewHandle } from './TextPagesView'
 import { ResizeHandle } from './ResizeHandle'
 import { useGenerationSettings } from '../../stores/generation-settings'
 
@@ -45,37 +45,48 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
   const [isFullscreen, setIsFullscreen] = React.useState(true)
   const [zoom, setZoom] = React.useState(1)
   const [contextMenu, setContextMenu] = React.useState<{ x: number; y: number; text: string } | null>(null)
+  const [textActiveChapter, setTextActiveChapter] = React.useState<number | null>(null)
 
   // Read mode and resume-page state
   const [readMode, setReadMode] = React.useState<ReadMode>(loadReadMode)
-  // pdfInitialPage and readerKey drive remount-on-mode-switch to correctly apply the new initialPage.
-  const [pdfInitialPage, setPdfInitialPage] = React.useState<number | undefined>(() =>
-    loadLastPage(treeId, doc.id)
+  // initialPos drives both PdfPagesView (page number) and TextPagesView (chapter number).
+  // Falls back to doc.chapter_number so EPUB/TXT chapter docs open at the right chapter.
+  const [initialPos, setInitialPos] = React.useState<number | undefined>(() =>
+    loadLastPage(treeId, doc.id) ?? (doc.chapter_number ?? undefined)
   )
   const [readerKey, setReaderKey] = React.useState(0)
 
   const savePageTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const handlePageChange = React.useCallback((page: number) => {
-    setCurrentPage(page)
+  const savePosition = React.useCallback((pos: number) => {
     if (savePageTimerRef.current) clearTimeout(savePageTimerRef.current)
     savePageTimerRef.current = setTimeout(() => {
       try {
-        localStorage.setItem(`docassist_reader_page:${treeId}:${doc.id}`, String(page))
+        localStorage.setItem(`docassist_reader_page:${treeId}:${doc.id}`, String(pos))
       } catch { /* ignore */ }
     }, 1000)
   }, [treeId, doc.id])
 
-  const handleModeChange = React.useCallback((newMode: ReadMode) => {
+  const handlePageChange = React.useCallback((page: number) => {
+    setCurrentPage(page)
+    savePosition(page)
+  }, [savePosition])
+
+  const handleTextChapterChange = React.useCallback((chapter: number) => {
+    setTextActiveChapter(chapter)
+    savePosition(chapter)
+  }, [savePosition])
+
+  const handleModeChange = React.useCallback((newMode: ReadMode, textChapter: number | null) => {
     setReadMode(newMode)
-    setPdfInitialPage(currentPage)
+    setInitialPos(textChapter !== null ? textChapter : currentPage)
     setReaderKey((k) => k + 1)
     try { localStorage.setItem('docassist_read_mode', newMode) } catch { /* ignore */ }
   }, [currentPage])
 
-  const epubContainerRef = React.useRef<HTMLDivElement>(null)
   const overlayRef = React.useRef<HTMLDivElement>(null)
   const pdfScrollRef = React.useRef<PdfPagesViewHandle | null>(null)
+  const textScrollRef = React.useRef<TextPagesViewHandle | null>(null)
   const chatPanelRef = React.useRef<ChatPanelHandle | null>(null)
   const pendingAdd = usePendingContent((s) => s.add)
   const pendingUpdate = usePendingContent((s) => s.update)
@@ -117,19 +128,18 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
   }, [rightWidth])
 
   const isYouTube = doc.source_type === 'youtube'
-  const isPdf = !isYouTube && (doc.source_file_name?.toLowerCase().endsWith('.pdf') || doc.source_file_path?.toLowerCase().endsWith('.pdf'))
+  const fileName = (doc.source_file_name ?? doc.source_file_path ?? '').toLowerCase()
+  const isPdf = !isYouTube && fileName.endsWith('.pdf')
+  const isEpub = !isYouTube && fileName.endsWith('.epub')
+  const isTxt = !isYouTube && fileName.endsWith('.txt')
+  const isText = isEpub || isTxt
+  const isContentOnly = !isYouTube && !isPdf && !isText && !!(doc.content ?? '').trim()
   const fileUrl = client.getDocumentFileUrl(treeId, doc.id)
-
-  const youtubeEmbedId = React.useMemo(() => {
-    if (!isYouTube || !doc.source_url) return null
-    const m = doc.source_url.match(/(?:v=|youtu\.be\/|shorts\/)([A-Za-z0-9_-]{11})/)
-    return m?.[1] ?? null
-  }, [isYouTube, doc.source_url])
 
   const allDocs = useKnowledgeTreeStore((s) => s.documents[`${treeId}:all`] ?? [])
   const chapterDocs = React.useMemo(() => {
     return allDocs
-      .filter((d) => d.chapter_number !== null && d.page_start != null && d.page_end != null)
+      .filter((d) => d.chapter_number !== null)
       .sort((a, b) => (a.chapter_number ?? 0) - (b.chapter_number ?? 0))
   }, [allDocs])
 
@@ -148,6 +158,7 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
   }, [chapterDocs, isPdf])
 
   const activeChapter = React.useMemo(() => {
+    if (isText) return textActiveChapter
     if (!isPdf || !currentPage) return null
     const chDoc = chapterDocs.find(
       (d) => d.page_start && d.page_end && currentPage >= d.page_start && currentPage <= d.page_end
@@ -160,39 +171,24 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
       return chapterDocs[chapterDocs.length - 1].chapter_number
     }
     return null
-  }, [currentPage, chapterDocs, isPdf])
+  }, [currentPage, chapterDocs, isPdf, isText, textActiveChapter])
 
   const getContext = React.useCallback((): Promise<string> => {
-    if (!activeChapter) return Promise.resolve('')
-    const chDoc = chapterDocs.find((d) => d.chapter_number === activeChapter)
-    return Promise.resolve(chDoc?.content ?? '')
-  }, [activeChapter, chapterDocs])
-
-  // EPUB rendering
-  React.useEffect(() => {
-    if (isPdf || isYouTube || !epubContainerRef.current) return
-
-    const book = ePub(fileUrl)
-    const rendition = book.renderTo(epubContainerRef.current, {
-      width: '100%',
-      height: '100%',
-    })
-    rendition.display()
-
-    return () => {
-      rendition.destroy()
-      book.destroy()
+    if (activeChapter !== null) {
+      const chDoc = chapterDocs.find((d) => d.chapter_number === activeChapter)
+      return Promise.resolve(chDoc?.content ?? '')
     }
-  }, [fileUrl, isPdf])
-
-  const scrollToPage = (pageNumber: number) => {
-    pdfScrollRef.current?.scrollToPage(pageNumber)
-  }
+    return Promise.resolve(doc.content ?? '')
+  }, [activeChapter, chapterDocs, doc.content])
 
   const scrollToChapter = (chapterNumber: number) => {
+    if (isText) {
+      textScrollRef.current?.scrollToChapter(chapterNumber)
+      return
+    }
     const chDoc = chapterDocs.find((d) => d.chapter_number === chapterNumber)
     if (chDoc?.page_start) {
-      scrollToPage(chDoc.page_start)
+      pdfScrollRef.current?.scrollToPage(chDoc.page_start)
     }
   }
 
@@ -211,7 +207,7 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
 
   const handleMakeFlashcard = async () => {
     if (!contextMenu) return
-    const chapter = activeChapter ?? 1
+    const chapter = activeChapter ?? doc.chapter_number ?? 1
     const text = contextMenu.text
     const id = makePendingId()
     setContextMenu(null)
@@ -242,7 +238,7 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
 
   const handleMakeQuestion = async (questionType: KnowledgeTreeQuestionType) => {
     if (!contextMenu) return
-    const chapter = activeChapter ?? 1
+    const chapter = activeChapter ?? doc.chapter_number ?? 1
     const text = contextMenu.text
     const id = makePendingId()
     setContextMenu(null)
@@ -322,15 +318,20 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
-            {/* Page progress */}
+            {/* Page / chapter progress */}
             {isPdf && numPages > 0 && (
               <span className="text-xs tabular-nums text-text-tertiary select-none">
                 {currentPage} / {numPages}
               </span>
             )}
+            {isText && chapters.length > 0 && textActiveChapter !== null && (
+              <span className="text-xs tabular-nums text-text-tertiary select-none">
+                Ch {textActiveChapter} / {chapters.length}
+              </span>
+            )}
 
             {/* Zoom controls */}
-            {isPdf && (
+            {(isPdf || isText || isContentOnly || isYouTube) && (
               <div className="flex items-center gap-0.5 bg-surface dark:bg-surface-200 rounded-md shadow-sm border border-surface-200 dark:border-surface-200 px-1.5 py-0.5">
                 <button
                   onClick={zoomOut}
@@ -357,10 +358,10 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
             )}
 
             {/* Read mode toggle */}
-            {isPdf && (
+            {(isPdf || isText || isContentOnly || isYouTube) && (
               <div className="flex items-center gap-0.5 bg-surface dark:bg-surface-200 rounded-md shadow-sm border border-surface-200 dark:border-surface-200 px-0.5 py-0.5">
                 <button
-                  onClick={() => readMode !== 'scroll' && handleModeChange('scroll')}
+                  onClick={() => readMode !== 'scroll' && handleModeChange('scroll', textActiveChapter)}
                   className={cn(
                     'p-1 rounded transition-colors',
                     readMode === 'scroll'
@@ -373,7 +374,7 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
                   <AlignJustify className="h-3.5 w-3.5" />
                 </button>
                 <button
-                  onClick={() => readMode !== 'paged' && handleModeChange('paged')}
+                  onClick={() => readMode !== 'paged' && handleModeChange('paged', textActiveChapter)}
                   className={cn(
                     'p-1 rounded transition-colors',
                     readMode === 'paged'
@@ -398,7 +399,7 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
             >
               {isFullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
             </button>
-            {isPdf && (
+            {(isPdf || isText) && (
               <button
                 onClick={() => setShowLeft(!showLeft)}
                 className={cn(
@@ -439,7 +440,7 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
         {/* Content area */}
         <div className="flex-1 min-h-0 flex">
           {/* Left panel: Chapter sidebar */}
-          {isPdf && (
+          {(isPdf || isText) && (
             <>
               <div
                 className={cn(
@@ -470,7 +471,7 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
                           <BookOpen className="h-3.5 w-3.5 shrink-0" />
                           <div className="flex-1 min-w-0">
                             <div className="truncate">{ch.title}</div>
-                            {chDoc?.page_start && (
+                            {isPdf && chDoc?.page_start && (
                               <div className="text-xs text-text-tertiary">
                                 Page {chDoc.page_start}
                                 {chDoc.page_end && chDoc.page_end !== chDoc.page_start
@@ -503,46 +504,62 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
               visiblePages={visiblePages}
               zoom={zoom}
               mode={readMode}
-              initialPage={pdfInitialPage}
+              initialPage={initialPos}
               onCurrentPageChange={handlePageChange}
               onNumPagesChange={setNumPages}
               onContextMenu={handleContextMenu}
               onClickAway={hideContextMenu}
               scrollRef={pdfScrollRef}
             />
+          ) : isText ? (
+            <TextPagesView
+              key={readerKey}
+              chapters={chapters}
+              chapterDocs={chapterDocs}
+              zoom={zoom}
+              mode={readMode}
+              initialChapter={initialPos}
+              onCurrentChapterChange={handleTextChapterChange}
+              onContextMenu={handleContextMenu}
+              onClickAway={hideContextMenu}
+              scrollRef={textScrollRef}
+              isTxt={isTxt}
+            />
           ) : isYouTube ? (
-            <div className="flex-1 min-w-0 flex flex-col overflow-auto bg-surface-100 dark:bg-surface">
-              {youtubeEmbedId && (
-                <div className="shrink-0 w-full bg-black">
-                  <div className="mx-auto max-w-4xl aspect-video">
-                    <iframe
-                      src={`https://www.youtube.com/embed/${youtubeEmbedId}`}
-                      title={doc.title}
-                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                      allowFullScreen
-                      className="w-full h-full border-0"
-                    />
-                  </div>
-                </div>
-              )}
-              <div
-                className="flex-1 overflow-auto px-6 py-4 font-mono text-sm text-text-secondary whitespace-pre-wrap leading-relaxed"
-                onContextMenu={handleContextMenu}
-                onClick={hideContextMenu}
-              >
-                {doc.content}
-              </div>
-            </div>
-          ) : (
             <div
-              className="flex-1 min-w-0 bg-surface-100 dark:bg-surface overflow-auto flex flex-col items-center py-6 px-4 gap-8"
+              className="flex-1 min-w-0 bg-surface-100 dark:bg-bg-inset overflow-auto"
               onContextMenu={handleContextMenu}
               onClick={hideContextMenu}
             >
               <div
-                ref={epubContainerRef}
-                className="w-[800px] max-w-full h-[80vh] bg-surface dark:bg-surface-200 shadow-md rounded-sm"
-              />
+                className="mx-auto max-w-3xl py-8 px-6"
+                style={{ fontSize: `${Math.round(zoom * 100)}%` }}
+              >
+                <p className="text-text-secondary leading-relaxed whitespace-pre-wrap break-words">
+                  {doc.content}
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div
+              className="flex-1 min-w-0 bg-surface-100 dark:bg-bg-inset overflow-auto"
+              onContextMenu={handleContextMenu}
+              onClick={hideContextMenu}
+            >
+              {doc.content ? (
+                <div
+                  className="mx-auto max-w-3xl py-8 px-6"
+                  style={{ fontSize: `${Math.round(zoom * 100)}%` }}
+                >
+                  <p className="text-text-secondary leading-relaxed whitespace-pre-wrap break-words">
+                    {doc.content}
+                  </p>
+                </div>
+              ) : (
+                <div className="flex items-center justify-center h-full">
+                  <p className="text-sm text-text-tertiary">No content available.</p>
+                </div>
+              )}
             </div>
           )}
 

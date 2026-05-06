@@ -7,7 +7,7 @@ import { ConfirmDialog } from '../../components/ui/confirm-dialog'
 import { useKnowledgeTreeStore, docKey } from '../../stores/knowledge-tree-store'
 import { useAppStore } from '../../stores/app-store'
 import { client } from '../../services'
-import { DocumentReader } from '../../components/reader/DocumentReader'
+import { UnifiedDocumentReader } from '../../components/reader/UnifiedDocumentReader'
 import { cn } from '../../lib/cn'
 import type { KnowledgeChapter, KnowledgeDocument } from '../../types/knowledge-tree'
 
@@ -337,7 +337,6 @@ export function KnowledgeDocumentsTab({
                    <DocumentCard
                      key={doc.id}
                      doc={doc}
-                     chapter={selectedChapter}
                      onEdit={() => handleOpenEdit(doc)}
                      onDelete={() => void handleDelete(doc)}
                      onRead={setReaderDoc}
@@ -349,11 +348,11 @@ export function KnowledgeDocumentsTab({
              )}
 
              {/* Document Reader Modal */}
-             {readerDoc && selectedChapter !== null && (
-               <DocumentReader
+             {readerDoc && (
+               <UnifiedDocumentReader
                  doc={readerDoc}
                  treeId={treeId}
-                 chapter={selectedChapter}
+                 chapters={chapters}
                  onClose={() => setReaderDoc(null)}
                />
              )}
@@ -478,7 +477,6 @@ function MainDocEditor({ doc, saving, onSave }: MainDocEditorProps) {
 
 interface DocumentCardProps {
   doc: KnowledgeDocument
-  chapter: number | null
   onEdit: () => void
   onDelete: () => void
   onRead: (doc: KnowledgeDocument) => void
@@ -486,7 +484,7 @@ interface DocumentCardProps {
   onRevert: () => Promise<KnowledgeDocument>
 }
 
-function DocumentCard({ doc, chapter, onEdit, onDelete, onRead, onImprove, onRevert }: DocumentCardProps) {
+function DocumentCard({ doc, onEdit, onDelete, onRead, onImprove, onRevert }: DocumentCardProps) {
   const [improveOpen, setImproveOpen] = React.useState(false)
   const [revertOpen, setRevertOpen] = React.useState(false)
   const [deleteOpen, setDeleteOpen] = React.useState(false)
@@ -534,24 +532,22 @@ function DocumentCard({ doc, chapter, onEdit, onDelete, onRead, onImprove, onRev
 
   const preview = doc.content.trim().slice(0, 200)
   const hasSourceFile = !!doc.source_file_path
-  const isPdf = hasSourceFile && (
-    doc.source_file_name?.toLowerCase().endsWith('.pdf') ||
-    doc.source_file_path?.toLowerCase().endsWith('.pdf')
-  )
-  const canRead = hasSourceFile && chapter !== null
-  const thumbnailUrl = canRead ? client.getDocumentThumbnailUrl(doc.tree_id, doc.id) : ''
+  const fileName = (doc.source_file_name ?? doc.source_file_path ?? '').toLowerCase()
+  const isPdf = hasSourceFile && fileName.endsWith('.pdf')
+  const isViewable = hasSourceFile && (fileName.endsWith('.pdf') || fileName.endsWith('.epub') || fileName.endsWith('.txt'))
+  const hasContent = (doc.content ?? '').trim().length > 0
+  const canRead = isViewable || hasContent
+  const thumbnailUrl = isPdf ? client.getDocumentThumbnailUrl(doc.tree_id, doc.id) : ''
 
   const handleCardClick = () => {
-    if (canRead && isPdf) {
-      onRead(doc)
-    }
+    if (canRead) onRead(doc)
   }
 
   return (
     <div
       className={cn(
         'border border-surface-200 dark:border-surface-200 rounded-lg p-3 flex flex-row gap-4 bg-surface dark:bg-surface-200',
-        canRead && isPdf && 'cursor-pointer hover:shadow-xl hover:scale-[1.02] transition-all duration-200 ease-out'
+        canRead && 'cursor-pointer hover:shadow-xl hover:scale-[1.02] transition-all duration-200 ease-out'
       )}
       onClick={handleCardClick}
     >
@@ -645,22 +641,26 @@ function DocumentCard({ doc, chapter, onEdit, onDelete, onRead, onImprove, onRev
 
       {/* Thumbnail */}
       <div className="shrink-0 w-[100px] h-[130px] rounded-md overflow-hidden bg-surface-100 dark:bg-surface-200 flex items-center justify-center">
-        {hasSourceFile && isPdf && !thumbError ? (
+        {isPdf && !thumbError ? (
           <img
             src={thumbnailUrl}
             alt={`Preview of ${doc.title}`}
             className="w-full h-full object-cover"
             onError={() => setThumbError(true)}
           />
-        ) : hasSourceFile && !isPdf ? (
+        ) : fileName.endsWith('.epub') ? (
           <div className="flex flex-col items-center gap-1 text-text-tertiary">
             <BookOpen className="h-8 w-8" />
             <span className="text-[10px] font-medium">EPUB</span>
           </div>
-        ) : (
+        ) : fileName.endsWith('.txt') ? (
           <div className="flex flex-col items-center gap-1 text-text-tertiary">
             <FileText className="h-8 w-8" />
             <span className="text-[10px] font-medium">TXT</span>
+          </div>
+        ) : (
+          <div className="flex flex-col items-center gap-1 text-text-tertiary">
+            <FileText className="h-8 w-8" />
           </div>
         )}
       </div>

@@ -288,7 +288,7 @@ function UploadStep({
               id="import-file"
               ref={fileInputRef}
               type="file"
-              accept=".pdf,.epub"
+              accept=".pdf,.epub,.txt"
               className="hidden"
               onChange={onFileChange}
               disabled={isRunning}
@@ -318,7 +318,7 @@ function UploadStep({
           </label>
           <Input
             id="import-title"
-            placeholder={file ? file.name.replace(/\.(pdf|epub)$/i, '') : 'e.g. Machine Learning Fundamentals'}
+            placeholder={file ? file.name.replace(/\.(pdf|epub|txt)$/i, '') : 'e.g. Machine Learning Fundamentals'}
             value={title}
             onChange={(e) => onTitleChange(e.target.value)}
             disabled={isRunning}

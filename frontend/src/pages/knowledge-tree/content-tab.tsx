@@ -542,7 +542,7 @@ function FlashcardGenerator({ treeId, chapter, chapterTitle, flashcardCount, onF
       <div className="px-4 py-3">
         {status === 'idle' && (
           <p className="text-xs text-text-tertiary">
-            Generate flashcards from the knowledge documents, or approve individual ones from the PDF viewer.
+            Generate flashcards from the knowledge documents, or approve individual ones from the document viewer.
           </p>
         )}
         {status === 'loading' && (
