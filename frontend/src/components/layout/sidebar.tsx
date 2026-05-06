@@ -3,8 +3,6 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import {
   Home,
   Settings,
-  ChevronLeft,
-  ChevronRight,
   LogOut,
 } from 'lucide-react'
 import { cn } from '../../lib/cn'
@@ -27,7 +25,6 @@ const navItems: NavItem[] = [
 
 export function Sidebar() {
   const collapsed = useAppStore((state) => state.sidebarCollapsed)
-  const toggleSidebar = useAppStore((state) => state.toggleSidebar)
 
   return (
     <aside
@@ -40,11 +37,11 @@ export function Sidebar() {
       {/* Logo / app name */}
       <div className="flex items-center gap-3 px-4 py-5 border-b border-surface-200 dark:border-surface-200 overflow-hidden">
         <div className="shrink-0 h-7 w-7 rounded-md bg-primary flex items-center justify-center">
-          <span className="text-white text-xs font-bold">D</span>
+          <span className="text-white text-xs font-bold">K</span>
         </div>
         {!collapsed && (
           <span className="font-semibold text-text-primary text-sm truncate">
-            Doc Assistant
+            Knowledge Tree
           </span>
         )}
       </div>
@@ -82,24 +79,11 @@ export function Sidebar() {
         })}
       </nav>
 
-      {/* User section */}
-      <UserSection collapsed={collapsed} />
-
       {/* Health dots */}
       <ServiceHealthDots collapsed={collapsed} />
 
-      {/* Collapse toggle */}
-      <button
-        onClick={toggleSidebar}
-        className="flex items-center justify-center h-10 text-text-tertiary hover:text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100 transition-colors"
-        aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-      >
-        {collapsed ? (
-          <ChevronRight className="h-4 w-4" />
-        ) : (
-          <ChevronLeft className="h-4 w-4" />
-        )}
-      </button>
+      {/* User section */}
+      <UserSection collapsed={collapsed} />
     </aside>
   )
 }
@@ -126,7 +110,7 @@ function UserSection({ collapsed }: UserSectionProps) {
 
   const content = (
     <div className={cn(
-      'flex items-center border-t border-surface-200 dark:border-surface-200 text-text-tertiary',
+      'flex items-center text-text-tertiary',
       collapsed ? 'justify-center px-2 py-3' : 'px-4 py-3 gap-3'
     )}>
       <div className="h-8 w-8 rounded-full bg-primary-light dark:bg-primary/12 flex items-center justify-center shrink-0">
