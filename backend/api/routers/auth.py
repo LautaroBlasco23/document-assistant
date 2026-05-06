@@ -35,6 +35,7 @@ class UserProfileResponse(BaseModel):
     id: str
     email: str
     display_name: str | None
+    has_first_agent: bool
     created_at: str
 
 
@@ -92,5 +93,6 @@ async def get_me(current_user: CurrentUser):
         id=str(current_user.id),
         email=current_user.email,
         display_name=current_user.display_name,
+        has_first_agent=current_user.has_first_agent,
         created_at=current_user.created_at.isoformat(),
     )

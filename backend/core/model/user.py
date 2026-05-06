@@ -12,6 +12,7 @@ class User:
     is_active: bool
     created_at: datetime
     updated_at: datetime
+    has_first_agent: bool = False
 
 
 @dataclass

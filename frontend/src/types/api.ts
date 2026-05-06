@@ -132,7 +132,8 @@ export interface CredentialStatus {
   configured: boolean
   last4: string | null
   last_tested_at: string | null
-  last_test_ok: boolean
+  last_test_ok: boolean | null
+  last_test_error: string | null
 }
 
 export interface TestConnectionResult {

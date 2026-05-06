@@ -589,14 +589,14 @@ export class MockClient implements ServiceClient {
   async listCredentials(): Promise<CredentialStatus[]> {
     await delay(100)
     return [
-      { provider: 'groq', configured: false, last4: null, last_tested_at: null, last_test_ok: false },
-      { provider: 'ollama', configured: true, last4: null, last_tested_at: null, last_test_ok: false },
+      { provider: 'groq', configured: false, last4: null, last_tested_at: null, last_test_ok: null, last_test_error: null },
+      { provider: 'ollama', configured: true, last4: null, last_tested_at: null, last_test_ok: false, last_test_error: null },
     ]
   }
 
   async saveCredential(provider: string, apiKey: string): Promise<CredentialStatus> {
     await delay(150)
-    return { provider, configured: true, last4: apiKey.slice(-4), last_tested_at: null, last_test_ok: false }
+    return { provider, configured: true, last4: apiKey.slice(-4), last_tested_at: null, last_test_ok: true, last_test_error: null }
   }
 
   async deleteCredential(_provider: string): Promise<void> {

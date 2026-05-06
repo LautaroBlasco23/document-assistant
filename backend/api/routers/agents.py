@@ -111,10 +111,13 @@ async def create_agent(
         max_tokens=req.max_tokens,
         is_default=False,
     )
+    is_first = not current_user.has_first_agent
     try:
         created = services.agent_store.create(agent)
     except ValueError as e:
         raise HTTPException(status_code=409, detail=str(e))
+    if is_first:
+        services.user_store.set_has_first_agent(current_user.id)
     return _agent_out(created)
 
 

@@ -1,12 +1,13 @@
 import React, { Suspense } from 'react'
 import { createBrowserRouter } from 'react-router-dom'
-import { ProtectedRoute } from './components/auth/protected-route'
+import { ProtectedRoute, OnboardingRoute } from './components/auth/protected-route'
 import { MainLayout } from './components/layout/main-layout'
 import { SkeletonBlock } from './components/ui/skeleton'
 
 // Auth pages (no lazy loading for faster initial render)
 import { LoginPage } from './pages/auth/login-page'
 import { RegisterPage } from './pages/auth/register-page'
+import { OnboardingPage } from './pages/onboarding/onboarding-page'
 
 const LibraryPage = React.lazy(() =>
   import('./pages/library/library-page').then((m) => ({ default: m.LibraryPage }))
@@ -41,6 +42,14 @@ export const router = createBrowserRouter([
   {
     path: '/register',
     element: <RegisterPage />,
+  },
+  {
+    path: '/onboarding',
+    element: (
+      <OnboardingRoute>
+        <OnboardingPage />
+      </OnboardingRoute>
+    ),
   },
   {
     path: '/',

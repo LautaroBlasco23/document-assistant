@@ -4,6 +4,7 @@ interface User {
   id: string
   email: string
   display_name: string | null
+  has_first_agent: boolean
 }
 
 interface AuthContextType {
@@ -13,6 +14,7 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>
   register: (email: string, password: string, displayName?: string) => Promise<void>
   logout: () => void
+  refetchUser: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | null>(null)
@@ -86,8 +88,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem('auth_token')
   }
 
+  const refetchUser = async () => {
+    const authToken = token || localStorage.getItem('auth_token')
+    if (authToken) await fetchUser(authToken)
+  }
+
   return (
-    <AuthContext.Provider value={{ user, token, isLoading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, token, isLoading, login, register, logout, refetchUser }}>
       {children}
     </AuthContext.Provider>
   )

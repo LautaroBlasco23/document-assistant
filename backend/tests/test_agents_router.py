@@ -54,6 +54,7 @@ def _make_agent(**overrides) -> Agent:
         name="Test Agent",
         prompt="You are helpful.",
         model="test-model",
+        provider="groq",
         temperature=0.7,
         top_p=1.0,
         max_tokens=1024,
@@ -67,9 +68,10 @@ def _make_agent(**overrides) -> Agent:
 
 @pytest.fixture
 def mock_services():
-    """Return a Services-like object with mocked agent_store and config."""
+    """Return a Services-like object with mocked agent_store, user_store and config."""
     services = MagicMock()
     services.agent_store = MagicMock()
+    services.user_store = MagicMock()
     services.config = MagicMock()
     services.config.llm_provider = "groq"
     services.config.groq = MagicMock()
@@ -144,6 +146,7 @@ def test_create_agent_success(test_client, mock_services):
     response = test_client.post("/api/agents", json={
         "name": "New Agent",
         "model": "custom-model",
+        "provider": "groq",
     })
 
     assert response.status_code == 201
@@ -161,6 +164,7 @@ def test_create_agent_with_duplicate_name_returns_409(test_client, mock_services
     response = test_client.post("/api/agents", json={
         "name": "Duplicate",
         "model": "some-model",
+        "provider": "groq",
     })
 
     assert response.status_code == 409

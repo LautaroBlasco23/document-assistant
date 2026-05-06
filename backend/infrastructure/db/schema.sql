@@ -83,6 +83,13 @@ CREATE TABLE IF NOT EXISTS knowledge_documents (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- Idempotent: add has_first_agent flag for onboarding gate
+ALTER TABLE users ADD COLUMN IF NOT EXISTS has_first_agent BOOLEAN NOT NULL DEFAULT FALSE;
+-- Backfill: users who already have agents skip onboarding
+UPDATE users SET has_first_agent = TRUE
+WHERE has_first_agent = FALSE
+  AND id IN (SELECT DISTINCT user_id FROM agents WHERE user_id IS NOT NULL);
+
 -- Idempotent: add original_content if it doesn't exist yet (tracks pre-improvement text)
 ALTER TABLE knowledge_documents ADD COLUMN IF NOT EXISTS original_content TEXT;
 

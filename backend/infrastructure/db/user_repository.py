@@ -40,14 +40,15 @@ class _BaseRepo:
 class PostgresUserStore(_BaseRepo):
     """CRUD for users table."""
 
+    _SELECT = (
+        "SELECT id, email, password_hash, display_name, is_active, "
+        "created_at, updated_at, has_first_agent FROM users"
+    )
+
     def get_by_id(self, user_id: UUID) -> User | None:
         conn = self._conn()
         with conn.cursor() as cur:
-            cur.execute(
-                "SELECT id, email, password_hash, display_name, is_active, created_at, updated_at "
-                "FROM users WHERE id = %s",
-                (user_id,)
-            )
+            cur.execute(f"{self._SELECT} WHERE id = %s", (user_id,))
             row = cur.fetchone()
         if row is None:
             return None
@@ -56,11 +57,7 @@ class PostgresUserStore(_BaseRepo):
     def get_by_email(self, email: str) -> User | None:
         conn = self._conn()
         with conn.cursor() as cur:
-            cur.execute(
-                "SELECT id, email, password_hash, display_name, is_active, created_at, updated_at "
-                "FROM users WHERE email = %s",
-                (email,)
-            )
+            cur.execute(f"{self._SELECT} WHERE email = %s", (email,))
             row = cur.fetchone()
         if row is None:
             return None
@@ -75,7 +72,7 @@ class PostgresUserStore(_BaseRepo):
                         "INSERT INTO users (email, password_hash, display_name) "
                         "VALUES (%s, %s, %s) "
                         "RETURNING id, email, password_hash, display_name, "
-                        "is_active, created_at, updated_at",
+                        "is_active, created_at, updated_at, has_first_agent",
                         (email, password_hash, display_name)
                     )
                     row = cur.fetchone()
@@ -89,14 +86,25 @@ class PostgresUserStore(_BaseRepo):
                 with conn.cursor() as cur:
                     cur.execute(
                         "UPDATE users SET email = %s, display_name = %s, "
-                        "is_active = %s, updated_at = NOW() "
+                        "is_active = %s, has_first_agent = %s, updated_at = NOW() "
                         "WHERE id = %s "
                         "RETURNING id, email, password_hash, display_name, "
-                        "is_active, created_at, updated_at",
-                        (user.email, user.display_name, user.is_active, user.id)
+                        "is_active, created_at, updated_at, has_first_agent",
+                        (user.email, user.display_name, user.is_active,
+                         user.has_first_agent, user.id)
                     )
                     row = cur.fetchone()
         return self._row_to_user(row)
+
+    def set_has_first_agent(self, user_id: UUID) -> None:
+        with self._lock:
+            conn = self._conn()
+            with conn.transaction():
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "UPDATE users SET has_first_agent = TRUE, updated_at = NOW() WHERE id = %s",
+                        (user_id,)
+                    )
 
     def get_document_count(self, user_id: UUID) -> int:
         conn = self._conn()
@@ -128,6 +136,7 @@ class PostgresUserStore(_BaseRepo):
             is_active=row["is_active"],
             created_at=_ensure_naive(row["created_at"]),
             updated_at=_ensure_naive(row["updated_at"]),
+            has_first_agent=row["has_first_agent"],
         )
 
 

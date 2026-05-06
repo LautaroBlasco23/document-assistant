@@ -58,6 +58,7 @@ def _user_row(
     is_active=True,
     created_at=None,
     updated_at=None,
+    has_first_agent=False,
 ):
     return {
         "id": user_id,
@@ -67,6 +68,7 @@ def _user_row(
         "is_active": is_active,
         "created_at": created_at or datetime(2024, 1, 1),
         "updated_at": updated_at or datetime(2024, 1, 1),
+        "has_first_agent": has_first_agent,
     }
 
 
