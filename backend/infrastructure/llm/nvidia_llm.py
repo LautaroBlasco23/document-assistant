@@ -128,13 +128,31 @@ class NvidiaLLM(LLM):
         last_retry_after: float = 60.0
 
         for attempt in range(max_retries):
-            resp = requests.post(
-                url,
-                json=payload,
-                headers=headers,
-                timeout=self._timeout,
-                stream=stream,
-            )
+            try:
+                resp = requests.post(
+                    url,
+                    json=payload,
+                    headers=headers,
+                    timeout=self._timeout,
+                    stream=stream,
+                )
+            except requests.exceptions.ReadTimeout:
+                wait = 5.0 * (2**attempt)
+                logger.warning(
+                    "Nvidia read timeout on attempt %d/%d, retrying in %.1fs",
+                    attempt + 1,
+                    max_retries,
+                    wait,
+                )
+                task = _current_task.get()
+                if task is not None:
+                    prev_progress = task.progress
+                    task.progress = f"Nvidia timed out — retrying (attempt {attempt + 1}/{max_retries})"
+                    time.sleep(wait)
+                    task.progress = prev_progress
+                else:
+                    time.sleep(wait)
+                continue
 
             if resp.status_code == 429:
                 retry_after = resp.headers.get("Retry-After")
