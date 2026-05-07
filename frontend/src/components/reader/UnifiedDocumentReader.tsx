@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { X, Sparkles, PanelLeft, PanelRight, BookOpen, MessageCircleQuestion, Maximize, Minimize, ZoomIn, ZoomOut, AlignJustify } from 'lucide-react'
+import { X, Sparkles, PanelLeft, PanelRight, BookOpen, MessageCircleQuestion, Maximize, Minimize, ZoomIn, ZoomOut, AlignJustify, Highlighter } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import { client } from '../../services'
 import { useKnowledgeTreeStore } from '../../stores/knowledge-tree-store'
@@ -15,6 +15,7 @@ import { ResizeHandle } from './ResizeHandle'
 import { FormatterMenu, type FormatMode } from './FormatterMenu'
 import { readerMarkdownComponents } from './markdownComponents'
 import { useGenerationSettings } from '../../stores/generation-settings'
+import { useHighlights } from '../../stores/highlights-store'
 
 type ReadMode = 'scroll' | 'paged'
 
@@ -42,6 +43,15 @@ function loadLastPage(treeId: string, docId: string): number | undefined {
 }
 
 export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: UnifiedDocumentReaderProps) {
+  // Derive doc type up front — needed by useState initializers below.
+  const isYouTube = doc.source_type === 'youtube'
+  const fileName = (doc.source_file_name ?? doc.source_file_path ?? '').toLowerCase()
+  const isPdf = !isYouTube && fileName.endsWith('.pdf')
+  const isEpub = !isYouTube && fileName.endsWith('.epub')
+  const isTxt = !isYouTube && fileName.endsWith('.txt')
+  const isText = isEpub || isTxt
+  const isContentOnly = !isYouTube && !isPdf && !isText && !!(doc.content ?? '').trim()
+
   const [currentPage, setCurrentPage] = React.useState<number>(1)
   const [numPages, setNumPages] = React.useState<number>(0)
   const [showLeft, setShowLeft] = React.useState(true)
@@ -54,9 +64,11 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
   // Read mode and resume-page state
   const [readMode, setReadMode] = React.useState<ReadMode>(loadReadMode)
   // initialPos drives both PdfPagesView (page number) and TextPagesView (chapter number).
-  // Falls back to doc.chapter_number so EPUB/TXT chapter docs open at the right chapter.
+  // For chapter-scoped PDFs we do NOT use doc.page_start: the backend extracts each chapter
+  // into its own file (pages re-indexed 1-to-N), so the parent-book page number is invalid.
+  // For EPUB/TXT chapter docs fall back to doc.chapter_number so the right chapter opens.
   const [initialPos, setInitialPos] = React.useState<number | undefined>(() =>
-    loadLastPage(treeId, doc.id) ?? (doc.chapter_number ?? undefined)
+    loadLastPage(treeId, doc.id) ?? (isText ? (doc.chapter_number ?? undefined) : undefined)
   )
   const [readerKey, setReaderKey] = React.useState(0)
 
@@ -98,6 +110,13 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
   const { settings: genSettings } = useGenerationSettings()
   const addError = useAppStore((s) => s.addError)
   const improveDocument = useKnowledgeTreeStore((s) => s.improveDocument)
+  const addHighlight = useHighlights((s) => s.add)
+  const highlightDocIds = useHighlights((s) => s.highlightDocIds)
+  const setHighlightDocId = useHighlights((s) => s.setHighlightDocId)
+  const clearHighlightDocId = useHighlights((s) => s.clearHighlightDocId)
+  const docHighlights = useHighlights((s) => s.highlights[doc.id] ?? [])
+  const createDocument = useKnowledgeTreeStore((s) => s.createDocument)
+  const updateDocument = useKnowledgeTreeStore((s) => s.updateDocument)
   const revertDocument = useKnowledgeTreeStore((s) => s.revertDocument)
   const [isImproving, setIsImproving] = React.useState(false)
   // For non-text docs (content-only, YouTube), the prop `doc` doesn't update after
@@ -138,25 +157,23 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
     try { localStorage.setItem('docassist_panel_width:right', String(rightWidth)) } catch { /* ignore */ }
   }, [rightWidth])
 
-  const isYouTube = doc.source_type === 'youtube'
-  const fileName = (doc.source_file_name ?? doc.source_file_path ?? '').toLowerCase()
-  const isPdf = !isYouTube && fileName.endsWith('.pdf')
-  const isEpub = !isYouTube && fileName.endsWith('.epub')
-  const isTxt = !isYouTube && fileName.endsWith('.txt')
-  const isText = isEpub || isTxt
-  const isContentOnly = !isYouTube && !isPdf && !isText && !!(doc.content ?? '').trim()
-
+  // Only record a resume entry for source/main docs (chapter_number == null).
+  // Chapter docs are scoped slices and shouldn't overwrite the parent book's position.
   React.useEffect(() => {
-    if (!isPdf && !isText) return
+    if ((!isPdf && !isText) || doc.chapter_number !== null) return
     try {
       localStorage.setItem(`docassist_last_doc:${treeId}`, doc.id)
     } catch { /* ignore */ }
-  }, [treeId, doc.id, isPdf, isText])
+  }, [treeId, doc.id, doc.chapter_number, isPdf, isText])
   // effectiveDoc tracks the post-improve/revert state for non-text docs whose prop doesn't
   // auto-update from the store (content-only and YouTube branches render from doc.content directly).
   const effectiveDoc = currentDocOverride ?? doc
   const showFormatter = isText || isContentOnly || (isYouTube && !!(doc.content ?? '').trim())
   const fileUrl = client.getDocumentFileUrl(treeId, doc.id)
+
+  // When this doc is a chapter-bound document, restrict sidebar and page range
+  // to that chapter only. Source/main docs show the full book.
+  const isChapterScope = !isYouTube && doc.chapter_number !== null
 
   const allDocs = useKnowledgeTreeStore((s) => s.documents[`${treeId}:all`] ?? [])
   const chapterDocs = React.useMemo(() => {
@@ -165,14 +182,24 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
       .sort((a, b) => (a.chapter_number ?? 0) - (b.chapter_number ?? 0))
   }, [allDocs])
 
+  // Scoped variants: limited to one chapter when opened from a chapter doc.
+  const scopedChapters = React.useMemo(
+    () => isChapterScope ? chapters.filter((c) => c.number === doc.chapter_number) : chapters,
+    [isChapterScope, chapters, doc.chapter_number]
+  )
+  const scopedChapterDocs = React.useMemo(
+    () => isChapterScope ? chapterDocs.filter((d) => d.chapter_number === doc.chapter_number) : chapterDocs,
+    [isChapterScope, chapterDocs, doc.chapter_number]
+  )
+
   // Format mode: resolved from the active chapter doc (for EPUB/TXT chapter trees)
   // or from the top-level doc for tree-level text docs.
   // Persisted per treeId:docId in localStorage; defaults to 'markdown' when already improved.
   const activeChapterDoc = React.useMemo(() => {
     if (!isText) return null
-    if (textActiveChapter !== null) return chapterDocs.find((d) => d.chapter_number === textActiveChapter) ?? null
+    if (textActiveChapter !== null) return scopedChapterDocs.find((d) => d.chapter_number === textActiveChapter) ?? null
     return null
-  }, [isText, textActiveChapter, chapterDocs])
+  }, [isText, textActiveChapter, scopedChapterDocs])
 
   const resolvedDoc: KnowledgeDocument = (activeChapterDoc as KnowledgeDocument | null) ?? effectiveDoc
 
@@ -233,9 +260,12 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
   }, [treeId, resolvedDoc.id, resolvedDoc.chapter_number, isText, revertDocument, handleFormatModeChange, addError])
 
   const visiblePages = React.useMemo(() => {
-    if (!isPdf || chapterDocs.length === 0) return null
+    // Chapter-scoped PDFs are served as individually-extracted files (pages re-indexed
+    // 1-to-N), so page_start/page_end from the parent book are not valid page numbers
+    // in that file. Only apply page filtering for the source/main doc view.
+    if (!isPdf || isChapterScope || scopedChapterDocs.length === 0) return null
     const pages: number[] = []
-    const sorted = [...chapterDocs].sort((a, b) => (a.page_start ?? 0) - (b.page_start ?? 0))
+    const sorted = [...scopedChapterDocs].sort((a, b) => (a.page_start ?? 0) - (b.page_start ?? 0))
     for (const chDoc of sorted) {
       if (chDoc.page_start && chDoc.page_end) {
         for (let p = chDoc.page_start; p <= chDoc.page_end; p++) {
@@ -244,38 +274,38 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
       }
     }
     return pages.length > 0 ? pages : null
-  }, [chapterDocs, isPdf])
+  }, [scopedChapterDocs, isPdf, isChapterScope])
 
   const activeChapter = React.useMemo(() => {
     if (isText) return textActiveChapter
     if (!isPdf || !currentPage) return null
-    const chDoc = chapterDocs.find(
+    const chDoc = scopedChapterDocs.find(
       (d) => d.page_start && d.page_end && currentPage >= d.page_start && currentPage <= d.page_end
     )
     if (chDoc) return chDoc.chapter_number
-    if (chapterDocs.length > 0 && currentPage < (chapterDocs[0].page_start ?? 0)) {
-      return chapterDocs[0].chapter_number
+    if (scopedChapterDocs.length > 0 && currentPage < (scopedChapterDocs[0].page_start ?? 0)) {
+      return scopedChapterDocs[0].chapter_number
     }
-    if (chapterDocs.length > 0 && currentPage > (chapterDocs[chapterDocs.length - 1].page_end ?? 0)) {
-      return chapterDocs[chapterDocs.length - 1].chapter_number
+    if (scopedChapterDocs.length > 0 && currentPage > (scopedChapterDocs[scopedChapterDocs.length - 1].page_end ?? 0)) {
+      return scopedChapterDocs[scopedChapterDocs.length - 1].chapter_number
     }
     return null
-  }, [currentPage, chapterDocs, isPdf, isText, textActiveChapter])
+  }, [currentPage, scopedChapterDocs, isPdf, isText, textActiveChapter])
 
   const getContext = React.useCallback((): Promise<string> => {
     if (activeChapter !== null) {
-      const chDoc = chapterDocs.find((d) => d.chapter_number === activeChapter)
+      const chDoc = scopedChapterDocs.find((d) => d.chapter_number === activeChapter)
       return Promise.resolve(chDoc?.content ?? '')
     }
     return Promise.resolve(doc.content ?? '')
-  }, [activeChapter, chapterDocs, doc.content])
+  }, [activeChapter, scopedChapterDocs, doc.content])
 
   const scrollToChapter = (chapterNumber: number) => {
     if (isText) {
       textScrollRef.current?.scrollToChapter(chapterNumber)
       return
     }
-    const chDoc = chapterDocs.find((d) => d.chapter_number === chapterNumber)
+    const chDoc = scopedChapterDocs.find((d) => d.chapter_number === chapterNumber)
     if (chDoc?.page_start) {
       pdfScrollRef.current?.scrollToPage(chDoc.page_start)
     }
@@ -362,13 +392,87 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
 
   const hideContextMenu = () => setContextMenu(null)
 
+  const saveHighlightDocRef = React.useRef<(text: string) => Promise<void>>()
+  saveHighlightDocRef.current = async (text: string) => {
+    const chapterNum = activeChapter ?? doc.chapter_number ?? 1
+    const highlightsTitle = `${doc.title} — Highlights`
+    const entry = text.split('\n').map((line) => `> ${line}`).join('\n')
+
+    const storedDocId = highlightDocIds[doc.id]
+    const allDocs = [
+      ...(useKnowledgeTreeStore.getState().documents[`${treeId}:all`] ?? []),
+      ...(useKnowledgeTreeStore.getState().documents[`${treeId}:${chapterNum}`] ?? []),
+    ]
+
+    let existing = storedDocId ? allDocs.find((d) => d.id === storedDocId) : undefined
+    if (!existing) {
+      existing = allDocs.find((d) => d.chapter_number === chapterNum && d.title === highlightsTitle)
+    }
+
+    try {
+      if (existing) {
+        setHighlightDocId(doc.id, existing.id)
+        await updateDocument(
+          existing.id,
+          existing.title,
+          existing.content ? `${existing.content}\n\n---\n\n${entry}` : entry,
+          treeId,
+          chapterNum,
+        )
+      } else {
+        const created = await createDocument(treeId, chapterNum, highlightsTitle, entry)
+        setHighlightDocId(doc.id, created.id)
+      }
+    } catch (e) {
+      // If the stored doc was deleted, clear the stale ID and try once more
+      if (storedDocId) {
+        clearHighlightDocId(doc.id)
+        try {
+          const created = await createDocument(treeId, chapterNum, highlightsTitle, entry)
+          setHighlightDocId(doc.id, created.id)
+        } catch {
+          addError('Failed to save highlight to document')
+        }
+      } else {
+        addError((e as Error).message || 'Failed to save highlight to document')
+      }
+    }
+  }
+
+  const handleHighlight = (text: string) => {
+    addHighlight(doc.id, text)
+    setContextMenu(null)
+    window.getSelection()?.removeAllRanges()
+    setShowRight(true)
+    chatPanelRef.current?.showHighlights()
+    void saveHighlightDocRef.current!(text)
+  }
+
   const zoomIn = React.useCallback(() => setZoom((z) => Math.min(2, +(z + 0.1).toFixed(1))), [])
   const zoomOut = React.useCallback(() => setZoom((z) => Math.max(0.5, +(z - 0.1).toFixed(1))), [])
+
+  const handleHighlightRef = React.useRef(handleHighlight)
+  handleHighlightRef.current = handleHighlight
 
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && isFullscreen) {
         setIsFullscreen(false)
+        return
+      }
+      if (e.ctrlKey && e.key === 'a') {
+        const activeEl = document.activeElement
+        const isInput =
+          activeEl instanceof HTMLInputElement ||
+          activeEl instanceof HTMLTextAreaElement ||
+          (activeEl as HTMLElement)?.isContentEditable
+        if (!isInput) {
+          const selected = window.getSelection()?.toString()?.trim() ?? ''
+          if (selected) {
+            e.preventDefault()
+            handleHighlightRef.current(selected)
+          }
+        }
       }
     }
     document.addEventListener('keydown', handleKeyDown)
@@ -401,7 +505,7 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
             <h2 className="text-sm font-semibold text-text-primary truncate">{doc.title}</h2>
             {activeChapter !== null && (
               <span className="text-xs px-2 py-0.5 bg-primary-light dark:bg-primary/12 text-primary rounded-full shrink-0">
-                {chapters.find((c) => c.number === activeChapter)?.title ?? `Chapter ${activeChapter}`}
+                {scopedChapters.find((c) => c.number === activeChapter)?.title ?? `Chapter ${activeChapter}`}
               </span>
             )}
           </div>
@@ -413,9 +517,9 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
                 {currentPage} / {numPages}
               </span>
             )}
-            {isText && chapters.length > 0 && textActiveChapter !== null && (
+            {isText && scopedChapters.length > 0 && textActiveChapter !== null && (
               <span className="text-xs tabular-nums text-text-tertiary select-none">
-                Ch {textActiveChapter} / {chapters.length}
+                Ch {textActiveChapter} / {scopedChapters.length}
               </span>
             )}
 
@@ -555,9 +659,9 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
                     <h3 className="text-xs font-semibold text-text-tertiary uppercase tracking-wide">Chapters</h3>
                   </div>
                   <div className="flex-1 overflow-y-auto">
-                    {chapters.map((ch) => {
+                    {scopedChapters.map((ch) => {
                       const isActive = activeChapter === ch.number
-                      const chDoc = chapterDocs.find((d) => d.chapter_number === ch.number)
+                      const chDoc = scopedChapterDocs.find((d) => d.chapter_number === ch.number)
                       return (
                         <button
                           key={ch.number}
@@ -615,8 +719,8 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
           ) : isText ? (
             <TextPagesView
               key={readerKey}
-              chapters={chapters}
-              chapterDocs={chapterDocs}
+              chapters={scopedChapters}
+              chapterDocs={scopedChapterDocs}
               zoom={zoom}
               mode={readMode}
               formatMode={formatMode}
@@ -626,6 +730,7 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
               onClickAway={hideContextMenu}
               scrollRef={textScrollRef}
               isTxt={isTxt}
+              highlights={docHighlights}
             />
           ) : isYouTube ? (
             <div
@@ -691,6 +796,8 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
                 storageKey={`${treeId}:${doc.id}:unified`}
                 treeId={treeId}
                 chapter={activeChapter}
+                docId={doc.id}
+                docTitle={doc.title}
               />
             </div>
           </div>
@@ -702,6 +809,14 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
             className="fixed z-[60] bg-surface dark:bg-surface-200 rounded-lg shadow-lg border border-surface-200 dark:border-surface-200 py-1 min-w-[200px]"
             style={{ left: contextMenu.x, top: contextMenu.y }}
           >
+            <button
+              onClick={() => handleHighlight(contextMenu.text)}
+              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100 transition-colors"
+            >
+              <Highlighter className="h-3.5 w-3.5 text-yellow-500" />
+              Highlight
+            </button>
+            <div className="my-1 border-t border-surface-200 dark:border-surface-200" />
             <div className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-text-tertiary">
               Ask
             </div>
