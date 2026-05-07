@@ -3,11 +3,10 @@
  * Scope:   Loading state, empty state, document list rendering (source files +
  *          chapter documents), document click to open reader, reader modal display.
  * Out of scope:
- *   - DocumentReader / UnifiedDocumentReader internals → reader tests
- *   - Chapter-level document editing               → knowledge-documents-tab.test.tsx
+ *   - UnifiedDocumentReader internals → reader tests
+ *   - Chapter-level document editing  → knowledge-documents-tab.test.tsx
  * Setup:   useKnowledgeTreeStore and client are mocked via vi.hoisted.
- *          DocumentReader and UnifiedDocumentReader are shallowly mocked
- *          to avoid complex reader dependencies.
+ *          UnifiedDocumentReader is shallowly mocked to avoid complex reader dependencies.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
@@ -31,18 +30,9 @@ vi.mock('@/services', () => ({
   },
 }))
 
-// Shallow mock the reader components so they don't pull in their own
-// complex dependencies (store, PDF, ePub, chat panel, etc.).
+// Shallow mock UnifiedDocumentReader so it doesn't pull in its own complex
+// dependencies (store, PDF, ePub, chat panel, etc.).
 // Use @/ alias so vitest resolves consistently with the source imports.
-vi.mock('@/components/reader/DocumentReader', () => ({
-  DocumentReader: ({ doc, onClose }: { doc: any; onClose: () => void }) => (
-    <div data-testid="document-reader">
-      Reading: {doc.title}
-      <button onClick={onClose}>Close reader</button>
-    </div>
-  ),
-}))
-
 vi.mock('@/components/reader/UnifiedDocumentReader', () => ({
   UnifiedDocumentReader: ({ doc, onClose }: { doc: any; onClose: () => void }) => (
     <div data-testid="unified-document-reader">
@@ -181,7 +171,7 @@ describe('AllDocumentsTab', () => {
     )
 
     expect(screen.getByText('No documents yet')).toBeInTheDocument()
-    expect(screen.getByText(/import pdf\/epub files into chapters/i)).toBeInTheDocument()
+    expect(screen.getByText(/import pdf, epub, or txt files into chapters/i)).toBeInTheDocument()
   })
 
   // Source files (tree-level, with source_file_path and null chapter_number)
@@ -229,8 +219,8 @@ describe('AllDocumentsTab', () => {
   })
 
   // Clicking on a chapter document that has a PDF source file should open
-  // the DocumentReader modal for viewing.
-  it('opens DocumentReader when a chapter document with PDF is clicked', async () => {
+  // the UnifiedDocumentReader (chapter docs now open in the same reader).
+  it('opens UnifiedDocumentReader when a chapter document with PDF is clicked', async () => {
     const chDoc = makeChapterDoc(1)
     const { user } = renderTab(
       {
@@ -245,16 +235,15 @@ describe('AllDocumentsTab', () => {
       }
     )
 
-    // Click the document card (the div containing the document title)
     await user.click(screen.getByText('Chapter 1 Doc'))
 
     await waitFor(() => {
-      expect(screen.getByTestId('document-reader')).toBeInTheDocument()
-      expect(screen.getByText('Reading: Chapter 1 Doc')).toBeInTheDocument()
+      expect(screen.getByTestId('unified-document-reader')).toBeInTheDocument()
+      expect(screen.getByText('Reading (unified): Chapter 1 Doc')).toBeInTheDocument()
     })
   })
 
-  // Clicking on a source document with a PDF file should open the
+  // Clicking on a source document with a PDF file should also open the
   // UnifiedDocumentReader (the enhanced reader with chapter navigation).
   it('opens UnifiedDocumentReader when a source document with PDF is clicked', async () => {
     const sourceDoc = makeSourceDoc()

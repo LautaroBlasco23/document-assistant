@@ -2,8 +2,8 @@
  * Subject: src/pages/knowledge-tree/knowledge-documents-tab.tsx — KnowledgeDocumentsTab
  * Scope:   Main doc editor, document cards, thumbnails, import dialog, delete confirmation
  * Out of scope:
- *   - DocumentReader modal internals      → DocumentReader tests
- *   - Full file upload workflow           → integration tests
+ *   - UnifiedDocumentReader modal internals → reader tests
+ *   - Full file upload workflow             → integration tests
  * Setup:   useKnowledgeTreeStore, useAppStore, and client are mocked.
  */
 
