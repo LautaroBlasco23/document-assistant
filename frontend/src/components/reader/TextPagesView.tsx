@@ -1,7 +1,10 @@
 import * as React from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
+import ReactMarkdown from 'react-markdown'
 import { cn } from '../../lib/cn'
 import type { KnowledgeChapter } from '../../types/knowledge-tree'
+import type { FormatMode } from './FormatterMenu'
+import { readerMarkdownComponents } from './markdownComponents'
 
 export interface TextPagesViewHandle {
   scrollToChapter: (chapterNumber: number) => void
@@ -17,6 +20,7 @@ interface TextPagesViewProps {
   chapterDocs: ChapterDoc[]
   zoom?: number
   mode?: 'scroll' | 'paged'
+  formatMode?: FormatMode
   initialChapter?: number
   onCurrentChapterChange?: (chapterNumber: number) => void
   onContextMenu?: (e: React.MouseEvent) => void
@@ -30,6 +34,7 @@ export function TextPagesView({
   chapterDocs,
   zoom = 1,
   mode = 'scroll',
+  formatMode = 'plain',
   initialChapter,
   onCurrentChapterChange,
   onContextMenu,
@@ -167,6 +172,15 @@ export function TextPagesView({
   const renderContent = (chapterNumber: number) => {
     const doc = chapterDocs.find((d) => d.chapter_number === chapterNumber)
     const text = doc?.content ?? ''
+
+    if (formatMode === 'markdown') {
+      return (
+        <div className="text-text-secondary leading-relaxed">
+          <ReactMarkdown components={readerMarkdownComponents}>{text}</ReactMarkdown>
+        </div>
+      )
+    }
+
     if (isTxt) {
       return (
         <pre className="whitespace-pre-wrap font-mono text-text-secondary leading-relaxed break-words">

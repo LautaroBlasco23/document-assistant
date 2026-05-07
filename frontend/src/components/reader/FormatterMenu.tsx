@@ -1,0 +1,133 @@
+import * as React from 'react'
+import { Type, FileText, Sparkles, RotateCcw, ChevronDown, Loader2 } from 'lucide-react'
+import { cn } from '../../lib/cn'
+
+export type FormatMode = 'plain' | 'markdown'
+
+interface FormatterMenuProps {
+  mode: FormatMode
+  isImproved: boolean
+  isImproving: boolean
+  onModeChange: (mode: FormatMode) => void
+  onImprove: () => void
+  onRevert: () => void
+}
+
+export function FormatterMenu({
+  mode,
+  isImproved,
+  isImproving,
+  onModeChange,
+  onImprove,
+  onRevert,
+}: FormatterMenuProps) {
+  const [open, setOpen] = React.useState(false)
+  const ref = React.useRef<HTMLDivElement>(null)
+
+  React.useEffect(() => {
+    if (!open) return
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [open])
+
+  React.useEffect(() => {
+    if (!open) return
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false) }
+    document.addEventListener('keydown', handler)
+    return () => document.removeEventListener('keydown', handler)
+  }, [open])
+
+  const label = mode === 'markdown' ? 'Markdown' : 'Plain'
+  const Icon = mode === 'markdown' ? FileText : Type
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        disabled={isImproving}
+        className={cn(
+          'flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium transition-colors border shadow-sm',
+          'bg-surface dark:bg-surface-200 border-surface-200 dark:border-surface-200',
+          'text-text-secondary hover:text-text-primary hover:bg-surface-100 dark:hover:bg-surface-100',
+          'disabled:opacity-50 disabled:cursor-not-allowed',
+          open && 'bg-surface-100 dark:bg-surface-100'
+        )}
+        title="Text format"
+      >
+        {isImproving
+          ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          : <Icon className="h-3.5 w-3.5" />
+        }
+        <span>{isImproving ? 'Improving…' : label}</span>
+        {isImproved && !isImproving && (
+          <span className="h-1.5 w-1.5 rounded-full bg-primary shrink-0" title="AI-improved" />
+        )}
+        <ChevronDown className={cn('h-3 w-3 transition-transform', open && 'rotate-180')} />
+      </button>
+
+      {open && (
+        <div className="absolute right-0 top-full mt-1 z-[70] bg-surface dark:bg-surface-200 rounded-lg shadow-lg border border-surface-200 dark:border-surface-200 py-1 min-w-[180px]">
+          <div className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-text-tertiary">
+            View as
+          </div>
+
+          <button
+            onClick={() => { onModeChange('plain'); setOpen(false) }}
+            className={cn(
+              'w-full flex items-center gap-2 px-3 py-2 text-sm transition-colors',
+              mode === 'plain'
+                ? 'text-primary bg-primary-light dark:bg-primary/12'
+                : 'text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100'
+            )}
+          >
+            <Type className="h-3.5 w-3.5 shrink-0" />
+            Plain text
+            {mode === 'plain' && <span className="ml-auto text-xs text-primary">✓</span>}
+          </button>
+
+          <button
+            onClick={() => { onModeChange('markdown'); setOpen(false) }}
+            className={cn(
+              'w-full flex items-center gap-2 px-3 py-2 text-sm transition-colors',
+              mode === 'markdown'
+                ? 'text-primary bg-primary-light dark:bg-primary/12'
+                : 'text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100'
+            )}
+          >
+            <FileText className="h-3.5 w-3.5 shrink-0" />
+            Markdown
+            {mode === 'markdown' && <span className="ml-auto text-xs text-primary">✓</span>}
+          </button>
+
+          <div className="my-1 border-t border-surface-200 dark:border-surface-200" />
+          <div className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-text-tertiary">
+            AI formatting
+          </div>
+
+          <button
+            onClick={() => { onImprove(); setOpen(false) }}
+            disabled={isImproving}
+            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            <Sparkles className="h-3.5 w-3.5 text-warning shrink-0" />
+            {isImproved ? 'Re-improve with AI' : 'Improve with AI'}
+          </button>
+
+          {isImproved && (
+            <button
+              onClick={() => { onRevert(); setOpen(false) }}
+              disabled={isImproving}
+              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <RotateCcw className="h-3.5 w-3.5 text-text-tertiary shrink-0" />
+              Revert to original
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}

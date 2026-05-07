@@ -1,7 +1,9 @@
 import * as React from 'react'
 import { X, Sparkles, PanelLeft, PanelRight, BookOpen, MessageCircleQuestion, Maximize, Minimize, ZoomIn, ZoomOut, AlignJustify } from 'lucide-react'
+import ReactMarkdown from 'react-markdown'
 import { client } from '../../services'
 import { useKnowledgeTreeStore } from '../../stores/knowledge-tree-store'
+import { useAppStore } from '../../stores/app-store'
 import { cn } from '../../lib/cn'
 import type { KnowledgeDocument, KnowledgeChapter } from '../../types/knowledge-tree'
 import { ChatPanel, type ChatPanelHandle } from './ChatPanel'
@@ -10,6 +12,8 @@ import type { KnowledgeTreeQuestionType } from '../../types/api'
 import { PdfPagesView, type PdfPagesViewHandle } from './PdfPagesView'
 import { TextPagesView, type TextPagesViewHandle } from './TextPagesView'
 import { ResizeHandle } from './ResizeHandle'
+import { FormatterMenu, type FormatMode } from './FormatterMenu'
+import { readerMarkdownComponents } from './markdownComponents'
 import { useGenerationSettings } from '../../stores/generation-settings'
 
 type ReadMode = 'scroll' | 'paged'
@@ -92,6 +96,13 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
   const pendingUpdate = usePendingContent((s) => s.update)
   const pendingRemove = usePendingContent((s) => s.remove)
   const { settings: genSettings } = useGenerationSettings()
+  const addError = useAppStore((s) => s.addError)
+  const improveDocument = useKnowledgeTreeStore((s) => s.improveDocument)
+  const revertDocument = useKnowledgeTreeStore((s) => s.revertDocument)
+  const [isImproving, setIsImproving] = React.useState(false)
+  // For non-text docs (content-only, YouTube), the prop `doc` doesn't update after
+  // improve/revert because the parent state isn't wired to the store. Track it locally.
+  const [currentDocOverride, setCurrentDocOverride] = React.useState<KnowledgeDocument | null>(null)
 
   const [leftWidth, setLeftWidth] = React.useState(() => {
     try {
@@ -134,6 +145,10 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
   const isTxt = !isYouTube && fileName.endsWith('.txt')
   const isText = isEpub || isTxt
   const isContentOnly = !isYouTube && !isPdf && !isText && !!(doc.content ?? '').trim()
+  // effectiveDoc tracks the post-improve/revert state for non-text docs whose prop doesn't
+  // auto-update from the store (content-only and YouTube branches render from doc.content directly).
+  const effectiveDoc = currentDocOverride ?? doc
+  const showFormatter = isText || isContentOnly || (isYouTube && !!(doc.content ?? '').trim())
   const fileUrl = client.getDocumentFileUrl(treeId, doc.id)
 
   const allDocs = useKnowledgeTreeStore((s) => s.documents[`${treeId}:all`] ?? [])
@@ -142,6 +157,73 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
       .filter((d) => d.chapter_number !== null)
       .sort((a, b) => (a.chapter_number ?? 0) - (b.chapter_number ?? 0))
   }, [allDocs])
+
+  // Format mode: resolved from the active chapter doc (for EPUB/TXT chapter trees)
+  // or from the top-level doc for tree-level text docs.
+  // Persisted per treeId:docId in localStorage; defaults to 'markdown' when already improved.
+  const activeChapterDoc = React.useMemo(() => {
+    if (!isText) return null
+    if (textActiveChapter !== null) return chapterDocs.find((d) => d.chapter_number === textActiveChapter) ?? null
+    return null
+  }, [isText, textActiveChapter, chapterDocs])
+
+  const resolvedDoc: KnowledgeDocument = (activeChapterDoc as KnowledgeDocument | null) ?? effectiveDoc
+
+  function loadFormatMode(docId: string): FormatMode {
+    try {
+      const saved = localStorage.getItem(`docassist_format_mode:${treeId}:${docId}`)
+      if (saved === 'plain' || saved === 'markdown') return saved
+    } catch { /* ignore */ }
+    return null as unknown as FormatMode
+  }
+
+  const [formatMode, setFormatMode] = React.useState<FormatMode>(() => {
+    const saved = loadFormatMode(doc.id)
+    if (saved) return saved
+    return doc.original_content !== null ? 'markdown' : 'plain'
+  })
+
+  // When the active chapter doc changes, update format mode if not explicitly stored
+  const prevResolvedDocIdRef = React.useRef<string>(resolvedDoc.id)
+  React.useEffect(() => {
+    if (resolvedDoc.id === prevResolvedDocIdRef.current) return
+    prevResolvedDocIdRef.current = resolvedDoc.id
+    const saved = loadFormatMode(resolvedDoc.id)
+    setFormatMode(saved ?? (resolvedDoc.original_content !== null ? 'markdown' : 'plain'))
+  }, [resolvedDoc.id, resolvedDoc.original_content])  // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleFormatModeChange = React.useCallback((mode: FormatMode) => {
+    setFormatMode(mode)
+    try { localStorage.setItem(`docassist_format_mode:${treeId}:${resolvedDoc.id}`, mode) } catch { /* ignore */ }
+  }, [treeId, resolvedDoc.id])
+
+  const handleImprove = React.useCallback(async () => {
+    setIsImproving(true)
+    try {
+      const improved = await improveDocument(treeId, resolvedDoc.id, resolvedDoc.chapter_number ?? null)
+      // For non-text docs the reader renders from doc.content (prop), which is stale after
+      // improve. Update the local override so the viewer reflects the new content.
+      if (!isText) setCurrentDocOverride(improved)
+      handleFormatModeChange('markdown')
+    } catch (e) {
+      addError((e as Error).message || 'Failed to improve document. Please try again.')
+    } finally {
+      setIsImproving(false)
+    }
+  }, [treeId, resolvedDoc.id, resolvedDoc.chapter_number, isText, improveDocument, handleFormatModeChange, addError])
+
+  const handleRevert = React.useCallback(async () => {
+    setIsImproving(true)
+    try {
+      const reverted = await revertDocument(treeId, resolvedDoc.id, resolvedDoc.chapter_number ?? null)
+      if (!isText) setCurrentDocOverride(reverted)
+      handleFormatModeChange('plain')
+    } catch (e) {
+      addError((e as Error).message || 'Failed to revert document. Please try again.')
+    } finally {
+      setIsImproving(false)
+    }
+  }, [treeId, resolvedDoc.id, resolvedDoc.chapter_number, isText, revertDocument, handleFormatModeChange, addError])
 
   const visiblePages = React.useMemo(() => {
     if (!isPdf || chapterDocs.length === 0) return null
@@ -388,6 +470,18 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
                 </button>
               </div>
             )}
+
+            {/* Formatter menu — all text-content docs (EPUB, TXT, content-only, YouTube) */}
+            {showFormatter && (
+              <FormatterMenu
+                mode={formatMode}
+                isImproved={resolvedDoc.original_content !== null}
+                isImproving={isImproving}
+                onModeChange={handleFormatModeChange}
+                onImprove={handleImprove}
+                onRevert={handleRevert}
+              />
+            )}
           </div>
 
           <div className="flex items-center gap-1 flex-1 justify-end">
@@ -518,6 +612,7 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
               chapterDocs={chapterDocs}
               zoom={zoom}
               mode={readMode}
+              formatMode={formatMode}
               initialChapter={initialPos}
               onCurrentChapterChange={handleTextChapterChange}
               onContextMenu={handleContextMenu}
@@ -532,12 +627,14 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
               onClick={hideContextMenu}
             >
               <div
-                className="mx-auto max-w-3xl py-8 px-6"
+                className="mx-auto max-w-3xl py-8 px-6 text-text-secondary leading-relaxed"
                 style={{ fontSize: `${Math.round(zoom * 100)}%` }}
               >
-                <p className="text-text-secondary leading-relaxed whitespace-pre-wrap break-words">
-                  {doc.content}
-                </p>
+                {formatMode === 'markdown' ? (
+                  <ReactMarkdown components={readerMarkdownComponents}>{effectiveDoc.content ?? ''}</ReactMarkdown>
+                ) : (
+                  <p className="whitespace-pre-wrap break-words">{effectiveDoc.content}</p>
+                )}
               </div>
             </div>
           ) : (
@@ -546,14 +643,16 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
               onContextMenu={handleContextMenu}
               onClick={hideContextMenu}
             >
-              {doc.content ? (
+              {effectiveDoc.content ? (
                 <div
-                  className="mx-auto max-w-3xl py-8 px-6"
+                  className="mx-auto max-w-3xl py-8 px-6 text-text-secondary leading-relaxed"
                   style={{ fontSize: `${Math.round(zoom * 100)}%` }}
                 >
-                  <p className="text-text-secondary leading-relaxed whitespace-pre-wrap break-words">
-                    {doc.content}
-                  </p>
+                  {formatMode === 'markdown' ? (
+                    <ReactMarkdown components={readerMarkdownComponents}>{effectiveDoc.content}</ReactMarkdown>
+                  ) : (
+                    <p className="whitespace-pre-wrap break-words">{effectiveDoc.content}</p>
+                  )}
                 </div>
               ) : (
                 <div className="flex items-center justify-center h-full">
