@@ -247,6 +247,10 @@ export function KnowledgeTreePage() {
   const rawTab = searchParams.get('tab')
   const activeTab: KnowledgeTreeTab = isValidTab(rawTab) ? rawTab : 'documents'
 
+  const resumeDocId = searchParams.get('resume') === 'true' && treeId
+    ? (localStorage.getItem(`docassist_last_doc:${treeId}`) ?? undefined)
+    : undefined
+
   const handleTabChange = (tab: KnowledgeTreeTab) => {
     setSearchParams({ tab }, { replace: true })
   }
@@ -379,6 +383,7 @@ export function KnowledgeTreePage() {
             <AllDocumentsTab
               treeId={treeId}
               chapters={treeChapters}
+              resumeDocId={resumeDocId}
             />
           ) : selectedChapter === null ? (
             <KnowledgeDocumentsTab

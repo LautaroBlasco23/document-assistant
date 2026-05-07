@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { useNavigate } from 'react-router-dom'
-import { TreePine, Layers, Trash2 } from 'lucide-react'
+import { TreePine, Layers, Trash2, PlayCircle } from 'lucide-react'
 import { Card } from '../../components/ui/card'
 import { Badge } from '../../components/ui/badge'
 import { Button } from '../../components/ui/button'
@@ -15,6 +15,12 @@ interface KnowledgeTreeCardProps {
 export function KnowledgeTreeCard({ tree, onDelete }: KnowledgeTreeCardProps) {
   const navigate = useNavigate()
   const [deleteOpen, setDeleteOpen] = React.useState(false)
+
+  const hasLastDoc = React.useMemo(() => {
+    try {
+      return !!localStorage.getItem(`docassist_last_doc:${tree.id}`)
+    } catch { return false }
+  }, [tree.id])
 
   return (
     <>
@@ -51,13 +57,26 @@ export function KnowledgeTreeCard({ tree, onDelete }: KnowledgeTreeCardProps) {
 
         {/* Footer */}
         <div className="flex items-center justify-between pt-1 border-t border-border-subtle mt-auto">
-          <Button
-            variant="primary"
-            size="sm"
-            onClick={(e) => { e.stopPropagation(); navigate(`/trees/${tree.id}`) }}
-          >
-            Open
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={(e) => { e.stopPropagation(); navigate(`/trees/${tree.id}`) }}
+            >
+              Open
+            </Button>
+            {hasLastDoc && (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={(e) => { e.stopPropagation(); navigate(`/trees/${tree.id}?resume=true`) }}
+                title="Resume reading from where you left off"
+              >
+                <PlayCircle className="h-3.5 w-3.5 mr-1" />
+                Continue Reading
+              </Button>
+            )}
+          </div>
           <Button
             variant="ghost"
             size="sm"

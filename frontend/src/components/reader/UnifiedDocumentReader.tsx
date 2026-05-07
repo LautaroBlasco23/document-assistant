@@ -145,6 +145,13 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
   const isTxt = !isYouTube && fileName.endsWith('.txt')
   const isText = isEpub || isTxt
   const isContentOnly = !isYouTube && !isPdf && !isText && !!(doc.content ?? '').trim()
+
+  React.useEffect(() => {
+    if (!isPdf && !isText) return
+    try {
+      localStorage.setItem(`docassist_last_doc:${treeId}`, doc.id)
+    } catch { /* ignore */ }
+  }, [treeId, doc.id, isPdf, isText])
   // effectiveDoc tracks the post-improve/revert state for non-text docs whose prop doesn't
   // auto-update from the store (content-only and YouTube branches render from doc.content directly).
   const effectiveDoc = currentDocOverride ?? doc

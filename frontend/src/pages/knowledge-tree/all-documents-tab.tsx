@@ -10,12 +10,14 @@ import type { KnowledgeChapter, KnowledgeDocument } from '../../types/knowledge-
 interface AllDocumentsTabProps {
   treeId: string
   chapters: KnowledgeChapter[]
+  resumeDocId?: string
 }
 
-export function AllDocumentsTab({ treeId, chapters }: AllDocumentsTabProps) {
+export function AllDocumentsTab({ treeId, chapters, resumeDocId }: AllDocumentsTabProps) {
   const { documents: docsByKey, documentsLoading, fetchAllDocuments } = useKnowledgeTreeStore()
 
   const [readerDoc, setReaderDoc] = React.useState<KnowledgeDocument | null>(null)
+  const resumedRef = React.useRef(false)
 
   const key = `${treeId}:all`
   const allDocs = docsByKey[key] ?? []
@@ -24,6 +26,15 @@ export function AllDocumentsTab({ treeId, chapters }: AllDocumentsTabProps) {
   React.useEffect(() => {
     void fetchAllDocuments(treeId)
   }, [treeId, fetchAllDocuments])
+
+  React.useEffect(() => {
+    if (!resumeDocId || loading || allDocs.length === 0 || resumedRef.current) return
+    const doc = allDocs.find((d) => d.id === resumeDocId)
+    if (doc) {
+      resumedRef.current = true
+      setReaderDoc(doc)
+    }
+  }, [resumeDocId, loading, allDocs])
 
   // A "source file" is any tree-level document that has an original file attached.
   // We check both chapter_number and chapter_id to be defensive against API quirks.
