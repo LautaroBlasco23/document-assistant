@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Send, Loader2, MessageSquare, FileText, Plus, Trash2, ChevronDown, X } from 'lucide-react'
+import { Send, Loader2, MessageSquare, FileText, Plus, Trash2, ChevronDown, X, Highlighter } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import { client } from '../../services'
 import { cn } from '../../lib/cn'
@@ -10,9 +10,11 @@ import { useModels } from '../../hooks/use-models'
 import { useProviderCredentials } from '../../hooks/useProviderCredentials'
 import { AgentCreationDialog } from '../../pages/settings/agent-creation-dialog'
 import { ContentPanel } from './ContentPanel'
+import { HighlightsPanel } from './HighlightsPanel'
+import { useHighlights } from '../../stores/highlights-store'
 import type { ChatMessage } from '../../types/api'
 
-type PanelMode = 'chat' | 'content'
+type PanelMode = 'chat' | 'content' | 'highlights'
 
 interface ChatSession {
   id: string
@@ -25,10 +27,13 @@ interface ChatPanelProps {
   storageKey: string
   treeId: string
   chapter: number | null
+  docId?: string
+  docTitle?: string
 }
 
 export interface ChatPanelHandle {
   showContent: () => void
+  showHighlights: () => void
   askInChat: (text: string) => void
 }
 
@@ -187,7 +192,7 @@ function MessageContent({ content, role }: { content: string; role: string }) {
 }
 
 export const ChatPanel = React.forwardRef<ChatPanelHandle, ChatPanelProps>(function ChatPanel(
-  { getContext, storageKey, treeId, chapter },
+  { getContext, storageKey, treeId, chapter, docId, docTitle = '' },
   ref,
 ) {
   const { settings, setAgent } = useGenerationSettings()
@@ -197,6 +202,7 @@ export const ChatPanel = React.forwardRef<ChatPanelHandle, ChatPanelProps>(funct
   const { useCredentials } = useProviderCredentials()
   const { credentials } = useCredentials()
   const pendingCount = usePendingContent((s) => s.items.filter((it) => !it.disposition).length)
+  const highlightCount = useHighlights((s) => (docId ? (s.highlights[docId] ?? []).length : 0))
   const [dropdownOpen, setDropdownOpen] = React.useState(false)
   const [agentDialogOpen, setAgentDialogOpen] = React.useState(false)
   const dropdownRef = React.useRef<HTMLDivElement>(null)
@@ -423,6 +429,7 @@ export const ChatPanel = React.forwardRef<ChatPanelHandle, ChatPanelProps>(funct
     ref,
     () => ({
       showContent: () => setMode('content'),
+      showHighlights: () => setMode('highlights'),
       askInChat: (selected: string) => {
         const trimmed = selected.trim()
         if (!trimmed) return
@@ -470,6 +477,23 @@ export const ChatPanel = React.forwardRef<ChatPanelHandle, ChatPanelProps>(funct
           {pendingCount > 0 && (
             <span className="ml-0.5 inline-flex items-center justify-center min-w-[1rem] h-4 px-1 text-[10px] font-semibold rounded-full bg-warning text-white">
               {pendingCount}
+            </span>
+          )}
+        </button>
+        <button
+          onClick={() => setMode('highlights')}
+          className={cn(
+            'flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-medium transition-colors',
+            mode === 'highlights'
+              ? 'text-primary border-b-2 border-primary bg-primary-light dark:bg-primary/12'
+              : 'text-text-tertiary hover:text-text-secondary'
+          )}
+        >
+          <Highlighter className="h-3.5 w-3.5" />
+          Highlights
+          {highlightCount > 0 && (
+            <span className="ml-0.5 inline-flex items-center justify-center min-w-[1rem] h-4 px-1 text-[10px] font-semibold rounded-full bg-yellow-500 text-white">
+              {highlightCount}
             </span>
           )}
         </button>
@@ -622,6 +646,8 @@ export const ChatPanel = React.forwardRef<ChatPanelHandle, ChatPanelProps>(funct
             </div>
           </div>
         </>
+      ) : mode === 'highlights' ? (
+        <HighlightsPanel docId={docId ?? ''} docTitle={docTitle} />
       ) : (
         <ContentPanel treeId={treeId} chapter={chapter} />
       )}
