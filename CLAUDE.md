@@ -18,14 +18,15 @@ backend/        # All Python backend code (pyproject.toml + uv.lock live here)
     ports/        # ABCs: LLM, ContentStore, KnowledgeTreeStore, KnowledgeChapterStore,
                   # KnowledgeDocumentStore, KnowledgeContentStore, UserStore, SubscriptionStore
   application/    # Use cases (orchestration logic)
-    agents/       # FlashcardGeneratorAgent, QuestionGeneratorAgent, DocumentChatAgent
+    agents/       # FlashcardGeneratorAgent, QuestionGeneratorAgent, DocumentChatAgent, TextImprovementAgent
+    export/       # tree_exporter (knowledge tree ZIP export)
   infrastructure/ # Adapters: config loader, LLM clients, PostgreSQL, JWT
     auth/         # JWT token handling, password hashing (bcrypt)
-    ingest/       # pdf_loader, epub_loader, normalizer
+    ingest/       # pdf_loader, epub_loader, txt_loader, youtube_loader, normalizer
     chunking/     # ChapterAwareSplitter
     llm/          # OllamaLLM, GroqLLM, OpenRouterLLM, HuggingFaceLLM, factory
     db/           # PostgresPool, UserRepository, SubscriptionRepository, KnowledgeTreeRepository,
-                  # schema.sql + migrations/
+                  # AgentRepository, LLMCredentialStore, ExamSessionStore, schema.sql + migrations/
   api/            # FastAPI backend (wraps application layer, no duplication)
     routers/      # health, config, tasks, auth, users, knowledge_trees, chat
     schemas/      # Pydantic request/response models
@@ -63,6 +64,8 @@ frontend/       # React + TypeScript + Tailwind SPA (Vite, port 5173)
 - **Flashcard quality filter** — `_filter_low_quality` in `FlashcardGeneratorAgent` removes trivial cards post-generation: short fronts/backs, pattern-matched trivial questions, front/back overlap, and near-duplicates (Jaccard > 0.8). No extra LLM call needed.
 - **Question validation per type** — `QuestionGeneratorAgent` validates each question against its schema (true_false, multiple_choice, matching, checkbox). Invalid questions are discarded silently; no re-prompting.
 - **Four question types** — `true_false`, `multiple_choice`, `matching`, `checkbox`. Question data stored as JSONB in `knowledge_tree_questions`. Frontend mapper converts snake_case to camelCase.
+- **Text improvement agent** — `TextImprovementAgent` rewrites document content with improved clarity and Markdown formatting. Stores original content separately; users can revert to pre-improvement version. Triggered by `/improve` endpoint on documents.
+- **YouTube video import** — `youtube_loader` extracts video transcripts and imports as knowledge documents. Stored with `source_type='youtube'` and `source_url` for reference.
 - **Document chat agent** — `DocumentChatAgent` grounds LLM responses in extracted PDF/EPUB text. User text selection triggers context menu → "Ask definition in chat" → DocumentReader chat panel.
 - **Unified document reader** — Single component (PDF + EPUB) with integrated chat panel, virtualized PDF rendering, resizable sidebars, page navigation per chapter. Stores panel widths in localStorage.
 - **Markdown rendering in chat** — ChatPanel uses react-markdown to render assistant replies with code blocks, lists, emphasis.
@@ -78,6 +81,9 @@ frontend/       # React + TypeScript + Tailwind SPA (Vite, port 5173)
 - **Standalone SPA** — Vite dev server proxies `/api` to FastAPI in development; production build outputs static files to `frontend/dist/`.
 - **Structured logging** — ANSI-colored terminal output with timestamps, log levels, and module names.
 - **Source attribution** — Flashcards track source context and reference to original document/chunk.
+- **User-supplied LLM credentials** — Users can provide their own API keys for external LLM providers (Groq, OpenRouter, HuggingFace). Keys encrypted at rest via `EncryptionService`; only last 4 digits stored in plaintext for display.
+- **Exam sessions** — Track quiz results per chapter: questions attempted, correct count, detailed results stored as JSONB. Supports progress tracking and performance analysis over time.
+- **Knowledge tree export** — `tree_exporter` generates ZIP archives containing chapters and documents as Markdown files, with flashcards and questions exported as structured data.
 
 ## Domain models
 
@@ -90,10 +96,17 @@ frontend/       # React + TypeScript + Tailwind SPA (Vite, port 5173)
 ### Knowledge tree (primary flow)
 - `KnowledgeTree`: `id` (UUID), `user_id` (FK), `title`, `description`, `created_at`
 - `KnowledgeChapter`: `id` (UUID), `tree_id` (FK), `number` (1-based), `title`, `created_at` — UNIQUE(tree_id, number)
-- `KnowledgeDocument`: `id` (UUID), `tree_id` (FK), `chapter_id` (nullable FK), `title`, `content`, `is_main`, `source_file_path`, `source_file_name`, `page_start`, `page_end`, `created_at`, `updated_at`
+- `KnowledgeDocument`: `id` (UUID), `tree_id` (FK), `chapter_id` (nullable FK), `title`, `content`, `is_main`, `source_file_path`, `source_file_name`, `page_start`, `page_end`, `original_content` (null if never improved), `source_type` ('file'|'youtube'), `source_url` (YouTube URL when source_type=='youtube'), `created_at`, `updated_at`
 - `KnowledgeChunk`: `id` (UUID), `tree_id` (FK), `chapter_id` (FK), `doc_id` (FK), `chunk_index`, `text`, `token_count`, `created_at`
 - `Flashcard`: `id` (UUID), `tree_id` (FK), `chapter_id` (FK), `doc_id` (nullable FK), `front`, `back`, `source_text`, `created_at`
 - `Question`: `id` (UUID), `tree_id` (FK), `chapter_id` (FK), `question_type` (true_false|multiple_choice|matching|checkbox), `question_data` (JSONB), `created_at`
+
+### LLM Credentials & Agents
+- `LLMCredential`: `id` (UUID), `user_id` (FK), `provider` (groq|ollama|openrouter|huggingface), `api_key_encrypted` (BYTEA), `api_key_last4` (plaintext, last 4 chars), `last_tested_at`, `last_test_ok`, `last_test_error`, `created_at`, `updated_at`
+- `Agent`: `id` (UUID), `user_id` (FK), `name`, `prompt`, `model`, `provider`, `temperature`, `top_p`, `max_tokens`, `is_default`, `created_at`, `updated_at`
+
+### Exam Sessions
+- `ExamSession`: `id` (UUID), `tree_id` (FK), `chapter_id` (FK), `score` (float 0-100), `total_questions`, `correct_count`, `question_ids` (JSONB list), `results` (JSONB mapping), `created_at`
 
 ## Configuration
 
@@ -225,11 +238,18 @@ npm run build
 | GET | `/api/knowledge-trees/{tree_id}/documents/{doc_id}` | Get document |
 | PUT | `/api/knowledge-trees/{tree_id}/documents/{doc_id}` | Update document |
 | DELETE | `/api/knowledge-trees/{tree_id}/documents/{doc_id}` | Delete document |
+| PUT | `/api/knowledge-trees/{tree_id}/documents/{doc_id}/improve` | Improve document with AI (Markdown formatting, clarity) → `{updated_document}` |
+| PUT | `/api/knowledge-trees/{tree_id}/documents/{doc_id}/revert` | Revert document to pre-improvement original content → `{updated_document}` |
 | POST | `/api/knowledge-trees/{tree_id}/chapters/{number}/documents/import` | Ingest file as chapter document → `{task_id}` |
+| POST | `/api/knowledge-trees/{tree_id}/documents/import-youtube` | Import YouTube video transcript as document → `{task_id}` |
 | POST | `/api/knowledge-trees/{tree_id}/chapters/{number}/questions` | Start question generation → `{task_id}` |
 | GET | `/api/knowledge-trees/{tree_id}/chapters/{number}/questions` | Get questions (optional `?type=`) |
 | DELETE | `/api/knowledge-trees/{tree_id}/chapters/{number}/questions/{question_id}` | Delete question |
 | GET | `/api/knowledge-trees/{tree_id}/chapters/{number}/content` | Get chapter chunks |
+| GET | `/api/knowledge-trees/{tree_id}/export` | Export tree as ZIP archive (Markdown + JSON) |
+| POST | `/api/knowledge-trees/{tree_id}/chapters/{number}/exam-sessions` | Save exam session results (requires `CreateExamSessionRequest`) |
+| GET | `/api/knowledge-trees/{tree_id}/chapters/{number}/exam-sessions` | List exam sessions for chapter (newest first) |
+| GET | `/api/knowledge-trees/{tree_id}/chapters/{number}/exam-sessions/{session_id}` | Get single exam session |
 
 ## Database schema (16 tables)
 
@@ -241,13 +261,19 @@ npm run build
 ### Knowledge Tree Tables
 - `knowledge_trees`: `id` (UUID PK), `user_id` (FK cascade), `title`, `description`, `created_at` — indexed by user_id
 - `knowledge_chapters`: `id` (UUID PK), `tree_id` (FK cascade), `number` (1-based), `title`, `created_at` — UNIQUE(tree_id, number)
-- `knowledge_documents`: `id` (UUID PK), `tree_id` (FK), `chapter_id` (nullable FK), `title`, `content`, `is_main`, `source_file_path`, `source_file_name`, `page_start`, `page_end`, `created_at`, `updated_at`
+- `knowledge_documents`: `id` (UUID PK), `tree_id` (FK), `chapter_id` (nullable FK), `title`, `content`, `is_main`, `source_file_path`, `source_file_name`, `page_start`, `page_end`, `original_content`, `source_type` (file|youtube), `source_url`, `created_at`, `updated_at`
 - `knowledge_content`: `id` (UUID PK), `tree_id` (FK), `chapter_id` (FK), `doc_id` (FK), `chunk_index`, `text`, `token_count`, `created_at` — UNIQUE(doc_id, chunk_index)
 - `knowledge_tree_questions`: `id` (UUID PK), `tree_id` (FK), `chapter_id` (FK), `question_type` (CHECK enum), `question_data` (JSONB), `created_at`
 - `flashcards`: `id` (UUID PK), `tree_id` (FK), `chapter_id` (FK), `doc_id` (nullable FK), `front`, `back`, `source_text`, `created_at`
+- `exam_sessions`: `id` (UUID PK), `tree_id` (FK cascade), `chapter_id` (FK cascade), `score`, `total_questions`, `correct_count`, `question_ids` (JSONB), `results` (JSONB), `created_at`
+
+### LLM & Agent Management
+- `user_llm_credentials`: `id` (UUID PK), `user_id` (FK cascade), `provider` (UNIQUE per user), `api_key_encrypted` (BYTEA), `api_key_last4`, `last_tested_at`, `last_test_ok`, `last_test_error`, `created_at`, `updated_at`
+- `agents`: `id` (UUID PK), `user_id` (FK cascade), `name` (UNIQUE per user), `prompt`, `model`, `provider`, `temperature`, `top_p`, `max_tokens`, `is_default`, `created_at`, `updated_at`
 
 ### Task Management
 - `tasks`: `id` (TEXT PK), `task_type`, `status`, `progress_pct`, `progress` (TEXT), `result` (JSONB), `error`, `created_at`, `updated_at`
+- `background_tasks`: Similar to tasks, legacy table (may be deprecated)
 
 ## Development rules
 
@@ -269,10 +295,24 @@ npm run build
 - **Background tasks** — Tasks receive a `Task` object as first argument and write to `task.progress` / `task.progress_pct` for live status updates.
 - **Frontend dev server** — Runs on port 5173; the FastAPI backend must be running independently on port 8000.
 - **Question validation** — Per-type strict validation — invalid questions discarded silently (no re-prompting).
+- **API key encryption** — User-supplied LLM credentials encrypted at rest via `EncryptionService`. Requires valid encryption key in config (validated on startup via `validate_encryption_config()`).
+- **User credential management** — Endpoints for storing/updating user API keys per provider. Keys tested before storage; validation errors stored for frontend display.
 
 ## Preflight
 
-Validated: 2026-04-27. Run `make tools` to verify toolchain is still current.
+Validated: 2026-05-07. Run `make tools` to verify toolchain is still current.
+
+## Recent additions (since last validation: 2026-04-27)
+
+- **Text improvement agent** — TextImprovementAgent rewrites documents with improved clarity and Markdown formatting. Stores original content for revert capability.
+- **YouTube video import** — youtube_loader extracts transcripts; `source_type` and `source_url` fields track origin.
+- **Document improvement endpoints** — `/improve` and `/revert` for AI-powered text enhancement.
+- **Knowledge tree export** — ZIP archives with structured Markdown and JSON export.
+- **Exam sessions** — Quiz result tracking with detailed per-question results.
+- **User LLM credentials** — Encrypted API key storage; users can supply own keys for external providers.
+- **Agent management** — PostgreSQL-backed user-created agents (name, prompt, model, provider, generation parameters).
+- **Encryption service** — EncryptionService for securing stored API keys.
+- **Frontend updates** — Markdown formatter dropdown, document improve/revert UI, YouTube import flow, exam results display.
 
 ### Ecosystem
 
