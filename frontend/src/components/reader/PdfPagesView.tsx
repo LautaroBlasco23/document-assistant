@@ -83,15 +83,33 @@ export function PdfPagesView({
     }
   }, [pagedPage, mode])
 
-  // Scroll mode: scroll to initialPage after PDF loads
+  // Scroll mode: scroll to initialPage after PDF loads.
+  // We pre-activate the target page and its neighbors before scrolling so that their real
+  // heights are in the DOM, then do a smooth correction pass to counteract any drift caused
+  // by placeholder pages above the target expanding to their actual heights.
   const initialScrollDoneRef = React.useRef(false)
   React.useEffect(() => {
     if (mode === 'paged' || initialScrollDoneRef.current || !numPages || !initialPage) return
     if (!pageList.includes(initialPage)) return
     initialScrollDoneRef.current = true
-    requestAnimationFrame(() => {
-      pageSlotRefs.current.get(initialPage)?.scrollIntoView({ behavior: 'instant', block: 'start' })
-    })
+
+    // Pre-activate a window around the target so real heights are rendered.
+    const idx = pageList.indexOf(initialPage)
+    if (idx !== -1) {
+      const toActivate = new Set(activePagesRef.current)
+      for (let i = Math.max(0, idx - 2); i <= Math.min(pageList.length - 1, idx + 3); i++) {
+        toActivate.add(pageList[i])
+      }
+      activePagesRef.current = toActivate
+      setActivePages(toActivate)
+    }
+
+    // First pass: instant jump to approximate position.
+    pageSlotRefs.current.get(initialPage)?.scrollIntoView({ behavior: 'instant', block: 'start' })
+    // Smooth correction after real page heights have settled.
+    setTimeout(() => {
+      pageSlotRefs.current.get(initialPage)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 250)
   }, [numPages, initialPage, mode, pageList])
 
   // ResizeObserver: tracks scroll container width for page re-fit on layout changes.
@@ -224,10 +242,16 @@ export function PdfPagesView({
     })
   }, [pageList])
 
-  // Keyboard navigation in paged mode
+  // Keyboard navigation in paged mode (skip when focus is inside an input/textarea).
   React.useEffect(() => {
     if (mode !== 'paged') return
     const handleKey = (e: KeyboardEvent) => {
+      const active = document.activeElement
+      if (
+        active instanceof HTMLInputElement ||
+        active instanceof HTMLTextAreaElement ||
+        (active as HTMLElement)?.isContentEditable
+      ) return
       if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
         e.preventDefault()
         gotoPrev()
