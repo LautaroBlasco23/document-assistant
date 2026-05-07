@@ -5,6 +5,34 @@ import { cn } from '../../lib/cn'
 import type { KnowledgeChapter } from '../../types/knowledge-tree'
 import type { FormatMode } from './FormatterMenu'
 import { readerMarkdownComponents } from './markdownComponents'
+import type { Highlight } from '../../stores/highlights-store'
+
+function buildHighlightRegex(highlights: Highlight[]): { terms: string[]; regex: RegExp } | null {
+  const terms = [...new Set(highlights.map((h) => h.text.trim()).filter(Boolean))].sort(
+    (a, b) => b.length - a.length,
+  )
+  if (terms.length === 0) return null
+  const escaped = terms.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+  return { terms, regex: new RegExp(`(${escaped.join('|')})`, 'gi') }
+}
+
+function markText(text: string, compiled: { terms: string[]; regex: RegExp }): React.ReactNode {
+  const parts = text.split(compiled.regex)
+  return (
+    <>
+      {parts.map((part, i) => {
+        const isMatch = compiled.terms.some((t) => part.toLowerCase() === t.toLowerCase())
+        return isMatch ? (
+          <mark key={i} className="bg-yellow-200 dark:bg-yellow-700/50 text-inherit rounded-sm px-0.5">
+            {part}
+          </mark>
+        ) : (
+          part
+        )
+      })}
+    </>
+  )
+}
 
 export interface TextPagesViewHandle {
   scrollToChapter: (chapterNumber: number) => void
@@ -27,6 +55,7 @@ interface TextPagesViewProps {
   onClickAway?: () => void
   scrollRef?: React.MutableRefObject<TextPagesViewHandle | null>
   isTxt?: boolean
+  highlights?: Highlight[]
 }
 
 export function TextPagesView({
@@ -41,6 +70,7 @@ export function TextPagesView({
   onClickAway,
   scrollRef,
   isTxt = false,
+  highlights = [],
 }: TextPagesViewProps) {
   const scrollContainerRef = React.useRef<HTMLDivElement>(null)
   const sectionRefs = React.useRef<Map<number, HTMLElement>>(new Map())
@@ -156,6 +186,12 @@ export function TextPagesView({
   React.useEffect(() => {
     if (mode !== 'paged') return
     const handleKey = (e: KeyboardEvent) => {
+      const active = document.activeElement
+      if (
+        active instanceof HTMLInputElement ||
+        active instanceof HTMLTextAreaElement ||
+        (active as HTMLElement)?.isContentEditable
+      ) return
       if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') { e.preventDefault(); gotoPrev() }
       else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') { e.preventDefault(); gotoNext() }
     }
@@ -169,6 +205,9 @@ export function TextPagesView({
 
   const fontSize = `${Math.round(zoom * 100)}%`
 
+  // Build highlight regex once per highlights change, not per chapter render.
+  const compiledHighlights = React.useMemo(() => buildHighlightRegex(highlights), [highlights])
+
   const renderContent = (chapterNumber: number) => {
     const doc = chapterDocs.find((d) => d.chapter_number === chapterNumber)
     const text = doc?.content ?? ''
@@ -181,16 +220,18 @@ export function TextPagesView({
       )
     }
 
+    const marked = compiledHighlights ? markText(text, compiledHighlights) : text
+
     if (isTxt) {
       return (
         <pre className="whitespace-pre-wrap font-mono text-text-secondary leading-relaxed break-words">
-          {text}
+          {marked}
         </pre>
       )
     }
     return (
       <p className="text-text-secondary leading-relaxed whitespace-pre-wrap break-words">
-        {text}
+        {marked}
       </p>
     )
   }
