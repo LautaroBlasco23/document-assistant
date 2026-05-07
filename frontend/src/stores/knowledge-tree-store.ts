@@ -222,10 +222,12 @@ export const useKnowledgeTreeStore = create<KnowledgeTreeState>((set, get) => ({
   improveDocument: async (treeId, docId, chapter) => {
     const doc = await client.improveKnowledgeDocument(treeId, docId)
     const key = docKey(treeId, chapter)
+    const allKey = `${treeId}:all`
     set((s) => ({
       documents: {
         ...s.documents,
         [key]: (s.documents[key] ?? []).map((d) => d.id === docId ? doc : d),
+        [allKey]: (s.documents[allKey] ?? []).map((d) => d.id === docId ? doc : d),
       },
     }))
     return doc
@@ -234,10 +236,12 @@ export const useKnowledgeTreeStore = create<KnowledgeTreeState>((set, get) => ({
   revertDocument: async (treeId, docId, chapter) => {
     const doc = await client.revertKnowledgeDocument(treeId, docId)
     const key = docKey(treeId, chapter)
+    const allKey = `${treeId}:all`
     set((s) => ({
       documents: {
         ...s.documents,
         [key]: (s.documents[key] ?? []).map((d) => d.id === docId ? doc : d),
+        [allKey]: (s.documents[allKey] ?? []).map((d) => d.id === docId ? doc : d),
       },
     }))
     return doc
