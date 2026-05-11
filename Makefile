@@ -14,11 +14,7 @@ help:
 	@echo "    make tools install                  Install missing tools (auto-installs uv)"
 	@echo ""
 	@echo "  \033[1;32mStartup\033[0m"
-	@echo "    make start                          Interactive menu for environment & provider"
-	@echo "    make start PROVIDER=groq            Use Groq"
-	@echo "    make start PROVIDER=ollama          Use local Ollama"
-	@echo "    make start PROVIDER=openrouter      Use OpenRouter"
-	@echo "    make start PROVIDER=huggingface     Use HuggingFace"
+	@echo "    make start                          Build & run all services in Docker on port 3500 (background)"
 	@echo "    make dev                            Start app with defaults (dev mode, groq provider)"
 	@echo "    make dev PROVIDER=ollama            Start app with defaults using specific provider"
 	@echo "    make dev-backend                    Start backend only (with PostgreSQL, default: groq)"
@@ -60,8 +56,13 @@ jwt-secret:
 encryption-key:
 	@bash scripts/generate-encryption-key.sh
 
-start: env-check tools-check
-	@PROVIDER=$(PROVIDER) bash scripts/start.sh
+start: env-check
+	@echo "Building Docker images (current code)..."
+	$(DOCKER_COMPOSE) build
+	@echo "Starting all services on port 3500 (detached)..."
+	@NGINX_PORT=3500 $(DOCKER_COMPOSE) up -d
+	@echo "App running at http://localhost:3500"
+	@echo "Run 'make stop' to stop all services."
 
 dev: env-check tools-check
 	@echo "Starting dev server with defaults (dev mode, provider: $(or $(PROVIDER),groq))..."
