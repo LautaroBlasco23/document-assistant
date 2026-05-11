@@ -355,7 +355,8 @@ class PostgresKnowledgeDocumentStore(_BaseKnowledgeRepo):
                         " RETURNING id, tree_id, chapter_id, title, content, original_content,"
                         " is_main, created_at, updated_at,"
                         " source_file_path, source_file_name, page_start, page_end,"
-                        " source_type, source_url",
+                        " source_type, source_url,"
+                        " (SELECT c.number FROM knowledge_chapters c WHERE c.id = chapter_id) AS chapter_number",
                         (title, content, id),
                     )
                     row = cur.fetchone()
@@ -379,7 +380,8 @@ class PostgresKnowledgeDocumentStore(_BaseKnowledgeRepo):
                         " RETURNING id, tree_id, chapter_id, title, content, original_content,"
                         " is_main, created_at, updated_at,"
                         " source_file_path, source_file_name, page_start, page_end,"
-                        " source_type, source_url",
+                        " source_type, source_url,"
+                        " (SELECT c.number FROM knowledge_chapters c WHERE c.id = chapter_id) AS chapter_number",
                         (improved_content, id),
                     )
                     row = cur.fetchone()
@@ -401,7 +403,8 @@ class PostgresKnowledgeDocumentStore(_BaseKnowledgeRepo):
                         " RETURNING id, tree_id, chapter_id, title, content, original_content,"
                         " is_main, created_at, updated_at,"
                         " source_file_path, source_file_name, page_start, page_end,"
-                        " source_type, source_url",
+                        " source_type, source_url,"
+                        " (SELECT c.number FROM knowledge_chapters c WHERE c.id = chapter_id) AS chapter_number",
                         (id,),
                     )
                     row = cur.fetchone()
