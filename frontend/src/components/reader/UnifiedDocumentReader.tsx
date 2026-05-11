@@ -453,11 +453,17 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
 
   const handleHighlightRef = React.useRef(handleHighlight)
   handleHighlightRef.current = handleHighlight
+  const onCloseRef = React.useRef(onClose)
+  onCloseRef.current = onClose
 
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isFullscreen) {
-        setIsFullscreen(false)
+      if (e.key === 'Escape') {
+        if (isFullscreen) {
+          setIsFullscreen(false)
+        } else {
+          onCloseRef.current()
+        }
         return
       }
       if (e.ctrlKey && e.key === 'a') {
