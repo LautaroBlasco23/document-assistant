@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { X, Sparkles, PanelLeft, PanelRight, BookOpen, MessageCircleQuestion, Maximize, Minimize, ZoomIn, ZoomOut, AlignJustify, Highlighter } from 'lucide-react'
+import { X, Sparkles, PanelLeft, PanelRight, BookOpen, MessageCircleQuestion, Maximize, Minimize, ZoomIn, ZoomOut, AlignJustify, Highlighter, Trash2 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import { client } from '../../services'
 import { useKnowledgeTreeStore } from '../../stores/knowledge-tree-store'
@@ -51,6 +51,7 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
   const isTxt = !isYouTube && fileName.endsWith('.txt')
   const isText = isEpub || isTxt
   const isContentOnly = !isYouTube && !isPdf && !isText && !!(doc.content ?? '').trim()
+  const isHighlightsDoc = doc.title.endsWith(' — Highlights')
 
   const [currentPage, setCurrentPage] = React.useState<number>(1)
   const [numPages, setNumPages] = React.useState<number>(0)
@@ -111,6 +112,7 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
   const addError = useAppStore((s) => s.addError)
   const improveDocument = useKnowledgeTreeStore((s) => s.improveDocument)
   const addHighlight = useHighlights((s) => s.add)
+  const removeHighlight = useHighlights((s) => s.remove)
   const highlightDocIds = useHighlights((s) => s.highlightDocIds)
   const setHighlightDocId = useHighlights((s) => s.setHighlightDocId)
   const clearHighlightDocId = useHighlights((s) => s.clearHighlightDocId)
@@ -440,12 +442,20 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
   }
 
   const handleHighlight = (text: string) => {
+    if (isHighlightsDoc) return
     addHighlight(doc.id, text)
     setContextMenu(null)
     window.getSelection()?.removeAllRanges()
     setShowRight(true)
     chatPanelRef.current?.showHighlights()
     void saveHighlightDocRef.current!(text)
+  }
+
+  const handleDeleteHighlight = (text: string) => {
+    const matches = docHighlights.filter((h) => h.text.toLowerCase() === text.toLowerCase())
+    for (const h of matches) removeHighlight(doc.id, h.id)
+    setContextMenu(null)
+    window.getSelection()?.removeAllRanges()
   }
 
   const zoomIn = React.useCallback(() => setZoom((z) => Math.min(2, +(z + 0.1).toFixed(1))), [])
@@ -610,7 +620,7 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
             >
               {isFullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
             </button>
-            {(isPdf || isText) && (
+            {!isHighlightsDoc && (isPdf || isText) && (
               <button
                 onClick={() => setShowLeft(!showLeft)}
                 className={cn(
@@ -625,7 +635,8 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
                 <PanelLeft className="h-4 w-4" />
               </button>
             )}
-            <button
+            {!isHighlightsDoc && (
+              <button
                 onClick={() => setShowRight(!showRight)}
                 className={cn(
                   'p-1.5 rounded-md transition-colors',
@@ -638,6 +649,7 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
               >
                 <PanelRight className="h-4 w-4" />
               </button>
+            )}
               <button
                 onClick={onClose}
                 className="p-1.5 text-text-tertiary hover:text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100 rounded-md transition-colors ml-2"
@@ -651,7 +663,7 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
         {/* Content area */}
         <div className="flex-1 min-h-0 flex">
           {/* Left panel: Chapter sidebar */}
-          {(isPdf || isText) && (
+          {!isHighlightsDoc && (isPdf || isText) && (
             <>
               <div
                 className={cn(
@@ -781,47 +793,59 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
           )}
 
           {/* Right panel: Chat & Notes */}
-          {showRight && (
+          {!isHighlightsDoc && showRight && (
             <ResizeHandle
               onResizeStart={() => { startRightWidthRef.current = rightWidth }}
               onResize={(delta) => applyRightWidth(startRightWidthRef.current - delta)}
               onResizeEnd={saveRightWidth}
             />
           )}
-          <div
-            className={cn(
-              'border-l border-surface-200 dark:border-surface-200 transition-all duration-300 ease-in-out overflow-hidden',
-              showRight ? 'block' : 'hidden'
-            )}
-            style={{ width: showRight ? rightWidth : 0 }}
-          >
-            <div className="h-full">
-              <ChatPanel
-                ref={chatPanelRef}
-                getContext={getContext}
-                storageKey={`${treeId}:${doc.id}:unified`}
-                treeId={treeId}
-                chapter={activeChapter}
-                docId={doc.id}
-                docTitle={doc.title}
-              />
+          {!isHighlightsDoc && (
+            <div
+              className={cn(
+                'border-l border-surface-200 dark:border-surface-200 transition-all duration-300 ease-in-out overflow-hidden',
+                showRight ? 'block' : 'hidden'
+              )}
+              style={{ width: showRight ? rightWidth : 0 }}
+            >
+              <div className="h-full">
+                <ChatPanel
+                  ref={chatPanelRef}
+                  getContext={getContext}
+                  storageKey={`${treeId}:${doc.id}:unified`}
+                  treeId={treeId}
+                  chapter={activeChapter}
+                  docId={doc.id}
+                  docTitle={doc.title}
+                />
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
         {/* Context menu */}
-        {contextMenu && (
+        {!isHighlightsDoc && contextMenu && (
           <div
             className="fixed z-[60] bg-surface dark:bg-surface-200 rounded-lg shadow-lg border border-surface-200 dark:border-surface-200 py-1 min-w-[200px]"
             style={{ left: contextMenu.x, top: contextMenu.y }}
           >
-            <button
-              onClick={() => handleHighlight(contextMenu.text)}
-              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100 transition-colors"
-            >
-              <Highlighter className="h-3.5 w-3.5 text-yellow-500" />
-              Highlight
-            </button>
+            {docHighlights.some((h) => h.text.toLowerCase() === contextMenu.text.toLowerCase()) ? (
+              <button
+                onClick={() => handleDeleteHighlight(contextMenu.text)}
+                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100 transition-colors"
+              >
+                <Trash2 className="h-3.5 w-3.5 text-danger" />
+                Delete highlight
+              </button>
+            ) : (
+              <button
+                onClick={() => handleHighlight(contextMenu.text)}
+                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100 transition-colors"
+              >
+                <Highlighter className="h-3.5 w-3.5 text-yellow-500" />
+                Highlight
+              </button>
+            )}
             <div className="my-1 border-t border-surface-200 dark:border-surface-200" />
             <div className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-text-tertiary">
               Ask
