@@ -33,6 +33,7 @@ class UpdateChapterRequest(BaseModel):
 class UpdateDocumentRequest(BaseModel):
     title: str
     content: str
+    file_type: str | None = None
 
 
 # --- Responses ---
@@ -76,6 +77,7 @@ class KnowledgeDocumentOut(BaseModel):
     page_end: int | None = None
     source_type: str = "file"
     source_url: str | None = None
+    file_type: str | None = None
 
 
 class KnowledgeChunkOut(BaseModel):

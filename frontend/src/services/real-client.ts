@@ -215,10 +215,12 @@ export class RealClient implements ServiceClient {
     return res.data
   }
 
-  async updateKnowledgeDocument(id: string, title: string, content: string): Promise<KnowledgeDocument> {
+  async updateKnowledgeDocument(id: string, title: string, content: string, fileType?: string | null): Promise<KnowledgeDocument> {
+    const body: Record<string, unknown> = { title, content }
+    if (fileType !== undefined) body.file_type = fileType
     const res = await httpClient.put<KnowledgeDocument>(
       `/knowledge-trees/_/documents/${id}`,
-      { title, content }
+      body
     )
     return res.data
   }

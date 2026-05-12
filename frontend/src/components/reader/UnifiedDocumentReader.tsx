@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { X, Sparkles, PanelLeft, PanelRight, BookOpen, MessageCircleQuestion, Maximize, Minimize, ZoomIn, ZoomOut, AlignJustify, Highlighter, Trash2 } from 'lucide-react'
+import { X, Sparkles, PanelLeft, PanelRight, BookOpen, MessageCircleQuestion, Maximize, Minimize, ZoomIn, ZoomOut, AlignJustify, Highlighter, Trash2, Columns2 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import { client } from '../../services'
 import { useKnowledgeTreeStore } from '../../stores/knowledge-tree-store'
@@ -16,6 +16,7 @@ import { FormatterMenu, type FormatMode } from './FormatterMenu'
 import { readerMarkdownComponents } from './markdownComponents'
 import { useGenerationSettings } from '../../stores/generation-settings'
 import { useHighlights } from '../../stores/highlights-store'
+import { useReaderPreferences, type ContentWidth } from '../../stores/reader-preferences'
 
 type ReadMode = 'scroll' | 'paged'
 
@@ -44,19 +45,28 @@ function loadLastPage(treeId: string, docId: string): number | undefined {
 
 export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: UnifiedDocumentReaderProps) {
   // Derive doc type up front — needed by useState initializers below.
+  // Uses doc.file_type if set, otherwise falls back to extension detection.
   const isYouTube = doc.source_type === 'youtube'
   const fileName = (doc.source_file_name ?? doc.source_file_path ?? '').toLowerCase()
-  const isPdf = !isYouTube && fileName.endsWith('.pdf')
-  const isEpub = !isYouTube && fileName.endsWith('.epub')
-  const isTxt = !isYouTube && fileName.endsWith('.txt')
-  const isText = isEpub || isTxt
-  const isContentOnly = !isYouTube && !isPdf && !isText && !!(doc.content ?? '').trim()
+  const ft = doc.file_type
+  const hasSourceFile = !!doc.source_file_path
+  const _isPdfLike = !isYouTube && (ft === 'pdf' || (!ft && fileName.endsWith('.pdf')))
+  const isEpub = !isYouTube && (ft === 'epub' || (!ft && fileName.endsWith('.epub')))
+  const isTxt = !isYouTube && (ft === 'txt' || (!ft && fileName.endsWith('.txt')))
+  const isMd = !isYouTube && (ft === 'md' || (!ft && fileName.endsWith('.md')))
+  // Safety: if no source file on disk, ignore file_type=pdf — it would break the reader.
+  const isTruePdf = _isPdfLike && hasSourceFile
+  // Only treat as a navigable text doc if it has a source file on disk.
+  // Content-only docs (e.g. highlights) use the inline renderer regardless of file_type.
+  const isText = (isEpub || isTxt || isMd) && hasSourceFile
+  const isContentOnly = !isYouTube && !isTruePdf && !isText && !!(doc.content ?? '').trim()
   const isHighlightsDoc = doc.title.endsWith(' — Highlights')
 
   const [currentPage, setCurrentPage] = React.useState<number>(1)
   const [numPages, setNumPages] = React.useState<number>(0)
-  const [showLeft, setShowLeft] = React.useState(true)
-  const [showRight, setShowRight] = React.useState(true)
+  const [showLeft, setShowLeft] = React.useState(() => useReaderPreferences.getState().preferences.defaultShowLeft)
+  const [showRight, setShowRight] = React.useState(() => useReaderPreferences.getState().preferences.defaultShowRight)
+  const [contentWidth, setContentWidth] = React.useState(() => useReaderPreferences.getState().preferences.contentWidth)
   const [isFullscreen, setIsFullscreen] = React.useState(true)
   const [zoom, setZoom] = React.useState(1)
   const [contextMenu, setContextMenu] = React.useState<{ x: number; y: number; text: string } | null>(null)
@@ -100,6 +110,25 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
     setReaderKey((k) => k + 1)
     try { localStorage.setItem('docassist_read_mode', newMode) } catch { /* ignore */ }
   }, [currentPage])
+
+  const cycleContentWidth = React.useCallback(() => {
+    setContentWidth((prev) => {
+      const order: Array<ContentWidth> = ['comfortable', 'wide', 'full']
+      const idx = order.indexOf(prev)
+      for (let i = 1; i <= order.length; i++) {
+        const next = order[(idx + i) % order.length]
+        const available =
+          next === 'comfortable' ? true :
+          next === 'wide' ? (!showLeft || !showRight) :
+          (!showLeft && !showRight)
+        if (available) {
+          useReaderPreferences.getState().update({ contentWidth: next })
+          return next
+        }
+      }
+      return prev
+    })
+  }, [showLeft, showRight])
 
   const overlayRef = React.useRef<HTMLDivElement>(null)
   const pdfScrollRef = React.useRef<PdfPagesViewHandle | null>(null)
@@ -162,16 +191,18 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
   // Only record a resume entry for source/main docs (chapter_number == null).
   // Chapter docs are scoped slices and shouldn't overwrite the parent book's position.
   React.useEffect(() => {
-    if ((!isPdf && !isText) || doc.chapter_number !== null) return
+    if ((!isTruePdf && !isText) || doc.chapter_number !== null) return
     try {
       localStorage.setItem(`docassist_last_doc:${treeId}`, doc.id)
     } catch { /* ignore */ }
-  }, [treeId, doc.id, doc.chapter_number, isPdf, isText])
+  }, [treeId, doc.id, doc.chapter_number, isTruePdf, isText])
   // effectiveDoc tracks the post-improve/revert state for non-text docs whose prop doesn't
   // auto-update from the store (content-only and YouTube branches render from doc.content directly).
   const effectiveDoc = currentDocOverride ?? doc
   const showFormatter = isText || isContentOnly || (isYouTube && !!(doc.content ?? '').trim())
   const fileUrl = client.getDocumentFileUrl(treeId, doc.id)
+
+  const contentWidthClass = contentWidth === 'full' ? '' : contentWidth === 'wide' ? 'max-w-5xl' : 'max-w-3xl'
 
   // When this doc is a chapter-bound document, restrict sidebar and page range
   // to that chapter only. Source/main docs show the full book.
@@ -214,9 +245,14 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
   }
 
   const [formatMode, setFormatMode] = React.useState<FormatMode>(() => {
+    // Explicit file_type determines default rendering — overrides localStorage
+    if (ft === 'md') return 'markdown'
+    if (ft === 'txt' || ft === 'epub') return 'plain'
+    // No explicit file_type: use saved preference, then original_content heuristic
     const saved = loadFormatMode(doc.id)
     if (saved) return saved
-    return doc.original_content !== null ? 'markdown' : 'plain'
+    if (doc.original_content !== null) return 'markdown'
+    return 'plain'
   })
 
   // When the active chapter doc changes, update format mode if not explicitly stored
@@ -224,9 +260,11 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
   React.useEffect(() => {
     if (resolvedDoc.id === prevResolvedDocIdRef.current) return
     prevResolvedDocIdRef.current = resolvedDoc.id
+    if (resolvedDoc.file_type === 'md') { setFormatMode('markdown'); return }
+    if (resolvedDoc.file_type === 'txt' || resolvedDoc.file_type === 'epub') { setFormatMode('plain'); return }
     const saved = loadFormatMode(resolvedDoc.id)
     setFormatMode(saved ?? (resolvedDoc.original_content !== null ? 'markdown' : 'plain'))
-  }, [resolvedDoc.id, resolvedDoc.original_content])  // eslint-disable-line react-hooks/exhaustive-deps
+  }, [resolvedDoc.id, resolvedDoc.original_content, resolvedDoc.file_type])
 
   const handleFormatModeChange = React.useCallback((mode: FormatMode) => {
     setFormatMode(mode)
@@ -265,7 +303,7 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
     // Chapter-scoped PDFs are served as individually-extracted files (pages re-indexed
     // 1-to-N), so page_start/page_end from the parent book are not valid page numbers
     // in that file. Only apply page filtering for the source/main doc view.
-    if (!isPdf || isChapterScope || scopedChapterDocs.length === 0) return null
+    if (!isTruePdf || isChapterScope || scopedChapterDocs.length === 0) return null
     const pages: number[] = []
     const sorted = [...scopedChapterDocs].sort((a, b) => (a.page_start ?? 0) - (b.page_start ?? 0))
     for (const chDoc of sorted) {
@@ -276,11 +314,11 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
       }
     }
     return pages.length > 0 ? pages : null
-  }, [scopedChapterDocs, isPdf, isChapterScope])
+  }, [scopedChapterDocs, isTruePdf, isChapterScope])
 
   const activeChapter = React.useMemo(() => {
     if (isText) return textActiveChapter
-    if (!isPdf || !currentPage) return null
+    if (!isTruePdf || !currentPage) return null
     const chDoc = scopedChapterDocs.find(
       (d) => d.page_start && d.page_end && currentPage >= d.page_start && currentPage <= d.page_end
     )
@@ -292,7 +330,7 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
       return scopedChapterDocs[scopedChapterDocs.length - 1].chapter_number
     }
     return null
-  }, [currentPage, scopedChapterDocs, isPdf, isText, textActiveChapter])
+  }, [currentPage, scopedChapterDocs, isTruePdf, isText, textActiveChapter])
 
   const getContext = React.useCallback((): Promise<string> => {
     if (activeChapter !== null) {
@@ -528,7 +566,7 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
 
           <div className="flex items-center gap-2 shrink-0">
             {/* Page / chapter progress */}
-            {isPdf && numPages > 0 && (
+            {isTruePdf && numPages > 0 && (
               <span className="text-xs tabular-nums text-text-tertiary select-none">
                 {currentPage} / {numPages}
               </span>
@@ -540,7 +578,7 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
             )}
 
             {/* Zoom controls */}
-            {(isPdf || isText || isContentOnly || isYouTube) && (
+            {(isTruePdf || isText || isContentOnly || isYouTube) && (
               <div className="flex items-center gap-0.5 bg-surface dark:bg-surface-200 rounded-md shadow-sm border border-surface-200 dark:border-surface-200 px-1.5 py-0.5">
                 <button
                   onClick={zoomOut}
@@ -567,7 +605,7 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
             )}
 
             {/* Read mode toggle */}
-            {(isPdf || isText || isContentOnly || isYouTube) && (
+            {(isTruePdf || isText || isContentOnly || isYouTube) && (
               <div className="flex items-center gap-0.5 bg-surface dark:bg-surface-200 rounded-md shadow-sm border border-surface-200 dark:border-surface-200 px-0.5 py-0.5">
                 <button
                   onClick={() => readMode !== 'scroll' && handleModeChange('scroll', textActiveChapter)}
@@ -620,7 +658,7 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
             >
               {isFullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
             </button>
-            {!isHighlightsDoc && (isPdf || isText) && (
+            {!isHighlightsDoc && (isTruePdf || isText) && (
               <button
                 onClick={() => setShowLeft(!showLeft)}
                 className={cn(
@@ -650,6 +688,25 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
                 <PanelRight className="h-4 w-4" />
               </button>
             )}
+            {!isHighlightsDoc && (
+              <button
+                onClick={cycleContentWidth}
+                className={cn(
+                  'p-1.5 rounded-md transition-colors',
+                  contentWidth !== 'comfortable'
+                    ? 'text-primary bg-primary-light hover:bg-primary-light dark:bg-primary/12 dark:hover:bg-primary/12'
+                    : 'text-text-tertiary hover:text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100'
+                )}
+                aria-label="Content width"
+                title={
+                  contentWidth === 'comfortable' ? 'Comfortable width' :
+                  contentWidth === 'wide' ? 'Wider width' :
+                  'Full width'
+                }
+              >
+                <Columns2 className="h-4 w-4" />
+              </button>
+            )}
               <button
                 onClick={onClose}
                 className="p-1.5 text-text-tertiary hover:text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100 rounded-md transition-colors ml-2"
@@ -663,7 +720,7 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
         {/* Content area */}
         <div className="flex-1 min-h-0 flex">
           {/* Left panel: Chapter sidebar */}
-          {!isHighlightsDoc && (isPdf || isText) && (
+          {!isHighlightsDoc && (isTruePdf || isText) && (
             <>
               <div
                 className={cn(
@@ -694,7 +751,7 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
                           <BookOpen className="h-3.5 w-3.5 shrink-0" />
                           <div className="flex-1 min-w-0">
                             <div className="truncate">{ch.title}</div>
-                            {isPdf && chDoc?.page_start && (
+                            {isTruePdf && chDoc?.page_start && (
                               <div className="text-xs text-text-tertiary">
                                 Page {chDoc.page_start}
                                 {chDoc.page_end && chDoc.page_end !== chDoc.page_start
@@ -720,7 +777,7 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
           )}
 
           {/* Center: Document content */}
-          {isPdf ? (
+          {isTruePdf ? (
             <PdfPagesView
               key={readerKey}
               fileUrl={fileUrl}
@@ -728,6 +785,7 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
               zoom={zoom}
               mode={readMode}
               initialPage={initialPos}
+              contentWidth={contentWidth}
               onCurrentPageChange={handlePageChange}
               onNumPagesChange={setNumPages}
               onContextMenu={handleContextMenu}
@@ -742,6 +800,7 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
               zoom={zoom}
               mode={readMode}
               formatMode={formatMode}
+              contentWidth={contentWidth}
               initialChapter={initialPos}
               onCurrentChapterChange={handleTextChapterChange}
               onContextMenu={handleContextMenu}
@@ -757,7 +816,7 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
               onClick={hideContextMenu}
             >
               <div
-                className="mx-auto max-w-3xl py-8 px-6 text-text-secondary leading-relaxed"
+                className={cn('mx-auto py-8 px-6 text-text-secondary leading-relaxed', contentWidthClass)}
                 style={{ fontSize: `${Math.round(zoom * 100)}%` }}
               >
                 {formatMode === 'markdown' ? (
@@ -775,7 +834,7 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
             >
               {effectiveDoc.content ? (
                 <div
-                  className="mx-auto max-w-3xl py-8 px-6 text-text-secondary leading-relaxed"
+                  className={cn('mx-auto py-8 px-6 text-text-secondary leading-relaxed', contentWidthClass)}
                   style={{ fontSize: `${Math.round(zoom * 100)}%` }}
                 >
                   {formatMode === 'markdown' ? (

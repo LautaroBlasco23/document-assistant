@@ -99,6 +99,7 @@ def _doc_out(doc) -> KnowledgeDocumentOut:
         page_end=doc.page_end,
         source_type=doc.source_type,
         source_url=doc.source_url,
+        file_type=doc.file_type,
     )
 
 
@@ -749,12 +750,12 @@ async def update_document(
     req: UpdateDocumentRequest,
     services: ServicesDep,
 ) -> KnowledgeDocumentOut:
-    """Update title and content of a knowledge document."""
+    """Update title, content, and file_type of a knowledge document."""
     doc_uid = _parse_uuid(doc_id, "doc_id")
     existing = services.kt_doc_store.get_document(doc_uid)
     if existing is None:
         raise HTTPException(status_code=404, detail="Knowledge document not found")
-    updated = services.kt_doc_store.update_document(doc_uid, req.title, req.content)
+    updated = services.kt_doc_store.update_document(doc_uid, req.title, req.content, req.file_type)
     return _doc_out(updated)
 
 

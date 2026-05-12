@@ -41,6 +41,7 @@ class KnowledgeDocument:
     original_content: str | None = None  # set when document has been AI-improved; null = never improved
     source_type: str = "file"  # 'file' | 'youtube'
     source_url: str | None = None  # YouTube URL when source_type == 'youtube'
+    file_type: str | None = None  # 'pdf'|'epub'|'txt'|'md' — null=auto from extension
 
 
 @dataclass

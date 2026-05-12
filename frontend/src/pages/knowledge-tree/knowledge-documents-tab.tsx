@@ -195,6 +195,16 @@ export function KnowledgeDocumentsTab({
   const handleRevert = (doc: KnowledgeDocument) => () =>
     revertDocument(treeId, doc.id, selectedChapter)
 
+  const handleUpdateFileType = async (docId: string, fileType: string) => {
+    const doc = docs.find((d) => d.id === docId)
+    if (!doc) return
+    try {
+      await updateDocument(docId, doc.title, doc.content, treeId, selectedChapter, fileType)
+    } catch {
+      addError('Failed to update file type.')
+    }
+  }
+
   const isMain = selectedChapter === null
   const mainDoc = isMain ? docs.find((d) => d.is_main) : undefined
 
@@ -334,15 +344,16 @@ export function KnowledgeDocumentsTab({
                      isNew={false}
                    />
                  ) : (
-                   <DocumentCard
-                     key={doc.id}
-                     doc={doc}
-                     onEdit={() => handleOpenEdit(doc)}
-                     onDelete={() => void handleDelete(doc)}
-                     onRead={setReaderDoc}
-                     onImprove={handleImprove(doc)}
-                     onRevert={handleRevert(doc)}
-                   />
+                    <DocumentCard
+                      key={doc.id}
+                      doc={doc}
+                      onEdit={() => handleOpenEdit(doc)}
+                      onDelete={() => void handleDelete(doc)}
+                      onRead={setReaderDoc}
+                      onImprove={handleImprove(doc)}
+                      onRevert={handleRevert(doc)}
+                      onUpdateFileType={(ft) => void handleUpdateFileType(doc.id, ft)}
+                    />
                  )
                ))
              )}
@@ -482,15 +493,47 @@ interface DocumentCardProps {
   onRead: (doc: KnowledgeDocument) => void
   onImprove: () => Promise<KnowledgeDocument>
   onRevert: () => Promise<KnowledgeDocument>
+  onUpdateFileType: (fileType: string) => void
 }
 
-function DocumentCard({ doc, onEdit, onDelete, onRead, onImprove, onRevert }: DocumentCardProps) {
+const FILE_TYPE_OPTIONS = ['pdf', 'epub', 'txt', 'md'] as const
+
+function getFileTypeLabel(doc: KnowledgeDocument): string {
+  if (doc.file_type) return doc.file_type.toUpperCase()
+  const fileName = (doc.source_file_name ?? doc.source_file_path ?? '').toLowerCase()
+  if (fileName.endsWith('.pdf')) return 'PDF'
+  if (fileName.endsWith('.epub')) return 'EPUB'
+  if (fileName.endsWith('.txt')) return 'TXT'
+  if (fileName.endsWith('.md')) return 'MD'
+  return 'TXT'
+}
+
+function DocumentCard({ doc, onEdit, onDelete, onRead, onImprove, onRevert, onUpdateFileType }: DocumentCardProps) {
   const [improveOpen, setImproveOpen] = React.useState(false)
   const [revertOpen, setRevertOpen] = React.useState(false)
   const [deleteOpen, setDeleteOpen] = React.useState(false)
   const [acting, setActing] = React.useState(false)
   const [thumbError, setThumbError] = React.useState(false)
+  const [ftDropdownOpen, setFtDropdownOpen] = React.useState(false)
+  const ftButtonRef = React.useRef<HTMLButtonElement>(null)
+  const ftDropdownRef = React.useRef<HTMLDivElement>(null)
   const addError = useAppStore((s) => s.addError)
+
+  React.useEffect(() => {
+    if (!ftDropdownOpen) return
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        ftDropdownRef.current &&
+        !ftDropdownRef.current.contains(e.target as Node) &&
+        ftButtonRef.current &&
+        !ftButtonRef.current.contains(e.target as Node)
+      ) {
+        setFtDropdownOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [ftDropdownOpen])
 
   const isImproved = doc.original_content !== null
 
@@ -532,9 +575,18 @@ function DocumentCard({ doc, onEdit, onDelete, onRead, onImprove, onRevert }: Do
 
   const preview = doc.content.trim().slice(0, 200)
   const hasSourceFile = !!doc.source_file_path
+  const ftOptions = hasSourceFile ? FILE_TYPE_OPTIONS : FILE_TYPE_OPTIONS.filter((o) => o !== 'pdf')
   const fileName = (doc.source_file_name ?? doc.source_file_path ?? '').toLowerCase()
-  const isPdf = hasSourceFile && fileName.endsWith('.pdf')
-  const isViewable = hasSourceFile && (fileName.endsWith('.pdf') || fileName.endsWith('.epub') || fileName.endsWith('.txt'))
+  const ft = doc.file_type
+  const resolvedExt = ft ?? (
+    fileName.endsWith('.pdf') ? 'pdf' :
+    fileName.endsWith('.epub') ? 'epub' :
+    fileName.endsWith('.txt') ? 'txt' :
+    fileName.endsWith('.md') ? 'md' :
+    ''
+  )
+  const isPdf = hasSourceFile && resolvedExt === 'pdf'
+  const isViewable = hasSourceFile && ['pdf', 'epub', 'txt', 'md'].includes(resolvedExt)
   const hasContent = (doc.content ?? '').trim().length > 0
   const canRead = isViewable || hasContent
   const thumbnailUrl = isPdf ? client.getDocumentThumbnailUrl(doc.tree_id, doc.id) : ''
@@ -553,6 +605,40 @@ function DocumentCard({ doc, onEdit, onDelete, onRead, onImprove, onRevert }: Do
     >
       {/* Action buttons */}
       <div className="shrink-0 flex flex-col gap-1.5 justify-center">
+        {/* File type button */}
+        <div className="relative">
+          <Button
+            ref={ftButtonRef}
+            variant="ghost"
+            size="sm"
+            onClick={(e) => { e.stopPropagation(); setFtDropdownOpen(!ftDropdownOpen); }}
+            className="h-8 w-10 p-0 text-[10px] font-bold text-text-tertiary hover:text-primary dark:hover:text-primary hover:bg-surface-100 dark:hover:bg-surface-100"
+            title={`File type: ${getFileTypeLabel(doc)}`}
+          >
+            {getFileTypeLabel(doc)}
+          </Button>
+          {ftDropdownOpen && (
+            <div
+              ref={ftDropdownRef}
+              className="absolute left-full top-0 ml-1 z-50 bg-surface dark:bg-surface-200 rounded-lg shadow-lg border border-surface-200 dark:border-surface-200 py-1 min-w-[72px]"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {ftOptions.map((ft) => (
+                <button
+                  key={ft}
+                  onClick={() => {
+                    onUpdateFileType(ft)
+                    setFtDropdownOpen(false)
+                  }}
+                  className="w-full px-3 py-1.5 text-xs font-medium text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100 hover:text-text-primary text-left transition-colors"
+                >
+                  {ft.toUpperCase()}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
         <Button
           variant="ghost"
           size="sm"
@@ -648,15 +734,15 @@ function DocumentCard({ doc, onEdit, onDelete, onRead, onImprove, onRevert }: Do
             className="w-full h-full object-cover"
             onError={() => setThumbError(true)}
           />
-        ) : fileName.endsWith('.epub') ? (
+        ) : resolvedExt === 'epub' ? (
           <div className="flex flex-col items-center gap-1 text-text-tertiary">
             <BookOpen className="h-8 w-8" />
             <span className="text-[10px] font-medium">EPUB</span>
           </div>
-        ) : fileName.endsWith('.txt') ? (
+        ) : resolvedExt === 'txt' || resolvedExt === 'md' ? (
           <div className="flex flex-col items-center gap-1 text-text-tertiary">
             <FileText className="h-8 w-8" />
-            <span className="text-[10px] font-medium">TXT</span>
+            <span className="text-[10px] font-medium">{resolvedExt.toUpperCase()}</span>
           </div>
         ) : (
           <div className="flex flex-col items-center gap-1 text-text-tertiary">

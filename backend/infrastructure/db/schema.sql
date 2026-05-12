@@ -97,6 +97,9 @@ ALTER TABLE knowledge_documents ADD COLUMN IF NOT EXISTS original_content TEXT;
 ALTER TABLE knowledge_documents ADD COLUMN IF NOT EXISTS source_type TEXT NOT NULL DEFAULT 'file';
 ALTER TABLE knowledge_documents ADD COLUMN IF NOT EXISTS source_url TEXT;
 
+-- Idempotent: add file_type override (pdf, epub, txt, md — null = auto-detect from extension)
+ALTER TABLE knowledge_documents ADD COLUMN IF NOT EXISTS file_type TEXT;
+
 -- ============================================
 -- KNOWLEDGE CONTENT (chunks)
 -- ============================================

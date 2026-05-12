@@ -133,11 +133,21 @@ interface DocumentRowProps {
   onRead: (doc: KnowledgeDocument) => void
 }
 
-function SourceDocumentRow({ doc, onReadUnified }: { doc: KnowledgeDocument; onReadUnified: (doc: KnowledgeDocument) => void }) {
-  const hasSourceFile = !!doc.source_file_path
+function getDocIsViewable(doc: KnowledgeDocument): boolean {
+  if (doc.file_type) return ['pdf', 'epub', 'txt', 'md'].includes(doc.file_type)
   const fileName = (doc.source_file_name ?? doc.source_file_path ?? '').toLowerCase()
-  const isPdf = hasSourceFile && fileName.endsWith('.pdf')
-  const isViewable = hasSourceFile && (fileName.endsWith('.pdf') || fileName.endsWith('.epub') || fileName.endsWith('.txt'))
+  return fileName.endsWith('.pdf') || fileName.endsWith('.epub') || fileName.endsWith('.txt')
+}
+
+function getDocIsPdf(doc: KnowledgeDocument): boolean {
+  if (doc.file_type) return doc.file_type === 'pdf'
+  const fileName = (doc.source_file_name ?? doc.source_file_path ?? '').toLowerCase()
+  return fileName.endsWith('.pdf')
+}
+
+function SourceDocumentRow({ doc, onReadUnified }: { doc: KnowledgeDocument; onReadUnified: (doc: KnowledgeDocument) => void }) {
+  const isPdf = getDocIsPdf(doc)
+  const isViewable = getDocIsViewable(doc)
   const canOpen = isViewable
   const thumbnailUrl = isPdf ? client.getDocumentThumbnailUrl(doc.tree_id, doc.id) : ''
   const [thumbError, setThumbError] = React.useState(false)
@@ -184,9 +194,8 @@ function SourceDocumentRow({ doc, onReadUnified }: { doc: KnowledgeDocument; onR
 
 function DocumentRow({ doc, onRead }: DocumentRowProps) {
   const hasSourceFile = !!doc.source_file_path
-  const fileName = (doc.source_file_name ?? doc.source_file_path ?? '').toLowerCase()
-  const isPdf = hasSourceFile && fileName.endsWith('.pdf')
-  const isViewable = hasSourceFile && (fileName.endsWith('.pdf') || fileName.endsWith('.epub') || fileName.endsWith('.txt'))
+  const isPdf = getDocIsPdf(doc)
+  const isViewable = getDocIsViewable(doc)
   const hasContent = (doc.content ?? '').trim().length > 0
   const canOpen = isViewable || hasContent
   const thumbnailUrl = isPdf ? client.getDocumentThumbnailUrl(doc.tree_id, doc.id) : ''

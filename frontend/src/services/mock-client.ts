@@ -273,11 +273,17 @@ export class MockClient implements ServiceClient {
     return doc
   }
 
-  async updateKnowledgeDocument(id: string, title: string, content: string): Promise<KnowledgeDocument> {
+  async updateKnowledgeDocument(id: string, title: string, content: string, fileType?: string | null): Promise<KnowledgeDocument> {
     await delay(150)
     const idx = this.documents.findIndex((d) => d.id === id)
     if (idx === -1) throw new Error(`Document not found: ${id}`)
-    const updated = { ...this.documents[idx], title, content, updated_at: new Date().toISOString() }
+    const updated = {
+      ...this.documents[idx],
+      title,
+      content,
+      file_type: fileType !== undefined ? fileType ?? undefined : this.documents[idx].file_type,
+      updated_at: new Date().toISOString(),
+    }
     this.documents[idx] = updated
     return updated
   }

@@ -4,6 +4,14 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
 
 import 'react-pdf/dist/Page/TextLayer.css'
 
+import type { ContentWidth } from '../../stores/reader-preferences'
+
+function maxPdfWidth(cw: ContentWidth): number {
+  if (cw === 'full') return Infinity
+  if (cw === 'wide') return 1100
+  return 800
+}
+
 export interface PdfPagesViewHandle {
   scrollToPage: (pageNumber: number) => void
 }
@@ -12,6 +20,7 @@ interface PdfPagesViewProps {
   fileUrl: string
   visiblePages?: number[] | null
   zoom?: number
+  contentWidth?: ContentWidth
   onCurrentPageChange?: (pageNumber: number) => void
   onNumPagesChange?: (numPages: number) => void
   onContextMenu?: (e: React.MouseEvent) => void
@@ -33,6 +42,7 @@ export function PdfPagesView({
   fileUrl,
   visiblePages,
   zoom = 1,
+  contentWidth = 'comfortable',
   onCurrentPageChange,
   onNumPagesChange,
   onContextMenu,
@@ -42,8 +52,10 @@ export function PdfPagesView({
   initialPage,
 }: PdfPagesViewProps) {
   const [numPages, setNumPages] = React.useState(0)
+  const capRef = React.useRef(maxPdfWidth(contentWidth))
+  capRef.current = maxPdfWidth(contentWidth)
   const [baseWidth, setBaseWidth] = React.useState(() =>
-    typeof window !== 'undefined' ? Math.min(800, window.innerWidth - SIDE_PADDING) : 800
+    typeof window !== 'undefined' ? Math.min(maxPdfWidth(contentWidth), window.innerWidth - SIDE_PADDING) : maxPdfWidth(contentWidth)
   )
   const displayWidth = Math.round(baseWidth * zoom)
   const [activePages, setActivePages] = React.useState<Set<number>>(() => new Set())
@@ -119,7 +131,8 @@ export function PdfPagesView({
     const ro = new ResizeObserver((entries) => {
       const w = entries[0]?.contentRect.width
       if (!w) return
-      const next = Math.min(800, Math.max(320, w - 32))
+      const cap = capRef.current
+      const next = Number.isFinite(cap) ? Math.min(cap, Math.max(320, w - 32)) : Math.max(320, w - 32)
       setBaseWidth((prev) => (Math.abs(prev - next) > 1 ? next : prev))
     })
     ro.observe(el)
@@ -161,6 +174,9 @@ export function PdfPagesView({
     }
   }, [mode])
 
+  const activePagesRef = React.useRef<Set<number>>(activePages)
+  React.useEffect(() => { activePagesRef.current = activePages }, [activePages])
+
   // Viewport observer: tracks topmost visible page to report as current — scroll mode only.
   const viewportObserverRef = React.useRef<IntersectionObserver | null>(null)
   const viewportVisibleRef = React.useRef<Set<number>>(new Set())
@@ -193,9 +209,6 @@ export function PdfPagesView({
       viewportObserverRef.current = null
     }
   }, [mode])
-
-  const activePagesRef = React.useRef<Set<number>>(activePages)
-  React.useEffect(() => { activePagesRef.current = activePages }, [activePages])
 
   // Stable per-page ref factory: same identity per pageNumber across renders.
   const refFactoryCache = React.useRef<Map<number, (el: HTMLDivElement | null) => void>>(new Map())

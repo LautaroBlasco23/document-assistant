@@ -4,6 +4,7 @@ import ReactMarkdown from 'react-markdown'
 import { cn } from '../../lib/cn'
 import type { KnowledgeChapter } from '../../types/knowledge-tree'
 import type { FormatMode } from './FormatterMenu'
+import type { ContentWidth } from '../../stores/reader-preferences'
 import { readerMarkdownComponents } from './markdownComponents'
 import type { Highlight } from '../../stores/highlights-store'
 
@@ -49,6 +50,7 @@ interface TextPagesViewProps {
   zoom?: number
   mode?: 'scroll' | 'paged'
   formatMode?: FormatMode
+  contentWidth?: ContentWidth
   initialChapter?: number
   onCurrentChapterChange?: (chapterNumber: number) => void
   onContextMenu?: (e: React.MouseEvent) => void
@@ -64,6 +66,7 @@ export function TextPagesView({
   zoom = 1,
   mode = 'scroll',
   formatMode = 'plain',
+  contentWidth = 'comfortable',
   initialChapter,
   onCurrentChapterChange,
   onContextMenu,
@@ -204,6 +207,7 @@ export function TextPagesView({
   }, [pagedChapter, mode])
 
   const fontSize = `${Math.round(zoom * 100)}%`
+  const contentWidthClass = contentWidth === 'full' ? '' : contentWidth === 'wide' ? 'max-w-5xl' : 'max-w-3xl'
 
   // Build highlight regex once per highlights change, not per chapter render.
   const compiledHighlights = React.useMemo(() => buildHighlightRegex(highlights), [highlights])
@@ -255,7 +259,7 @@ export function TextPagesView({
         </button>
 
         <div ref={scrollContainerRef} className="flex-1 overflow-y-auto">
-          <div className="mx-auto max-w-3xl py-8 px-6" style={{ fontSize }}>
+          <div className={cn('mx-auto py-8 px-6', contentWidthClass)} style={{ fontSize }}>
             {chapter && (
               <>
                 <h2 className="text-xl font-semibold text-text-primary mb-6">{chapter.title}</h2>
@@ -290,7 +294,7 @@ export function TextPagesView({
       onContextMenu={onContextMenu}
       onClick={onClickAway}
     >
-      <div className="mx-auto max-w-3xl py-8 px-6 flex flex-col gap-12" style={{ fontSize }}>
+      <div className={cn('mx-auto py-8 px-6 flex flex-col gap-12', contentWidthClass)} style={{ fontSize }}>
         {chapters.map((ch) => (
           <section
             key={ch.number}

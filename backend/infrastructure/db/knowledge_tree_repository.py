@@ -236,6 +236,7 @@ class PostgresKnowledgeDocumentStore(_BaseKnowledgeRepo):
                     "SELECT d.id, d.tree_id, d.chapter_id, d.title, d.content, d.is_main,"
                     " d.created_at, d.updated_at, d.source_file_path, d.source_file_name,"
                     " d.page_start, d.page_end, d.original_content, d.source_type, d.source_url,"
+                    " d.file_type,"
                     " c.number AS chapter_number"
                     " FROM knowledge_documents d"
                     " LEFT JOIN knowledge_chapters c ON c.id = d.chapter_id"
@@ -248,6 +249,7 @@ class PostgresKnowledgeDocumentStore(_BaseKnowledgeRepo):
                     "SELECT d.id, d.tree_id, d.chapter_id, d.title, d.content, d.is_main,"
                     " d.created_at, d.updated_at, d.source_file_path, d.source_file_name,"
                     " d.page_start, d.page_end, d.original_content, d.source_type, d.source_url,"
+                    " d.file_type,"
                     " c.number AS chapter_number"
                     " FROM knowledge_documents d"
                     " LEFT JOIN knowledge_chapters c ON c.id = d.chapter_id"
@@ -257,6 +259,12 @@ class PostgresKnowledgeDocumentStore(_BaseKnowledgeRepo):
                 )
             rows = cur.fetchall()
         return [_row_to_doc(row) for row in rows]
+
+    def _detect_file_type(self, source_file_name: str | None) -> str | None:
+        if not source_file_name:
+            return None
+        ext = source_file_name.lower().rsplit(".", 1)[-1] if "." in source_file_name else ""
+        return ext if ext in ("pdf", "epub", "txt", "md") else None
 
     def create_document(
         self,
@@ -269,7 +277,10 @@ class PostgresKnowledgeDocumentStore(_BaseKnowledgeRepo):
         source_file_name: str | None = None,
         page_start: int | None = None,
         page_end: int | None = None,
+        file_type: str | None = None,
     ) -> KnowledgeDocument:
+        if file_type is None:
+            file_type = self._detect_file_type(source_file_name)
         with self._lock:
             conn = self._conn()
             with conn.transaction():
@@ -277,12 +288,12 @@ class PostgresKnowledgeDocumentStore(_BaseKnowledgeRepo):
                     cur.execute(
                         "INSERT INTO knowledge_documents"
                         " (tree_id, chapter_id, title, content, is_main,"
-                        " source_file_path, source_file_name, page_start, page_end)"
-                        " VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)"
+                        " source_file_path, source_file_name, page_start, page_end, file_type)"
+                        " VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
                         " RETURNING id, tree_id, chapter_id, title, content, original_content,"
                         " is_main, created_at, updated_at,"
                         " source_file_path, source_file_name, page_start, page_end,"
-                        " source_type, source_url",
+                        " source_type, source_url, file_type",
                         (
                             tree_id,
                             chapter_id,
@@ -293,6 +304,7 @@ class PostgresKnowledgeDocumentStore(_BaseKnowledgeRepo):
                             source_file_name,
                             page_start,
                             page_end,
+                            file_type,
                         ),
                     )
                     row = cur.fetchone()
@@ -313,12 +325,13 @@ class PostgresKnowledgeDocumentStore(_BaseKnowledgeRepo):
                 with conn.cursor() as cur:
                     cur.execute(
                         "INSERT INTO knowledge_documents"
-                        " (tree_id, chapter_id, title, content, is_main, source_type, source_url)"
-                        " VALUES (%s, %s, %s, %s, FALSE, 'youtube', %s)"
+                        " (tree_id, chapter_id, title, content, is_main,"
+                        " source_type, source_url, file_type)"
+                        " VALUES (%s, %s, %s, %s, FALSE, 'youtube', %s, 'txt')"
                         " RETURNING id, tree_id, chapter_id, title, content, original_content,"
                         " is_main, created_at, updated_at,"
                         " source_file_path, source_file_name, page_start, page_end,"
-                        " source_type, source_url",
+                        " source_type, source_url, file_type",
                         (tree_id, chapter_id, title, content, source_url),
                     )
                     row = cur.fetchone()
@@ -332,6 +345,7 @@ class PostgresKnowledgeDocumentStore(_BaseKnowledgeRepo):
                 "SELECT d.id, d.tree_id, d.chapter_id, d.title, d.content, d.is_main,"
                 " d.created_at, d.updated_at, d.source_file_path, d.source_file_name,"
                 " d.page_start, d.page_end, d.original_content, d.source_type, d.source_url,"
+                " d.file_type,"
                 " c.number AS chapter_number"
                 " FROM knowledge_documents d"
                 " LEFT JOIN knowledge_chapters c ON c.id = d.chapter_id"
@@ -343,22 +357,37 @@ class PostgresKnowledgeDocumentStore(_BaseKnowledgeRepo):
             return None
         return _row_to_doc(row)
 
-    def update_document(self, id: UUID, title: str, content: str) -> KnowledgeDocument:
+    def update_document(
+        self, id: UUID, title: str, content: str, file_type: str | None = None
+    ) -> KnowledgeDocument:
         with self._lock:
             conn = self._conn()
             with conn.transaction():
                 with conn.cursor() as cur:
-                    cur.execute(
-                        "UPDATE knowledge_documents"
-                        " SET title = %s, content = %s, updated_at = NOW()"
-                        " WHERE id = %s"
-                        " RETURNING id, tree_id, chapter_id, title, content, original_content,"
-                        " is_main, created_at, updated_at,"
-                        " source_file_path, source_file_name, page_start, page_end,"
-                        " source_type, source_url,"
-                        " (SELECT c.number FROM knowledge_chapters c WHERE c.id = chapter_id) AS chapter_number",
-                        (title, content, id),
-                    )
+                    if file_type is not None:
+                        cur.execute(
+                            "UPDATE knowledge_documents"
+                            " SET title = %s, content = %s, file_type = %s, updated_at = NOW()"
+                            " WHERE id = %s"
+                            " RETURNING id, tree_id, chapter_id, title, content, original_content,"
+                            " is_main, created_at, updated_at,"
+                            " source_file_path, source_file_name, page_start, page_end,"
+                            " source_type, source_url, file_type,"
+                            " (SELECT c.number FROM knowledge_chapters c WHERE c.id = chapter_id) AS chapter_number",
+                            (title, content, file_type, id),
+                        )
+                    else:
+                        cur.execute(
+                            "UPDATE knowledge_documents"
+                            " SET title = %s, content = %s, updated_at = NOW()"
+                            " WHERE id = %s"
+                            " RETURNING id, tree_id, chapter_id, title, content, original_content,"
+                            " is_main, created_at, updated_at,"
+                            " source_file_path, source_file_name, page_start, page_end,"
+                            " source_type, source_url, file_type,"
+                            " (SELECT c.number FROM knowledge_chapters c WHERE c.id = chapter_id) AS chapter_number",
+                            (title, content, id),
+                        )
                     row = cur.fetchone()
         if row is None:
             raise ValueError(f"Knowledge document not found: {id}")
@@ -380,7 +409,7 @@ class PostgresKnowledgeDocumentStore(_BaseKnowledgeRepo):
                         " RETURNING id, tree_id, chapter_id, title, content, original_content,"
                         " is_main, created_at, updated_at,"
                         " source_file_path, source_file_name, page_start, page_end,"
-                        " source_type, source_url,"
+                        " source_type, source_url, file_type,"
                         " (SELECT c.number FROM knowledge_chapters c WHERE c.id = chapter_id) AS chapter_number",
                         (improved_content, id),
                     )
@@ -403,7 +432,7 @@ class PostgresKnowledgeDocumentStore(_BaseKnowledgeRepo):
                         " RETURNING id, tree_id, chapter_id, title, content, original_content,"
                         " is_main, created_at, updated_at,"
                         " source_file_path, source_file_name, page_start, page_end,"
-                        " source_type, source_url,"
+                        " source_type, source_url, file_type,"
                         " (SELECT c.number FROM knowledge_chapters c WHERE c.id = chapter_id) AS chapter_number",
                         (id,),
                     )
@@ -761,4 +790,5 @@ def _row_to_doc(row: dict) -> KnowledgeDocument:
         original_content=row.get("original_content"),
         source_type=row.get("source_type") or "file",
         source_url=row.get("source_url"),
+        file_type=row.get("file_type"),
     )

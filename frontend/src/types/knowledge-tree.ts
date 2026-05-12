@@ -33,6 +33,7 @@ export interface KnowledgeDocument {
   page_end?: number
   source_type?: string  // 'file' | 'youtube'
   source_url?: string   // YouTube URL when source_type === 'youtube'
+  file_type?: string    // 'pdf' | 'epub' | 'txt' | 'md' — null = auto-detect from extension
 }
 
 export type KnowledgeTreeTab = 'documents' | 'content' | 'exam'

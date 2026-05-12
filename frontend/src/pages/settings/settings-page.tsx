@@ -8,6 +8,7 @@ import { Tooltip } from '../../components/ui/tooltip'
 import { useTheme } from '../../theme/theme-context'
 import { cn } from '../../lib/cn'
 import { useGenerationSettings } from '../../stores/generation-settings'
+import { useReaderPreferences } from '../../stores/reader-preferences'
 import { useAgents } from '../../hooks/use-agents'
 import { useModels } from '../../hooks/use-models'
 import { useProviderCredentials } from '../../hooks/useProviderCredentials'
@@ -40,6 +41,7 @@ function InfoIcon({ field }: { field: string }) {
 export function SettingsPage() {
   const { theme, setTheme } = useTheme()
   const { settings, setAgent } = useGenerationSettings()
+  const { preferences, update } = useReaderPreferences()
   const { agents, loading: agentsLoading, refresh: refreshAgents } = useAgents()
   const [selectedProviderForModels, setSelectedProviderForModels] = React.useState<string | undefined>(undefined)
   const { models, currentModel } = useModels(selectedProviderForModels)
@@ -130,6 +132,30 @@ export function SettingsPage() {
                 {t}
               </button>
             ))}
+          </div>
+        </Card>
+
+        {/* Reader */}
+        <Card title="Reader">
+          <div className="flex flex-col gap-3">
+            <label className="flex items-center justify-between">
+              <span className="text-sm text-text-secondary">Show chapter sidebar by default</span>
+              <input
+                type="checkbox"
+                checked={preferences.defaultShowLeft}
+                onChange={(e) => update({ defaultShowLeft: e.target.checked })}
+                className="h-4 w-4 rounded border-surface-200 text-primary focus:ring-primary"
+              />
+            </label>
+            <label className="flex items-center justify-between">
+              <span className="text-sm text-text-secondary">Show chat panel by default</span>
+              <input
+                type="checkbox"
+                checked={preferences.defaultShowRight}
+                onChange={(e) => update({ defaultShowRight: e.target.checked })}
+                className="h-4 w-4 rounded border-surface-200 text-primary focus:ring-primary"
+              />
+            </label>
           </div>
         </Card>
 

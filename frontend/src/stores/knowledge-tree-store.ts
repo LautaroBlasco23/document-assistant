@@ -46,7 +46,7 @@ interface KnowledgeTreeState {
   fetchDocuments: (treeId: string, chapter: number | null, chapterId: string | null) => Promise<void>
   fetchAllDocuments: (treeId: string) => Promise<void>
   createDocument: (treeId: string, chapter: number | null, title: string, content: string, isMain?: boolean) => Promise<KnowledgeDocument>
-  updateDocument: (id: string, title: string, content: string, treeId: string, chapter: number | null) => Promise<KnowledgeDocument>
+  updateDocument: (id: string, title: string, content: string, treeId: string, chapter: number | null, fileType?: string | null) => Promise<KnowledgeDocument>
   deleteDocument: (id: string, treeId: string, chapter: number | null) => Promise<void>
   improveDocument: (treeId: string, docId: string, chapter: number | null) => Promise<KnowledgeDocument>
   revertDocument: (treeId: string, docId: string, chapter: number | null) => Promise<KnowledgeDocument>
@@ -196,13 +196,15 @@ export const useKnowledgeTreeStore = create<KnowledgeTreeState>((set, get) => ({
     return doc
   },
 
-  updateDocument: async (id, title, content, treeId, chapter) => {
-    const doc = await client.updateKnowledgeDocument(id, title, content)
+  updateDocument: async (id, title, content, treeId, chapter, fileType) => {
+    const doc = await client.updateKnowledgeDocument(id, title, content, fileType)
     const key = docKey(treeId, chapter)
+    const allKey = `${treeId}:all`
     set((s) => ({
       documents: {
         ...s.documents,
         [key]: (s.documents[key] ?? []).map((d) => d.id === id ? doc : d),
+        [allKey]: (s.documents[allKey] ?? []).map((d) => d.id === id ? doc : d),
       },
     }))
     return doc
