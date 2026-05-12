@@ -484,8 +484,6 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
     addHighlight(doc.id, text)
     setContextMenu(null)
     window.getSelection()?.removeAllRanges()
-    setShowRight(true)
-    chatPanelRef.current?.showHighlights()
     void saveHighlightDocRef.current!(text)
   }
 
