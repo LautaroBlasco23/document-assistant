@@ -13,6 +13,29 @@ CREATE TABLE IF NOT EXISTS users (
 );
 
 -- ============================================
+-- AGENTS (must be created before backfill steps that reference it)
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS agents (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name VARCHAR(255) NOT NULL,
+    prompt TEXT NOT NULL DEFAULT '',
+    model VARCHAR(255) NOT NULL,
+    provider TEXT NOT NULL DEFAULT 'groq',
+    temperature FLOAT NOT NULL DEFAULT 0.7,
+    top_p FLOAT NOT NULL DEFAULT 1.0,
+    max_tokens INT NOT NULL DEFAULT 1024,
+    is_default BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE(user_id, name)
+);
+
+CREATE INDEX IF NOT EXISTS idx_agents_user_id ON agents(user_id);
+CREATE INDEX IF NOT EXISTS idx_agents_user_default ON agents(user_id, is_default) WHERE is_default = TRUE;
+
+-- ============================================
 -- SUBSCRIPTION PLANS
 -- ============================================
 
@@ -224,29 +247,6 @@ CREATE TABLE IF NOT EXISTS user_llm_credentials (
     UNIQUE(user_id, provider)
 );
 CREATE INDEX IF NOT EXISTS idx_user_llm_credentials_user ON user_llm_credentials(user_id);
-
--- ============================================
--- AGENTS
--- ============================================
-
-CREATE TABLE IF NOT EXISTS agents (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    name VARCHAR(255) NOT NULL,
-    prompt TEXT NOT NULL DEFAULT '',
-    model VARCHAR(255) NOT NULL,
-    provider TEXT NOT NULL DEFAULT 'groq',
-    temperature FLOAT NOT NULL DEFAULT 0.7,
-    top_p FLOAT NOT NULL DEFAULT 1.0,
-    max_tokens INT NOT NULL DEFAULT 1024,
-    is_default BOOLEAN NOT NULL DEFAULT FALSE,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    UNIQUE(user_id, name)
-);
-
-CREATE INDEX IF NOT EXISTS idx_agents_user_id ON agents(user_id);
-CREATE INDEX IF NOT EXISTS idx_agents_user_default ON agents(user_id, is_default) WHERE is_default = TRUE;
 
 -- ============================================
 -- EXAM SESSIONS
