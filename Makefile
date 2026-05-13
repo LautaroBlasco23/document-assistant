@@ -1,6 +1,7 @@
-.PHONY: start dev dev-backend mock stop dev-kill check clean prune help env-check dev-deps infra-deps tools jwt-secret encryption-key
+.PHONY: start dev dev-backend mock stop stop-app app-logs app-ps dev-kill check clean prune help env-check dev-deps infra-deps tools jwt-secret encryption-key
 
 DOCKER_COMPOSE := docker compose
+DOCKER_COMPOSE_APP := docker compose -f docker-compose.app.yml
 BACKEND_DIR := backend
 PROVIDER ?=
 
@@ -13,8 +14,13 @@ help:
 	@echo "    make tools                          Check/install required development tools"
 	@echo "    make tools install                  Install missing tools (auto-installs uv)"
 	@echo ""
-	@echo "  \033[1;32mStartup\033[0m"
-	@echo "    make start                          Build & run all services in Docker on port 3500 (background)"
+	@echo "  \033[1;32mDocker App (separate from dev)\033[0m"
+	@echo "    make start                          Build & run app containers on port 3500 (detached)"
+	@echo "    make stop-app                       Stop app containers"
+	@echo "    make app-logs                       View app container logs"
+	@echo "    make app-ps                         List app container status"
+	@echo ""
+	@echo "  \033[1;32mDevelopment (host backend + frontend)\033[0m"
 	@echo "    make dev                            Start app with defaults (dev mode, groq provider)"
 	@echo "    make dev PROVIDER=ollama            Start app with defaults using specific provider"
 	@echo "    make dev-backend                    Start backend only (with PostgreSQL, default: groq)"
@@ -22,7 +28,7 @@ help:
 	@echo "    make mock                           Frontend only, no backend (mock data)"
 	@echo ""
 	@echo "  \033[1;32mServices\033[0m"
-	@echo "    make stop                           Stop all services"
+	@echo "    make stop                           Stop dev containers"
 	@echo "    make dev-kill                       Force kill backend (8000) & frontend (5173)"
 	@echo "    make check                          Health check all services"
 	@echo ""
@@ -58,11 +64,25 @@ encryption-key:
 
 start: env-check
 	@echo "Building Docker images (current code)..."
-	$(DOCKER_COMPOSE) build
+	$(DOCKER_COMPOSE_APP) build
 	@echo "Starting all services on port 3500 (detached)..."
-	@NGINX_PORT=3500 $(DOCKER_COMPOSE) up -d
+	$(DOCKER_COMPOSE_APP) up -d
+	@echo ""
 	@echo "App running at http://localhost:3500"
-	@echo "Run 'make stop' to stop all services."
+	@echo ""
+	@echo "Run 'make stop-app' to stop these containers."
+	@echo "Run 'make app-logs' to view logs."
+
+stop-app:
+	@echo "Stopping app containers..."
+	$(DOCKER_COMPOSE_APP) down
+	@echo "App containers stopped."
+
+app-logs:
+	$(DOCKER_COMPOSE_APP) logs -f
+
+app-ps:
+	$(DOCKER_COMPOSE_APP) ps
 
 dev: env-check tools-check
 	@echo "Starting dev server with defaults (dev mode, provider: $(or $(PROVIDER),groq))..."
@@ -103,11 +123,11 @@ dev-deps:
 	fi
 
 stop:
-	@echo "Stopping all services..."
+	@echo "Stopping dev services..."
 	$(DOCKER_COMPOSE) down
 	pkill -f "uvicorn api.main:app" || true
 	pkill -f "npm run dev" || true
-	@echo "Services stopped."
+	@echo "Dev services stopped."
 
 dev-kill:
 	@echo "Force killing backend (port 8000) and frontend (port 5173)..."
