@@ -13,7 +13,7 @@ _CONTEXT_MAX_TOKENS = 4000
 _HISTORY_MAX_TOKENS = 2000
 
 _BASE_SYSTEM = (
-    "You are a helpful document assistant. Answer the user's questions based on the "
+    "You are a helpful Knowledge Trees assistant. Answer the user's questions based on the "
     "document context provided in the Background section. Be concise and accurate. "
     "If the answer cannot be found in the provided context, say so clearly. "
     "Format your responses using markdown when helpful."

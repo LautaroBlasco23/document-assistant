@@ -1,3 +1,3 @@
-"""FastAPI backend for document assistant."""
+"""FastAPI backend for Knowledge Trees."""
 
 __version__ = "0.1.0"
