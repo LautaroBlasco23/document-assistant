@@ -2,7 +2,7 @@
 
 from typing import Annotated
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Query, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from api.deps import ServicesDep
@@ -14,20 +14,29 @@ security = HTTPBearer(auto_error=False)
 
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials | None = Depends(security),
+    token: str | None = Query(None),
     services: ServicesDep = None,
 ) -> User:
     """
-    Extract and validate JWT from Authorization header.
+    Extract and validate JWT from Authorization header or ?token= query param.
+    Query-param fallback is needed for endpoints serving files to <embed>/<Document>
+    tags that cannot set custom headers (PDF viewer, thumbnails).
     Returns authenticated User or raises 401/403.
     """
-    if credentials is None:
+    raw_token: str | None = None
+    if credentials is not None:
+        raw_token = credentials.credentials
+    elif token is not None:
+        raw_token = token
+
+    if raw_token is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authorization header required",
+            detail="Authorization header or ?token= query param required",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    payload = decode_token(credentials.credentials)
+    payload = decode_token(raw_token)
     if payload is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
