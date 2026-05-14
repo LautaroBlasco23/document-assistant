@@ -17,6 +17,6 @@ COPY backend/ ./
 # which, from /app/infrastructure/config.py, evaluates to /  → looks for /config/default.yml
 COPY config/ /config/
 
-EXPOSE 8000
+EXPOSE 8090
 
-CMD ["uv", "run", "uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["sh", "-c", "uv run uvicorn api.main:app --host 0.0.0.0 --port ${BACKEND_PORT:-8090}"]

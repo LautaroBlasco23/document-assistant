@@ -69,13 +69,13 @@ done
 pg_pass=$(get_val "$ENV_FILE" "POSTGRES_PASSWORD")
 write_val "DOCASSIST_POSTGRES__PASSWORD" "$pg_pass"
 
-# ── Compute ALLOWED_ORIGINS from DOMAIN + NGINX_PORT ──────────────────────────
+# ── Compute ALLOWED_ORIGINS from DOMAIN + FRONTEND_PORT ────────────────────────
 
 DOMAIN=$(get_val "$ENV_FILE" "DOMAIN"); DOMAIN="${DOMAIN:-localhost}"
-NGINX_PORT=$(get_val "$ENV_FILE" "NGINX_PORT"); NGINX_PORT="${NGINX_PORT:-80}"
+FRONTEND_PORT=$(get_val "$ENV_FILE" "FRONTEND_PORT"); FRONTEND_PORT="${FRONTEND_PORT:-3500}"
 
 origins="http://${DOMAIN}"
-[ "$NGINX_PORT" != "80" ] && origins="${origins},http://${DOMAIN}:${NGINX_PORT}"
+[ "$FRONTEND_PORT" != "80" ] && origins="${origins},http://${DOMAIN}:${FRONTEND_PORT}"
 write_val "ALLOWED_ORIGINS" "$origins"
 echo "  Set ALLOWED_ORIGINS=${origins}"
 
@@ -87,5 +87,5 @@ echo ""
 echo "Manual steps required:"
 echo "  1. Set DOCASSIST_GROQ__API_KEY if using Groq (DOCASSIST_LLM_PROVIDER=groq)"
 echo "  2. Or set DOCASSIST_LLM_PROVIDER=ollama to use local Ollama instead"
-echo "  3. Update DOMAIN and NGINX_PORT if deploying beyond localhost,"
+echo "  3. Update DOMAIN and FRONTEND_PORT if deploying beyond localhost,"
 echo "     then re-run this script to refresh ALLOWED_ORIGINS."
