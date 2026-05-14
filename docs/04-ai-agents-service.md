@@ -161,7 +161,7 @@ flowchart LR
 
 | Provider | Main model | Fast model |
 |----------|-----------|-----------|
-| groq | llama-3.3-70b-versatile | llama-3.1-8b-instant |
-| ollama | qwen2.5:14b-instruct | qwen2.5:3b-instruct |
-| openrouter | meta-llama/llama-3.3-70b-instruct:free | qwen/qwen2.5-7b-instruct:free |
-| huggingface | Qwen/Qwen2.5-72B-Instruct | — |
+| groq | (user-configured) | (user-configured) |
+| ollama | (user-configured) | (user-configured) |
+| openrouter | (user-configured) | (user-configured) |
+| huggingface | (user-configured) | — |

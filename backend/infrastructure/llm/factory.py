@@ -8,6 +8,11 @@ logger = logging.getLogger(__name__)
 
 def create_llm(config: AppConfig) -> LLM:
     """Instantiate the main LLM based on config.llm_provider."""
+    if not config.llm_provider:
+        raise ValueError(
+            "No LLM provider configured. "
+            "Set DOCASSIST_LLM_PROVIDER (e.g. groq, openrouter, ollama, huggingface, nvidia, gemini)."
+        )
     if config.llm_provider == "groq":
         if not config.groq.api_key:
             raise ValueError(
@@ -52,14 +57,18 @@ def create_llm(config: AppConfig) -> LLM:
         from infrastructure.llm.gemini_llm import GeminiLLM
         logger.info("Using Gemini LLM: model=%s", config.gemini.model)
         return GeminiLLM(config.gemini)
-    else:
+    elif config.llm_provider == "ollama":
         from infrastructure.llm.ollama import OllamaLLM
         logger.info("Using Ollama LLM: model=%s", config.ollama.generation_model)
         return OllamaLLM(config.ollama)
+    else:
+        raise ValueError(f"Unknown LLM provider: {config.llm_provider}")
 
 
 def create_fast_llm(config: AppConfig, fallback: LLM) -> LLM:
     """Instantiate a fast LLM for bulk tasks, falling back to the main LLM."""
+    if not config.llm_provider:
+        return fallback
     if config.llm_provider == "groq":
         if config.groq.fast_model:
             from infrastructure.llm.groq_llm import GroqLLM
@@ -97,7 +106,7 @@ def create_fast_llm(config: AppConfig, fallback: LLM) -> LLM:
             logger.info("Using Gemini fast LLM: model=%s", fast_cfg.model)
             return GeminiLLM(fast_cfg)
         return fallback
-    else:
+    elif config.llm_provider == "ollama":
         if config.ollama.fast_model:
             from infrastructure.llm.ollama import OllamaLLM
             fast_cfg = config.ollama.model_copy(
@@ -105,6 +114,8 @@ def create_fast_llm(config: AppConfig, fallback: LLM) -> LLM:
             )
             logger.info("Using Ollama fast LLM: model=%s", fast_cfg.generation_model)
             return OllamaLLM(fast_cfg)
+        return fallback
+    else:
         return fallback
 
 
@@ -135,11 +146,13 @@ def create_llm_with_model(config: AppConfig, model_name: str) -> LLM:
         cfg = config.gemini.model_copy(update={"model": model_name})
         logger.info("Using Gemini LLM with override: model=%s", model_name)
         return GeminiLLM(cfg)
-    else:
+    elif config.llm_provider == "ollama":
         from infrastructure.llm.ollama import OllamaLLM
         cfg = config.ollama.model_copy(update={"generation_model": model_name})
         logger.info("Using Ollama LLM with override: model=%s", model_name)
         return OllamaLLM(cfg)
+    else:
+        raise ValueError(f"Unknown LLM provider: {config.llm_provider}")
 
 
 def create_llm_for_agent(provider: str, model: str, api_key: str, config: AppConfig) -> LLM:

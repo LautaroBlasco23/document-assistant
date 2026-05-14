@@ -1,19 +1,19 @@
-services:
+name: knowledge-trees-app
 
-  # ── Infrastructure ────────────────────────────────────────────────────────────
+services:
 
   postgres:
     image: postgres:17.4-alpine
-    container_name: docassist_postgres
+    container_name: docassist_app_postgres
     restart: unless-stopped
-    ports:
-      - "5432:5432"
+    expose:
+      - 5432
     environment:
       POSTGRES_DB: docassist
       POSTGRES_USER: docassist
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - postgres_app_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U docassist"]
       interval: 10s
@@ -21,92 +21,71 @@ services:
       retries: 3
       start_period: 10s
     networks:
-      - docassist_network
-
-  # ── Application ───────────────────────────────────────────────────────────────
+      - docassist_app_network
 
   backend:
     build:
       context: .
       dockerfile: backend/Dockerfile
-    container_name: docassist_backend
+    container_name: docassist_app_backend
     restart: unless-stopped
+    ports:
+      - "${BACKEND_PORT:-8090}:${BACKEND_PORT:-8090}"
     environment:
-      # Override localhost defaults from config/default.yml with Docker service names
+      - BACKEND_PORT=${BACKEND_PORT:-8090}
       - DOCASSIST_POSTGRES__HOST=postgres
       - DOCASSIST_POSTGRES__PASSWORD=${POSTGRES_PASSWORD}
-      # Ollama runs on the host — host.docker.internal resolves via extra_hosts below
       - DOCASSIST_OLLAMA__BASE_URL=http://host.docker.internal:11434
-      # LLM provider and credentials
       - DOCASSIST_LLM_PROVIDER=${DOCASSIST_LLM_PROVIDER:-groq}
       - DOCASSIST_GROQ__API_KEY=${DOCASSIST_GROQ__API_KEY:-}
       - DOCASSIST_OPENROUTER__API_KEY=${DOCASSIST_OPENROUTER__API_KEY:-}
       - DOCASSIST_HUGGINGFACE__API_KEY=${DOCASSIST_HUGGINGFACE__API_KEY:-}
-      # CORS: origins computed by scripts/setupEnv.sh from DOMAIN + NGINX_PORT
+      - DOCASSIST_AUTH__JWT_SECRET=${DOCASSIST_AUTH__JWT_SECRET:-}
+      - DOCASSIST_AUTH__ENCRYPTION_KEY=${DOCASSIST_AUTH__ENCRYPTION_KEY:-}
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
-      # Bind-mount data/ so documents and manifests persist on the host
       - ./data:/app/data
-      # Mount config as read-only so you can edit default.yml without rebuilding
       - ./config:/config:ro
     depends_on:
       postgres:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')\" || exit 1"]
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:${BACKEND_PORT:-8090}/api/health')\" || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 5
       start_period: 30s
     networks:
-      - docassist_network
+      - docassist_app_network
 
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    container_name: docassist_frontend
+    container_name: docassist_app_frontend
     restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-3500}:${FRONTEND_PORT:-3500}"
+    environment:
+      - FRONTEND_PORT=${FRONTEND_PORT:-3500}
+      - VITE_API_TARGET=http://backend:${BACKEND_PORT:-8090}
+    depends_on:
+      backend:
+        condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:80"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:${FRONTEND_PORT:-3500}"]
       interval: 30s
       timeout: 5s
       retries: 3
       start_period: 15s
     networks:
-      - docassist_network
-
-  # ── Reverse proxy ─────────────────────────────────────────────────────────────
-
-  nginx:
-    image: nginx:1.27-alpine
-    container_name: docassist_nginx
-    restart: unless-stopped
-    ports:
-      - "${NGINX_PORT:-80}:80"
-    environment:
-      - DOMAIN=${DOMAIN:-localhost}
-      - FORWARDED_PROTO=${FORWARDED_PROTO:-http}
-    volumes:
-      - ./nginx/nginx.conf.template:/etc/nginx/templates/default.conf.template:ro
-    depends_on:
-      backend:
-        condition: service_healthy
-      frontend:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:80"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-    networks:
-      - docassist_network
+      - docassist_app_network
 
 volumes:
-  postgres_data:
+  postgres_app_data:
 
 networks:
-  docassist_network:
+  docassist_app_network:
     driver: bridge

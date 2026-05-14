@@ -17,7 +17,7 @@ def test_load_default_config():
 def test_load_missing_config():
     config = load_config(Path("/nonexistent/config.yml"))
     assert isinstance(config, AppConfig)
-    assert config.ollama.generation_model == "llama3.2"
+    assert config.ollama.generation_model == ""
 
 
 def test_fast_model_from_yaml():
@@ -42,11 +42,10 @@ def test_fast_model_from_yaml():
         tmp_path.unlink()
 
 
-def test_default_llm_provider_is_groq(monkeypatch):
-    """Default provider in default.yml is groq."""
+def test_default_llm_provider_is_empty(monkeypatch):
     monkeypatch.delenv("DOCASSIST_LLM_PROVIDER", raising=False)
     config = load_config()
-    assert config.llm_provider == "groq"
+    assert config.llm_provider == ""
 
 
 def test_llm_provider_from_yaml():
@@ -67,7 +66,7 @@ def test_groq_config_defaults():
     """GroqConfig default values are sensible."""
     groq = GroqConfig()
     assert groq.base_url == "https://api.groq.com/openai/v1"
-    assert groq.model == "mixtral-8x7b-32768"
+    assert groq.model == ""
     assert groq.timeout == 60
     assert groq.max_retries == 3
     assert groq.api_key == ""

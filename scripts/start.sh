@@ -15,11 +15,13 @@ set +a
 
 BACKEND_DIR="backend"
 DOCKER_COMPOSE="docker compose"
+BACKEND_PORT="${BACKEND_PORT:-8090}"
+FRONTEND_PORT="${FRONTEND_PORT:-3500}"
 
 # ── Provider menu ──────────────────────────────────────────────────────────────
 
 select_provider() {
-    local current="${DOCASSIST_LLM_PROVIDER:-groq}"
+    local current="${DOCASSIST_LLM_PROVIDER:-}"
     echo ""
     echo "Select LLM provider:"
     echo "  1) groq        (Groq API — requires DOCASSIST_GROQ__API_KEY)"
@@ -47,7 +49,7 @@ else
     echo ""
     echo "Select environment:"
     echo "  1) dev          - backend + frontend in dev mode (infra in Docker)"
-    echo "  2) full-docker  - everything in Docker (backend, frontend, nginx)"
+    echo "  2) full-docker  - everything in Docker (backend, frontend)"
     printf "Choice [1-2, default: dev]: "
     read -r ENV_CHOICE || true
 
@@ -63,7 +65,7 @@ if [ -n "${PROVIDER:-}" ]; then
     CHOSEN_PROVIDER="$PROVIDER"
     echo "Using provider from command line: $CHOSEN_PROVIDER"
 elif [ "${AUTO_DEFAULTS:-}" = "1" ]; then
-    CHOSEN_PROVIDER="${DOCASSIST_LLM_PROVIDER:-groq}"
+    CHOSEN_PROVIDER="${DOCASSIST_LLM_PROVIDER:-}"
     echo "Auto-defaults enabled: using provider '$CHOSEN_PROVIDER'."
 else
     select_provider
@@ -97,8 +99,7 @@ if [ "$ENV_MODE" = "dev" ]; then
     (cd "$BACKEND_DIR" && uv sync) || { echo "Failed to install Python dependencies. Is 'uv' installed?"; exit 1; }
 
     if [ "$CHOSEN_PROVIDER" = "ollama" ]; then
-        echo "Pulling Ollama models..."
-        ollama pull llama3.2 || echo "Warning: Failed to pull Ollama models. Is Ollama installed?"
+        echo "Ollama provider selected. Make sure your models are pulled with 'ollama pull <model>'."
     fi
 
     if [ ! -d "frontend/node_modules" ]; then
@@ -197,6 +198,6 @@ else
     $DOCKER_COMPOSE up -d
 
     echo ""
-    echo "Services started. Access the app at http://localhost:${NGINX_PORT:-80}"
+    echo "Services started. Access the app at http://localhost:${FRONTEND_PORT}"
 
 fi

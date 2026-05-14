@@ -8,7 +8,7 @@ from pydantic_settings import BaseSettings
 
 class OllamaConfig(BaseModel):
     base_url: str = "http://localhost:11434"
-    generation_model: str = "llama3.2"
+    generation_model: str = ""
     fast_model: str | None = None
     timeout: int = 300
 
@@ -16,8 +16,8 @@ class OllamaConfig(BaseModel):
 class GroqConfig(BaseModel):
     api_key: str = ""  # set via DOCASSIST_GROQ__API_KEY
     base_url: str = "https://api.groq.com/openai/v1"
-    model: str = "mixtral-8x7b-32768"
-    fast_model: str | None = None  # e.g. "llama-3.1-8b-instant"
+    model: str = ""
+    fast_model: str | None = None
     timeout: int = 60
     max_retries: int = 3  # for 429 backoff in background tasks
     max_retries_chat: int = 1  # fail-fast for synchronous chat
@@ -27,8 +27,8 @@ class GroqConfig(BaseModel):
 class OpenRouterConfig(BaseModel):
     api_key: str = ""  # set via DOCASSIST_OPENROUTER__API_KEY
     base_url: str = "https://openrouter.ai/api/v1"
-    model: str = "meta-llama/llama-3.3-70b-instruct:free"
-    fast_model: str | None = "qwen/qwen2.5-7b-instruct:free"
+    model: str = ""
+    fast_model: str | None = None
     timeout: int = 120  # some models are slower
     max_retries: int = 3
     max_retries_chat: int = 1  # fail-fast for synchronous chat
@@ -40,7 +40,7 @@ class OpenRouterConfig(BaseModel):
 class HuggingFaceConfig(BaseModel):
     api_key: str = ""  # set via DOCASSIST_HUGGINGFACE__API_KEY (hf_ token)
     base_url: str = "https://router.huggingface.co/v1"
-    model: str = "Qwen/Qwen2.5-72B-Instruct"
+    model: str = ""
     fast_model: str | None = None
     timeout: int = 180  # free tier can be slow (model loading)
     max_retries: int = 3
@@ -52,8 +52,8 @@ class HuggingFaceConfig(BaseModel):
 class NvidiaConfig(BaseModel):
     api_key: str = ""  # set via DOCASSIST_NVIDIA__API_KEY
     base_url: str = "https://integrate.api.nvidia.com/v1"
-    model: str = "meta/llama-3.3-70b-instruct"
-    fast_model: str | None = "meta/llama-3.1-8b-instruct"
+    model: str = ""
+    fast_model: str | None = None
     timeout: int = 120
     max_retries: int = 3
     max_retries_chat: int = 1  # fail-fast for synchronous chat
@@ -63,8 +63,8 @@ class NvidiaConfig(BaseModel):
 class GeminiConfig(BaseModel):
     api_key: str = ""  # set via DOCASSIST_GEMINI__API_KEY
     base_url: str = "https://generativelanguage.googleapis.com/v1beta/openai/"
-    model: str = "gemini-2.5-flash"
-    fast_model: str | None = "gemini-2.5-flash-lite"
+    model: str = ""
+    fast_model: str | None = None
     timeout: int = 120
     max_retries: int = 3
     max_retries_chat: int = 1  # fail-fast for synchronous chat
@@ -114,7 +114,7 @@ class AppConfig(BaseSettings):
     exam: ExamConfig = ExamConfig()
     epub: EpubConfig = EpubConfig()
     auth: AuthConfig = AuthConfig()
-    llm_provider: str = "groq"
+    llm_provider: str = ""
     # supported: ollama | groq | openrouter | huggingface | nvidia | gemini
     flashcard_model: str = "main"  # "main" | "fast"
 

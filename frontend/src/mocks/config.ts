@@ -3,7 +3,7 @@ import type { ConfigOut } from '../types/api'
 export const mockConfig: ConfigOut = {
   ollama: {
     base_url: 'http://localhost:11434',
-    generation_model: 'llama3.2',
+    generation_model: '',
     timeout: 120,
   },
   chunking: {

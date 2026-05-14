@@ -238,14 +238,16 @@ The config file (`config/default.yml`) also defines which models to use per prov
 
 ### LLM models and prompts
 
-All LLM models are configured in `config/default.yml` under the provider sections (`groq`, `ollama`, `openrouter`, `huggingface`). Each provider has a **main model** for quality and a **fast model** for bulk generation tasks.
+All LLM models must be configured by the user in `config/default.yml` or via environment variables (e.g. `DOCASSIST_GROQ__MODEL`). Each provider has a **main model** for quality and a **fast model** for bulk generation tasks.
 
 | Provider | Main model | Fast model |
 |----------|-----------|------------|
-| Groq | `llama-3.3-70b-versatile` | `llama-3.1-8b-instant` |
-| Ollama | `qwen2.5:14b-instruct` | `qwen2.5:3b-instruct` |
-| OpenRouter | `qwen/qwen3-next-80b-a3b-instruct:free` | `liquid/lfm-2.5-1.2b-thinking:free` |
-| HuggingFace | `mistralai/Mistral-7B-Instruct-v0.3` | — |
+| Groq | (user-configured) | (user-configured) |
+| Ollama | (user-configured) | (user-configured) |
+| OpenRouter | (user-configured) | (user-configured) |
+| HuggingFace | (user-configured) | — |
+| NVIDIA | (user-configured) | (user-configured) |
+| Gemini | (user-configured) | (user-configured) |
 
 Agent system prompts live in `backend/application/prompts.py`:
 - `SUMMARY_SYSTEM` / `SUMMARY_SYSTEM_COMBINE` / `SUMMARY_SYSTEM_PARTIAL` — summarizer

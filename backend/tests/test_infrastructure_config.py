@@ -163,4 +163,4 @@ def test_env_prefix_is_case_sensitive(monkeypatch):
     config = load_config(Path("/nonexistent/config.yml"))
     # Should use defaults without crashing
     assert isinstance(config, AppConfig)
-    assert config.llm_provider == "groq"
+    assert config.llm_provider == ""

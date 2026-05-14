@@ -104,15 +104,12 @@ def test_create_llm_ollama():
 # Test 5: unknown provider raises ValueError
 # ---------------------------------------------------------------------------
 
-def test_create_llm_unknown_provider_falls_back_to_ollama():
-    """An unsupported provider string falls through to the Ollama branch."""
+def test_create_llm_unknown_provider_raises_error():
+    """An unsupported provider string raises ValueError."""
     config = _make_config("ollama")
     config.llm_provider = "unknown"
-    llm = create_llm(config)
-
-    from infrastructure.llm.ollama import OllamaLLM
-
-    assert isinstance(llm, OllamaLLM)
+    with pytest.raises(ValueError, match="Unknown LLM provider"):
+        create_llm(config)
 
 
 # ---------------------------------------------------------------------------

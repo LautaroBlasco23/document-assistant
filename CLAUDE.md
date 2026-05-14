@@ -56,7 +56,7 @@ frontend/       # React + TypeScript + Tailwind SPA (Vite, port 5173)
 - **Plan-based resource limits** — Free plan: 200 documents, 3 knowledge trees. Subscription plans in DB (slug, name, max_documents, max_knowledge_trees). Router limit checks before write operations. `PlanLimitExceeded` exception raised on violation.
 - **Per-request generation parameters** — `GenerationParams` dataclass (temperature, top_p, max_tokens) passed to all LLM calls. Frontend generation settings page controls these per-request. All LLM adapters accept params.
 - **No LlamaIndex/LangChain** — Direct `requests` to Groq/Ollama + `psycopg` for PostgreSQL. Simpler, fewer deps, more debuggable.
-- **Groq as default LLM** — `GroqLLM` via `requests` to Groq's OpenAI-compatible API. Switch providers with `DOCASSIST_LLM_PROVIDER=ollama|openrouter|huggingface` or CLI `--provider`.
+- **No default LLM** — Users must configure `DOCASSIST_LLM_PROVIDER`, API key, and model name. Switch providers with `DOCASSIST_LLM_PROVIDER=groq|ollama|openrouter|huggingface|nvidia|gemini` or CLI `--provider`.
 - **Groq rate limiter** — `GroqRateLimiter` (sliding window, 25/30 req/min threshold) is a module-level singleton in `groq_llm.py`. Proactively throttles before hitting the free-tier limit; also retries on 429 with exponential backoff.
 - **Fast model for bulk tasks** — `create_fast_llm()` factory selects a smaller model for flashcard/summary/question generation. Knowledge tree question generation always uses `services.fast_llm`.
 - **Word-based LLM batching** — Summarizer: 3500 words/call (map-reduce if larger). Flashcard generator: 3000 words/batch. Question generator: 2500 words/batch. Avoids fixed chunk counts, better aligns with LLM context windows.
@@ -122,16 +122,18 @@ frontend/       # React + TypeScript + Tailwind SPA (Vite, port 5173)
 
 | Provider | Main model | Fast model |
 |----------|-----------|-----------|
-| groq (default) | llama-3.3-70b-versatile | llama-3.1-8b-instant |
-| ollama | qwen2.5:14b-instruct | qwen2.5:3b-instruct |
-| openrouter | meta-llama/llama-3.3-70b-instruct:free | qwen/qwen2.5-7b-instruct:free |
-| huggingface | Qwen/Qwen2.5-72B-Instruct | — |
+| groq | (user-configured) | (user-configured) |
+| ollama | (user-configured) | (user-configured) |
+| openrouter | (user-configured) | (user-configured) |
+| huggingface | (user-configured) | — |
+| nvidia | (user-configured) | (user-configured) |
+| gemini | (user-configured) | (user-configured) |
 
 ## External services
 
 | Service | Default URL | Docker | Role |
 |---------|-------------|--------|------|
-| Groq API | `https://api.groq.com` | — | LLM inference (default; requires `DOCASSIST_GROQ__API_KEY`) |
+| Groq API | `https://api.groq.com` | — | LLM inference (requires `DOCASSIST_GROQ__API_KEY`) |
 | Ollama | localhost:11434 | Host-installed | Optional local LLM |
 | PostgreSQL | localhost:5432 | `docker-compose.yml` | All persistence |
 
