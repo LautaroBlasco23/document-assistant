@@ -125,13 +125,24 @@ class AppConfig(BaseSettings):
     }
 
 
-PROJECT_ROOT = Path(__file__).parent.parent.parent  # infrastructure → backend → project root
+_candidate = Path(__file__).resolve().parent.parent.parent  # 3 levels: project root (host) or / (Docker)
+if not (_candidate / "docker-compose.yml").is_file():
+    # Docker: 3 levels gives /, but app root is /app (2 levels from __file__)
+    _candidate = Path(__file__).resolve().parent.parent  # = /app in Docker
+PROJECT_ROOT = _candidate
+
+
+def _config_path() -> Path:
+    p = PROJECT_ROOT / "config" / "default.yml"
+    if not p.exists():
+        p = Path("/config/default.yml")  # Docker fallback
+    return p
 
 
 def load_config(config_path: Path | None = None) -> AppConfig:
     """Load config from YAML file, with env var overrides."""
     if config_path is None:
-        config_path = PROJECT_ROOT / "config" / "default.yml"
+        config_path = _config_path()
 
     data: dict = {}
     if config_path.exists():
@@ -159,7 +170,7 @@ def load_config(config_path: Path | None = None) -> AppConfig:
 def save_config(config: AppConfig, config_path: Path | None = None) -> None:
     """Save config to YAML file."""
     if config_path is None:
-        config_path = PROJECT_ROOT / "config" / "default.yml"
+        config_path = _config_path()
 
     config_path.parent.mkdir(parents=True, exist_ok=True)
 

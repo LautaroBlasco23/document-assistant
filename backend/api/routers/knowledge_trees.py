@@ -51,7 +51,7 @@ from infrastructure.ingest.epub_loader import preview_epub
 from infrastructure.ingest.pdf_loader import preview_pdf
 from infrastructure.ingest.txt_loader import preview_txt
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("knowledge_trees")
 
 router = APIRouter()
 
@@ -835,18 +835,31 @@ async def get_document_file(tree_id: str, doc_id: str, services: ServicesDep):
     uid = _parse_uuid(tree_id, "tree_id")
     doc_uid = _parse_uuid(doc_id, "doc_id")
     doc = services.kt_doc_store.get_document(doc_uid)
+    _file_path = doc.source_file_path if doc else None
+    logger.info("GET file tree=%s doc=%s source_file_path=%s", tree_id, doc_id, _file_path)
     if doc is None or doc.tree_id != uid or not doc.source_file_path:
         raise HTTPException(status_code=404, detail="File not found")
     path = Path(doc.source_file_path)
+    logger.info("  stored_path=%s exists=%s", path, path.exists())
     if not path.exists():
-        raise HTTPException(status_code=404, detail="File not found on disk")
-    if path.suffix == ".pdf":
+        # Dev ↔ Docker path mismatch: stored path is absolute for one environment
+        # but broken in the other. Reconstruct from storage dir + filename.
+        storage_dir = PROJECT_ROOT / "data" / "storage"
+        alt = storage_dir / path.name
+        logger.info("  fallback_path=%s exists=%s PROJECT_ROOT=%s", alt, alt.exists(), PROJECT_ROOT)
+        if alt.exists():
+            path = alt
+        else:
+            raise HTTPException(status_code=404, detail="File not found on disk")
+    suffix = path.suffix.lower()
+    if suffix == ".pdf":
         media_type = "application/pdf"
-    elif path.suffix == ".epub":
+    elif suffix == ".epub":
         media_type = "application/epub+zip"
     else:
         media_type = "text/plain; charset=utf-8"
-    return FileResponse(path, filename=doc.source_file_name or path.name, media_type=media_type)
+    logger.info("  serving file=%s size=%s", path, path.stat().st_size if path.exists() else "?")
+    return FileResponse(path, filename=doc.source_file_name or path.name, media_type=media_type, content_disposition_type="inline")
 
 
 @router.get("/knowledge-trees/{tree_id}/documents/{doc_id}/thumbnail")
@@ -855,11 +868,20 @@ async def get_document_thumbnail(tree_id: str, doc_id: str, services: ServicesDe
     uid = _parse_uuid(tree_id, "tree_id")
     doc_uid = _parse_uuid(doc_id, "doc_id")
     doc = services.kt_doc_store.get_document(doc_uid)
+    src = doc.source_file_path if doc else None
+    logger.info("GET thumbnail tree=%s doc=%s source_file_path=%s", tree_id, doc_id, src)
     if doc is None or doc.tree_id != uid or not doc.source_file_path:
         raise HTTPException(status_code=404, detail="File not found")
     path = Path(doc.source_file_path)
+    logger.info("  stored_path=%s exists=%s", path, path.exists())
     if not path.exists():
-        raise HTTPException(status_code=404, detail="File not found on disk")
+        storage_dir = PROJECT_ROOT / "data" / "storage"
+        alt = storage_dir / path.name
+        logger.info("  fallback_path=%s exists=%s PROJECT_ROOT=%s", alt, alt.exists(), PROJECT_ROOT)
+        if alt.exists():
+            path = alt
+        else:
+            raise HTTPException(status_code=404, detail="File not found on disk")
     if path.suffix != ".pdf":
         raise HTTPException(status_code=404, detail="Thumbnails only available for PDF files")
     pdf = fitz.open(str(path))
