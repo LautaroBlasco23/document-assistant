@@ -789,6 +789,7 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
               onContextMenu={handleContextMenu}
               onClickAway={hideContextMenu}
               scrollRef={pdfScrollRef}
+              highlights={docHighlights}
             />
           ) : isText ? (
             <TextPagesView

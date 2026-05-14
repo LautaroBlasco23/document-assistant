@@ -315,3 +315,14 @@ textarea,
   background-color: rgba(0, 166, 251, 0.35);
   color: transparent;
 }
+
+.textLayer mark {
+  color: transparent;
+  background-color: rgb(254 240 138);
+  border-radius: 2px;
+  padding: 0 2px;
+}
+
+.dark .textLayer mark {
+  background-color: rgba(251, 191, 36, 0.5);
+}

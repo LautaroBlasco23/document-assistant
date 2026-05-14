@@ -5,6 +5,8 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
 import 'react-pdf/dist/Page/TextLayer.css'
 
 import type { ContentWidth } from '../../stores/reader-preferences'
+import type { Highlight } from '../../stores/highlights-store'
+import type { TextContent, TextItem } from 'react-pdf'
 
 function maxPdfWidth(cw: ContentWidth): number {
   if (cw === 'full') return Infinity
@@ -28,6 +30,7 @@ interface PdfPagesViewProps {
   scrollRef?: React.MutableRefObject<PdfPagesViewHandle | null>
   mode?: 'scroll' | 'paged'
   initialPage?: number
+  highlights?: Highlight[]
 }
 
 const PAGE_BUFFER_VIEWPORTS = 3
@@ -36,6 +39,10 @@ const SIDE_PADDING = 400
 
 const DOCUMENT_OPTIONS = {
   // Keep stable identity across renders to avoid pdfjs reloading the file.
+  cMapUrl: '/pdfjs/cmaps/',
+  cMapPacked: true,
+  standardFontDataUrl: '/pdfjs/standard_fonts/',
+  wasmUrl: '/pdfjs/wasm/',
 } as const
 
 export function PdfPagesView({
@@ -50,6 +57,7 @@ export function PdfPagesView({
   scrollRef,
   mode = 'scroll',
   initialPage,
+  highlights = [],
 }: PdfPagesViewProps) {
   const [numPages, setNumPages] = React.useState(0)
   const capRef = React.useRef(maxPdfWidth(contentWidth))
@@ -316,6 +324,10 @@ export function PdfPagesView({
     onNumPagesChangeRef.current?.(n)
   }, [])
 
+  const handleDocError = React.useCallback((error: Error) => {
+    console.error('[PdfPagesView] PDF load error:', error.message, error)
+  }, [])
+
   const handleFirstPageRender = React.useCallback(() => {
     const first = pageSlotRefs.current.values().next().value as HTMLDivElement | undefined
     if (!first) return
@@ -353,6 +365,7 @@ export function PdfPagesView({
             file={fileUrl}
             options={DOCUMENT_OPTIONS}
             onLoadSuccess={handleDocLoad}
+            onLoadError={handleDocError}
             loading={
               <div className="h-full flex items-center justify-center text-sm text-text-tertiary">
                 Loading PDF...
@@ -367,7 +380,7 @@ export function PdfPagesView({
             {pagedPage > 0 && (
               <div className="w-full flex flex-col items-center py-6">
                 <div className="bg-surface dark:bg-surface-100 shadow-md">
-                  <MemoPage pageNumber={pagedPage} width={displayWidth} />
+                  <MemoPage pageNumber={pagedPage} width={displayWidth} highlights={highlights} />
                 </div>
                 <div className="mt-3 text-xs tabular-nums text-text-tertiary select-none">
                   {pagedPageIdx + 1} / {pageList.length}
@@ -403,6 +416,7 @@ export function PdfPagesView({
         file={fileUrl}
         options={DOCUMENT_OPTIONS}
         onLoadSuccess={handleDocLoad}
+        onLoadError={handleDocError}
         loading={
           <div className="w-[600px] h-[800px] flex items-center justify-center text-sm text-text-tertiary">
             Loading PDF...
@@ -430,6 +444,7 @@ export function PdfPagesView({
                     pageNumber={pageNumber}
                     width={displayWidth}
                     onRenderSuccess={idx === 0 ? handleFirstPageRender : undefined}
+                    highlights={highlights}
                   />
                 </div>
               ) : (
@@ -450,9 +465,77 @@ interface MemoPageProps {
   pageNumber: number
   width: number
   onRenderSuccess?: () => void
+  highlights?: Highlight[]
 }
 
-const MemoPage = React.memo(function MemoPage({ pageNumber, width, onRenderSuccess }: MemoPageProps) {
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
+const MemoPage = React.memo(function MemoPage({ pageNumber, width, onRenderSuccess, highlights = [] }: MemoPageProps) {
+  const [matchedIndices, setMatchedIndices] = React.useState<Set<number>>(new Set())
+
+  const highlightTerms = React.useMemo(() => {
+    const terms = [...new Set(highlights.map((h) => h.text.trim()).filter(Boolean))].sort(
+      (a, b) => b.length - a.length,
+    )
+    return terms.length ? terms : null
+  }, [highlights])
+
+  const handleTextSuccess = React.useCallback((textContent: TextContent) => {
+    const items = (textContent.items ?? []).filter(
+      (item): item is TextItem => 'str' in item,
+    )
+    if (!items.length || !highlightTerms) {
+      setMatchedIndices(new Set())
+      return
+    }
+    const fullText = items.map((item) => item.str).join('')
+    const fullLower = fullText.toLowerCase()
+    const result = new Set<number>()
+    for (const term of highlightTerms) {
+      const lowerTerm = term.toLowerCase()
+      let pos = 0
+      while (pos < fullText.length) {
+        const idx = fullLower.indexOf(lowerTerm, pos)
+        if (idx === -1) break
+        const matchEnd = idx + term.length
+        let charPos = 0
+        for (let i = 0; i < items.length; i++) {
+          const itemLen = items[i].str.length
+          if (idx < charPos + itemLen && matchEnd > charPos) {
+            result.add(i)
+          }
+          charPos += itemLen
+        }
+        pos = idx + 1
+      }
+    }
+    setMatchedIndices(result)
+  }, [highlightTerms])
+
+  const customTextRenderer = React.useMemo(() => {
+    if (!highlightTerms) return undefined
+    const terms = highlightTerms
+    const crossItems = matchedIndices
+    return ({ str, itemIndex }: { str: string; itemIndex: number }) => {
+      const lower = str.toLowerCase()
+      for (const term of terms) {
+        const idx = lower.indexOf(term.toLowerCase())
+        if (idx !== -1) {
+          const before = escapeHtml(str.slice(0, idx))
+          const match = escapeHtml(str.slice(idx, idx + term.length))
+          const after = escapeHtml(str.slice(idx + term.length))
+          return `${before}<mark class="pdf-highlight">${match}</mark>${after}`
+        }
+      }
+      if (crossItems.has(itemIndex)) {
+        return `<mark class="pdf-highlight">${escapeHtml(str)}</mark>`
+      }
+      return escapeHtml(str)
+    }
+  }, [highlightTerms, matchedIndices])
+
   return (
     <Page
       pageNumber={pageNumber}
@@ -460,6 +543,8 @@ const MemoPage = React.memo(function MemoPage({ pageNumber, width, onRenderSucce
       renderAnnotationLayer={false}
       renderTextLayer
       onRenderSuccess={onRenderSuccess}
+      onGetTextSuccess={handleTextSuccess}
+      customTextRenderer={customTextRenderer}
     />
   )
 })
