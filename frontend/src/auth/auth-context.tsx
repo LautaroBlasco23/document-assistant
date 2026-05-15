@@ -1,14 +1,9 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from 'react'
-
-interface User {
-  id: string
-  email: string
-  display_name: string | null
-  has_first_agent: boolean
-}
+import { client } from '../services'
+import type { UserProfile } from '../types/api'
 
 interface AuthContextType {
-  user: User | null
+  user: UserProfile | null
   token: string | null
   isLoading: boolean
   login: (email: string, password: string) => Promise<void>
@@ -20,29 +15,22 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | null>(null)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null)
+  const [user, setUser] = useState<UserProfile | null>(null)
   const [token, setToken] = useState<string | null>(localStorage.getItem('auth_token'))
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
     if (token) {
-      fetchUser(token)
+      fetchUser()
     } else {
       setIsLoading(false)
     }
   }, [token])
 
-  const fetchUser = async (authToken: string) => {
+  const fetchUser = async () => {
     try {
-      const res = await fetch('/api/auth/me', {
-        headers: { 'Authorization': `Bearer ${authToken}` }
-      })
-      if (res.ok) {
-        const data = await res.json()
-        setUser(data)
-      } else {
-        logout()
-      }
+      const data = await client.getMe()
+      setUser(data)
     } catch {
       logout()
     } finally {
@@ -51,35 +39,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const login = async (email: string, password: string) => {
-    const res = await fetch('/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
-    })
-    if (!res.ok) {
-      const error = await res.json()
-      throw new Error(error.detail || 'Login failed')
-    }
-    const data = await res.json()
+    const data = await client.login(email, password)
     setToken(data.access_token)
     localStorage.setItem('auth_token', data.access_token)
-    await fetchUser(data.access_token)
+    await fetchUser()
   }
 
   const register = async (email: string, password: string, displayName?: string) => {
-    const res = await fetch('/api/auth/register', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password, display_name: displayName }),
-    })
-    if (!res.ok) {
-      const error = await res.json()
-      throw new Error(error.detail || 'Registration failed')
-    }
-    const data = await res.json()
+    const data = await client.register(email, password, displayName)
     setToken(data.access_token)
     localStorage.setItem('auth_token', data.access_token)
-    await fetchUser(data.access_token)
+    await fetchUser()
   }
 
   const logout = () => {
@@ -90,7 +60,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const refetchUser = async () => {
     const authToken = token || localStorage.getItem('auth_token')
-    if (authToken) await fetchUser(authToken)
+    if (authToken) await fetchUser()
   }
 
   return (

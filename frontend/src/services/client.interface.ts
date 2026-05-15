@@ -16,6 +16,8 @@ import type {
   ProviderInfo,
   CredentialStatus,
   TestConnectionResult,
+  AuthTokenResponse,
+  UserProfile,
 } from '../types/api'
 import type { KnowledgeTree, KnowledgeChapter, KnowledgeDocument, ExamSession, CreateExamSessionPayload } from '../types/knowledge-tree'
 
@@ -109,6 +111,11 @@ export interface ServiceClient {
 
   // Export
   exportKnowledgeTree(treeId: string): Promise<Blob>
+
+  // Auth
+  login(email: string, password: string): Promise<AuthTokenResponse>
+  register(email: string, password: string, displayName?: string): Promise<AuthTokenResponse>
+  getMe(): Promise<UserProfile>
 
   // Chat
   chat(request: ChatRequest, signal?: AbortSignal): Promise<ChatResponse>

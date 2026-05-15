@@ -188,3 +188,17 @@ export interface ChatRequest {
 export interface ChatResponse {
   reply: string
 }
+
+export interface AuthTokenResponse {
+  access_token: string
+  token_type: string
+  expires_in_days: number
+}
+
+export interface UserProfile {
+  id: string
+  email: string
+  display_name: string | null
+  has_first_agent: boolean
+  created_at: string
+}

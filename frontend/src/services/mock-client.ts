@@ -21,6 +21,8 @@ import type {
   ProviderInfo,
   CredentialStatus,
   TestConnectionResult,
+  AuthTokenResponse,
+  UserProfile,
 } from '../types/api'
 import type { ServiceClient } from './client.interface'
 
@@ -612,6 +614,31 @@ export class MockClient implements ServiceClient {
   async testConnection(_provider: string, _apiKey?: string): Promise<TestConnectionResult> {
     await delay(300)
     return { ok: true, model_count: 5 }
+  }
+
+  // Auth
+  async login(email: string, _password: string): Promise<AuthTokenResponse> {
+    await delay(200)
+    if (email === 'a@b.com') {
+      return { access_token: 'mock-jwt-login', token_type: 'bearer', expires_in_days: 7 }
+    }
+    throw new Error('Invalid email or password')
+  }
+
+  async register(_email: string, _password: string, _displayName?: string): Promise<AuthTokenResponse> {
+    await delay(200)
+    return { access_token: 'mock-jwt-register', token_type: 'bearer', expires_in_days: 7 }
+  }
+
+  async getMe(): Promise<UserProfile> {
+    await delay(100)
+    return {
+      id: 'mock-user-1',
+      email: 'mock@example.com',
+      display_name: 'Mock User',
+      has_first_agent: false,
+      created_at: new Date().toISOString(),
+    }
   }
 
   async chat(_request: ChatRequest, _signal?: AbortSignal): Promise<ChatResponse> {

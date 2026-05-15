@@ -18,6 +18,8 @@ import type {
   ProviderInfo,
   CredentialStatus,
   TestConnectionResult,
+  AuthTokenResponse,
+  UserProfile,
 } from '../types/api'
 import type { ServiceClient } from './client.interface'
 import type { KnowledgeTree, KnowledgeChapter, KnowledgeDocument, ExamSession, CreateExamSessionPayload } from '../types/knowledge-tree'
@@ -510,6 +512,22 @@ export class RealClient implements ServiceClient {
     const body: Record<string, unknown> = {}
     if (apiKey) body.api_key = apiKey
     const res = await httpClient.post<TestConnectionResult>(`/credentials/${provider}/test`, body)
+    return res.data
+  }
+
+  // Auth
+  async login(email: string, password: string): Promise<AuthTokenResponse> {
+    const res = await httpClient.post<AuthTokenResponse>('/auth/login', { email, password })
+    return res.data
+  }
+
+  async register(email: string, password: string, displayName?: string): Promise<AuthTokenResponse> {
+    const res = await httpClient.post<AuthTokenResponse>('/auth/register', { email, password, display_name: displayName })
+    return res.data
+  }
+
+  async getMe(): Promise<UserProfile> {
+    const res = await httpClient.get<UserProfile>('/auth/me')
     return res.data
   }
 
