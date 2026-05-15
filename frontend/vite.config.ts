@@ -4,11 +4,9 @@ import path from 'path'
 import fs from 'node:fs'
 
 function copyPdfjsResources(): Plugin {
-  let copied = false
   return {
     name: 'copy-pdfjs-resources',
     buildStart() {
-      if (copied) return
       const srcRoot = path.resolve('node_modules', 'pdfjs-dist')
       const destRoot = path.resolve('public', 'pdfjs')
       const dirs = ['cmaps', 'standard_fonts', 'wasm']
@@ -25,16 +23,35 @@ function copyPdfjsResources(): Plugin {
           }
         }
       }
-      copied = true
+    },
+  }
+}
+
+function patchReactPdfWorker(): Plugin {
+  return {
+    name: 'patch-react-pdf-worker',
+    transform(code, id) {
+      if (id.includes('react-pdf') && id.endsWith('.js')) {
+        return code.replace(/pdfjs\.GlobalWorkerOptions\.workerSrc\s*=\s*['"]pdf\.worker\.mjs['"]\s*;?/g, '')
+      }
+      return null
     },
   }
 }
 
 export default defineConfig({
-  plugins: [react(), copyPdfjsResources()],
+  plugins: [react(), copyPdfjsResources(), patchReactPdfWorker()],
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+    },
+  },
+  optimizeDeps: {
+    exclude: ['pdfjs-dist'],
+  },
+  build: {
+    commonjsOptions: {
+      transformMixedEsModules: true,
     },
   },
   server: {
