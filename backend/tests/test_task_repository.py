@@ -6,8 +6,6 @@ Setup: Mock psycopg.Connection and PostgresConnection via unittest.mock.
 """
 from unittest.mock import MagicMock
 
-import pytest
-
 from infrastructure.db.task_repository import TaskRepository
 
 # ---------------------------------------------------------------------------
@@ -45,7 +43,8 @@ def test_task_create_inserts_row():
     pool, cur, conn = _make_pool_and_cursor()
 
     repo = TaskRepository(pool)
-    repo.create("task-1", "ingest", doc_hash="abc123", filename="book.pdf", chapter=1, book_title="Book")
+    repo.create("task-1", "ingest", doc_hash="abc123",
+                filename="book.pdf", chapter=1, book_title="Book")
 
     assert cur.execute.call_count == 1
     conn.commit.assert_called_once()
@@ -70,7 +69,8 @@ def test_update_status_with_result():
     pool, cur, conn = _make_pool_and_cursor()
 
     repo = TaskRepository(pool)
-    repo.update_status("task-1", "completed", progress="Done", progress_pct=100, result={"key": "value"})
+    repo.update_status("task-1", "completed", progress="Done",
+                        progress_pct=100, result={"key": "value"})
 
     assert cur.execute.call_count == 1
     conn.commit.assert_called_once()

@@ -16,7 +16,6 @@ import pytest
 from core.model.knowledge_tree import (
     ExamSession,
     Flashcard,
-    KnowledgeChapter,
     KnowledgeChunk,
     KnowledgeDocument,
     KnowledgeTree,

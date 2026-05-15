@@ -9,8 +9,6 @@ from datetime import datetime
 from unittest.mock import MagicMock
 from uuid import UUID
 
-import pytest
-
 from core.model.llm_credential import LLMCredential
 from infrastructure.db.llm_credential_repository import PostgresLLMCredentialStore
 

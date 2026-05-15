@@ -61,10 +61,10 @@ def test_get_current_user_missing_header_raises_401():
     mock_services = MagicMock()
 
     with pytest.raises(HTTPException) as exc_info:
-        _run(get_current_user(credentials=None, services=mock_services))
+        _run(get_current_user(credentials=None, services=mock_services, token=None))
 
     assert exc_info.value.status_code == 401
-    assert "Authorization header required" in exc_info.value.detail
+    assert "Authorization header or ?token= query param required" in exc_info.value.detail
 
 
 def test_get_current_user_invalid_token_raises_401():
