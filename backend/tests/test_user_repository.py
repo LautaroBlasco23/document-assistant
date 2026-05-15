@@ -20,7 +20,7 @@ FIXED_UUID = UUID("12345678-1234-5678-1234-567812345678")
 
 
 def _make_pool_and_cursor():
-    """Return a mocked PostgresPool and cursor that records executed SQL."""
+    """Return a mocked PostgresConnection and cursor that records executed SQL."""
     pool = MagicMock()
     cur = MagicMock()
     conn = MagicMock()

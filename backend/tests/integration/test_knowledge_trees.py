@@ -17,7 +17,7 @@ from infrastructure.db.knowledge_tree_repository import (
     PostgresKnowledgeDocumentStore,
     PostgresKnowledgeTreeStore,
 )
-from infrastructure.db.postgres import PostgresPool
+from infrastructure.db.postgres import PostgresConnection
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -28,7 +28,7 @@ from infrastructure.db.postgres import PostgresPool
 def pool():
     """Connect to the local PostgreSQL instance and apply schema/migrations."""
     cfg = PostgresConfig()
-    p = PostgresPool(cfg)
+    p = PostgresConnection(cfg)
     try:
         p.connect()
     except Exception:

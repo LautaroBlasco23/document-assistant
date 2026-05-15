@@ -1,4 +1,5 @@
 import logging
+import threading
 from pathlib import Path
 
 import psycopg
@@ -11,8 +12,8 @@ logger = logging.getLogger(__name__)
 _SCHEMA_FILE = Path(__file__).parent / "schema.sql"
 
 
-class PostgresPool:
-    """Manages a psycopg connection for PostgreSQL."""
+class PostgresConnection:
+    """Manages a single psycopg connection for PostgreSQL."""
 
     def __init__(self, config: PostgresConfig):
         conninfo = (
@@ -21,6 +22,11 @@ class PostgresPool:
         )
         self._conninfo = conninfo
         self._conn: psycopg.Connection | None = None
+        self._lock = threading.Lock()
+
+    @property
+    def lock(self) -> threading.Lock:
+        return self._lock
 
     def connect(self) -> None:
         """Open connection and run schema initialization."""

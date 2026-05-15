@@ -45,7 +45,7 @@ class PostgresLLMCredentialStore(_BaseRepo):
         encrypted_key: bytes,
         last4: str,
     ) -> LLMCredential:
-        with self._lock:
+        with self._pool.lock:
             conn = self._conn()
             with conn.transaction():
                 with conn.cursor() as cur:
@@ -65,7 +65,7 @@ class PostgresLLMCredentialStore(_BaseRepo):
         return self._row_to_cred(row)
 
     def delete(self, user_id: UUID, provider: str) -> bool:
-        with self._lock:
+        with self._pool.lock:
             conn = self._conn()
             with conn.transaction():
                 with conn.cursor() as cur:

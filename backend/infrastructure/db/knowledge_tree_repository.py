@@ -2,7 +2,6 @@
 
 import json
 import logging
-import threading
 from datetime import datetime, timezone
 from uuid import UUID
 
@@ -18,7 +17,7 @@ from core.model.knowledge_tree import (
     KnowledgeTree,
 )
 from core.model.question import Question, QuestionType
-from infrastructure.db.postgres import PostgresPool
+from infrastructure.db.postgres import PostgresConnection
 
 logger = logging.getLogger(__name__)
 
@@ -33,9 +32,8 @@ def _ensure_naive(dt: datetime) -> datetime:
 class _BaseKnowledgeRepo:
     """Shared connection + lock helpers for all Knowledge Tree repos."""
 
-    def __init__(self, pool: PostgresPool) -> None:
+    def __init__(self, pool: PostgresConnection) -> None:
         self._pool = pool
-        self._lock = threading.Lock()
 
     def _conn(self) -> psycopg.Connection:
         conn = self._pool.connection()
@@ -68,7 +66,7 @@ class PostgresKnowledgeTreeStore(_BaseKnowledgeRepo):
         ]
 
     def create_tree(self, title: str, description: str | None, user_id: UUID) -> KnowledgeTree:
-        with self._lock:
+        with self._pool.lock:
             conn = self._conn()
             with conn.transaction():
                 with conn.cursor() as cur:
@@ -107,7 +105,7 @@ class PostgresKnowledgeTreeStore(_BaseKnowledgeRepo):
         )
 
     def update_tree(self, id: UUID, title: str, description: str | None) -> KnowledgeTree:
-        with self._lock:
+        with self._pool.lock:
             conn = self._conn()
             with conn.transaction():
                 with conn.cursor() as cur:
@@ -131,7 +129,7 @@ class PostgresKnowledgeTreeStore(_BaseKnowledgeRepo):
         )
 
     def delete_tree(self, id: UUID) -> None:
-        with self._lock:
+        with self._pool.lock:
             conn = self._conn()
             with conn.transaction():
                 with conn.cursor() as cur:
@@ -163,7 +161,7 @@ class PostgresKnowledgeChapterStore(_BaseKnowledgeRepo):
         ]
 
     def create_chapter(self, tree_id: UUID, title: str) -> KnowledgeChapter:
-        with self._lock:
+        with self._pool.lock:
             conn = self._conn()
             with conn.transaction():
                 with conn.cursor() as cur:
@@ -190,7 +188,7 @@ class PostgresKnowledgeChapterStore(_BaseKnowledgeRepo):
         )
 
     def update_chapter(self, tree_id: UUID, number: int, title: str) -> KnowledgeChapter:
-        with self._lock:
+        with self._pool.lock:
             conn = self._conn()
             with conn.transaction():
                 with conn.cursor() as cur:
@@ -214,7 +212,7 @@ class PostgresKnowledgeChapterStore(_BaseKnowledgeRepo):
         )
 
     def delete_chapter(self, tree_id: UUID, number: int) -> None:
-        with self._lock:
+        with self._pool.lock:
             conn = self._conn()
             with conn.transaction():
                 with conn.cursor() as cur:
@@ -281,7 +279,7 @@ class PostgresKnowledgeDocumentStore(_BaseKnowledgeRepo):
     ) -> KnowledgeDocument:
         if file_type is None:
             file_type = self._detect_file_type(source_file_name)
-        with self._lock:
+        with self._pool.lock:
             conn = self._conn()
             with conn.transaction():
                 with conn.cursor() as cur:
@@ -319,7 +317,7 @@ class PostgresKnowledgeDocumentStore(_BaseKnowledgeRepo):
         content: str,
         source_url: str,
     ) -> KnowledgeDocument:
-        with self._lock:
+        with self._pool.lock:
             conn = self._conn()
             with conn.transaction():
                 with conn.cursor() as cur:
@@ -360,7 +358,7 @@ class PostgresKnowledgeDocumentStore(_BaseKnowledgeRepo):
     def update_document(
         self, id: UUID, title: str, content: str, file_type: str | None = None
     ) -> KnowledgeDocument:
-        with self._lock:
+        with self._pool.lock:
             conn = self._conn()
             with conn.transaction():
                 with conn.cursor() as cur:
@@ -398,7 +396,7 @@ class PostgresKnowledgeDocumentStore(_BaseKnowledgeRepo):
 
     def save_improvement(self, id: UUID, improved_content: str) -> KnowledgeDocument:
         """Save AI-improved text, preserving the original if not already improved."""
-        with self._lock:
+        with self._pool.lock:
             conn = self._conn()
             with conn.transaction():
                 with conn.cursor() as cur:
@@ -426,7 +424,7 @@ class PostgresKnowledgeDocumentStore(_BaseKnowledgeRepo):
 
     def revert_improvement(self, id: UUID) -> KnowledgeDocument:
         """Revert to original content, clearing the improvement."""
-        with self._lock:
+        with self._pool.lock:
             conn = self._conn()
             with conn.transaction():
                 with conn.cursor() as cur:
@@ -451,7 +449,7 @@ class PostgresKnowledgeDocumentStore(_BaseKnowledgeRepo):
         return _row_to_doc(row)
 
     def update_document_source_file(self, id: UUID, path: str | None, name: str | None) -> None:
-        with self._lock:
+        with self._pool.lock:
             conn = self._conn()
             with conn.transaction():
                 with conn.cursor() as cur:
@@ -463,7 +461,7 @@ class PostgresKnowledgeDocumentStore(_BaseKnowledgeRepo):
                     )
 
     def delete_document(self, id: UUID) -> None:
-        with self._lock:
+        with self._pool.lock:
             conn = self._conn()
             with conn.transaction():
                 with conn.cursor() as cur:
@@ -477,7 +475,7 @@ class PostgresKnowledgeContentStore(_BaseKnowledgeRepo):
     def save_chunks(self, chunks: list[KnowledgeChunk]) -> None:
         if not chunks:
             return
-        with self._lock:
+        with self._pool.lock:
             conn = self._conn()
             with conn.transaction():
                 with conn.cursor() as cur:
@@ -535,7 +533,7 @@ class PostgresKnowledgeQuestionStore(_BaseKnowledgeRepo):
     def save_questions(self, questions: list[Question]) -> None:
         if not questions:
             return
-        with self._lock:
+        with self._pool.lock:
             conn = self._conn()
             with conn.transaction():
                 with conn.cursor() as cur:
@@ -596,7 +594,7 @@ class PostgresKnowledgeQuestionStore(_BaseKnowledgeRepo):
         ]
 
     def delete_question(self, question_id: UUID) -> None:
-        with self._lock:
+        with self._pool.lock:
             conn = self._conn()
             with conn.transaction():
                 with conn.cursor() as cur:
@@ -612,7 +610,7 @@ class PostgresKnowledgeQuestionStore(_BaseKnowledgeRepo):
         chapter_id: UUID,
         question_type: str | None = None,
     ) -> None:
-        with self._lock:
+        with self._pool.lock:
             conn = self._conn()
             with conn.transaction():
                 with conn.cursor() as cur:
@@ -637,7 +635,7 @@ class PostgresFlashcardStore(_BaseKnowledgeRepo):
     """CRUD for flashcards table."""
 
     def save_flashcard(self, flashcard: Flashcard) -> None:
-        with self._lock:
+        with self._pool.lock:
             conn = self._conn()
             with conn.transaction():
                 with conn.cursor() as cur:
@@ -685,7 +683,7 @@ class PostgresFlashcardStore(_BaseKnowledgeRepo):
         ]
 
     def delete_flashcard(self, id: UUID) -> None:
-        with self._lock:
+        with self._pool.lock:
             conn = self._conn()
             with conn.transaction():
                 with conn.cursor() as cur:
@@ -693,7 +691,7 @@ class PostgresFlashcardStore(_BaseKnowledgeRepo):
         logger.debug("Deleted flashcard id=%s", str(id))
 
     def delete_all_flashcards(self, tree_id: UUID, chapter_id: UUID) -> None:
-        with self._lock:
+        with self._pool.lock:
             conn = self._conn()
             with conn.transaction():
                 with conn.cursor() as cur:
@@ -710,7 +708,7 @@ class PostgresExamSessionStore(_BaseKnowledgeRepo):
     """CRUD for exam_sessions table."""
 
     def save_session(self, session: ExamSession) -> ExamSession:
-        with self._lock:
+        with self._pool.lock:
             conn = self._conn()
             with conn.transaction():
                 with conn.cursor() as cur:

@@ -1,7 +1,6 @@
 """PostgreSQL implementations for User and Subscription stores."""
 
 import logging
-import threading
 from datetime import datetime, timezone
 from uuid import UUID
 
@@ -14,7 +13,7 @@ from core.model.user import (
     UserLimits,
     UserSubscription,
 )
-from infrastructure.db.postgres import PostgresPool
+from infrastructure.db.postgres import PostgresConnection
 
 logger = logging.getLogger(__name__)
 
@@ -26,9 +25,8 @@ def _ensure_naive(dt: datetime) -> datetime:
 
 
 class _BaseRepo:
-    def __init__(self, pool: PostgresPool) -> None:
+    def __init__(self, pool: PostgresConnection) -> None:
         self._pool = pool
-        self._lock = threading.Lock()
 
     def _conn(self) -> psycopg.Connection:
         conn = self._pool.connection()
@@ -64,7 +62,7 @@ class PostgresUserStore(_BaseRepo):
         return self._row_to_user(row)
 
     def create(self, email: str, password_hash: str, display_name: str | None) -> User:
-        with self._lock:
+        with self._pool.lock:
             conn = self._conn()
             with conn.transaction():
                 with conn.cursor() as cur:
@@ -80,7 +78,7 @@ class PostgresUserStore(_BaseRepo):
         return self._row_to_user(row)
 
     def update(self, user: User) -> User:
-        with self._lock:
+        with self._pool.lock:
             conn = self._conn()
             with conn.transaction():
                 with conn.cursor() as cur:
@@ -97,7 +95,7 @@ class PostgresUserStore(_BaseRepo):
         return self._row_to_user(row)
 
     def set_has_first_agent(self, user_id: UUID) -> None:
-        with self._lock:
+        with self._pool.lock:
             conn = self._conn()
             with conn.transaction():
                 with conn.cursor() as cur:
@@ -234,7 +232,7 @@ class PostgresUserSubscriptionStore(_BaseRepo):
         if plan is None:
             raise ValueError(f"Plan not found: {plan_slug}")
 
-        with self._lock:
+        with self._pool.lock:
             conn = self._conn()
             with conn.transaction():
                 with conn.cursor() as cur:

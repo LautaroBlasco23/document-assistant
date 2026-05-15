@@ -22,7 +22,7 @@ from ebooklib import epub
 from fastapi.testclient import TestClient
 
 from api.main import create_app
-from api.services import get_services
+from api.services import Services
 from core.model.knowledge_tree import KnowledgeChunk
 from core.model.question import Question
 from infrastructure.config import load_config
@@ -34,7 +34,7 @@ from infrastructure.db.knowledge_tree_repository import (
     PostgresKnowledgeQuestionStore,
     PostgresKnowledgeTreeStore,
 )
-from infrastructure.db.postgres import PostgresPool
+from infrastructure.db.postgres import PostgresConnection
 from infrastructure.db.user_repository import PostgresUserStore
 
 # ---------------------------------------------------------------------------
@@ -104,12 +104,11 @@ def _poll_task(client: TestClient, task_id: str, timeout: float = 30.0) -> dict:
     raise TimeoutError(f"Task {task_id} did not finish within {timeout}s")
 
 
-def _mock_llm_for_generation() -> None:
+def _mock_llm_for_generation(services: Services) -> None:
     """
-    Monkey-patch the global services LLM so that question/flashcard
+    Monkey-patch the services LLM so that question/flashcard
     generation background tasks receive valid JSON without calling a real provider.
     """
-    services = get_services()
 
     class _MockLLM:
         def chat(self, system: str, user: str, format: str | None = None) -> str:  # noqa: A002
@@ -156,7 +155,6 @@ def _mock_llm_for_generation() -> None:
                         ]
                     }
                 )
-            # Flashcard or fallback
             return json.dumps(
                 {"front": "What is the capital of France?", "back": "Paris"}
             )
@@ -174,7 +172,7 @@ def _mock_llm_for_generation() -> None:
 def db_pool():
     """Connect to PostgreSQL and ensure schema is present. Skip if unreachable."""
     cfg = load_config().postgres
-    pool = PostgresPool(cfg)
+    pool = PostgresConnection(cfg)
     try:
         pool.connect()
     except Exception:
@@ -360,7 +358,7 @@ def test_question_generation_task_lifecycle(client, db_pool):
     ])
 
     # Mock LLM so the background task does not call a real provider
-    _mock_llm_for_generation()
+    _mock_llm_for_generation(client.app.state.services)
 
     resp = client.post(
         f"/api/knowledge-trees/{tree.id}/chapters/{ch.number}/questions",
@@ -410,7 +408,7 @@ def test_question_generation_with_type_filter(client, db_pool):
         ),
     ])
 
-    _mock_llm_for_generation()
+    _mock_llm_for_generation(client.app.state.services)
 
     resp = client.post(
         f"/api/knowledge-trees/{tree.id}/chapters/{ch.number}/questions",
@@ -449,7 +447,7 @@ def test_flashcard_generation_task(client, db_pool):
     tree = tree_store.create_tree("Flash Tree", None, user.id)
     ch = PostgresKnowledgeChapterStore(db_pool).create_chapter(tree.id, "Flash Chapter")
 
-    _mock_llm_for_generation()
+    _mock_llm_for_generation(client.app.state.services)
 
     resp = client.post(
         f"/api/knowledge-trees/{tree.id}/chapters/{ch.number}/flashcards",

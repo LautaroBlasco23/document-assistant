@@ -12,7 +12,7 @@ from cryptography.fernet import Fernet
 from infrastructure.auth.encryption import EncryptionService
 from infrastructure.config import AppConfig
 from infrastructure.db.llm_credential_repository import PostgresLLMCredentialStore
-from infrastructure.db.postgres import PostgresPool
+from infrastructure.db.postgres import PostgresConnection
 
 pytestmark = pytest.mark.integration
 
@@ -20,7 +20,7 @@ pytestmark = pytest.mark.integration
 @pytest.fixture(scope="module")
 def pool():
     cfg = AppConfig().postgres
-    p = PostgresPool(cfg)
+    p = PostgresConnection(cfg)
     try:
         p.connect()
     except Exception:

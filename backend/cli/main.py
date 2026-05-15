@@ -6,7 +6,7 @@ import requests
 
 from infrastructure.auth.jwt_handler import get_password_hash
 from infrastructure.config import load_config
-from infrastructure.db.postgres import PostgresPool
+from infrastructure.db.postgres import PostgresConnection
 from infrastructure.db.user_repository import (
     PostgresUserStore,
     PostgresUserSubscriptionStore,
@@ -30,9 +30,9 @@ def check_ollama(base_url: str) -> bool:
 
 def check_postgres(config) -> bool:
     try:
-        from infrastructure.db.postgres import PostgresPool
+        from infrastructure.db.postgres import PostgresConnection
 
-        pool = PostgresPool(config.postgres)
+        pool = PostgresConnection(config.postgres)
         pool.connect()
         with pool.connection().cursor() as cur:
             cur.execute("SELECT 1")
@@ -98,7 +98,7 @@ def run_check() -> int:
 def create_user(email: str, password: str, display_name: str | None) -> int:
     """Create a new user with free plan."""
     config = load_config()
-    pool = PostgresPool(config.postgres)
+    pool = PostgresConnection(config.postgres)
     pool.connect()
 
     try:
@@ -127,7 +127,7 @@ def create_user(email: str, password: str, display_name: str | None) -> int:
 def set_user_plan(email: str, plan_slug: str) -> int:
     """Assign plan to user."""
     config = load_config()
-    pool = PostgresPool(config.postgres)
+    pool = PostgresConnection(config.postgres)
     pool.connect()
 
     try:
@@ -152,7 +152,7 @@ def set_user_plan(email: str, plan_slug: str) -> int:
 def show_user_limits(email: str) -> int:
     """Show user limits."""
     config = load_config()
-    pool = PostgresPool(config.postgres)
+    pool = PostgresConnection(config.postgres)
     pool.connect()
 
     try:
@@ -181,7 +181,7 @@ def show_user_limits(email: str) -> int:
 def list_users() -> int:
     """List all users with their plan info."""
     config = load_config()
-    pool = PostgresPool(config.postgres)
+    pool = PostgresConnection(config.postgres)
     pool.connect()
 
     try:

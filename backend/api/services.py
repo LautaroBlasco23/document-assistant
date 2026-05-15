@@ -1,4 +1,4 @@
-"""Singleton services container for API."""
+"""Services container for API."""
 
 import logging
 from dataclasses import dataclass
@@ -19,7 +19,7 @@ from infrastructure.db.knowledge_tree_repository import (
     PostgresKnowledgeTreeStore,
 )
 from infrastructure.db.llm_credential_repository import PostgresLLMCredentialStore
-from infrastructure.db.postgres import PostgresPool
+from infrastructure.db.postgres import PostgresConnection
 from infrastructure.db.task_repository import TaskRepository
 from infrastructure.db.user_repository import (
     PostgresSubscriptionPlanStore,
@@ -52,34 +52,26 @@ class Services:
     agent_store: PostgresAgentRepository
     llm_credential_store: PostgresLLMCredentialStore
     encryption: EncryptionService
-    _pg_pool: PostgresPool
-
-
-# Global services instance
-_services: Services | None = None
+    _pg_pool: PostgresConnection
 
 
 def init_services(config: AppConfig | None = None) -> Services:
-    """Initialize or reinitialize services."""
-    global _services
-
+    """Initialize services and return the container."""
     if config is None:
         config = load_config()
 
-    # Validate JWT and encryption configuration early
     validate_jwt_config()
     validate_encryption_config()
 
     llm = create_llm(config)
     fast_llm = create_fast_llm(config, llm)
 
-    pg_pool = PostgresPool(config.postgres)
+    pg_pool = PostgresConnection(config.postgres)
     pg_pool.connect()
     task_repo = TaskRepository(pg_pool)
     task_repo.fail_orphaned()
     task_registry = TaskRegistry(max_workers=2, repo=task_repo)
 
-    # Initialize user stores
     user_store = PostgresUserStore(pg_pool)
     plan_store = PostgresSubscriptionPlanStore(pg_pool)
     subscription_store = PostgresUserSubscriptionStore(pg_pool)
@@ -98,7 +90,7 @@ def init_services(config: AppConfig | None = None) -> Services:
         _enc_key if isinstance(_enc_key, bytes) else _enc_key.encode()
     )
 
-    _services = Services(
+    services = Services(
         config=config,
         llm=llm,
         fast_llm=fast_llm,
@@ -126,21 +118,11 @@ def init_services(config: AppConfig | None = None) -> Services:
         config.postgres.port,
     )
     logger.info("Services initialized")
-    return _services
+    return services
 
 
-def get_services() -> Services:
-    """Get the global services instance."""
-    if _services is None:
-        raise RuntimeError("Services not initialized. Call init_services() first.")
-    return _services
-
-
-def shutdown_services() -> None:
-    """Clean up services on shutdown."""
-    global _services
-    if _services:
-        _services.task_registry.shutdown()
-        _services._pg_pool.close()
-        _services = None
-        logger.info("Services shut down")
+def shutdown_services(services: Services) -> None:
+    """Clean up a services container."""
+    services.task_registry.shutdown()
+    services._pg_pool.close()
+    logger.info("Services shut down")

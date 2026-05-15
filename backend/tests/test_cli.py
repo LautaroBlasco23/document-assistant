@@ -41,7 +41,7 @@ def _make_user(email="alice@example.com", user_id=FIXED_UUID):
 
 
 def _make_pool_and_cursor():
-    """Return a mocked PostgresPool and cursor."""
+    """Return a mocked PostgresConnection and cursor."""
     pool = MagicMock()
     cur = MagicMock()
     conn = MagicMock()
@@ -143,7 +143,7 @@ def test_run_check_groq_missing_key(
 # ---------------------------------------------------------------------------
 
 @patch("cli.main.load_config")
-@patch("cli.main.PostgresPool")
+@patch("cli.main.PostgresConnection")
 @patch("cli.main.get_password_hash")
 @patch("cli.main.PostgresUserStore")
 @patch("cli.main.PostgresUserSubscriptionStore")
@@ -176,7 +176,7 @@ def test_create_user_success(
 
 
 @patch("cli.main.load_config")
-@patch("cli.main.PostgresPool")
+@patch("cli.main.PostgresConnection")
 @patch("cli.main.PostgresUserStore")
 def test_create_user_duplicate_email(
     mock_user_store_cls, mock_pool_cls, mock_load_config, capsys
@@ -203,7 +203,7 @@ def test_create_user_duplicate_email(
 # ---------------------------------------------------------------------------
 
 @patch("cli.main.load_config")
-@patch("cli.main.PostgresPool")
+@patch("cli.main.PostgresConnection")
 @patch("cli.main.PostgresUserStore")
 @patch("cli.main.PostgresUserSubscriptionStore")
 def test_set_user_plan_success(
@@ -230,7 +230,7 @@ def test_set_user_plan_success(
 
 
 @patch("cli.main.load_config")
-@patch("cli.main.PostgresPool")
+@patch("cli.main.PostgresConnection")
 @patch("cli.main.PostgresUserStore")
 @patch("cli.main.PostgresUserSubscriptionStore")
 def test_set_user_plan_user_not_found(
@@ -253,7 +253,7 @@ def test_set_user_plan_user_not_found(
 
 
 @patch("cli.main.load_config")
-@patch("cli.main.PostgresPool")
+@patch("cli.main.PostgresConnection")
 @patch("cli.main.PostgresUserStore")
 @patch("cli.main.PostgresUserSubscriptionStore")
 def test_set_user_plan_invalid_plan(
@@ -284,7 +284,7 @@ def test_set_user_plan_invalid_plan(
 # ---------------------------------------------------------------------------
 
 @patch("cli.main.load_config")
-@patch("cli.main.PostgresPool")
+@patch("cli.main.PostgresConnection")
 @patch("cli.main.PostgresUserStore")
 @patch("cli.main.PostgresUserSubscriptionStore")
 def test_show_user_limits_with_plan(
@@ -322,7 +322,7 @@ def test_show_user_limits_with_plan(
 
 
 @patch("cli.main.load_config")
-@patch("cli.main.PostgresPool")
+@patch("cli.main.PostgresConnection")
 @patch("cli.main.PostgresUserStore")
 @patch("cli.main.PostgresUserSubscriptionStore")
 def test_show_user_limits_without_plan(
@@ -358,7 +358,7 @@ def test_show_user_limits_without_plan(
 
 
 @patch("cli.main.load_config")
-@patch("cli.main.PostgresPool")
+@patch("cli.main.PostgresConnection")
 @patch("cli.main.PostgresUserStore")
 def test_show_user_limits_user_not_found(
     mock_user_store_cls, mock_pool_cls, mock_load_config, capsys
@@ -384,7 +384,7 @@ def test_show_user_limits_user_not_found(
 # ---------------------------------------------------------------------------
 
 @patch("cli.main.load_config")
-@patch("cli.main.PostgresPool")
+@patch("cli.main.PostgresConnection")
 def test_list_users_empty(mock_pool_cls, mock_load_config, capsys):
     """Empty database → prints 'No users found.' and returns 0."""
     mock_load_config.return_value = _make_config()
@@ -400,7 +400,7 @@ def test_list_users_empty(mock_pool_cls, mock_load_config, capsys):
 
 
 @patch("cli.main.load_config")
-@patch("cli.main.PostgresPool")
+@patch("cli.main.PostgresConnection")
 def test_list_users_populated(mock_pool_cls, mock_load_config, capsys):
     """Populated database → lists users with emails and plans."""
     mock_load_config.return_value = _make_config()
@@ -444,7 +444,7 @@ def test_list_users_populated(mock_pool_cls, mock_load_config, capsys):
 
 
 @patch("cli.main.load_config")
-@patch("cli.main.PostgresPool")
+@patch("cli.main.PostgresConnection")
 def test_list_users_exception(mock_pool_cls, mock_load_config, capsys):
     """Database exception → prints error and returns 1."""
     mock_load_config.return_value = _make_config()

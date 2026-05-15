@@ -15,7 +15,7 @@ import pytest
 
 from core.model.user import User
 from infrastructure.config import AppConfig
-from infrastructure.db.postgres import PostgresPool
+from infrastructure.db.postgres import PostgresConnection
 from infrastructure.db.task_repository import TaskRepository
 from infrastructure.db.user_repository import (
     PostgresSubscriptionPlanStore,
@@ -32,7 +32,7 @@ from infrastructure.db.user_repository import (
 def pool():
     """Connect to the local PostgreSQL instance and apply schema/migrations."""
     cfg = AppConfig().postgres
-    p = PostgresPool(cfg)
+    p = PostgresConnection(cfg)
     try:
         p.connect()
     except Exception:

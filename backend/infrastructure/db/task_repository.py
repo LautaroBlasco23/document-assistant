@@ -1,19 +1,17 @@
 import json
 import logging
-import threading
 
 import psycopg
 from psycopg.pq import TransactionStatus
 
-from infrastructure.db.postgres import PostgresPool
+from infrastructure.db.postgres import PostgresConnection
 
 logger = logging.getLogger(__name__)
 
 
 class TaskRepository:
-    def __init__(self, pool: PostgresPool):
+    def __init__(self, pool: PostgresConnection):
         self._pool = pool
-        self._lock = threading.Lock()
 
     def _conn(self) -> psycopg.Connection:
         conn = self._pool.connection()
@@ -30,7 +28,7 @@ class TaskRepository:
         chapter: int = 0,
         book_title: str = "",
     ) -> None:
-        with self._lock:
+        with self._pool.lock:
             with self._conn().cursor() as cur:
                 cur.execute(
                     """
@@ -53,7 +51,7 @@ class TaskRepository:
         result: dict | None = None,
         error: str | None = None,
     ) -> None:
-        with self._lock:
+        with self._pool.lock:
             with self._conn().cursor() as cur:
                 cur.execute(
                     """
@@ -82,7 +80,7 @@ class TaskRepository:
 
         Called on server startup to clear stale tasks.
         """
-        with self._lock:
+        with self._pool.lock:
             with self._conn().cursor() as cur:
                 cur.execute(
                     """
@@ -100,7 +98,7 @@ class TaskRepository:
         return count
 
     def list_active(self) -> list[dict]:
-        with self._lock:
+        with self._pool.lock:
             with self._conn().cursor() as cur:
                 cur.execute(
                     """

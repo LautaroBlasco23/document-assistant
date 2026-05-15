@@ -62,14 +62,13 @@ def _configure_logging() -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Lifespan context manager for startup and shutdown."""
-    # Startup
-    init_services()
+    services = init_services()
+    app.state.services = services
     logger.info("FastAPI app started")
 
     yield
 
-    # Shutdown
-    shutdown_services()
+    shutdown_services(services)
     logger.info("FastAPI app shut down")
 
 

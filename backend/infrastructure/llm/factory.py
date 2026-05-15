@@ -1,9 +1,118 @@
 import logging
+from dataclasses import dataclass
+from typing import Callable, Type
 
 from core.ports.llm import LLM
 from infrastructure.config import AppConfig
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class ProviderSpec:
+    """Registry entry for an LLM provider."""
+
+    llm_cls: Type[LLM]
+    config_fn: Callable[[AppConfig], object]
+    key_fn: Callable[[AppConfig], str]
+    model_field: str = "model"
+    display_name: str = ""
+
+
+_PROVIDER_REGISTRY: dict[str, ProviderSpec] = {
+    "groq": ProviderSpec(
+        llm_cls=lambda: _import_cls("infrastructure.llm.groq_llm", "GroqLLM"),
+        config_fn=lambda c: c.groq,
+        key_fn=lambda c: c.groq.api_key,
+        display_name="Groq",
+    ),
+    "openrouter": ProviderSpec(
+        llm_cls=lambda: _import_cls("infrastructure.llm.openrouter_llm", "OpenRouterLLM"),
+        config_fn=lambda c: c.openrouter,
+        key_fn=lambda c: c.openrouter.api_key,
+        display_name="OpenRouter",
+    ),
+    "huggingface": ProviderSpec(
+        llm_cls=lambda: _import_cls("infrastructure.llm.huggingface_llm", "HuggingFaceLLM"),
+        config_fn=lambda c: c.huggingface,
+        key_fn=lambda c: c.huggingface.api_key,
+        display_name="HuggingFace",
+    ),
+    "nvidia": ProviderSpec(
+        llm_cls=lambda: _import_cls("infrastructure.llm.nvidia_llm", "NvidiaLLM"),
+        config_fn=lambda c: c.nvidia,
+        key_fn=lambda c: c.nvidia.api_key,
+        display_name="Nvidia",
+    ),
+    "gemini": ProviderSpec(
+        llm_cls=lambda: _import_cls("infrastructure.llm.gemini_llm", "GeminiLLM"),
+        config_fn=lambda c: c.gemini,
+        key_fn=lambda c: c.gemini.api_key,
+        display_name="Gemini",
+    ),
+    "ollama": ProviderSpec(
+        llm_cls=lambda: _import_cls("infrastructure.llm.ollama", "OllamaLLM"),
+        config_fn=lambda c: c.ollama,
+        key_fn=lambda c: "",
+        model_field="generation_model",
+        display_name="Ollama",
+    ),
+}
+
+
+def _import_cls(module_path: str, cls_name: str) -> Type[LLM]:
+    """Lazy-import and return an LLM class."""
+    import importlib
+
+    mod = importlib.import_module(module_path)
+    return getattr(mod, cls_name)
+
+
+def _resolve_provider(provider: str) -> ProviderSpec:
+    spec = _PROVIDER_REGISTRY.get(provider)
+    if not spec:
+        raise ValueError(f"Unknown LLM provider: {provider}")
+    return spec
+
+
+def _build_config_with_overrides(
+    config: AppConfig,
+    provider: str,
+    model: str | None = None,
+    api_key: str | None = None,
+) -> object:
+    """Return a provider config copy with optional model/api_key overrides."""
+    spec = _resolve_provider(provider)
+    provider_config = spec.config_fn(config)
+    updates: dict = {}
+    if model is not None:
+        updates[spec.model_field] = model
+    if api_key is not None:
+        updates["api_key"] = api_key
+    if updates:
+        provider_config = provider_config.model_copy(update=updates)
+    return provider_config
+
+
+def _create(
+    provider: str,
+    config: AppConfig,
+    model: str | None = None,
+    api_key: str | None = None,
+) -> LLM:
+    """Core creation logic: validate key, build config, instantiate LLM."""
+    spec = _resolve_provider(provider)
+    key = api_key or spec.key_fn(config)
+    if not key and provider != "ollama":
+        raise ValueError(
+            f"{spec.display_name} API key required. "
+            f"Set DOCASSIST_{provider.upper()}__API_KEY environment variable."
+        )
+    provider_config = _build_config_with_overrides(config, provider, model=model, api_key=api_key)
+    llm_cls = spec.llm_cls()
+    model_val = getattr(provider_config, spec.model_field, "unknown")
+    logger.info("Using %s LLM: model=%s", spec.display_name, model_val)
+    return llm_cls(provider_config)
 
 
 def create_llm(config: AppConfig) -> LLM:
@@ -14,154 +123,34 @@ def create_llm(config: AppConfig) -> LLM:
             "Set DOCASSIST_LLM_PROVIDER "
             "(e.g. groq, openrouter, ollama, huggingface, nvidia, gemini)."
         )
-    if config.llm_provider == "groq":
-        if not config.groq.api_key:
-            raise ValueError(
-                "Groq API key required. Set DOCASSIST_GROQ__API_KEY environment variable."
-            )
-        from infrastructure.llm.groq_llm import GroqLLM
-        logger.info("Using Groq LLM: model=%s", config.groq.model)
-        return GroqLLM(config.groq)
-    elif config.llm_provider == "openrouter":
-        if not config.openrouter.api_key:
-            raise ValueError(
-                "OpenRouter API key required. "
-                "Set DOCASSIST_OPENROUTER__API_KEY environment variable."
-            )
-        from infrastructure.llm.openrouter_llm import OpenRouterLLM
-        logger.info("Using OpenRouter LLM: model=%s", config.openrouter.model)
-        return OpenRouterLLM(config.openrouter)
-    elif config.llm_provider == "huggingface":
-        if not config.huggingface.api_key:
-            raise ValueError(
-                "HuggingFace API key required. "
-                "Set DOCASSIST_HUGGINGFACE__API_KEY environment variable."
-            )
-        from infrastructure.llm.huggingface_llm import HuggingFaceLLM
-        logger.info("Using HuggingFace LLM: model=%s", config.huggingface.model)
-        return HuggingFaceLLM(config.huggingface)
-    elif config.llm_provider == "nvidia":
-        if not config.nvidia.api_key:
-            raise ValueError(
-                "Nvidia API key required. "
-                "Set DOCASSIST_NVIDIA__API_KEY environment variable."
-            )
-        from infrastructure.llm.nvidia_llm import NvidiaLLM
-        logger.info("Using Nvidia LLM: model=%s", config.nvidia.model)
-        return NvidiaLLM(config.nvidia)
-    elif config.llm_provider == "gemini":
-        if not config.gemini.api_key:
-            raise ValueError(
-                "Gemini API key required. "
-                "Set DOCASSIST_GEMINI__API_KEY environment variable."
-            )
-        from infrastructure.llm.gemini_llm import GeminiLLM
-        logger.info("Using Gemini LLM: model=%s", config.gemini.model)
-        return GeminiLLM(config.gemini)
-    elif config.llm_provider == "ollama":
-        from infrastructure.llm.ollama import OllamaLLM
-        logger.info("Using Ollama LLM: model=%s", config.ollama.generation_model)
-        return OllamaLLM(config.ollama)
-    else:
-        raise ValueError(f"Unknown LLM provider: {config.llm_provider}")
+    return _create(config.llm_provider, config)
 
 
 def create_fast_llm(config: AppConfig, fallback: LLM) -> LLM:
     """Instantiate a fast LLM for bulk tasks, falling back to the main LLM."""
     if not config.llm_provider:
         return fallback
-    if config.llm_provider == "groq":
-        if config.groq.fast_model:
-            from infrastructure.llm.groq_llm import GroqLLM
-            fast_cfg = config.groq.model_copy(update={"model": config.groq.fast_model})
-            logger.info("Using Groq fast LLM: model=%s", fast_cfg.model)
-            return GroqLLM(fast_cfg)
+    provider = config.llm_provider
+    provider_config = _resolve_provider(provider).config_fn(config)
+    fast_model = getattr(provider_config, "fast_model", None)
+    if not fast_model:
         return fallback
-    elif config.llm_provider == "openrouter":
-        if config.openrouter.fast_model:
-            from infrastructure.llm.openrouter_llm import OpenRouterLLM
-            fast_cfg = config.openrouter.model_copy(update={"model": config.openrouter.fast_model})
-            logger.info("Using OpenRouter fast LLM: model=%s", fast_cfg.model)
-            return OpenRouterLLM(fast_cfg)
-        return fallback
-    elif config.llm_provider == "huggingface":
-        if config.huggingface.fast_model:
-            from infrastructure.llm.huggingface_llm import HuggingFaceLLM
-            fast_cfg = config.huggingface.model_copy(
-                update={"model": config.huggingface.fast_model}
-            )
-            logger.info("Using HuggingFace fast LLM: model=%s", fast_cfg.model)
-            return HuggingFaceLLM(fast_cfg)
-        return fallback
-    elif config.llm_provider == "nvidia":
-        if config.nvidia.fast_model:
-            from infrastructure.llm.nvidia_llm import NvidiaLLM
-            fast_cfg = config.nvidia.model_copy(update={"model": config.nvidia.fast_model})
-            logger.info("Using Nvidia fast LLM: model=%s", fast_cfg.model)
-            return NvidiaLLM(fast_cfg)
-        return fallback
-    elif config.llm_provider == "gemini":
-        if config.gemini.fast_model:
-            from infrastructure.llm.gemini_llm import GeminiLLM
-            fast_cfg = config.gemini.model_copy(update={"model": config.gemini.fast_model})
-            logger.info("Using Gemini fast LLM: model=%s", fast_cfg.model)
-            return GeminiLLM(fast_cfg)
-        return fallback
-    elif config.llm_provider == "ollama":
-        if config.ollama.fast_model:
-            from infrastructure.llm.ollama import OllamaLLM
-            fast_cfg = config.ollama.model_copy(
-                update={"generation_model": config.ollama.fast_model}
-            )
-            logger.info("Using Ollama fast LLM: model=%s", fast_cfg.generation_model)
-            return OllamaLLM(fast_cfg)
-        return fallback
-    else:
-        return fallback
+    return _create(provider, config, model=fast_model)
 
 
 def create_llm_with_model(config: AppConfig, model_name: str) -> LLM:
     """Create an LLM using the current provider config but with a different model."""
-    if config.llm_provider == "groq":
-        from infrastructure.llm.groq_llm import GroqLLM
-        cfg = config.groq.model_copy(update={"model": model_name})
-        logger.info("Using Groq LLM with override: model=%s", model_name)
-        return GroqLLM(cfg)
-    elif config.llm_provider == "openrouter":
-        from infrastructure.llm.openrouter_llm import OpenRouterLLM
-        cfg = config.openrouter.model_copy(update={"model": model_name})
-        logger.info("Using OpenRouter LLM with override: model=%s", model_name)
-        return OpenRouterLLM(cfg)
-    elif config.llm_provider == "huggingface":
-        from infrastructure.llm.huggingface_llm import HuggingFaceLLM
-        cfg = config.huggingface.model_copy(update={"model": model_name})
-        logger.info("Using HuggingFace LLM with override: model=%s", model_name)
-        return HuggingFaceLLM(cfg)
-    elif config.llm_provider == "nvidia":
-        from infrastructure.llm.nvidia_llm import NvidiaLLM
-        cfg = config.nvidia.model_copy(update={"model": model_name})
-        logger.info("Using Nvidia LLM with override: model=%s", model_name)
-        return NvidiaLLM(cfg)
-    elif config.llm_provider == "gemini":
-        from infrastructure.llm.gemini_llm import GeminiLLM
-        cfg = config.gemini.model_copy(update={"model": model_name})
-        logger.info("Using Gemini LLM with override: model=%s", model_name)
-        return GeminiLLM(cfg)
-    elif config.llm_provider == "ollama":
-        from infrastructure.llm.ollama import OllamaLLM
-        cfg = config.ollama.model_copy(update={"generation_model": model_name})
-        logger.info("Using Ollama LLM with override: model=%s", model_name)
-        return OllamaLLM(cfg)
-    else:
-        raise ValueError(f"Unknown LLM provider: {config.llm_provider}")
+    if not config.llm_provider:
+        raise ValueError(
+            "No LLM provider configured. "
+            "Set DOCASSIST_LLM_PROVIDER "
+            "(e.g. groq, openrouter, ollama, huggingface, nvidia, gemini)."
+        )
+    return _create(config.llm_provider, config, model=model_name)
 
 
 def create_llm_for_agent(provider: str, model: str, api_key: str, config: AppConfig) -> LLM:
     """Create an LLM instance with explicit credentials (api_key + model override).
-
-    Each provider branch creates a ``model_copy`` of its config with the supplied
-    *api_key* and *model* overridden so that the returned LLM instance uses the
-    provided credentials rather than environment variables.
 
     Args:
         provider: Provider slug (``groq``, ``nvidia``, ``gemini``, ``openrouter``,
@@ -174,41 +163,4 @@ def create_llm_for_agent(provider: str, model: str, api_key: str, config: AppCon
     Returns:
         A configured :class:`LLM` instance.
     """
-    if provider == "groq":
-        from infrastructure.llm.groq_llm import GroqLLM
-
-        cfg = config.groq.model_copy(update={"api_key": api_key, "model": model})
-        logger.info("Creating Groq LLM for agent: model=%s", model)
-        return GroqLLM(cfg)
-    elif provider == "nvidia":
-        from infrastructure.llm.nvidia_llm import NvidiaLLM
-
-        cfg = config.nvidia.model_copy(update={"api_key": api_key, "model": model})
-        logger.info("Creating Nvidia LLM for agent: model=%s", model)
-        return NvidiaLLM(cfg)
-    elif provider == "gemini":
-        from infrastructure.llm.gemini_llm import GeminiLLM
-
-        cfg = config.gemini.model_copy(update={"api_key": api_key, "model": model})
-        logger.info("Creating Gemini LLM for agent: model=%s", model)
-        return GeminiLLM(cfg)
-    elif provider == "openrouter":
-        from infrastructure.llm.openrouter_llm import OpenRouterLLM
-
-        cfg = config.openrouter.model_copy(update={"api_key": api_key, "model": model})
-        logger.info("Creating OpenRouter LLM for agent: model=%s", model)
-        return OpenRouterLLM(cfg)
-    elif provider == "huggingface":
-        from infrastructure.llm.huggingface_llm import HuggingFaceLLM
-
-        cfg = config.huggingface.model_copy(update={"api_key": api_key, "model": model})
-        logger.info("Creating HuggingFace LLM for agent: model=%s", model)
-        return HuggingFaceLLM(cfg)
-    elif provider == "ollama":
-        from infrastructure.llm.ollama import OllamaLLM
-
-        cfg = config.ollama.model_copy(update={"generation_model": model})
-        logger.info("Creating Ollama LLM for agent: model=%s", model)
-        return OllamaLLM(cfg)
-    else:
-        raise ValueError(f"Unknown LLM provider: {provider}")
+    return _create(provider, config, model=model, api_key=api_key)

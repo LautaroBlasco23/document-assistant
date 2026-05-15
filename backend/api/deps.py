@@ -2,15 +2,14 @@
 
 from typing import Annotated
 
-from fastapi import Depends
+from fastapi import Depends, Request
 
-from api.services import Services, get_services
-
-
-async def get_services_dep() -> Services:
-    """FastAPI dependency to inject services."""
-    return get_services()
+from api.services import Services
 
 
-# Annotated type for easy use in routers
+async def get_services_dep(request: Request) -> Services:
+    """FastAPI dependency to inject services from app state."""
+    return request.app.state.services
+
+
 ServicesDep = Annotated[Services, Depends(get_services_dep)]

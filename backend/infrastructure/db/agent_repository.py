@@ -1,7 +1,6 @@
 """PostgreSQL implementation for Agent repository."""
 
 import logging
-import threading
 from datetime import datetime, timezone
 from uuid import UUID
 
@@ -10,7 +9,7 @@ from psycopg.pq import TransactionStatus
 
 from core.model.agent import Agent
 from core.ports.agent_store import AgentRepository
-from infrastructure.db.postgres import PostgresPool
+from infrastructure.db.postgres import PostgresConnection
 
 logger = logging.getLogger(__name__)
 
@@ -22,9 +21,8 @@ def _ensure_naive(dt: datetime) -> datetime:
 
 
 class PostgresAgentRepository(AgentRepository):
-    def __init__(self, pool: PostgresPool) -> None:
+    def __init__(self, pool: PostgresConnection) -> None:
         self._pool = pool
-        self._lock = threading.Lock()
 
     def _conn(self) -> psycopg.Connection:
         conn = self._pool.connection()
@@ -96,7 +94,7 @@ class PostgresAgentRepository(AgentRepository):
         return self._row_to_agent(row)
 
     def create(self, agent: Agent) -> Agent:
-        with self._lock:
+        with self._pool.lock:
             conn = self._conn()
             with conn.transaction():
                 with conn.cursor() as cur:
@@ -129,7 +127,7 @@ class PostgresAgentRepository(AgentRepository):
         return self._row_to_agent(row)
 
     def update(self, agent: Agent) -> Agent:
-        with self._lock:
+        with self._pool.lock:
             conn = self._conn()
             with conn.transaction():
                 with conn.cursor() as cur:
@@ -165,7 +163,7 @@ class PostgresAgentRepository(AgentRepository):
             raise ValueError("Agent not found")
         if agent.is_default:
             raise ValueError("Cannot delete the default agent")
-        with self._lock:
+        with self._pool.lock:
             conn = self._conn()
             with conn.transaction():
                 with conn.cursor() as cur:

@@ -175,110 +175,28 @@ def save_config(config: AppConfig, config_path: Path | None = None) -> None:
 
     config_path.parent.mkdir(parents=True, exist_ok=True)
 
-    ollama_data: dict = {
-        "base_url": config.ollama.base_url,
-        "generation_model": config.ollama.generation_model,
-        "timeout": config.ollama.timeout,
-    }
-    if config.ollama.fast_model:
-        ollama_data["fast_model"] = config.ollama.fast_model
+    data = config.model_dump(mode="json")
 
-    groq_data: dict = {
-        "base_url": config.groq.base_url,
-        "model": config.groq.model,
-        "timeout": config.groq.timeout,
-        "max_retries": config.groq.max_retries,
-        "max_retries_chat": config.groq.max_retries_chat,
-        "requests_per_minute": config.groq.requests_per_minute,
-    }
-    if config.groq.fast_model:
-        groq_data["fast_model"] = config.groq.fast_model
-    # api_key is never written to YAML -- set via env var
+    # Never persist secrets -- they are set via env vars
+    data.pop("auth", None)
+    for section in ("groq", "openrouter", "huggingface", "nvidia", "gemini"):
+        data[section].pop("api_key", None)
 
-    openrouter_data: dict = {
-        "base_url": config.openrouter.base_url,
-        "model": config.openrouter.model,
-        "timeout": config.openrouter.timeout,
-        "max_retries": config.openrouter.max_retries,
-        "max_retries_chat": config.openrouter.max_retries_chat,
-        "requests_per_minute": config.openrouter.requests_per_minute,
-    }
-    if config.openrouter.fast_model:
-        openrouter_data["fast_model"] = config.openrouter.fast_model
-    if config.openrouter.site_url:
-        openrouter_data["site_url"] = config.openrouter.site_url
-    if config.openrouter.site_name:
-        openrouter_data["site_name"] = config.openrouter.site_name
-    # api_key is never written to YAML -- set via env var
-
-    huggingface_data: dict = {
-        "base_url": config.huggingface.base_url,
-        "model": config.huggingface.model,
-        "timeout": config.huggingface.timeout,
-        "max_retries": config.huggingface.max_retries,
-        "max_retries_chat": config.huggingface.max_retries_chat,
-        "requests_per_minute": config.huggingface.requests_per_minute,
-        "wait_for_model": config.huggingface.wait_for_model,
-    }
-    if config.huggingface.fast_model:
-        huggingface_data["fast_model"] = config.huggingface.fast_model
-    # api_key is never written to YAML -- set via env var
-
-    nvidia_data: dict = {
-        "base_url": config.nvidia.base_url,
-        "model": config.nvidia.model,
-        "timeout": config.nvidia.timeout,
-        "max_retries": config.nvidia.max_retries,
-        "max_retries_chat": config.nvidia.max_retries_chat,
-        "requests_per_minute": config.nvidia.requests_per_minute,
-    }
-    if config.nvidia.fast_model:
-        nvidia_data["fast_model"] = config.nvidia.fast_model
-    # api_key is never written to YAML -- set via env var
-
-    gemini_data: dict = {
-        "base_url": config.gemini.base_url,
-        "model": config.gemini.model,
-        "timeout": config.gemini.timeout,
-        "max_retries": config.gemini.max_retries,
-        "max_retries_chat": config.gemini.max_retries_chat,
-        "requests_per_minute": config.gemini.requests_per_minute,
-    }
-    if config.gemini.fast_model:
-        gemini_data["fast_model"] = config.gemini.fast_model
-    # api_key is never written to YAML -- set via env var
-
-    data = {
-        "llm_provider": config.llm_provider,
-        "flashcard_model": config.flashcard_model,
-        "ollama": ollama_data,
-        "groq": groq_data,
-        "openrouter": openrouter_data,
-        "huggingface": huggingface_data,
-        "nvidia": nvidia_data,
-        "gemini": gemini_data,
-        "chunking": {
-            "max_tokens": config.chunking.max_tokens,
-            "overlap_tokens": config.chunking.overlap_tokens,
-        },
-        "postgres": {
-            "host": config.postgres.host,
-            "port": config.postgres.port,
-            "database": config.postgres.database,
-            "user": config.postgres.user,
-            "password": config.postgres.password,
-        },
-        "exam": {
-            "cooldown_after_fail_hours": config.exam.cooldown_after_fail_hours,
-            "cooldown_completed_days": config.exam.cooldown_completed_days,
-            "cooldown_gold_days": config.exam.cooldown_gold_days,
-            "cooldown_platinum_days": config.exam.cooldown_platinum_days,
-        },
-        "epub": {
-            "chapter_depth": config.epub.chapter_depth,
-            "min_chapter_words": config.epub.min_chapter_words,
-        },
-    }
+    # Remove empty optional fields to keep YAML clean
+    _prune_empty(data.get("ollama", {}), "fast_model")
+    _prune_empty(data.get("groq", {}), "fast_model")
+    _prune_empty(data.get("openrouter", {}), "fast_model", "site_url", "site_name")
+    _prune_empty(data.get("huggingface", {}), "fast_model")
+    _prune_empty(data.get("nvidia", {}), "fast_model")
+    _prune_empty(data.get("gemini", {}), "fast_model")
 
     with open(config_path, "w") as f:
         yaml.dump(data, f, default_flow_style=False)
+
+
+def _prune_empty(section: dict, *keys: str) -> None:
+    """Remove keys with None or empty-string values from a config section."""
+    for key in keys:
+        val = section.get(key)
+        if val is None or val == "":
+            section.pop(key, None)
