@@ -373,7 +373,8 @@ class PostgresKnowledgeDocumentStore(_BaseKnowledgeRepo):
                             " is_main, created_at, updated_at,"
                             " source_file_path, source_file_name, page_start, page_end,"
                             " source_type, source_url, file_type,"
-                            " (SELECT c.number FROM knowledge_chapters c WHERE c.id = chapter_id) AS chapter_number",
+                            " (SELECT c.number FROM knowledge_chapters c"
+                            "  WHERE c.id = chapter_id) AS chapter_number",
                             (title, content, file_type, id),
                         )
                     else:
@@ -385,7 +386,8 @@ class PostgresKnowledgeDocumentStore(_BaseKnowledgeRepo):
                             " is_main, created_at, updated_at,"
                             " source_file_path, source_file_name, page_start, page_end,"
                             " source_type, source_url, file_type,"
-                            " (SELECT c.number FROM knowledge_chapters c WHERE c.id = chapter_id) AS chapter_number",
+                            " (SELECT c.number FROM knowledge_chapters c"
+                            "  WHERE c.id = chapter_id) AS chapter_number",
                             (title, content, id),
                         )
                     row = cur.fetchone()
@@ -403,14 +405,17 @@ class PostgresKnowledgeDocumentStore(_BaseKnowledgeRepo):
                     cur.execute(
                         "UPDATE knowledge_documents"
                         " SET content = %s,"
-                        "     original_content = CASE WHEN original_content IS NULL THEN content ELSE original_content END,"
+                        "     original_content ="
+                        "       CASE WHEN original_content IS NULL"
+                        "         THEN content ELSE original_content END,"
                         "     updated_at = NOW()"
                         " WHERE id = %s"
                         " RETURNING id, tree_id, chapter_id, title, content, original_content,"
                         " is_main, created_at, updated_at,"
                         " source_file_path, source_file_name, page_start, page_end,"
                         " source_type, source_url, file_type,"
-                        " (SELECT c.number FROM knowledge_chapters c WHERE c.id = chapter_id) AS chapter_number",
+                        " (SELECT c.number FROM knowledge_chapters c"
+                        "  WHERE c.id = chapter_id) AS chapter_number",
                         (improved_content, id),
                     )
                     row = cur.fetchone()
@@ -427,13 +432,16 @@ class PostgresKnowledgeDocumentStore(_BaseKnowledgeRepo):
                 with conn.cursor() as cur:
                     cur.execute(
                         "UPDATE knowledge_documents"
-                        " SET content = original_content, original_content = NULL, updated_at = NOW()"
+                        " SET content = original_content,"
+                        "     original_content = NULL,"
+                        "     updated_at = NOW()"
                         " WHERE id = %s AND original_content IS NOT NULL"
                         " RETURNING id, tree_id, chapter_id, title, content, original_content,"
                         " is_main, created_at, updated_at,"
                         " source_file_path, source_file_name, page_start, page_end,"
                         " source_type, source_url, file_type,"
-                        " (SELECT c.number FROM knowledge_chapters c WHERE c.id = chapter_id) AS chapter_number",
+                        " (SELECT c.number FROM knowledge_chapters c"
+                        "  WHERE c.id = chapter_id) AS chapter_number",
                         (id,),
                     )
                     row = cur.fetchone()

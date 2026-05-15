@@ -1,21 +1,18 @@
 """Unit tests for application/export/tree_exporter.py."""
-import zipfile
-from io import BytesIO
 
-import pytest
+
+from datetime import datetime
+from uuid import uuid4
 
 from application.export.tree_exporter import (
+    _dedup,
     format_document,
     format_flashcards,
     format_questions,
     slugify,
-    _dedup,
 )
-from core.model.question import Question
 from core.model.knowledge_tree import Flashcard, KnowledgeDocument
-from datetime import datetime
-from uuid import uuid4
-
+from core.model.question import Question
 
 # ── slugify ────────────────────────────────────────────────────────────────────
 

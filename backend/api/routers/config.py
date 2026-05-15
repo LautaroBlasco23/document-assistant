@@ -119,10 +119,19 @@ class ProviderInfo(BaseModel):
 
 _PROVIDERS: list[ProviderInfo] = [
     ProviderInfo(slug="groq", label="Groq", key_required=True, key_format_hint="gsk_..."),
-    ProviderInfo(slug="openrouter", label="OpenRouter", key_required=True, key_format_hint="sk-or-..."),
-    ProviderInfo(slug="huggingface", label="HuggingFace", key_required=True, key_format_hint="hf_..."),
+    ProviderInfo(
+        slug="openrouter", label="OpenRouter",
+        key_required=True, key_format_hint="sk-or-...",
+    ),
+    ProviderInfo(
+        slug="huggingface", label="HuggingFace",
+        key_required=True, key_format_hint="hf_...",
+    ),
     ProviderInfo(slug="nvidia", label="NVIDIA", key_required=True, key_format_hint="nvapi-..."),
-    ProviderInfo(slug="gemini", label="Google Gemini", key_required=True, key_format_hint="AIza..."),
+    ProviderInfo(
+        slug="gemini", label="Google Gemini",
+        key_required=True, key_format_hint="AIza...",
+    ),
     ProviderInfo(slug="ollama", label="Ollama (local)", key_required=False, key_format_hint=""),
 ]
 

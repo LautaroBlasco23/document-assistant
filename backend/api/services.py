@@ -9,7 +9,6 @@ from infrastructure.auth.encryption import EncryptionService
 from infrastructure.auth.jwt_handler import validate_encryption_config, validate_jwt_config
 from infrastructure.config import AppConfig, load_config
 from infrastructure.db.agent_repository import PostgresAgentRepository
-from infrastructure.db.llm_credential_repository import PostgresLLMCredentialStore
 from infrastructure.db.knowledge_tree_repository import (
     PostgresExamSessionStore,
     PostgresFlashcardStore,
@@ -19,6 +18,7 @@ from infrastructure.db.knowledge_tree_repository import (
     PostgresKnowledgeQuestionStore,
     PostgresKnowledgeTreeStore,
 )
+from infrastructure.db.llm_credential_repository import PostgresLLMCredentialStore
 from infrastructure.db.postgres import PostgresPool
 from infrastructure.db.task_repository import TaskRepository
 from infrastructure.db.user_repository import (

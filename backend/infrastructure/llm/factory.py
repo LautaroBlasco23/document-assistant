@@ -11,7 +11,8 @@ def create_llm(config: AppConfig) -> LLM:
     if not config.llm_provider:
         raise ValueError(
             "No LLM provider configured. "
-            "Set DOCASSIST_LLM_PROVIDER (e.g. groq, openrouter, ollama, huggingface, nvidia, gemini)."
+            "Set DOCASSIST_LLM_PROVIDER "
+            "(e.g. groq, openrouter, ollama, huggingface, nvidia, gemini)."
         )
     if config.llm_provider == "groq":
         if not config.groq.api_key:

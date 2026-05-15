@@ -25,7 +25,11 @@ def test_no_credential_raises(mock_create):
     services = _make_services(encrypted_key=None, provider="groq")
     user_id = uuid4()
     with pytest.raises(ProviderNotConfigured):
-        resolve_llm_for_agent(user_id, None, services, model_override="llama-3.3-70b-versatile", provider_override="groq")
+        resolve_llm_for_agent(
+            user_id, None, services,
+            model_override="llama-3.3-70b-versatile",
+            provider_override="groq",
+        )
     mock_create.assert_not_called()
 
 
@@ -44,7 +48,10 @@ def test_provider_not_configured_raises(mock_create):
     services = _make_services(encrypted_key=None, provider="gemini")
     user_id = uuid4()
     with pytest.raises(ProviderNotConfigured) as exc_info:
-        resolve_llm_for_agent(user_id, None, services, provider_override="gemini", model_override="m")
+        resolve_llm_for_agent(
+            user_id, None, services,
+            provider_override="gemini", model_override="m",
+        )
     assert exc_info.value.provider == "gemini"
     mock_create.assert_not_called()
 
@@ -53,7 +60,10 @@ def test_provider_not_configured_raises(mock_create):
 def test_ollama_keyless(mock_create):
     services = _make_services(provider="ollama")
     user_id = uuid4()
-    resolve_llm_for_agent(user_id, None, services, provider_override="ollama", model_override="llama3")
+    resolve_llm_for_agent(
+        user_id, None, services,
+        provider_override="ollama", model_override="llama3",
+    )
     # No credential lookup for ollama
     services.llm_credential_store.get_encrypted_key.assert_not_called()
     _, _, api_key, _ = mock_create.call_args[0]

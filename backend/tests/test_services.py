@@ -49,7 +49,6 @@ _ALL_STORE_PATCHES = [
 @contextmanager
 def _patches(**overrides):
     """Enter all required patches; yield a dict of named mock objects."""
-    stack = {}
     with (
         patch("api.services.validate_jwt_config") as mock_validate_jwt,
         patch("api.services.validate_encryption_config") as mock_validate_enc,

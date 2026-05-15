@@ -138,7 +138,8 @@ class GroqLLM(LLM):
         self._apply_params(payload, params)
         # Use fail-fast retry count when called from a foreground/synchronous context
         # (no background task registered in the ContextVar).
-        max_retries = self._max_retries if _current_task.get() is not None else self._max_retries_chat
+        is_bg = _current_task.get() is not None
+        max_retries = self._max_retries if is_bg else self._max_retries_chat
         resp = self._request(payload, max_retries_override=max_retries)
         return resp.json()["choices"][0]["message"]["content"]
 
@@ -161,9 +162,12 @@ class GroqLLM(LLM):
             "Content-Type": "application/json",
         }
 
-        max_retries = max_retries_override if max_retries_override is not None else self._max_retries
+        max_retries = (
+            max_retries_override
+            if max_retries_override is not None
+            else self._max_retries
+        )
         last_retry_after: float = 60.0
-        last_exc: Exception | None = None
 
         for attempt in range(max_retries):
             resp = requests.post(
@@ -192,7 +196,6 @@ class GroqLLM(LLM):
                     task.progress = prev_progress
                 else:
                     time.sleep(wait)
-                last_exc = requests.HTTPError(response=resp)
                 continue
 
             if resp.status_code == 401:

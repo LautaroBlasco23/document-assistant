@@ -171,6 +171,10 @@ describe('KnowledgeDocumentsTab', () => {
     const deleteBtn = screen.getByLabelText('Delete document')
     await user.click(deleteBtn)
 
+    // Confirm the deletion in the dialog
+    const confirmBtn = screen.getByRole('button', { name: 'Delete' })
+    await user.click(confirmBtn)
+
     await waitFor(() => {
       expect(deleteDocument).toHaveBeenCalledWith('doc-1', 'tree-1', 1)
     })

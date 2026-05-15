@@ -50,7 +50,9 @@ class TestConnectionResult(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-def _test_provider(provider: str, api_key: str, config: AppConfig) -> tuple[bool, str | None, int | None]:
+def _test_provider(
+    provider: str, api_key: str, config: AppConfig,
+) -> tuple[bool, str | None, int | None]:
     """Return (ok, error_str, model_count) for a provider connection test."""
     from infrastructure.llm.model_fetcher import (
         fetch_gemini_models,
@@ -84,7 +86,9 @@ def _test_provider(provider: str, api_key: str, config: AppConfig) -> tuple[bool
 
 
 @router.get("/credentials", response_model=list[CredentialStatusOut])
-async def list_credentials(current_user: CurrentUser, services: ServicesDep) -> list[CredentialStatusOut]:
+async def list_credentials(
+    current_user: CurrentUser, services: ServicesDep,
+) -> list[CredentialStatusOut]:
     """List per-user provider credential status (one entry per known provider)."""
     stored = services.llm_credential_store.list_for_user(current_user.id)
     stored_by_provider = {c.provider: c for c in stored}

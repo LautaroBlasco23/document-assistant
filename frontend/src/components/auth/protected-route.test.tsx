@@ -8,8 +8,9 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { render, screen } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
 import { ProtectedRoute } from './protected-route'
-import { renderWithProviders, screen } from '@/test/utils'
 
 const mockUseAuth = vi.hoisted(() => vi.fn())
 
@@ -32,6 +33,14 @@ function setAuthState(state: { user: any; isLoading: boolean }) {
   })
 }
 
+function renderProtected(ui: React.ReactNode, options: { initialEntries?: string[] } = {}) {
+  return render(
+    <MemoryRouter initialEntries={options.initialEntries ?? ['/']}>
+      {ui}
+    </MemoryRouter>
+  )
+}
+
 describe('ProtectedRoute', () => {
   beforeEach(() => {
     mockUseAuth.mockClear()
@@ -42,7 +51,7 @@ describe('ProtectedRoute', () => {
     // instead of a flash of the login redirect or protected content.
     setAuthState({ user: null, isLoading: true })
 
-    const { container } = renderWithProviders(
+    const { container } = renderProtected(
       <ProtectedRoute>
         <div data-testid="protected">secret</div>
       </ProtectedRoute>
@@ -57,11 +66,11 @@ describe('ProtectedRoute', () => {
     // Navigate renders nothing, so we assert the child content is absent.
     setAuthState({ user: null, isLoading: false })
 
-    renderWithProviders(
+    renderProtected(
       <ProtectedRoute>
         <div data-testid="protected">secret</div>
       </ProtectedRoute>,
-      { routerProps: { initialEntries: ['/dashboard'] } }
+      { initialEntries: ['/dashboard'] }
     )
 
     expect(screen.queryByTestId('protected')).not.toBeInTheDocument()
@@ -70,11 +79,11 @@ describe('ProtectedRoute', () => {
   it('renders children when the user is authenticated', () => {
     // Once auth is resolved and a user exists, the protected content should be visible.
     setAuthState({
-      user: { id: '1', email: 'a@b.com', display_name: 'Alice' },
+      user: { id: '1', email: 'a@b.com', display_name: 'Alice', has_first_agent: true },
       isLoading: false,
     })
 
-    renderWithProviders(
+    renderProtected(
       <ProtectedRoute>
         <div data-testid="protected">secret</div>
       </ProtectedRoute>

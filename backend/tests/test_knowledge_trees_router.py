@@ -55,11 +55,19 @@ def _make_user() -> User:
 
 
 def _tree(tree_id=TREE_ID, user_id=USER_ID, title="My Tree") -> KnowledgeTree:
-    return KnowledgeTree(id=tree_id, user_id=user_id, title=title, description=None, created_at=_NOW)
+    return KnowledgeTree(
+        id=tree_id, user_id=user_id, title=title,
+        description=None, created_at=_NOW,
+    )
 
 
-def _chapter(number=1, chapter_id=CHAPTER_ID, tree_id=TREE_ID, title="Chapter 1") -> KnowledgeChapter:
-    return KnowledgeChapter(id=chapter_id, tree_id=tree_id, number=number, title=title, created_at=_NOW)
+def _chapter(
+    number=1, chapter_id=CHAPTER_ID, tree_id=TREE_ID, title="Chapter 1",
+) -> KnowledgeChapter:
+    return KnowledgeChapter(
+        id=chapter_id, tree_id=tree_id, number=number,
+        title=title, created_at=_NOW,
+    )
 
 
 def _doc(doc_id=DOC_ID, tree_id=TREE_ID, chapter_id=CHAPTER_ID) -> KnowledgeDocument:
@@ -247,7 +255,10 @@ def test_delete_tree_not_found_returns_404(test_client, mock_services):
 
 
 def test_list_chapters_returns_chapters(test_client, mock_services):
-    mock_services.kt_chapter_store.list_chapters.return_value = [_chapter(1), _chapter(2, chapter_id=uuid4())]
+    ch2_id = uuid4()
+    mock_services.kt_chapter_store.list_chapters.return_value = [
+        _chapter(1), _chapter(2, chapter_id=ch2_id),
+    ]
     response = test_client.get(f"/api/knowledge-trees/{TREE_ID}/chapters")
     assert response.status_code == 200
     assert len(response.json()) == 2

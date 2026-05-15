@@ -9,10 +9,10 @@ from uuid import uuid4
 import pytest
 from cryptography.fernet import Fernet
 
+from infrastructure.auth.encryption import EncryptionService
 from infrastructure.config import AppConfig
 from infrastructure.db.llm_credential_repository import PostgresLLMCredentialStore
 from infrastructure.db.postgres import PostgresPool
-from infrastructure.auth.encryption import EncryptionService
 
 pytestmark = pytest.mark.integration
 

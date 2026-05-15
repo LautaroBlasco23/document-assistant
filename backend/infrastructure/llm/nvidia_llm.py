@@ -108,7 +108,8 @@ class NvidiaLLM(LLM):
             "stream": False,
         }
         self._apply_params(payload, params)
-        max_retries = self._max_retries if _current_task.get() is not None else self._max_retries_chat
+        is_bg = _current_task.get() is not None
+        max_retries = self._max_retries if is_bg else self._max_retries_chat
         resp = self._request(payload, max_retries_override=max_retries)
         return resp.json()["choices"][0]["message"]["content"]
 
@@ -124,7 +125,11 @@ class NvidiaLLM(LLM):
             "Content-Type": "application/json",
         }
 
-        max_retries = max_retries_override if max_retries_override is not None else self._max_retries
+        max_retries = (
+            max_retries_override
+            if max_retries_override is not None
+            else self._max_retries
+        )
         last_retry_after: float = 60.0
 
         for attempt in range(max_retries):
@@ -147,7 +152,9 @@ class NvidiaLLM(LLM):
                 task = _current_task.get()
                 if task is not None:
                     prev_progress = task.progress
-                    task.progress = f"Nvidia timed out — retrying (attempt {attempt + 1}/{max_retries})"
+                    task.progress = (
+                        f"Nvidia timed out — retrying (attempt {attempt + 1}/{max_retries})"
+                    )
                     time.sleep(wait)
                     task.progress = prev_progress
                 else:

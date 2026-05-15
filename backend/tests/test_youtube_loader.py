@@ -1,11 +1,11 @@
 """Unit tests for infrastructure.ingest.youtube_loader."""
 
-import pytest
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 from infrastructure.ingest.youtube_loader import (
     TranscriptUnavailable,
-    VideoUnavailable,
     _format_timestamp,
     _normalize_transcript,
     extract_video_id,
@@ -27,7 +27,8 @@ class TestExtractVideoId:
         assert extract_video_id("https://www.youtube.com/embed/dQw4w9WgXcQ") == "dQw4w9WgXcQ"
 
     def test_url_with_extra_params(self):
-        assert extract_video_id("https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=42s") == "dQw4w9WgXcQ"
+        url = "https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=42s"
+        assert extract_video_id(url) == "dQw4w9WgXcQ"
 
     def test_invalid_url_raises(self):
         with pytest.raises(ValueError):

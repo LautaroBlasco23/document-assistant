@@ -106,7 +106,10 @@ def create_app() -> FastAPI:
 
     @app.exception_handler(RateLimitError)
     async def rate_limit_handler(request: Request, exc: RateLimitError):
-        logger.warning("Rate limit exceeded for provider '%s': retry_after=%.0fs", exc.provider, exc.retry_after)
+        logger.warning(
+            "Rate limit exceeded for provider '%s': retry_after=%.0fs",
+            exc.provider, exc.retry_after,
+        )
         return JSONResponse(
             status_code=503,
             headers={"Retry-After": str(int(exc.retry_after))},

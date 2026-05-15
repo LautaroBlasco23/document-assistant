@@ -859,7 +859,10 @@ async def get_document_file(tree_id: str, doc_id: str, services: ServicesDep):
     else:
         media_type = "text/plain; charset=utf-8"
     logger.info("  serving file=%s size=%s", path, path.stat().st_size if path.exists() else "?")
-    return FileResponse(path, filename=doc.source_file_name or path.name, media_type=media_type, content_disposition_type="inline")
+    return FileResponse(
+        path, filename=doc.source_file_name or path.name,
+        media_type=media_type, content_disposition_type="inline",
+    )
 
 
 @router.get("/knowledge-trees/{tree_id}/documents/{doc_id}/thumbnail")

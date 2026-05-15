@@ -308,7 +308,9 @@ export const useKnowledgeTreeStore = create<KnowledgeTreeState>((set, get) => ({
       }
       return { questionsByType: { ...s.questionsByType, [key]: updated } }
     })
-    void get().fetchQuestions(treeId, chapter)
+    get().fetchQuestions(treeId, chapter).catch(
+      (err) => console.error('Failed to refetch questions:', err),
+    )
   },
 
   deleteAllQuestions: async (treeId, chapter, questionType) => {

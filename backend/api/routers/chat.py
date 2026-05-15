@@ -67,10 +67,14 @@ async def chat(
             detail=f"Provider not configured: {e.provider}. Add an API key in Settings.",
         )
 
+    def _param(value: float | None, fallback: float | None) -> float | None:
+        return value if value is not None else fallback
+
+    agent_defaults = agent_params or {}
     params = GenerationParams(
-        temperature=body.temperature if body.temperature is not None else (agent_params.temperature if agent_params else None),
-        top_p=body.top_p if body.top_p is not None else (agent_params.top_p if agent_params else None),
-        max_tokens=body.max_tokens if body.max_tokens is not None else (agent_params.max_tokens if agent_params else None),
+        temperature=_param(body.temperature, getattr(agent_defaults, "temperature", None)),
+        top_p=_param(body.top_p, getattr(agent_defaults, "top_p", None)),
+        max_tokens=_param(body.max_tokens, getattr(agent_defaults, "max_tokens", None)),
     )
 
     agent = DocumentChatAgent(llm)

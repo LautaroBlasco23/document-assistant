@@ -125,7 +125,8 @@ class AppConfig(BaseSettings):
     }
 
 
-_candidate = Path(__file__).resolve().parent.parent.parent  # 3 levels: project root (host) or / (Docker)
+# 3 levels up: project root (host) or / (Docker)
+_candidate = Path(__file__).resolve().parent.parent.parent
 if not (_candidate / "docker-compose.yml").is_file():
     # Docker: 3 levels gives /, but app root is /app (2 levels from __file__)
     _candidate = Path(__file__).resolve().parent.parent  # = /app in Docker

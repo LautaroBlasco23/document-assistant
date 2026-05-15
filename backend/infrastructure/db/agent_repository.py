@@ -102,7 +102,8 @@ class PostgresAgentRepository(AgentRepository):
                 with conn.cursor() as cur:
                     try:
                         cur.execute(
-                            "INSERT INTO agents (user_id, name, prompt, model, provider, temperature, "
+                            "INSERT INTO agents "
+                            "(user_id, name, prompt, model, provider, temperature, "
                             "top_p, max_tokens, is_default) "
                             "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) "
                             "RETURNING id, user_id, name, prompt, model, provider, temperature, "

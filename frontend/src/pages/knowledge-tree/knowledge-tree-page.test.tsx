@@ -216,6 +216,10 @@ describe('KnowledgeTreePage', () => {
     const deleteBtn = screen.getByLabelText('Delete chapter To Delete')
     await user.click(deleteBtn)
 
+    // Confirm the deletion in the dialog
+    const confirmBtn = screen.getByRole('button', { name: 'Delete' })
+    await user.click(confirmBtn)
+
     await waitFor(() => {
       expect(deleteChapter).toHaveBeenCalledWith('tree-1', 1)
     })

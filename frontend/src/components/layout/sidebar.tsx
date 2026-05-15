@@ -4,6 +4,8 @@ import {
   Home,
   Settings,
   LogOut,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from 'lucide-react'
 import { cn } from '../../lib/cn'
 import { Tooltip } from '../ui/tooltip'
@@ -25,6 +27,7 @@ const navItems: NavItem[] = [
 
 export function Sidebar() {
   const collapsed = useAppStore((state) => state.sidebarCollapsed)
+  const toggleSidebar = useAppStore((state) => state.toggleSidebar)
 
   return (
     <aside
@@ -34,7 +37,7 @@ export function Sidebar() {
         collapsed ? 'w-16' : 'w-64',
       )}
     >
-      {/* Logo / app name */}
+      {/* Logo / app name with toggle */}
       <div className="flex items-center gap-3 px-4 py-5 border-b border-surface-200 dark:border-surface-200 overflow-hidden">
         <div className="shrink-0 h-7 w-7 rounded-md bg-primary flex items-center justify-center">
           <span className="text-white text-xs font-bold">K</span>
@@ -44,6 +47,17 @@ export function Sidebar() {
             Knowledge Tree
           </span>
         )}
+        <button
+          onClick={toggleSidebar}
+          className="ml-auto p-1 rounded-md hover:bg-surface-100 dark:hover:bg-surface-100 text-text-tertiary hover:text-text-secondary transition-colors shrink-0"
+          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+        >
+          {collapsed ? (
+            <PanelLeftOpen className="h-4 w-4" />
+          ) : (
+            <PanelLeftClose className="h-4 w-4" />
+          )}
+        </button>
       </div>
 
       {/* Nav items */}
