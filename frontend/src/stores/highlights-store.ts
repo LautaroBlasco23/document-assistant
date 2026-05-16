@@ -4,6 +4,10 @@ export interface Highlight {
   id: string
   text: string
   createdAt: string
+  chapterNumber?: number
+  pageNumber?: number
+  startOffset?: number
+  endOffset?: number
 }
 
 interface HighlightsState {
@@ -11,7 +15,7 @@ interface HighlightsState {
   highlights: Record<string, Highlight[]>
   // sourceDocId → knowledge-document id that stores the highlights
   highlightDocIds: Record<string, string>
-  add: (docId: string, text: string) => Highlight
+  add: (docId: string, text: string, opts?: Partial<Pick<Highlight, 'chapterNumber' | 'pageNumber' | 'startOffset' | 'endOffset'>>) => Highlight
   remove: (docId: string, id: string) => void
   clear: (docId: string) => void
   setHighlightDocId: (sourceDocId: string, highlightsDocId: string) => void
@@ -48,8 +52,8 @@ function persist(state: Pick<HighlightsState, 'highlights' | 'highlightDocIds'>)
 
 export const useHighlights = create<HighlightsState>((set, get) => ({
   ...load(),
-  add: (docId, text) => {
-    const highlight: Highlight = { id: makeId(), text, createdAt: new Date().toISOString() }
+  add: (docId, text, opts?) => {
+    const highlight: Highlight = { id: makeId(), text, createdAt: new Date().toISOString(), ...opts }
     const next = { highlights: { ...get().highlights, [docId]: [...(get().highlights[docId] ?? []), highlight] }, highlightDocIds: get().highlightDocIds }
     set(next)
     persist(next)

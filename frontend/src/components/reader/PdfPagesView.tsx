@@ -475,66 +475,45 @@ function escapeHtml(s: string): string {
 const MemoPage = React.memo(function MemoPage({ pageNumber, width, onRenderSuccess, highlights = [] }: MemoPageProps) {
   const [matchedIndices, setMatchedIndices] = React.useState<Set<number>>(new Set())
 
-  const highlightTerms = React.useMemo(() => {
-    const terms = [...new Set(highlights.map((h) => h.text.trim()).filter(Boolean))].sort(
-      (a, b) => b.length - a.length,
-    )
-    return terms.length ? terms : null
-  }, [highlights])
+  const pageHighlights = React.useMemo(
+    () => highlights.filter((h) => h.pageNumber === pageNumber && h.startOffset !== undefined && h.endOffset !== undefined),
+    [highlights, pageNumber],
+  )
 
   const handleTextSuccess = React.useCallback((textContent: TextContent) => {
     const items = (textContent.items ?? []).filter(
       (item): item is TextItem => 'str' in item,
     )
-    if (!items.length || !highlightTerms) {
+    if (!items.length || !pageHighlights.length) {
       setMatchedIndices(new Set())
       return
     }
-    const fullText = items.map((item) => item.str).join('')
-    const fullLower = fullText.toLowerCase()
     const result = new Set<number>()
-    for (const term of highlightTerms) {
-      const lowerTerm = term.toLowerCase()
-      let pos = 0
-      while (pos < fullText.length) {
-        const idx = fullLower.indexOf(lowerTerm, pos)
-        if (idx === -1) break
-        const matchEnd = idx + term.length
-        let charPos = 0
-        for (let i = 0; i < items.length; i++) {
-          const itemLen = items[i].str.length
-          if (idx < charPos + itemLen && matchEnd > charPos) {
-            result.add(i)
-          }
-          charPos += itemLen
+    for (const hl of pageHighlights) {
+      const start = hl.startOffset!
+      const end = hl.endOffset!
+      let charPos = 0
+      for (let i = 0; i < items.length; i++) {
+        const itemLen = items[i].str.length
+        if (start < charPos + itemLen && end > charPos) {
+          result.add(i)
         }
-        pos = idx + 1
+        charPos += itemLen
       }
     }
     setMatchedIndices(result)
-  }, [highlightTerms])
+  }, [pageHighlights])
 
   const customTextRenderer = React.useMemo(() => {
-    if (!highlightTerms) return undefined
-    const terms = highlightTerms
-    const crossItems = matchedIndices
+    if (matchedIndices.size === 0) return undefined
+    const indices = matchedIndices
     return ({ str, itemIndex }: { str: string; itemIndex: number }) => {
-      const lower = str.toLowerCase()
-      for (const term of terms) {
-        const idx = lower.indexOf(term.toLowerCase())
-        if (idx !== -1) {
-          const before = escapeHtml(str.slice(0, idx))
-          const match = escapeHtml(str.slice(idx, idx + term.length))
-          const after = escapeHtml(str.slice(idx + term.length))
-          return `${before}<mark class="pdf-highlight">${match}</mark>${after}`
-        }
-      }
-      if (crossItems.has(itemIndex)) {
+      if (indices.has(itemIndex)) {
         return `<mark class="pdf-highlight">${escapeHtml(str)}</mark>`
       }
       return escapeHtml(str)
     }
-  }, [highlightTerms, matchedIndices])
+  }, [matchedIndices])
 
   return (
     <Page

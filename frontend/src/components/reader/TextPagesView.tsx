@@ -8,31 +8,36 @@ import type { ContentWidth } from '../../stores/reader-preferences'
 import { readerMarkdownComponents } from './markdownComponents'
 import type { Highlight } from '../../stores/highlights-store'
 
-function buildHighlightRegex(highlights: Highlight[]): { terms: string[]; regex: RegExp } | null {
-  const terms = [...new Set(highlights.map((h) => h.text.trim()).filter(Boolean))].sort(
-    (a, b) => b.length - a.length,
-  )
-  if (terms.length === 0) return null
-  const escaped = terms.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
-  return { terms, regex: new RegExp(`(${escaped.join('|')})`, 'gi') }
-}
+function markTextByPosition(text: string, highlights: Highlight[], chapterNumber: number): React.ReactNode {
+  const spans = highlights
+    .filter((h) => h.chapterNumber === chapterNumber && h.startOffset !== undefined && h.endOffset !== undefined)
+    .map((h) => ({ start: h.startOffset!, end: h.endOffset! }))
+    .sort((a, b) => a.start - b.start)
 
-function markText(text: string, compiled: { terms: string[]; regex: RegExp }): React.ReactNode {
-  const parts = text.split(compiled.regex)
-  return (
-    <>
-      {parts.map((part, i) => {
-        const isMatch = compiled.terms.some((t) => part.toLowerCase() === t.toLowerCase())
-        return isMatch ? (
-          <mark key={i} className="bg-yellow-200 dark:bg-yellow-700/50 text-inherit rounded-sm px-0.5">
-            {part}
-          </mark>
-        ) : (
-          part
-        )
-      })}
-    </>
-  )
+  if (spans.length === 0) return text
+
+  const parts: React.ReactNode[] = []
+  let lastEnd = 0
+
+  for (const { start, end } of spans) {
+    if (start > lastEnd) {
+      parts.push(text.slice(lastEnd, start))
+    }
+    if (end > lastEnd) {
+      parts.push(
+        <mark key={start} className="bg-yellow-200 dark:bg-yellow-700/50 text-inherit rounded-sm px-0.5">
+          {text.slice(Math.max(start, lastEnd), Math.min(end, text.length))}
+        </mark>,
+      )
+      lastEnd = end
+    }
+  }
+
+  if (lastEnd < text.length) {
+    parts.push(text.slice(lastEnd))
+  }
+
+  return <>{parts}</>
 }
 
 export interface TextPagesViewHandle {
@@ -209,9 +214,6 @@ export function TextPagesView({
   const fontSize = `${Math.round(zoom * 100)}%`
   const contentWidthClass = contentWidth === 'full' ? '' : contentWidth === 'wide' ? 'max-w-5xl' : 'max-w-3xl'
 
-  // Build highlight regex once per highlights change, not per chapter render.
-  const compiledHighlights = React.useMemo(() => buildHighlightRegex(highlights), [highlights])
-
   const renderContent = (chapterNumber: number) => {
     const doc = chapterDocs.find((d) => d.chapter_number === chapterNumber)
     const text = doc?.content ?? ''
@@ -224,7 +226,7 @@ export function TextPagesView({
       )
     }
 
-    const marked = compiledHighlights ? markText(text, compiledHighlights) : text
+    const marked = markTextByPosition(text, highlights, chapterNumber)
 
     if (isTxt) {
       return (

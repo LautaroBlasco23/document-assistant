@@ -69,7 +69,15 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
   const [contentWidth, setContentWidth] = React.useState(() => useReaderPreferences.getState().preferences.contentWidth)
   const [isFullscreen, setIsFullscreen] = React.useState(true)
   const [zoom, setZoom] = React.useState(1)
-  const [contextMenu, setContextMenu] = React.useState<{ x: number; y: number; text: string } | null>(null)
+  const [contextMenu, setContextMenu] = React.useState<{
+    x: number
+    y: number
+    text: string
+    chapterNumber?: number
+    pageNumber?: number
+    startOffset?: number
+    endOffset?: number
+  } | null>(null)
   const [textActiveChapter, setTextActiveChapter] = React.useState<number | null>(null)
 
   // Read mode and resume-page state
@@ -82,6 +90,15 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
     loadLastPage(treeId, doc.id) ?? (isText ? (doc.chapter_number ?? undefined) : undefined)
   )
   const [readerKey, setReaderKey] = React.useState(0)
+
+  const isTextRef = React.useRef(isText)
+  isTextRef.current = isText
+  const isTruePdfRef = React.useRef(isTruePdf)
+  isTruePdfRef.current = isTruePdf
+  const textActiveChapterRef = React.useRef(textActiveChapter)
+  textActiveChapterRef.current = textActiveChapter
+  const currentPageRef = React.useRef(currentPage)
+  currentPageRef.current = currentPage
 
   const savePageTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -356,7 +373,34 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
     const selectedText = selection?.toString()?.trim() ?? ''
     if (!selectedText) return
     e.preventDefault()
-    setContextMenu({ x: e.clientX, y: e.clientY, text: selectedText })
+
+    let startOffset: number | undefined
+    let endOffset: number | undefined
+    if (selection && selection.rangeCount > 0) {
+      const range = selection.getRangeAt(0)
+      let container: Node | null = range.commonAncestorContainer
+      while (container && !(container instanceof HTMLElement && (container.tagName === 'P' || container.tagName === 'PRE'))) {
+        container = container.parentNode
+      }
+      if (container instanceof HTMLElement) {
+        const preRange = document.createRange()
+        preRange.selectNodeContents(container)
+        preRange.setEnd(range.startContainer, range.startOffset)
+        startOffset = preRange.toString().length
+        preRange.setEnd(range.endContainer, range.endOffset)
+        endOffset = preRange.toString().length
+      }
+    }
+
+    setContextMenu({
+      x: e.clientX,
+      y: e.clientY,
+      text: selectedText,
+      chapterNumber: isText ? (textActiveChapter ?? undefined) : undefined,
+      pageNumber: isTruePdf ? currentPage : undefined,
+      startOffset,
+      endOffset,
+    })
   }
 
   const openContentTab = () => {
@@ -479,16 +523,21 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
     }
   }
 
-  const handleHighlight = (text: string) => {
+  const handleHighlight = (text: string, pos?: { chapterNumber?: number; pageNumber?: number; startOffset?: number; endOffset?: number }) => {
     if (isHighlightsDoc) return
-    addHighlight(doc.id, text)
+    addHighlight(doc.id, text, pos)
     setContextMenu(null)
     window.getSelection()?.removeAllRanges()
     void saveHighlightDocRef.current!(text)
   }
 
-  const handleDeleteHighlight = (text: string) => {
-    const matches = docHighlights.filter((h) => h.text.toLowerCase() === text.toLowerCase())
+  const handleDeleteHighlight = (text: string, pos?: { startOffset?: number; endOffset?: number }) => {
+    const matches = docHighlights.filter((h) => {
+      if (h.text.toLowerCase() !== text.toLowerCase()) return false
+      if (pos?.startOffset !== undefined && h.startOffset !== pos.startOffset) return false
+      if (pos?.endOffset !== undefined && h.endOffset !== pos.endOffset) return false
+      return true
+    })
     for (const h of matches) removeHighlight(doc.id, h.id)
     setContextMenu(null)
     window.getSelection()?.removeAllRanges()
@@ -519,10 +568,33 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
           activeEl instanceof HTMLTextAreaElement ||
           (activeEl as HTMLElement)?.isContentEditable
         if (!isInput) {
-          const selected = window.getSelection()?.toString()?.trim() ?? ''
+          const selection = window.getSelection()
+          const selected = selection?.toString()?.trim() ?? ''
           if (selected) {
             e.preventDefault()
-            handleHighlightRef.current(selected)
+            let startOffset: number | undefined
+            let endOffset: number | undefined
+            if (selection && selection.rangeCount > 0) {
+              const range = selection.getRangeAt(0)
+              let container: Node | null = range.commonAncestorContainer
+              while (container && !(container instanceof HTMLElement && (container.tagName === 'P' || container.tagName === 'PRE'))) {
+                container = container.parentNode
+              }
+              if (container instanceof HTMLElement) {
+                const preRange = document.createRange()
+                preRange.selectNodeContents(container)
+                preRange.setEnd(range.startContainer, range.startOffset)
+                startOffset = preRange.toString().length
+                preRange.setEnd(range.endContainer, range.endOffset)
+                endOffset = preRange.toString().length
+              }
+            }
+            handleHighlightRef.current(selected, {
+              chapterNumber: isTextRef.current ? (textActiveChapterRef.current ?? undefined) : undefined,
+              pageNumber: isTruePdfRef.current ? currentPageRef.current : undefined,
+              startOffset,
+              endOffset,
+            })
           }
         }
       }
@@ -887,9 +959,14 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
             className="fixed z-[60] bg-surface dark:bg-surface-200 rounded-lg shadow-lg border border-surface-200 dark:border-surface-200 py-1 min-w-[200px]"
             style={{ left: contextMenu.x, top: contextMenu.y }}
           >
-            {docHighlights.some((h) => h.text.toLowerCase() === contextMenu.text.toLowerCase()) ? (
+            {docHighlights.some((h) => {
+              if (h.text.toLowerCase() !== contextMenu.text.toLowerCase()) return false
+              if (contextMenu.startOffset !== undefined && h.startOffset !== contextMenu.startOffset) return false
+              if (contextMenu.endOffset !== undefined && h.endOffset !== contextMenu.endOffset) return false
+              return true
+            }) ? (
               <button
-                onClick={() => handleDeleteHighlight(contextMenu.text)}
+                onClick={() => handleDeleteHighlight(contextMenu.text, { startOffset: contextMenu.startOffset, endOffset: contextMenu.endOffset })}
                 className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100 transition-colors"
               >
                 <Trash2 className="h-3.5 w-3.5 text-danger" />
@@ -897,7 +974,7 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
               </button>
             ) : (
               <button
-                onClick={() => handleHighlight(contextMenu.text)}
+                onClick={() => handleHighlight(contextMenu.text, { chapterNumber: contextMenu.chapterNumber, pageNumber: contextMenu.pageNumber, startOffset: contextMenu.startOffset, endOffset: contextMenu.endOffset })}
                 className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100 transition-colors"
               >
                 <Highlighter className="h-3.5 w-3.5 text-yellow-500" />
