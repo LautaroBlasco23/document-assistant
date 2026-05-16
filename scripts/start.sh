@@ -117,7 +117,7 @@ if [ "$ENV_MODE" = "dev" ]; then
     }
     trap cleanup EXIT
 
-    (cd "$BACKEND_DIR" && uv run uvicorn api.main:app --port 8000 --reload --log-level warning --no-access-log) &
+    (cd "$BACKEND_DIR" && DOCASSIST_POSTGRES__HOST=localhost DOCASSIST_POSTGRES__PORT="${DEV_POSTGRES_PORT:-5433}" DOCASSIST_LLM_PROVIDER="$CHOSEN_PROVIDER" uv run uvicorn api.main:app --port 8000 --reload --log-level warning --no-access-log) &
     BACKEND_PID=$!
 
     echo "Waiting for backend to be ready..."

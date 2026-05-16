@@ -6,8 +6,8 @@ services:
     image: postgres:17.4-alpine
     container_name: docassist_app_postgres
     restart: unless-stopped
-    expose:
-      - 5432
+    ports:
+      - "${DEV_POSTGRES_PORT:-5433}:5432"
     environment:
       POSTGRES_DB: docassist
       POSTGRES_USER: docassist

@@ -91,7 +91,7 @@ dev-backend: env-check tools-check
 	cd $(BACKEND_DIR) && uv sync
 	@echo "Starting backend on port 8000..."
 	@set -a; [ -f .env ] && . ./.env; set +a; \
-	cd $(BACKEND_DIR) && DOCASSIST_LLM_PROVIDER="$(PROVIDER)" uv run uvicorn api.main:app --port 8000 --reload
+	cd $(BACKEND_DIR) && DOCASSIST_POSTGRES__HOST=localhost DOCASSIST_POSTGRES__PORT="$${DEV_POSTGRES_PORT:-5433}" DOCASSIST_LLM_PROVIDER="$(PROVIDER)" uv run uvicorn api.main:app --port 8000 --reload
 
 mock: tools-check dev-deps
 	@echo "Starting frontend in mock mode (no backend required)..."
