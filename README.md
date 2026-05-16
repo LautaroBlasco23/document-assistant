@@ -8,18 +8,25 @@ Uses Docker (PostgreSQL), Groq API for LLM inference (or Ollama locally), and a 
 
 - **Knowledge Trees** — hierarchical learning containers: Tree → Chapters → Documents → Chunks
 - **Import PDFs/EPUBs** as knowledge trees; preview structure and select specific chapters before ingesting
+- **YouTube video import** — extract transcripts and import as knowledge documents
 - **Chapter-aware chunking** with configurable token windows and overlap
-- **LLM agents**: summarizer, flashcard generator, question generator
+- **LLM agents**: summarizer, flashcard generator, question generator, text improvement agent
 - **Four question types**: True/False, Multiple Choice, Matching, Checkbox
 - **Spaced-repetition exam system** with level progression (None → Completed → Gold → Platinum)
 - **Exam cooldowns** per level to encourage spaced learning
 - **Flashcard quality filtering**: post-generation heuristic removes trivial cards
+- **PDF text highlighting** — in-page highlight rendering via react-pdf customTextRenderer
 - **Idempotent ingestion** by SHA-256 file hash
 - **PostgreSQL persistence** — chunks, summaries, flashcards, questions, exam results, and document metadata
 - **Task polling** — background tasks return a `task_id`; frontend polls for progress (no SSE)
-- **Multi-provider support** — Groq, Ollama, OpenRouter, and HuggingFace Inference Endpoints via `config/default.yml`
+- **Multi-provider support** — Groq, Ollama, OpenRouter, HuggingFace, NVIDIA, and Gemini via `config/default.yml`
 - **JSON retry** — agents retry once with a correction prompt when the LLM returns malformed JSON
 - **Prompts centralized** in `backend/application/prompts.py`
+- **User authentication** — JWT-based auth with register/login; `?token=` query param fallback for PDF viewers
+- **Plan-based resource limits** — free tier and subscription plans with document/tree quotas
+- **User LLM credentials** — encrypted API key storage for external providers
+- **Custom agents** — user-created agents with configurable prompts, models, and generation parameters
+- **Knowledge tree export** — ZIP archives with Markdown chapters and structured JSON data
 
 ## Technologies
 
@@ -94,7 +101,7 @@ Service health checks:
 make start
 
 # Or manually:
-# Terminal 1 — start the FastAPI backend
+# Terminal 1 — start the FastAPI backend (port 8000 in dev, 8090 in Docker)
 cd backend && uv run uvicorn api.main:app --port 8000
 
 # Terminal 2 — start the frontend dev server
@@ -111,6 +118,10 @@ The Vite dev server starts on port 5173 and proxies `/api` requests to the FastA
 cd backend && uv run uvicorn api.main:app --port 8000
 # then open http://localhost:8000/docs for interactive API docs
 ```
+
+### Docker deployment
+
+In Docker, the backend runs on port 8090 (configurable via `BACKEND_PORT`) and the frontend on port 3500 (configurable via `FRONTEND_PORT`). No nginx reverse proxy — frontend is served directly via `vite preview`.
 
 ## Usage
 
@@ -172,45 +183,52 @@ document-assistant/
 │   └── default.yml              # Service URLs, model names, chunking params, exam cooldowns
 ├── backend/                     # All Python backend code
 │   ├── core/
-│   │   ├── model/               # Document, Chapter, Chunk, Summary, Flashcard, Question, ExamResult
-│   │   └── ports/               # LLM, ContentStore, KnowledgeTreeStore ABCs
+│   │   ├── model/               # User, SubscriptionPlan, KnowledgeTree, KnowledgeChapter,
+│   │   │                        # KnowledgeDocument, KnowledgeChunk, Flashcard, Question, ExamSession
+│   │   └── ports/               # LLM, ContentStore, KnowledgeTreeStore, UserStore ABCs
 │   ├── application/
-│   │   ├── agents/              # SummarizerAgent, FlashcardGeneratorAgent, QuestionGeneratorAgent
+│   │   ├── agents/              # SummarizerAgent, FlashcardGeneratorAgent, QuestionGeneratorAgent,
+│   │   │                        # DocumentChatAgent, TextImprovementAgent
+│   │   ├── export/              # tree_exporter (ZIP export)
 │   │   ├── prompts.py           # All agent system prompts
 │   │   └── ingest.py            # Ingest use case
 │   ├── infrastructure/
 │   │   ├── config.py            # Pydantic-settings config loader
-│   │   ├── ingest/              # pdf_loader, epub_loader, normalizer
+│   │   ├── ingest/              # pdf_loader, epub_loader, txt_loader, youtube_loader, normalizer
 │   │   ├── chunking/            # ChapterAwareSplitter
-│   │   ├── llm/                 # OllamaLLM, GroqLLM, factory
-│   │   ├── db/                  # PostgresPool, repositories, schema + migrations
+│   │   ├── llm/                 # OllamaLLM, GroqLLM, OpenRouterLLM, HuggingFaceLLM, NvidiaLLM, GeminiLLM
+│   │   ├── auth/                # JWT handler, password hashing, EncryptionService
+│   │   ├── db/                  # PostgresConnection, repositories, schema + migrations
 │   │   └── output/              # Manifest writer
 │   ├── api/
-│   │   ├── main.py              # App factory, lifespan, CORS
-│   │   ├── services.py          # Singleton service container
-│   │   ├── deps.py              # FastAPI dependency injection
+│   │   ├── main.py              # App factory, lifespan (app.state.services), CORS
+│   │   ├── services.py          # Services dataclass container (no global singleton)
+│   │   ├── deps.py              # ServicesDep via request.app.state.services
+│   │   ├── auth.py              # JWT validation (supports ?token= query param)
 │   │   ├── tasks.py             # In-memory task registry + ThreadPoolExecutor
-│   │   ├── routers/             # health, documents, knowledge_trees, exams, tasks
+│   │   ├── routers/             # health, config, tasks, auth, users, knowledge_trees, chat, agents, credentials
 │   │   └── schemas/             # Pydantic request/response models
 │   ├── cli/
-│   │   └── main.py              # CLI: check, ingest, summarize, config
+│   │   └── main.py              # CLI: check, ingest, summarize, generate-md, config
 │   ├── tests/
 │   ├── pyproject.toml
 │   └── uv.lock
 ├── frontend/                    # Vite web SPA (React + TypeScript + Tailwind)
 │   └── src/
+│       ├── auth/                # AuthContext, ProtectedRoute
 │       ├── pages/
 │       │   ├── library/         # Knowledge tree list, create/edit/import dialogs
 │       │   ├── knowledge-tree/  # Tree detail: documents, content, exam tabs
-│       │   ├── document/        # Legacy document pages (flashcards, exam, summary tabs)
-│       │   └── settings/        # LLM provider config
-│       ├── components/         # Layout, UI primitives (Shadcn-style)
+│       │   └── settings/        # LLM provider config, generation settings
+│       ├── components/
+│       │   ├── reader/          # UnifiedDocumentReader, PdfPagesView, ChatPanel, HighlightsPanel
+│       │   └── layout/          # Sidebar, Header, HealthBanner
 │       ├── hooks/               # useHealth, useTask, useKnowledgeTree, etc.
 │       ├── stores/              # Zustand: AppStore, KnowledgeTreeStore, ExamStore, etc.
-│       ├── services/            # API client (real / mock via VITE_MOCK)
+│       ├── services/            # API client (ServiceClient interface, real-client, mock-client)
 │       ├── types/               # TypeScript domain and API types
 │       └── mocks/               # Mock data for development
-├── docker-compose.yml           # PostgreSQL
+├── docker-compose.yml           # PostgreSQL + backend + frontend (no nginx)
 └── data/
     ├── raw/                     # Place PDFs/EPUBs here
     └── output/                  # Manifests per document
@@ -221,7 +239,10 @@ document-assistant/
 All settings live in `config/default.yml` and can be overridden with environment variables:
 
 ```bash
-# Groq API key (required — default LLM provider)
+# LLM provider (required — users must configure their own)
+export DOCASSIST_LLM_PROVIDER=groq
+
+# Groq API key (required when provider=groq)
 export DOCASSIST_GROQ__API_KEY=gsk_your_key_here
 
 # Switch to local Ollama for LLM inference (optional)
@@ -235,6 +256,8 @@ export DOCASSIST_POSTGRES__HOST=db-host
 ```
 
 The config file (`config/default.yml`) also defines which models to use per provider.
+
+**No default LLM provider or model is shipped.** Users must configure their own provider, API keys, and model names via `config/default.yml` or environment variables.
 
 ### LLM models and prompts
 
@@ -277,6 +300,12 @@ cd backend && uv run ruff check --fix .
 
 # Build TypeScript frontend (from frontend/)
 cd frontend && npm run build
+
+# Run frontend tests
+cd frontend && npm run test:run
+
+# Run frontend tests with coverage
+cd frontend && npm run test:coverage
 ```
 
 ## License

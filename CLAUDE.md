@@ -28,11 +28,12 @@ backend/        # All Python backend code (pyproject.toml + uv.lock live here)
     db/           # PostgresPool, UserRepository, SubscriptionRepository, KnowledgeTreeRepository,
                   # AgentRepository, LLMCredentialStore, ExamSessionStore, schema.sql + migrations/
   api/            # FastAPI backend (wraps application layer, no duplication)
-    routers/      # health, config, tasks, auth, users, knowledge_trees, chat
+    routers/      # health, config, tasks, auth, users, knowledge_trees, chat, agents, credentials
     schemas/      # Pydantic request/response models
-    services.py   # Singleton service container (lifespan-managed)
+    services.py   # Services dataclass container (lifespan-managed via app.state)
     tasks.py      # In-memory task registry + ThreadPoolExecutor
-    auth.py       # JWT validation + CurrentUser dependency
+    auth.py       # JWT validation + CurrentUser dependency (supports ?token= query param)
+    deps.py       # ServicesDep via request.app.state.services
     limit_checks.py # Plan-based resource limit enforcement
   cli/            # CLI entry point (check, ingest, summarize, generate-md, config)
   tests/          # Unit and integration tests
@@ -41,10 +42,10 @@ frontend/       # React + TypeScript + Tailwind SPA (Vite, port 5173)
   src/
     auth/       # AuthContext (login/register/logout), ProtectedRoute
     pages/      # Library, KnowledgeTree (with unified document reader tab), Settings, Auth pages
-    components/ # Layout (Sidebar, Header, HealthBanner), DocumentReader, ChatPanel, PdfPagesView
+    components/ # Layout (Sidebar, Header, HealthBanner), DocumentReader, ChatPanel, PdfPagesView, HighlightsPanel
     hooks/      # useHealth, useTask, useDocuments, etc.
     stores/     # Zustand: AppStore, AuthStore, KnowledgeTreeStore, etc.
-    services/   # API client abstraction
+    services/   # API client abstraction (ServiceClient interface, real-client, mock-client)
     types/      # TypeScript domain and API types
     lib/        # cn (classname helper), pdf-text extraction
     mocks/      # Mock data for development/testing
@@ -52,13 +53,14 @@ frontend/       # React + TypeScript + Tailwind SPA (Vite, port 5173)
 
 ## Key decisions
 
-- **User authentication & multi-tenancy** — JWT tokens (7-day expiry). All knowledge trees owned by user. Login/register/logout via FastAPI `/auth/` endpoints. Frontend stores token in localStorage, requests include Bearer token in Authorization header.
+- **User authentication & multi-tenancy** — JWT tokens (7-day expiry). All knowledge trees owned by user. Login/register/logout via FastAPI `/auth/` endpoints. Frontend stores token in localStorage, requests include Bearer token in Authorization header. Endpoints serving files to `<embed>`/`<object>` tags also accept `?token=` query param as fallback (PDF viewers cannot set custom headers).
 - **Plan-based resource limits** — Free plan: 200 documents, 3 knowledge trees. Subscription plans in DB (slug, name, max_documents, max_knowledge_trees). Router limit checks before write operations. `PlanLimitExceeded` exception raised on violation.
 - **Per-request generation parameters** — `GenerationParams` dataclass (temperature, top_p, max_tokens) passed to all LLM calls. Frontend generation settings page controls these per-request. All LLM adapters accept params.
 - **No LlamaIndex/LangChain** — Direct `requests` to Groq/Ollama + `psycopg` for PostgreSQL. Simpler, fewer deps, more debuggable.
 - **No default LLM** — Users must configure `DOCASSIST_LLM_PROVIDER`, API key, and model name. Switch providers with `DOCASSIST_LLM_PROVIDER=groq|ollama|openrouter|huggingface|nvidia|gemini` or CLI `--provider`.
 - **Groq rate limiter** — `GroqRateLimiter` (sliding window, 25/30 req/min threshold) is a module-level singleton in `groq_llm.py`. Proactively throttles before hitting the free-tier limit; also retries on 429 with exponential backoff.
 - **Fast model for bulk tasks** — `create_fast_llm()` factory selects a smaller model for flashcard/summary/question generation. Knowledge tree question generation always uses `services.fast_llm`.
+- **LLM factory provider registry** — All providers registered in a dict keyed by provider name; eliminates 4-way copy-paste if/elif chains.
 - **Word-based LLM batching** — Summarizer: 3500 words/call (map-reduce if larger). Flashcard generator: 3000 words/batch. Question generator: 2500 words/batch. Avoids fixed chunk counts, better aligns with LLM context windows.
 - **JSON retry on malformed response** — `BaseAgent._call_json_with_retry` sends a correction prompt once if the LLM returns non-parseable JSON. Helps smaller/free models recover without failing silently.
 - **Flashcard quality filter** — `_filter_low_quality` in `FlashcardGeneratorAgent` removes trivial cards post-generation: short fronts/backs, pattern-matched trivial questions, front/back overlap, and near-duplicates (Jaccard > 0.8). No extra LLM call needed.
@@ -68,6 +70,7 @@ frontend/       # React + TypeScript + Tailwind SPA (Vite, port 5173)
 - **YouTube video import** — `youtube_loader` extracts video transcripts and imports as knowledge documents. Stored with `source_type='youtube'` and `source_url` for reference.
 - **Document chat agent** — `DocumentChatAgent` grounds LLM responses in extracted PDF/EPUB text. User text selection triggers context menu → "Ask definition in chat" → DocumentReader chat panel.
 - **Unified document reader** — Single component (PDF + EPUB) with integrated chat panel, virtualized PDF rendering, resizable sidebars, page navigation per chapter. Stores panel widths in localStorage.
+- **PDF text highlighting** — `PdfPagesView` renders stored highlights via react-pdf `customTextRenderer`. Highlights styled with yellow background (amber in dark mode).
 - **Markdown rendering in chat** — ChatPanel uses react-markdown to render assistant replies with code blocks, lists, emphasis.
 - **PostgreSQL for all persistence** — 16 tables: user auth, subscriptions, knowledge tree data, tasks. Schema auto-applied on startup; idempotent SQL migrations in `infrastructure/db/migrations/`.
 - **Task polling, not SSE** — Background tasks return `task_id`; frontend polls `GET /api/tasks/{task_id}` for progress. No streaming endpoints.
@@ -77,8 +80,10 @@ frontend/       # React + TypeScript + Tailwind SPA (Vite, port 5173)
 - **uv** for dependency management (not pip+venv).
 - **Idempotent ingestion** — Documents identified by SHA-256 file hash; `knowledge_content` table checked before re-processing.
 - **FastAPI wraps, not duplicates** — `api/` calls `application/` use cases directly; no logic is reimplemented.
+- **Services via app.state** — `Services` container stored on `app.state.services` during lifespan startup. Routers access via `ServicesDep` (FastAPI dependency from `request.app.state`). No global singleton.
+- **PostgresConnection (not pool)** — Single `psycopg.Connection` with shared `threading.Lock`. Repositories use the shared lock instead of per-repo locks.
 - **In-memory task registry** — `ThreadPoolExecutor(max_workers=2)` for background tasks; no Celery/Redis needed for single-user local use.
-- **Standalone SPA** — Vite dev server proxies `/api` to FastAPI in development; production build outputs static files to `frontend/dist/`.
+- **Standalone SPA** — Vite dev server proxies `/api` to FastAPI in development; production uses `vite preview` (port 3500). No nginx reverse proxy.
 - **Structured logging** — ANSI-colored terminal output with timestamps, log levels, and module names.
 - **Source attribution** — Flashcards track source context and reference to original document/chunk.
 - **User-supplied LLM credentials** — Users can provide their own API keys for external LLM providers (Groq, OpenRouter, HuggingFace). Keys encrypted at rest via `EncryptionService`; only last 4 digits stored in plaintext for display.
@@ -197,7 +202,7 @@ npm run build
 |--------|------|-------------|
 | POST | `/api/auth/register` | Register new user with free plan → `{access_token, expires_in_days}` |
 | POST | `/api/auth/login` | Authenticate → `{access_token, expires_in_days}` |
-| GET | `/api/auth/me` | Get current user profile (requires Bearer token) |
+| GET | `/api/auth/me` | Get current user profile (requires Bearer token or `?token=` query param) |
 
 ### Core
 
@@ -219,6 +224,23 @@ npm run build
 | Method | Path | Description |
 |--------|------|-------------|
 | POST | `/api/chat` | Chat with AI about document context (requires Bearer token) |
+
+### Agents
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/agents` | List user's custom agents |
+| POST | `/api/agents` | Create custom agent |
+| PUT | `/api/agents/{agent_id}` | Update agent |
+| DELETE | `/api/agents/{agent_id}` | Delete agent |
+
+### Credentials
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/credentials` | List user's stored LLM credentials |
+| POST | `/api/credentials` | Store/update LLM API key for a provider |
+| DELETE | `/api/credentials/{provider}` | Remove stored credential |
 
 ### Knowledge trees
 
@@ -286,19 +308,26 @@ npm run build
 - Integration tests are marked `@pytest.mark.integration` and skipped if services are unreachable.
 - All modules use `logging.getLogger(__name__)`; root logger configured in `api/main.py`.
 - `api/` routers must use `ServicesDep` for dependency injection; never instantiate services directly inside routers.
-- **Authentication required** — All knowledge tree endpoints except preview require CurrentUser (Bearer token).
+- **Services via app.state** — `Services` container is stored on `app.state.services` during lifespan startup. Access via `ServicesDep` (resolves from `request.app.state.services`). No global `_services` singleton.
+- **PostgresConnection** — Single `psycopg.Connection` with shared `threading.Lock`. Repositories use `pg_pool.lock` for thread safety; no per-repository locks.
+- **Authentication required** — All knowledge tree endpoints except preview require CurrentUser (Bearer token or `?token=` query param).
 - **Limit checks before write** — POST/PUT/DELETE on trees/chapters/documents check user plan limits via `check_can_create_tree()` or `check_can_create_document()`. Raise `PlanLimitExceeded` if exceeded.
 - **Password hashing** — Use bcrypt (via `get_password_hash()` and `verify_password()` in `infrastructure/auth/jwt_handler.py`). Never store plaintext passwords.
 - **Token expiry** — JWT tokens expire in 7 days. Frontend should handle 401 responses by redirecting to login.
+- **Token query param fallback** — `get_current_user()` accepts `?token=` as fallback for endpoints serving files to `<embed>`/`<object>` tags (PDF viewer, thumbnails) that cannot set Authorization headers.
 - **User ownership scoping** — Routers filter knowledge trees by current_user.id before returning results. No cross-user data leakage.
 - **Generation parameters** — All LLM calls accept optional GenerationParams (temperature, top_p, max_tokens). Frontend generation settings page sets these per-request.
 - **Chat context** — DocumentChatAgent extracts PDF/EPUB text at client time (via extractPdfText util) and passes as `context` param. System prompt instructions to ground responses in provided context.
 - **Chapter page ranges** — Knowledge documents store page_start/page_end. PDF import per-chapter slices pages based on chapter metadata.
 - **Background tasks** — Tasks receive a `Task` object as first argument and write to `task.progress` / `task.progress_pct` for live status updates.
-- **Frontend dev server** — Runs on port 5173; the FastAPI backend must be running independently on port 8000.
+- **Frontend dev server** — Runs on port 5173; the FastAPI backend must be running independently on port 8000 (dev) or 8090 (Docker).
+- **Frontend production** — Served via `vite preview` on port 3500 (configurable via `FRONTEND_PORT`). No nginx reverse proxy.
+- **Backend port** — 8090 in Docker (configurable via `BACKEND_PORT`). 8000 in local dev.
+- **PDF.js worker** — Bundled via Vite `?worker&url` import; build-time plugin strips react-pdf's hardcoded `workerSrc` assignment. cmaps, standard_fonts, and wasm resources copied at build time.
 - **Question validation** — Per-type strict validation — invalid questions discarded silently (no re-prompting).
 - **API key encryption** — User-supplied LLM credentials encrypted at rest via `EncryptionService`. Requires valid encryption key in config (validated on startup via `validate_encryption_config()`).
 - **User credential management** — Endpoints for storing/updating user API keys per provider. Keys tested before storage; validation errors stored for frontend display.
+- **Frontend service layer** — `ServiceClient` interface with `real-client.ts` (axios) and `mock-client.ts` implementations. Auth context uses service methods instead of raw fetch.
 
 ## Preflight
 
@@ -306,7 +335,17 @@ Validated: 2026-05-07. Run `make tools` to verify toolchain is still current.
 
 ## Recent additions (since last validation: 2026-04-27)
 
-- **Text improvement agent** — TextImprovementAgent rewrites documents with improved clarity and Markdown formatting. Stores original content for revert capability.
+- **Services via app.state** — Replaced global `_services` singleton with `app.state.services` set during lifespan startup. `ServicesDep` resolves from `request.app.state.services`.
+- **PostgresConnection** — Renamed `PostgresPool` to `PostgresConnection` (single connection, not a pool). Shared `threading.Lock` replaces per-repository locks.
+- **LLM factory provider registry** — Provider registry dict eliminates 4-way copy-paste if/elif chains in `create_llm()` and `create_fast_llm()`.
+- **PDF text highlighting** — `PdfPagesView` renders stored highlights via react-pdf `customTextRenderer`. Yellow highlight (amber in dark mode).
+- **PDF.js worker fix** — Vite `?worker&url` import + build-time plugin to strip hardcoded `workerSrc`. cmaps, standard_fonts, wasm copied at build time.
+- **Auth token query param** — `?token=` fallback for endpoints serving files to `<embed>`/`<object>` tags (PDF viewer, thumbnails).
+- **Document file fallback path** — When stored `source_file_path` doesn't exist (Docker/host path mismatch), falls back to `<storage_dir>/<filename>`. `content_disposition_type=inline` for in-browser PDF viewing.
+- **Deploy: nginx removed** — Replaced nginx reverse proxy with direct `vite preview` on port 3500. Backend port changed to 8090 (`BACKEND_PORT` env var). Removed `docker-compose.app.yml`, `nginx/` directory, multi-stage Dockerfiles.
+- **Frontend service layer** — `ServiceClient` interface with `real-client.ts` (axios) and `mock-client.ts`. Auth context uses service methods (login, register, getMe) instead of raw fetch. Added `real-client.test.ts`.
+- **Repository unit tests** — Added tests for all 5 DB repositories: `test_agent_repository`, `test_knowledge_tree_repository`, `test_llm_credential_repository`, `test_task_repository`, `test_user_repository`.
+- **Text improvement Agent** — TextImprovementAgent rewrites documents with improved clarity and Markdown formatting. Stores original content for revert capability.
 - **YouTube video import** — youtube_loader extracts transcripts; `source_type` and `source_url` fields track origin.
 - **Document improvement endpoints** — `/improve` and `/revert` for AI-powered text enhancement.
 - **Knowledge tree export** — ZIP archives with structured Markdown and JSON export.
@@ -359,10 +398,9 @@ All required tools present. No blockers.
 |---------|-----------|-------------|------------|
 | postgres | — (image) | ✅ pg_isready | — |
 | backend | `backend/Dockerfile` | ✅ /api/health | postgres (healthy) |
-| frontend | `frontend/Dockerfile` | ✅ wget :80 | — |
-| nginx | — (image) | ✅ wget | backend + frontend (healthy) |
+| frontend | `frontend/Dockerfile` | ✅ wget | backend (healthy) |
 
-**Note**: No `.dockerignore` found at project root. Consider adding one to exclude `node_modules/`, `__pycache__/`, `.git/`, `data/raw/`, and `data/output/` from Docker build context.
+**Note**: nginx reverse proxy removed. Frontend served via `vite preview` (port 3500). Backend port 8090 (configurable via `BACKEND_PORT`).
 
 ### Commands
 
@@ -370,6 +408,7 @@ All required tools present. No blockers.
 # Backend
 cd backend && uv sync                  # install deps
 cd backend && uv run ruff check .      # lint (check)
+cd backend && uv run ruff check --fix . # lint (auto-fix)
 cd backend && uv run pytest            # unit tests (integration skipped without PostgreSQL)
 cd backend && uv run pytest -m integration  # integration tests (requires Docker PostgreSQL)
 cd backend && uv run python -m cli.main check  # health check via CLI
@@ -378,6 +417,7 @@ cd backend && uv run python -m cli.main check  # health check via CLI
 cd frontend && npm install             # install deps
 cd frontend && npm run type-check      # TypeScript check (tsc --noEmit)
 cd frontend && npm run build           # production build (tsc + vite)
+cd frontend && npm run preview         # preview production build (port 3500)
 cd frontend && npm run test:run        # Vitest unit tests
 cd frontend && npm run test            # Vitest watch mode
 cd frontend && npm run test:coverage   # Vitest with coverage
@@ -390,9 +430,6 @@ make stop                              # stop all services
 make tools                             # install missing tools (uv auto-install)
 ```
 
-### Known issues (from last preflighter run 2026-04-24)
+### Known issues
 
-- **Backend — ruff (14 errors)**: Unused imports, unsorted import block, lines >100 chars. Run `uv run ruff check --fix .` for auto-fixable ones; remaining need manual SQL string wrapping.
-- **Frontend — TypeScript (5 errors)**: Unused `User` import in `sidebar.tsx`; `err.response?.data` typed as `{}` in `real-client.ts` (needs proper error-response type).
-- **Frontend tests**: Vitest is configured (`vitest` script in `package.json`) but no test files exist yet.
-- **Missing `.dockerignore`**: Not a blocker but would speed up Docker builds.
+- **Frontend tests**: Vitest is configured with `@vitest/coverage-v8` and `@testing-library/react`. Test files exist for auth context, protected route, knowledge tree page, and knowledge documents tab. Coverage gaps may remain in other components.
