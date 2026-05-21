@@ -197,7 +197,7 @@ export const useKnowledgeTreeStore = create<KnowledgeTreeState>((set, get) => ({
   },
 
   updateDocument: async (id, title, content, treeId, chapter, fileType) => {
-    const doc = await client.updateKnowledgeDocument(id, title, content, fileType)
+    const doc = await client.updateKnowledgeDocument(treeId, id, title, content, fileType)
     const key = docKey(treeId, chapter)
     const allKey = `${treeId}:all`
     set((s) => ({
@@ -211,7 +211,7 @@ export const useKnowledgeTreeStore = create<KnowledgeTreeState>((set, get) => ({
   },
 
   deleteDocument: async (id, treeId, chapter) => {
-    await client.deleteKnowledgeDocument(id)
+    await client.deleteKnowledgeDocument(treeId, id)
     const key = docKey(treeId, chapter)
     set((s) => ({
       documents: {

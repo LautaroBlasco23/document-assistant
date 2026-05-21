@@ -81,6 +81,11 @@ httpClient.interceptors.response.use(
       return Promise.reject(error)
     }
 
+    // Skip toast for 404 Not Found — callers handle it themselves (e.g. stale highlight doc IDs)
+    if (error.response?.status === 404) {
+      return Promise.reject(error)
+    }
+
     const data = error.response?.data
     let message: string
     if (Array.isArray(data?.detail)) {
@@ -217,18 +222,18 @@ export class RealClient implements ServiceClient {
     return res.data
   }
 
-  async updateKnowledgeDocument(id: string, title: string, content: string, fileType?: string | null): Promise<KnowledgeDocument> {
+  async updateKnowledgeDocument(treeId: string, id: string, title: string, content: string, fileType?: string | null): Promise<KnowledgeDocument> {
     const body: Record<string, unknown> = { title, content }
     if (fileType !== undefined) body.file_type = fileType
     const res = await httpClient.put<KnowledgeDocument>(
-      `/knowledge-trees/_/documents/${id}`,
+      `/knowledge-trees/${treeId}/documents/${id}`,
       body
     )
     return res.data
   }
 
-  async deleteKnowledgeDocument(id: string): Promise<void> {
-    await httpClient.delete(`/knowledge-trees/_/documents/${id}`)
+  async deleteKnowledgeDocument(treeId: string, id: string): Promise<void> {
+    await httpClient.delete(`/knowledge-trees/${treeId}/documents/${id}`)
   }
 
   async improveKnowledgeDocument(treeId: string, docId: string): Promise<KnowledgeDocument> {

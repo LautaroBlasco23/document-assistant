@@ -275,7 +275,7 @@ export class MockClient implements ServiceClient {
     return doc
   }
 
-  async updateKnowledgeDocument(id: string, title: string, content: string, fileType?: string | null): Promise<KnowledgeDocument> {
+  async updateKnowledgeDocument(_treeId: string, id: string, title: string, content: string, fileType?: string | null): Promise<KnowledgeDocument> {
     await delay(150)
     const idx = this.documents.findIndex((d) => d.id === id)
     if (idx === -1) throw new Error(`Document not found: ${id}`)
@@ -290,7 +290,7 @@ export class MockClient implements ServiceClient {
     return updated
   }
 
-  async deleteKnowledgeDocument(id: string): Promise<void> {
+  async deleteKnowledgeDocument(_treeId: string, id: string): Promise<void> {
     await delay(100)
     this.documents = this.documents.filter((d) => d.id !== id)
   }
