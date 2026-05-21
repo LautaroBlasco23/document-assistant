@@ -77,6 +77,7 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
     pageNumber?: number
     startOffset?: number
     endOffset?: number
+    isTitleHighlight?: boolean
   } | null>(null)
   const [textActiveChapter, setTextActiveChapter] = React.useState<number | null>(null)
 
@@ -368,6 +369,8 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
     }
   }
 
+  const HEADING_TAGS = ['H1', 'H2', 'H3', 'H4', 'H5', 'H6']
+
   const handleContextMenu = (e: React.MouseEvent) => {
     const selection = window.getSelection()
     const selectedText = selection?.toString()?.trim() ?? ''
@@ -376,13 +379,23 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
 
     let startOffset: number | undefined
     let endOffset: number | undefined
+    let isTitleHighlight = false
     if (selection && selection.rangeCount > 0) {
       const range = selection.getRangeAt(0)
       let container: Node | null = range.commonAncestorContainer
-      while (container && !(container instanceof HTMLElement && (container.tagName === 'P' || container.tagName === 'PRE'))) {
+      while (container && !(container instanceof HTMLElement && (container.tagName === 'P' || container.tagName === 'PRE' || HEADING_TAGS.includes(container.tagName)))) {
         container = container.parentNode
       }
+      if (!(container instanceof HTMLElement)) {
+        container = range.commonAncestorContainer
+        while (container && !(container instanceof HTMLElement && container.classList.contains('textLayer'))) {
+          container = container.parentNode
+        }
+      }
       if (container instanceof HTMLElement) {
+        if (HEADING_TAGS.includes(container.tagName)) {
+          isTitleHighlight = true
+        }
         const preRange = document.createRange()
         preRange.selectNodeContents(container)
         preRange.setEnd(range.startContainer, range.startOffset)
@@ -400,6 +413,7 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
       pageNumber: isTruePdf ? currentPage : undefined,
       startOffset,
       endOffset,
+      isTitleHighlight,
     })
   }
 
@@ -523,7 +537,7 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
     }
   }
 
-  const handleHighlight = (text: string, pos?: { chapterNumber?: number; pageNumber?: number; startOffset?: number; endOffset?: number }) => {
+  const handleHighlight = (text: string, pos?: { chapterNumber?: number; pageNumber?: number; startOffset?: number; endOffset?: number; isTitleHighlight?: boolean }) => {
     if (isHighlightsDoc) return
     addHighlight(doc.id, text, pos)
     setContextMenu(null)
@@ -574,13 +588,23 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
             e.preventDefault()
             let startOffset: number | undefined
             let endOffset: number | undefined
+            let isTitleHighlight = false
             if (selection && selection.rangeCount > 0) {
               const range = selection.getRangeAt(0)
               let container: Node | null = range.commonAncestorContainer
-              while (container && !(container instanceof HTMLElement && (container.tagName === 'P' || container.tagName === 'PRE'))) {
+              while (container && !(container instanceof HTMLElement && (container.tagName === 'P' || container.tagName === 'PRE' || HEADING_TAGS.includes(container.tagName)))) {
                 container = container.parentNode
               }
+              if (!(container instanceof HTMLElement)) {
+                container = range.commonAncestorContainer
+                while (container && !(container instanceof HTMLElement && container.dataset.page)) {
+                  container = container.parentNode
+                }
+              }
               if (container instanceof HTMLElement) {
+                if (HEADING_TAGS.includes(container.tagName)) {
+                  isTitleHighlight = true
+                }
                 const preRange = document.createRange()
                 preRange.selectNodeContents(container)
                 preRange.setEnd(range.startContainer, range.startOffset)
@@ -594,6 +618,7 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
               pageNumber: isTruePdfRef.current ? currentPageRef.current : undefined,
               startOffset,
               endOffset,
+              isTitleHighlight,
             })
           }
         }
@@ -963,6 +988,7 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
               if (h.text.toLowerCase() !== contextMenu.text.toLowerCase()) return false
               if (contextMenu.startOffset !== undefined && h.startOffset !== contextMenu.startOffset) return false
               if (contextMenu.endOffset !== undefined && h.endOffset !== contextMenu.endOffset) return false
+              if (h.isTitleHighlight !== (contextMenu.isTitleHighlight ?? false)) return false
               return true
             }) ? (
               <button
@@ -974,7 +1000,7 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
               </button>
             ) : (
               <button
-                onClick={() => handleHighlight(contextMenu.text, { chapterNumber: contextMenu.chapterNumber, pageNumber: contextMenu.pageNumber, startOffset: contextMenu.startOffset, endOffset: contextMenu.endOffset })}
+                onClick={() => handleHighlight(contextMenu.text, { chapterNumber: contextMenu.chapterNumber, pageNumber: contextMenu.pageNumber, startOffset: contextMenu.startOffset, endOffset: contextMenu.endOffset, isTitleHighlight: contextMenu.isTitleHighlight })}
                 className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100 transition-colors"
               >
                 <Highlighter className="h-3.5 w-3.5 text-yellow-500" />

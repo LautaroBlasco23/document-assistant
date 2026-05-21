@@ -6,7 +6,7 @@ import 'react-pdf/dist/Page/TextLayer.css'
 
 import type { ContentWidth } from '../../stores/reader-preferences'
 import type { Highlight } from '../../stores/highlights-store'
-import type { TextContent, TextItem } from 'react-pdf'
+import type { TextContent, TextItem, TextMarkedContent } from 'react-pdf'
 
 function maxPdfWidth(cw: ContentWidth): number {
   if (cw === 'full') return Infinity
@@ -461,6 +461,37 @@ export function PdfPagesView({
   )
 }
 
+function escapeHtml(unsafe: string): string {
+  return unsafe
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;')
+}
+
+function computeMatchedIndices(items: (TextItem | TextMarkedContent)[], hls: Highlight[]): Set<number> {
+  if (!items.length || !hls.length) {
+    return new Set()
+  }
+  const result = new Set<number>()
+  for (const hl of hls) {
+    const start = hl.startOffset!
+    const end = hl.endOffset!
+    let charPos = 0
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i]
+      if (!('str' in item)) continue
+      const itemLen = item.str.length
+      if (start < charPos + itemLen && end > charPos) {
+        result.add(i)
+      }
+      charPos += itemLen
+    }
+  }
+  return result
+}
+
 interface MemoPageProps {
   pageNumber: number
   width: number
@@ -468,12 +499,10 @@ interface MemoPageProps {
   highlights?: Highlight[]
 }
 
-function escapeHtml(s: string): string {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-}
-
 const MemoPage = React.memo(function MemoPage({ pageNumber, width, onRenderSuccess, highlights = [] }: MemoPageProps) {
   const [matchedIndices, setMatchedIndices] = React.useState<Set<number>>(new Set())
+  const textItemsRef = React.useRef<(TextItem | TextMarkedContent)[]>([])
+  const itemCharStartsRef = React.useRef<number[]>([])
 
   const pageHighlights = React.useMemo(
     () => highlights.filter((h) => h.pageNumber === pageNumber && h.startOffset !== undefined && h.endOffset !== undefined),
@@ -481,39 +510,71 @@ const MemoPage = React.memo(function MemoPage({ pageNumber, width, onRenderSucce
   )
 
   const handleTextSuccess = React.useCallback((textContent: TextContent) => {
-    const items = (textContent.items ?? []).filter(
-      (item): item is TextItem => 'str' in item,
-    )
-    if (!items.length || !pageHighlights.length) {
-      setMatchedIndices(new Set())
-      return
-    }
-    const result = new Set<number>()
-    for (const hl of pageHighlights) {
-      const start = hl.startOffset!
-      const end = hl.endOffset!
-      let charPos = 0
-      for (let i = 0; i < items.length; i++) {
-        const itemLen = items[i].str.length
-        if (start < charPos + itemLen && end > charPos) {
-          result.add(i)
-        }
-        charPos += itemLen
+    const items = textContent.items ?? []
+    textItemsRef.current = items
+
+    const starts: number[] = []
+    let charPos = 0
+    for (const item of items) {
+      starts.push(charPos)
+      if ('str' in item) {
+        charPos += item.str.length
       }
     }
-    setMatchedIndices(result)
+    itemCharStartsRef.current = starts
+
+    setMatchedIndices(computeMatchedIndices(items, pageHighlights))
+  }, [pageHighlights, pageNumber])
+
+  React.useEffect(() => {
+    setMatchedIndices(computeMatchedIndices(textItemsRef.current, pageHighlights))
   }, [pageHighlights])
 
   const customTextRenderer = React.useMemo(() => {
     if (matchedIndices.size === 0) return undefined
-    const indices = matchedIndices
-    return ({ str, itemIndex }: { str: string; itemIndex: number }) => {
-      if (indices.has(itemIndex)) {
-        return `<mark class="pdf-highlight">${escapeHtml(str)}</mark>`
+    return (({ str, itemIndex }: { str: string; itemIndex: number }) => {
+      if (!matchedIndices.has(itemIndex)) {
+        return escapeHtml(str)
       }
-      return escapeHtml(str)
-    }
-  }, [matchedIndices])
+
+      const charPos = itemCharStartsRef.current[itemIndex] ?? 0
+      const itemEnd = charPos + str.length
+
+      const overlapping = pageHighlights
+        .filter((hl) => {
+          const start = hl.startOffset!
+          const end = hl.endOffset!
+          return start < itemEnd && end > charPos
+        })
+        .sort((a, b) => a.startOffset! - b.startOffset!)
+
+      if (overlapping.length === 0) {
+        return escapeHtml(str)
+      }
+
+      let result = ''
+      let lastEnd = 0
+
+      for (const hl of overlapping) {
+        const hlStart = Math.max(0, hl.startOffset! - charPos)
+        const hlEnd = Math.min(str.length, hl.endOffset! - charPos)
+
+        if (hlStart > lastEnd) {
+          result += escapeHtml(str.slice(lastEnd, hlStart))
+        }
+        if (hlEnd > lastEnd) {
+          result += `<mark class="pdf-highlight">${escapeHtml(str.slice(Math.max(lastEnd, hlStart), hlEnd))}</mark>`
+          lastEnd = hlEnd
+        }
+      }
+
+      if (lastEnd < str.length) {
+        result += escapeHtml(str.slice(lastEnd))
+      }
+
+      return result
+    })
+  }, [matchedIndices, pageHighlights])
 
   return (
     <Page

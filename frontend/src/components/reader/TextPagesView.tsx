@@ -8,9 +8,10 @@ import type { ContentWidth } from '../../stores/reader-preferences'
 import { readerMarkdownComponents } from './markdownComponents'
 import type { Highlight } from '../../stores/highlights-store'
 
-function markTextByPosition(text: string, highlights: Highlight[], chapterNumber: number): React.ReactNode {
+function markTextByPosition(text: string, highlights: Highlight[], chapterNumber: number, titleOnly?: boolean): React.ReactNode {
   const spans = highlights
     .filter((h) => h.chapterNumber === chapterNumber && h.startOffset !== undefined && h.endOffset !== undefined)
+    .filter((h) => titleOnly === undefined ? true : titleOnly ? h.isTitleHighlight === true : h.isTitleHighlight !== true)
     .map((h) => ({ start: h.startOffset!, end: h.endOffset! }))
     .sort((a, b) => a.start - b.start)
 
@@ -226,7 +227,7 @@ export function TextPagesView({
       )
     }
 
-    const marked = markTextByPosition(text, highlights, chapterNumber)
+    const marked = markTextByPosition(text, highlights, chapterNumber, false)
 
     if (isTxt) {
       return (
@@ -264,7 +265,7 @@ export function TextPagesView({
           <div className={cn('mx-auto py-8 px-6', contentWidthClass)} style={{ fontSize }}>
             {chapter && (
               <>
-                <h2 className="text-xl font-semibold text-text-primary mb-6">{chapter.title}</h2>
+                <h2 className="text-xl font-semibold text-text-primary mb-6">{markTextByPosition(chapter.title, highlights, chapter.number, true)}</h2>
                 {renderContent(chapter.number)}
               </>
             )}
@@ -304,7 +305,7 @@ export function TextPagesView({
             data-chapter={ch.number}
           >
             <h2 className="text-xl font-semibold text-text-primary mb-6 pb-2 border-b border-surface-200 dark:border-surface-200">
-              {ch.title}
+              {markTextByPosition(ch.title, highlights, ch.number, true)}
             </h2>
             {renderContent(ch.number)}
           </section>

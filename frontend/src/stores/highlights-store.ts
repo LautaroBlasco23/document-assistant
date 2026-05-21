@@ -8,6 +8,7 @@ export interface Highlight {
   pageNumber?: number
   startOffset?: number
   endOffset?: number
+  isTitleHighlight?: boolean
 }
 
 interface HighlightsState {
@@ -15,7 +16,7 @@ interface HighlightsState {
   highlights: Record<string, Highlight[]>
   // sourceDocId → knowledge-document id that stores the highlights
   highlightDocIds: Record<string, string>
-  add: (docId: string, text: string, opts?: Partial<Pick<Highlight, 'chapterNumber' | 'pageNumber' | 'startOffset' | 'endOffset'>>) => Highlight
+  add: (docId: string, text: string, opts?: Partial<Pick<Highlight, 'chapterNumber' | 'pageNumber' | 'startOffset' | 'endOffset' | 'isTitleHighlight'>>) => Highlight
   remove: (docId: string, id: string) => void
   clear: (docId: string) => void
   setHighlightDocId: (sourceDocId: string, highlightsDocId: string) => void
