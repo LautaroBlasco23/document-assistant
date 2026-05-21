@@ -132,6 +132,16 @@ export function PdfPagesView({
     }, 250)
   }, [numPages, initialPage, mode, pageList])
 
+  // Recalculate baseWidth when contentWidth changes.
+  React.useEffect(() => {
+    const cap = maxPdfWidth(contentWidth)
+    const containerW = scrollContainerRef.current?.clientWidth
+    const w = containerW ?? (typeof window !== 'undefined' ? window.innerWidth : 0)
+    if (!w) return
+    const next = Number.isFinite(cap) ? Math.min(cap, Math.max(320, w - 32)) : Math.max(320, w - 32)
+    setBaseWidth((prev) => (Math.abs(prev - next) > 1 ? next : prev))
+  }, [contentWidth])
+
   // ResizeObserver: tracks scroll container width for page re-fit on layout changes.
   React.useEffect(() => {
     const el = scrollContainerRef.current
