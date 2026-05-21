@@ -121,7 +121,7 @@ def test_save_credential_encrypts_and_stores(test_client, mock_services):
     mock_services.llm_credential_store.upsert.return_value = cred
     mock_services.llm_credential_store.get.return_value = cred
 
-    with patch("api.routers.credentials._test_provider", return_value=(True, None, 10)):
+    with patch("api.routers.credentials.test_provider", return_value=(True, None, 10)):
         response = test_client.put("/api/credentials/groq", json={"api_key": "gsk_abc12345"})
 
     assert response.status_code == 200
@@ -138,7 +138,7 @@ def test_save_credential_last4_computed_correctly(test_client, mock_services):
     mock_services.llm_credential_store.upsert.return_value = cred
     mock_services.llm_credential_store.get.return_value = cred
 
-    with patch("api.routers.credentials._test_provider", return_value=(True, None, 5)):
+    with patch("api.routers.credentials.test_provider", return_value=(True, None, 5)):
         test_client.put("/api/credentials/groq", json={"api_key": "prefix_4321"})
 
     upsert_args = mock_services.llm_credential_store.upsert.call_args.args
@@ -185,7 +185,7 @@ def test_delete_credential_unknown_provider_returns_422(test_client, mock_servic
 def test_test_credential_with_inline_key(test_client, mock_services):
     """POST with api_key in body must use that key directly."""
     with patch(
-        "api.routers.credentials._test_provider", return_value=(True, None, 42)
+        "api.routers.credentials.test_provider", return_value=(True, None, 42)
     ) as mock_test:
         response = test_client.post(
             "/api/credentials/groq/test", json={"api_key": "gsk_inline_key"}
@@ -205,7 +205,7 @@ def test_test_credential_with_stored_key(test_client, mock_services):
     mock_services.encryption.decrypt.return_value = "gsk_stored_key"
 
     with patch(
-        "api.routers.credentials._test_provider", return_value=(False, "bad key", None)
+        "api.routers.credentials.test_provider", return_value=(False, "bad key", None)
     ) as mock_test:
         response = test_client.post("/api/credentials/groq/test", json={})
 
@@ -233,7 +233,7 @@ def test_test_credential_unknown_provider_returns_422(test_client, mock_services
 
 def test_test_credential_updates_test_result(test_client, mock_services):
     """After testing, update_test_result must be called to persist the outcome."""
-    with patch("api.routers.credentials._test_provider", return_value=(True, None, 5)):
+    with patch("api.routers.credentials.test_provider", return_value=(True, None, 5)):
         test_client.post("/api/credentials/groq/test", json={"api_key": "key"})
 
     mock_services.llm_credential_store.update_test_result.assert_called_once_with(

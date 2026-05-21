@@ -7,7 +7,7 @@ from pydantic import BaseModel
 
 from api.auth import CurrentUser
 from api.deps import ServicesDep
-from infrastructure.config import AppConfig
+from application.services.provider_service import test_provider
 
 logger = logging.getLogger(__name__)
 
@@ -43,41 +43,6 @@ class TestConnectionResult(BaseModel):
     ok: bool
     error: str | None = None
     model_count: int | None = None
-
-
-# ---------------------------------------------------------------------------
-# Helper: test a provider connection
-# ---------------------------------------------------------------------------
-
-
-def _test_provider(
-    provider: str, api_key: str, config: AppConfig,
-) -> tuple[bool, str | None, int | None]:
-    """Return (ok, error_str, model_count) for a provider connection test."""
-    from infrastructure.llm.model_fetcher import (
-        fetch_gemini_models,
-        fetch_groq_models,
-        fetch_nvidia_models,
-        fetch_openrouter_models,
-    )
-
-    try:
-        if provider == "groq":
-            models = fetch_groq_models(api_key, config.groq.base_url)
-        elif provider == "openrouter":
-            models = fetch_openrouter_models(api_key, config.openrouter.base_url)
-        elif provider == "nvidia":
-            models = fetch_nvidia_models(api_key, config.nvidia.base_url)
-        elif provider == "gemini":
-            models = fetch_gemini_models(api_key, config.gemini.base_url)
-        elif provider == "huggingface":
-            # HuggingFace has no live model listing endpoint; treat as ok
-            return True, None, None
-        else:
-            return False, f"Provider '{provider}' does not support connection testing", None
-        return True, None, len(models)
-    except Exception as exc:
-        return False, str(exc), None
 
 
 # ---------------------------------------------------------------------------
@@ -139,7 +104,7 @@ async def save_credential(
     cred = services.llm_credential_store.upsert(current_user.id, provider, encrypted, last4)
 
     # Auto-test on save
-    ok, error, _ = _test_provider(provider, req.api_key, services.config)
+    ok, error, _ = test_provider(provider, req.api_key, services.config)
     services.llm_credential_store.update_test_result(current_user.id, provider, ok, error)
     # Refresh to get updated timestamps
     cred = services.llm_credential_store.get(current_user.id, provider) or cred
@@ -186,7 +151,7 @@ async def test_credential(
             raise HTTPException(status_code=404, detail="No credential stored for this provider")
         api_key = services.encryption.decrypt(encrypted)
 
-    ok, error, model_count = _test_provider(provider, api_key, services.config)
+    ok, error, model_count = test_provider(provider, api_key, services.config)
     services.llm_credential_store.update_test_result(current_user.id, provider, ok, error)
 
     return TestConnectionResult(ok=ok, error=error, model_count=model_count)

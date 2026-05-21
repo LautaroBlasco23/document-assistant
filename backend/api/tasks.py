@@ -135,3 +135,10 @@ class TaskRegistry:
     def shutdown(self) -> None:
         """Shutdown executor, waiting for pending tasks."""
         self._executor.shutdown(wait=True)
+
+
+def set_task_progress(task: Task, pct: int, message: str) -> None:
+    """Update task progress percentage and message, clamped to 0-100."""
+    task.progress_pct = max(0, min(100, pct))
+    task.progress = message
+    logger.debug("Progress [%d%%]: %s", task.progress_pct, message)

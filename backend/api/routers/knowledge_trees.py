@@ -1,9 +1,7 @@
 """Knowledge Tree endpoints."""
 
-import hashlib
 import logging
 import tempfile
-import time
 from datetime import datetime
 from pathlib import Path
 from uuid import UUID, uuid4
@@ -15,7 +13,7 @@ from pydantic import BaseModel
 
 from api.auth import CurrentUser
 from api.deps import ServicesDep
-from api.limit_checks import PlanLimitExceeded, check_can_create_document, check_can_create_tree
+from api.limit_checks import check_can_create_document, check_can_create_tree
 from api.schemas.knowledge_tree import (
     ChapterPreviewOut,
     CreateChapterRequest,
@@ -34,18 +32,24 @@ from api.schemas.knowledge_tree import (
     UpdateTreeRequest,
 )
 from api.schemas.question import GenerateQuestionsRequest, QuestionOut
-from api.tasks import Task
-from application.agents._batching import chunks_around_selection
-from application.agents._tokens import truncate_tokens
 from application.agents.flashcard_generator import FlashcardGeneratorAgent
 from application.agents.question_generator import QuestionGeneratorAgent
 from application.agents.text_improvement import TextImprovementAgent
 from application.llm_resolver import resolve_llm_for_agent
+from application.services.chapter_helpers import get_chapter_context, parse_uuid, resolve_chapter
+from application.services.flashcard_generation import (
+    generate_flashcard_task,
+    generate_flashcards_bulk_task,
+)
+from application.services.question_generation import generate_questions_task
+from application.services.tree_import import (
+    create_tree_from_file_task,
+    import_youtube_task,
+    ingest_file_task,
+)
 from core.exceptions import ProviderNotConfigured
-from core.model.chunk import Chunk, ChunkMetadata
-from core.model.knowledge_tree import ExamSession, Flashcard, KnowledgeChunk
+from core.model.knowledge_tree import ExamSession, Flashcard
 from core.model.question import Question, QuestionType
-from infrastructure.chunking.splitter import ChapterAwareSplitter
 from infrastructure.config import PROJECT_ROOT
 from infrastructure.ingest.epub_loader import preview_epub
 from infrastructure.ingest.pdf_loader import preview_pdf
@@ -103,23 +107,11 @@ def _doc_out(doc) -> KnowledgeDocumentOut:
     )
 
 
-def _parse_uuid(value: str, label: str) -> UUID:
-    try:
-        return UUID(value)
-    except ValueError:
-        raise HTTPException(status_code=422, detail=f"Invalid {label}: {value}")
-
-
-def _set_progress(task: Task, pct: int, message: str) -> None:
-    task.progress_pct = max(0, min(100, pct))
-    task.progress = message
-    logger.debug("Progress [%d%%]: %s", task.progress_pct, message)
-
-
 def _preview_file(
     tmp_path: Path, suffix: str, file_bytes: bytes, epub_config
 ) -> "DocumentPreviewOut | None":
     """Preview a PDF, EPUB, or TXT file and return chapter structure."""
+    import hashlib
     file_hash = hashlib.sha256(file_bytes).hexdigest()
     if suffix == ".pdf":
         doc, chapters = preview_pdf(tmp_path, file_hash)
@@ -222,7 +214,6 @@ async def import_tree_from_document(
     integers to import only those chapters (e.g. ``"0,2,3"``).  Omit the field
     to import all chapters (default behaviour).
     """
-    # Check tree limit first
     limits = services.subscription_store.get_user_limits(current_user.id)
     check_can_create_tree(limits)
 
@@ -250,209 +241,17 @@ async def import_tree_from_document(
     tree_title = title.strip() or Path(filename).stem
     file_bytes = await file.read()
     task_id = services.task_registry.submit(
-        _create_tree_from_document_background,
+        create_tree_from_file_task,
         file_bytes,
         filename,
         tree_title,
         services,
         parsed_indices,
-        current_user.id,  # Pass user_id to background task
+        current_user.id,
         task_type="kt_create_from_file",
         filename=filename,
     )
     return {"task_id": task_id, "filename": filename}
-
-
-def _create_tree_from_document_background(
-    task: Task,
-    file_bytes: bytes,
-    filename: str,
-    tree_title: str,
-    services: ServicesDep,
-    chapter_indices: list[int] | None = None,
-    user_id: UUID = None,
-) -> dict:
-    """Background task: parse file, create tree with chapters and knowledge documents.
-
-    Args:
-        chapter_indices: 0-based indices of chapters to import.  ``None`` means
-            all chapters (default behaviour).
-    """
-    t0 = time.perf_counter()
-    try:
-        _set_progress(task, 5, "Saving uploaded file...")
-        suffix = Path(filename).suffix.lower()
-
-        with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
-            tmp.write(file_bytes)
-            tmp_path = Path(tmp.name)
-
-        try:
-            _set_progress(task, 10, "Parsing document...")
-            file_hash = hashlib.sha256(file_bytes).hexdigest()
-
-            if suffix == ".pdf":
-                from infrastructure.ingest.pdf_loader import load_pdf as _load_pdf
-
-                doc = _load_pdf(tmp_path, file_hash, filename)
-            elif suffix == ".epub":
-                from infrastructure.ingest.epub_loader import load_epub as _load_epub
-
-                doc = _load_epub(tmp_path, file_hash, filename)
-            elif suffix == ".txt":
-                from infrastructure.ingest.txt_loader import load_txt as _load_txt
-
-                doc = _load_txt(tmp_path, file_hash, filename)
-            else:
-                raise ValueError(f"Unsupported file type: {suffix}")
-
-            _set_progress(task, 20, "Creating knowledge tree...")
-
-            # Check document limits before creating
-            if chapter_indices is not None:
-                selected = set(chapter_indices)
-                chapters_to_process = [ch for ch in doc.chapters if ch.index in selected]
-            else:
-                chapters_to_process = doc.chapters
-
-            limits = services.subscription_store.get_user_limits(user_id)
-            num_new_docs = len(chapters_to_process)
-
-            if limits.current_documents + num_new_docs > limits.max_documents:
-                raise PlanLimitExceeded(
-                    resource="document",
-                    current=limits.current_documents,
-                    max_limit=limits.max_documents,
-                    message=(
-                        f"This import would create {num_new_docs} documents, "
-                        f"exceeding your limit of {limits.max_documents}."
-                    ),
-                )
-
-            tree = services.kt_tree_store.create_tree(tree_title, None, user_id)
-            tree_uid = tree.id
-            storage_dir = PROJECT_ROOT / "data" / "storage"
-            storage_dir.mkdir(parents=True, exist_ok=True)
-            tree_file_path = storage_dir / f"{tree_uid}{suffix}"
-            tree_file_path.write_bytes(file_bytes)
-
-            # Create a tree-level source document pointing to the full original file
-            source_doc = services.kt_doc_store.create_document(
-                tree_uid, None, doc.title or tree_title, "", is_main=False,
-            )
-            services.kt_doc_store.update_document_source_file(
-                source_doc.id, str(tree_file_path), filename
-            )
-
-            chapter_count = len(chapters_to_process)
-            if chapter_count == 0:
-                _set_progress(task, 100, "Done (no chapters found)")
-                return {"tree_id": str(tree_uid), "chapter_count": 0}
-
-            from core.model.document import Document as _Document
-
-            splitter = ChapterAwareSplitter()
-            all_kt_chunks = []
-
-            for i, chapter in enumerate(chapters_to_process):
-                chapter_number = i + 1  # 1-based
-                pct_base = 25 + int(70 * i / chapter_count)
-                chapter_title = chapter.title or f"Chapter {chapter_number}"
-                _set_progress(
-                    task,
-                    pct_base,
-                    f"Processing chapter {chapter_number}/{chapter_count}: {chapter_title}...",
-                )
-
-                # Create knowledge chapter
-                kt_chapter = services.kt_chapter_store.create_chapter(tree_uid, chapter_title)
-                chapter_uid = kt_chapter.id
-
-                # Build a single-chapter Document for chunking
-                single_chapter_doc = _Document(
-                    source_path=doc.source_path,
-                    title=doc.title,
-                    file_hash=file_hash,
-                    original_filename=filename,
-                    chapters=[chapter],
-                )
-
-                chunks = splitter.split(single_chapter_doc)
-
-                # Full chapter text for the knowledge document
-                if chunks:
-                    full_text = "\n\n".join(c.text for c in chunks)
-                else:
-                    # Fallback: concatenate page text directly
-                    full_text = "\n\n".join(p.text for p in chapter.pages)
-
-                # Derive page range from the chapter's page list
-                ch_page_start = chapter.pages[0].number if chapter.pages else None
-                ch_page_end = chapter.pages[-1].number if chapter.pages else None
-
-                # Store one KnowledgeDocument per chapter
-                kt_doc = services.kt_doc_store.create_document(
-                    tree_uid, chapter_uid, chapter_title, full_text, is_main=False,
-                    page_start=ch_page_start,
-                    page_end=ch_page_end,
-                )
-                doc_uid = kt_doc.id
-
-                # For PDFs, extract only this chapter's pages into a separate file
-                if suffix == ".pdf" and ch_page_start and ch_page_end:
-                    src_pdf = fitz.open(str(tree_file_path))
-                    chapter_pdf = fitz.open()
-                    chapter_pdf.insert_pdf(
-                        src_pdf,
-                        from_page=ch_page_start - 1,
-                        to_page=ch_page_end - 1,
-                    )
-                    chapter_file_path = storage_dir / f"{doc_uid}.pdf"
-                    chapter_pdf.save(str(chapter_file_path))
-                    chapter_pdf.close()
-                    src_pdf.close()
-                    services.kt_doc_store.update_document_source_file(
-                        kt_doc.id, str(chapter_file_path), filename
-                    )
-                else:
-                    services.kt_doc_store.update_document_source_file(
-                        kt_doc.id, str(tree_file_path), filename
-                    )
-
-                # Build KnowledgeChunk records for this chapter
-                for j, c in enumerate(chunks):
-                    all_kt_chunks.append(
-                        KnowledgeChunk(
-                            id=UUID(c.id) if c.id else uuid4(),
-                            tree_id=tree_uid,
-                            chapter_id=chapter_uid,
-                            doc_id=doc_uid,
-                            chunk_index=j,
-                            text=c.text,
-                            token_count=c.token_count,
-                        )
-                    )
-
-            _set_progress(task, 90, "Storing content chunks...")
-            if all_kt_chunks:
-                services.kt_content_store.save_chunks(all_kt_chunks)
-
-            elapsed = time.perf_counter() - t0
-            _set_progress(task, 100, "Done")
-            logger.info(
-                "Created knowledge tree %s from %s in %.1fs (%d chapters, %d chunks)",
-                str(tree_uid),
-                filename,
-                elapsed,
-                chapter_count,
-                len(all_kt_chunks),
-            )
-            return {"tree_id": str(tree_uid), "chapter_count": chapter_count}
-        finally:
-            tmp_path.unlink(missing_ok=True)
-    except Exception as e:
-        logger.error("Knowledge tree creation from file failed: %s", e)
-        raise
 
 
 @router.post("/knowledge-trees/{tree_id}/documents/import-youtube", status_code=202)
@@ -463,7 +262,7 @@ async def import_youtube_document(
     services: ServicesDep,
 ) -> dict:
     """Import a YouTube video as a knowledge document via transcript extraction."""
-    uid = _parse_uuid(tree_id, "tree_id")
+    uid = parse_uuid(tree_id, "tree_id")
     tree = services.kt_tree_store.get_tree(uid)
     if tree is None or tree.user_id != current_user.id:
         raise HTTPException(status_code=404, detail="Knowledge tree not found")
@@ -474,7 +273,7 @@ async def import_youtube_document(
     chapter_uid: UUID | None = None
     chapter_number: int | None = None
     if req.chapter_id:
-        chapter_uid = _parse_uuid(req.chapter_id, "chapter_id")
+        chapter_uid = parse_uuid(req.chapter_id, "chapter_id")
         chapter = next(
             (c for c in services.kt_chapter_store.list_chapters(uid) if c.id == chapter_uid),
             None,
@@ -484,7 +283,7 @@ async def import_youtube_document(
         chapter_number = chapter.number
 
     task_id = services.task_registry.submit(
-        _import_youtube_background,
+        import_youtube_task,
         req.url,
         uid,
         chapter_uid,
@@ -495,95 +294,10 @@ async def import_youtube_document(
     return {"task_id": task_id}
 
 
-def _import_youtube_background(
-    task: Task,
-    url: str,
-    tree_id: UUID,
-    chapter_id: UUID | None,
-    chapter_number: int | None,
-    services,
-) -> dict:
-    """Background task: fetch YouTube transcript and store as a knowledge document."""
-    from infrastructure.ingest.youtube_loader import (
-        TranscriptUnavailable,
-        VideoUnavailable,
-        extract_video_id,
-        fetch_metadata,
-        fetch_transcript,
-    )
-
-    try:
-        _set_progress(task, 5, "Extracting video ID...")
-        try:
-            video_id = extract_video_id(url)
-        except ValueError as exc:
-            raise HTTPException(status_code=422, detail=str(exc))
-
-        _set_progress(task, 15, "Fetching video metadata...")
-        try:
-            meta = fetch_metadata(video_id)
-        except VideoUnavailable as exc:
-            raise HTTPException(status_code=400, detail=str(exc))
-
-        _set_progress(task, 35, "Fetching transcript...")
-        try:
-            transcript = fetch_transcript(video_id)
-        except TranscriptUnavailable as exc:
-            raise HTTPException(status_code=422, detail=str(exc))
-
-        _set_progress(task, 65, "Creating knowledge document...")
-        kt_doc = services.kt_doc_store.create_youtube_document(
-            tree_id=tree_id,
-            chapter_id=chapter_id,
-            title=meta.title,
-            content=transcript,
-            source_url=url,
-        )
-
-        if chapter_id is not None and chapter_number is not None:
-            _set_progress(task, 80, "Chunking transcript...")
-            from core.model.document import Chapter, Document, Page
-            from infrastructure.chunking.splitter import ChapterAwareSplitter
-
-            lines = transcript.splitlines()
-            pages = [Page(number=i + 1, text=line) for i, line in enumerate(lines) if line.strip()]
-            chapter_obj = Chapter(index=0, title=meta.title, pages=pages)
-            doc_obj = Document(
-                source_path="",
-                title=meta.title,
-                file_hash="",
-                original_filename="",
-                chapters=[chapter_obj],
-            )
-            splitter = ChapterAwareSplitter()
-            chunks = splitter.split(doc_obj)
-            kt_chunks = [
-                KnowledgeChunk(
-                    id=UUID(c.id) if c.id else uuid4(),
-                    tree_id=tree_id,
-                    chapter_id=chapter_id,
-                    doc_id=kt_doc.id,
-                    chunk_index=j,
-                    text=c.text,
-                    token_count=c.token_count,
-                )
-                for j, c in enumerate(chunks)
-            ]
-            if kt_chunks:
-                services.kt_content_store.save_chunks(kt_chunks)
-
-        _set_progress(task, 100, "Done")
-        logger.info("Imported YouTube video %s as document %s", video_id, kt_doc.id)
-        return {"doc_id": str(kt_doc.id), "title": meta.title}
-    except Exception as exc:
-        logger.error("YouTube import failed: %s", exc)
-        raise
-
-
 @router.get("/knowledge-trees/{tree_id}", response_model=KnowledgeTreeOut)
 async def get_tree(tree_id: str, services: ServicesDep) -> KnowledgeTreeOut:
     """Get a knowledge tree by ID."""
-    uid = _parse_uuid(tree_id, "tree_id")
+    uid = parse_uuid(tree_id, "tree_id")
     tree = services.kt_tree_store.get_tree(uid)
     if tree is None:
         raise HTTPException(status_code=404, detail="Knowledge tree not found")
@@ -596,7 +310,7 @@ async def update_tree(
     tree_id: str, req: UpdateTreeRequest, services: ServicesDep
 ) -> KnowledgeTreeOut:
     """Update a knowledge tree's title and description."""
-    uid = _parse_uuid(tree_id, "tree_id")
+    uid = parse_uuid(tree_id, "tree_id")
     tree = services.kt_tree_store.get_tree(uid)
     if tree is None:
         raise HTTPException(status_code=404, detail="Knowledge tree not found")
@@ -617,7 +331,7 @@ async def export_tree(
     from application.export.tree_exporter import export_tree as _export_tree
     from application.export.tree_exporter import slugify
 
-    uid = _parse_uuid(tree_id, "tree_id")
+    uid = parse_uuid(tree_id, "tree_id")
     tree = services.kt_tree_store.get_tree(uid)
     if tree is None or tree.user_id != current_user.id:
         raise HTTPException(status_code=404, detail="Knowledge tree not found")
@@ -634,7 +348,7 @@ async def export_tree(
 @router.delete("/knowledge-trees/{tree_id}", status_code=204)
 async def delete_tree(tree_id: str, services: ServicesDep) -> None:
     """Delete a knowledge tree (cascades to chapters, documents, content)."""
-    uid = _parse_uuid(tree_id, "tree_id")
+    uid = parse_uuid(tree_id, "tree_id")
     tree = services.kt_tree_store.get_tree(uid)
     if tree is None:
         raise HTTPException(status_code=404, detail="Knowledge tree not found")
@@ -652,7 +366,7 @@ async def delete_tree(tree_id: str, services: ServicesDep) -> None:
 )
 async def list_chapters(tree_id: str, services: ServicesDep) -> list[KnowledgeChapterOut]:
     """List chapters for a knowledge tree."""
-    uid = _parse_uuid(tree_id, "tree_id")
+    uid = parse_uuid(tree_id, "tree_id")
     chapters = services.kt_chapter_store.list_chapters(uid)
     return [_chapter_out(ch) for ch in chapters]
 
@@ -666,7 +380,7 @@ async def create_chapter(
     tree_id: str, req: CreateChapterRequest, services: ServicesDep
 ) -> KnowledgeChapterOut:
     """Create a new chapter in a knowledge tree."""
-    uid = _parse_uuid(tree_id, "tree_id")
+    uid = parse_uuid(tree_id, "tree_id")
     tree = services.kt_tree_store.get_tree(uid)
     if tree is None:
         raise HTTPException(status_code=404, detail="Knowledge tree not found")
@@ -682,7 +396,7 @@ async def update_chapter(
     tree_id: str, number: int, req: UpdateChapterRequest, services: ServicesDep
 ) -> KnowledgeChapterOut:
     """Update a chapter's title."""
-    uid = _parse_uuid(tree_id, "tree_id")
+    uid = parse_uuid(tree_id, "tree_id")
     try:
         updated = services.kt_chapter_store.update_chapter(uid, number, req.title)
     except ValueError:
@@ -696,7 +410,7 @@ async def update_chapter(
 )
 async def delete_chapter(tree_id: str, number: int, services: ServicesDep) -> None:
     """Delete a chapter (1-based number) and its documents/content."""
-    uid = _parse_uuid(tree_id, "tree_id")
+    uid = parse_uuid(tree_id, "tree_id")
     services.kt_chapter_store.delete_chapter(uid, number)
 
 
@@ -715,10 +429,10 @@ async def list_documents(
     chapter_id: str | None = None,
 ) -> list[KnowledgeDocumentOut]:
     """List documents for a knowledge tree, optionally filtered by chapter."""
-    uid = _parse_uuid(tree_id, "tree_id")
+    uid = parse_uuid(tree_id, "tree_id")
     chap_uid: UUID | None = None
     if chapter_id is not None:
-        chap_uid = _parse_uuid(chapter_id, "chapter_id")
+        chap_uid = parse_uuid(chapter_id, "chapter_id")
     docs = services.kt_doc_store.list_documents(uid, chap_uid)
     return [_doc_out(d) for d in docs]
 
@@ -732,10 +446,10 @@ async def create_document(
     tree_id: str, req: CreateDocumentRequest, services: ServicesDep
 ) -> KnowledgeDocumentOut:
     """Create a new document in a knowledge tree."""
-    uid = _parse_uuid(tree_id, "tree_id")
+    uid = parse_uuid(tree_id, "tree_id")
     chap_uid: UUID | None = None
     if req.chapter_id is not None:
-        chap_uid = _parse_uuid(req.chapter_id, "chapter_id")
+        chap_uid = parse_uuid(req.chapter_id, "chapter_id")
     doc = services.kt_doc_store.create_document(uid, chap_uid, req.title, req.content, req.is_main)
     return _doc_out(doc)
 
@@ -751,7 +465,7 @@ async def update_document(
     services: ServicesDep,
 ) -> KnowledgeDocumentOut:
     """Update title, content, and file_type of a knowledge document."""
-    doc_uid = _parse_uuid(doc_id, "doc_id")
+    doc_uid = parse_uuid(doc_id, "doc_id")
     existing = services.kt_doc_store.get_document(doc_uid)
     if existing is None:
         raise HTTPException(status_code=404, detail="Knowledge document not found")
@@ -765,7 +479,7 @@ async def update_document(
 )
 async def delete_document(tree_id: str, doc_id: str, services: ServicesDep) -> None:
     """Delete a knowledge document."""
-    doc_uid = _parse_uuid(doc_id, "doc_id")
+    doc_uid = parse_uuid(doc_id, "doc_id")
     services.kt_doc_store.delete_document(doc_uid)
 
 
@@ -787,8 +501,8 @@ async def improve_document(
     services: ServicesDep,
 ) -> KnowledgeDocumentOut:
     """Improve document text style, apply Markdown formatting, and save atomically."""
-    uid = _parse_uuid(tree_id, "tree_id")
-    doc_uid = _parse_uuid(doc_id, "doc_id")
+    uid = parse_uuid(tree_id, "tree_id")
+    doc_uid = parse_uuid(doc_id, "doc_id")
     doc = services.kt_doc_store.get_document(doc_uid)
     if doc is None or doc.tree_id != uid:
         raise HTTPException(status_code=404, detail="Knowledge document not found")
@@ -819,8 +533,8 @@ async def revert_document(
     services: ServicesDep,
 ) -> KnowledgeDocumentOut:
     """Revert a document to its pre-improvement original content."""
-    uid = _parse_uuid(tree_id, "tree_id")
-    doc_uid = _parse_uuid(doc_id, "doc_id")
+    uid = parse_uuid(tree_id, "tree_id")
+    doc_uid = parse_uuid(doc_id, "doc_id")
     doc = services.kt_doc_store.get_document(doc_uid)
     if doc is None or doc.tree_id != uid:
         raise HTTPException(status_code=404, detail="Knowledge document not found")
@@ -832,8 +546,8 @@ async def revert_document(
 
 @router.get("/knowledge-trees/{tree_id}/documents/{doc_id}/file")
 async def get_document_file(tree_id: str, doc_id: str, services: ServicesDep):
-    uid = _parse_uuid(tree_id, "tree_id")
-    doc_uid = _parse_uuid(doc_id, "doc_id")
+    uid = parse_uuid(tree_id, "tree_id")
+    doc_uid = parse_uuid(doc_id, "doc_id")
     doc = services.kt_doc_store.get_document(doc_uid)
     _file_path = doc.source_file_path if doc else None
     logger.info("GET file tree=%s doc=%s source_file_path=%s", tree_id, doc_id, _file_path)
@@ -842,8 +556,6 @@ async def get_document_file(tree_id: str, doc_id: str, services: ServicesDep):
     path = Path(doc.source_file_path)
     logger.info("  stored_path=%s exists=%s", path, path.exists())
     if not path.exists():
-        # Dev ↔ Docker path mismatch: stored path is absolute for one environment
-        # but broken in the other. Reconstruct from storage dir + filename.
         storage_dir = PROJECT_ROOT / "data" / "storage"
         alt = storage_dir / path.name
         logger.info("  fallback_path=%s exists=%s PROJECT_ROOT=%s", alt, alt.exists(), PROJECT_ROOT)
@@ -868,8 +580,8 @@ async def get_document_file(tree_id: str, doc_id: str, services: ServicesDep):
 @router.get("/knowledge-trees/{tree_id}/documents/{doc_id}/thumbnail")
 async def get_document_thumbnail(tree_id: str, doc_id: str, services: ServicesDep):
     """Return a PNG thumbnail of the first page of a PDF document."""
-    uid = _parse_uuid(tree_id, "tree_id")
-    doc_uid = _parse_uuid(doc_id, "doc_id")
+    uid = parse_uuid(tree_id, "tree_id")
+    doc_uid = parse_uuid(doc_id, "doc_id")
     doc = services.kt_doc_store.get_document(doc_uid)
     src = doc.source_file_path if doc else None
     logger.info("GET thumbnail tree=%s doc=%s source_file_path=%s", tree_id, doc_id, src)
@@ -902,107 +614,6 @@ async def get_document_thumbnail(tree_id: str, doc_id: str, services: ServicesDe
 # ---------------------------------------------------------------------------
 
 
-def _ingest_file_background(
-    task: Task,
-    tree_id: UUID,
-    chapter_id: UUID,
-    chapter_number: int,
-    file_bytes: bytes,
-    filename: str,
-    services: ServicesDep,
-) -> dict:
-    """Background task: parse file, chunk text, store as knowledge document."""
-    t0 = time.perf_counter()
-    try:
-        _set_progress(task, 5, "Saving uploaded file...")
-        suffix = Path(filename).suffix.lower()
-
-        with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
-            tmp.write(file_bytes)
-            tmp_path = Path(tmp.name)
-
-        try:
-            _set_progress(task, 15, "Parsing document...")
-            file_hash = hashlib.sha256(file_bytes).hexdigest()
-
-            if suffix == ".pdf":
-                from infrastructure.ingest.pdf_loader import load_pdf as _load_pdf
-
-                doc = _load_pdf(tmp_path, file_hash, filename)
-            elif suffix == ".epub":
-                from infrastructure.ingest.epub_loader import load_epub as _load_epub
-
-                doc = _load_epub(tmp_path, file_hash, filename)
-            elif suffix == ".txt":
-                from infrastructure.ingest.txt_loader import load_txt as _load_txt
-
-                doc = _load_txt(tmp_path, file_hash, filename)
-                if doc is None:
-                    raise ValueError(f"No text could be extracted from '{filename}'.")
-            else:
-                raise ValueError(f"Unsupported file type: {suffix}")
-
-            _set_progress(task, 40, "Chunking document...")
-            splitter = ChapterAwareSplitter()
-            chunks = splitter.split(doc)
-
-            # Combine all chunks into a single text for the knowledge document
-            full_text = "\n\n".join(c.text for c in chunks)
-
-            if not full_text.strip():
-                raise ValueError(
-                    f"No text could be extracted from '{filename}'. "
-                    "The file may be a scanned image, password-protected, or corrupt."
-                )
-
-            title = Path(filename).stem
-
-            _set_progress(task, 60, "Storing document...")
-            kt_doc = services.kt_doc_store.create_document(
-                tree_id, chapter_id, title, full_text, is_main=False
-            )
-            doc_uid = kt_doc.id
-            storage_dir = PROJECT_ROOT / "data" / "storage"
-            storage_dir.mkdir(parents=True, exist_ok=True)
-            file_path = storage_dir / f"{doc_uid}{suffix}"
-            file_path.write_bytes(file_bytes)
-            services.kt_doc_store.update_document_source_file(doc_uid, str(file_path), filename)
-
-            _set_progress(task, 75, "Storing content chunks...")
-            kt_chunks = [
-                KnowledgeChunk(
-                    id=UUID(c.id) if c.id else uuid4(),
-                    tree_id=tree_id,
-                    chapter_id=chapter_id,
-                    doc_id=doc_uid,
-                    chunk_index=i,
-                    text=c.text,
-                    token_count=c.token_count,
-                )
-                for i, c in enumerate(chunks)
-            ]
-            services.kt_content_store.save_chunks(kt_chunks)
-
-            elapsed = time.perf_counter() - t0
-            _set_progress(task, 100, "Done")
-            logger.info(
-                "Ingested knowledge file %s in %.1fs (%d chunks)",
-                filename,
-                elapsed,
-                len(kt_chunks),
-            )
-            return {
-                "doc_id": str(doc_uid),
-                "title": title,
-                "chunks": len(kt_chunks),
-            }
-        finally:
-            tmp_path.unlink(missing_ok=True)
-    except Exception as e:
-        logger.error("Knowledge file ingest failed: %s", e)
-        raise
-
-
 @router.post(
     "/knowledge-trees/{tree_id}/chapters/{number}/documents/ingest",
     status_code=202,
@@ -1014,7 +625,7 @@ async def ingest_document(
     file: UploadFile = File(...),
 ) -> dict:
     """Ingest a PDF or EPUB file into a knowledge tree chapter."""
-    uid = _parse_uuid(tree_id, "tree_id")
+    uid = parse_uuid(tree_id, "tree_id")
     tree = services.kt_tree_store.get_tree(uid)
     if tree is None:
         raise HTTPException(status_code=404, detail="Knowledge tree not found")
@@ -1031,7 +642,7 @@ async def ingest_document(
 
     file_bytes = await file.read()
     task_id = services.task_registry.submit(
-        _ingest_file_background,
+        ingest_file_task,
         uid,
         chapter.id,
         number,
@@ -1056,7 +667,7 @@ async def get_chapter_content(
     tree_id: str, number: int, services: ServicesDep
 ) -> list[KnowledgeChunkOut]:
     """Get raw content chunks for a knowledge chapter."""
-    uid = _parse_uuid(tree_id, "tree_id")
+    uid = parse_uuid(tree_id, "tree_id")
     kt_chunks = services.kt_content_store.get_chunks(uid, number)
     return [
         KnowledgeChunkOut(
@@ -1074,120 +685,6 @@ async def get_chapter_content(
 # ---------------------------------------------------------------------------
 
 
-def _questions_background(
-    task: Task,
-    tree_id: UUID,
-    chapter_id: UUID,
-    chapter_number: int,
-    services: ServicesDep,
-    user_id: UUID,
-    requested_types: list[QuestionType] | None,
-    model: str | None = None,
-    agent_id: str | None = None,
-    num_questions: int | None = None,
-) -> dict:
-    """Background task: generate questions for a knowledge chapter."""
-    t0 = time.perf_counter()
-    try:
-        _set_progress(task, 5, f"Retrieving chunks for chapter {chapter_number}...")
-        kt_chunks = services.kt_content_store.get_chunks(tree_id, chapter_number)
-        if not kt_chunks:
-            raise ValueError(f"No content found for chapter {chapter_number}")
-
-        chunks = [
-            Chunk(
-                text=kc.text,
-                token_count=kc.token_count,
-                metadata=ChunkMetadata(
-                    source_file=str(kc.tree_id),
-                    chapter_index=chapter_number - 1,
-                    page_number=0,
-                    start_char=0,
-                    end_char=0,
-                ),
-            )
-            for kc in kt_chunks
-        ]
-
-        _set_progress(task, 15, "Starting question generation...")
-        agent_uid = UUID(agent_id) if agent_id else None
-        llm, agent_prompt, _ = resolve_llm_for_agent(
-            user_id, agent_uid, services, model_override=model
-        )
-        agent = QuestionGeneratorAgent(llm)
-
-        # Divide progress range 20-85 evenly across requested types
-        types_to_generate: list[QuestionType] = requested_types or [
-            "true_false",
-            "multiple_choice",
-            "matching",
-            "checkbox",
-        ]
-        num_types = len(types_to_generate)
-        progress_per_type = (85 - 20) // num_types if num_types > 0 else 65
-
-        # Track progress per type using a mutable container
-        type_progress_base = [20]
-
-        def on_progress(qtype: QuestionType, batch_i: int, total_batches: int) -> None:
-            base = type_progress_base[0]
-            within = int((batch_i / total_batches) * progress_per_type) if total_batches > 0 else 0
-            _set_progress(
-                task,
-                base + within,
-                f"Generating {qtype.replace('_', ' ')} questions... "
-                f"batch {batch_i}/{total_batches}",
-            )
-
-        all_questions: list[Question] = []
-        counts: dict[str, int] = {}
-
-        for i, qtype in enumerate(types_to_generate):
-            type_progress_base[0] = 20 + i * progress_per_type
-            _set_progress(
-                task,
-                type_progress_base[0],
-                f"Generating {qtype.replace('_', ' ')} questions...",
-            )
-
-            result = agent.generate(
-                chunks,
-                question_types=[qtype],
-                on_progress=on_progress,
-                num_questions=num_questions,
-                agent_prompt=agent_prompt or None,
-            )
-            items = result.get(qtype, [])
-
-            for item in items:
-                all_questions.append(
-                    Question(
-                        tree_id=tree_id,
-                        chapter_id=chapter_id,
-                        question_type=qtype,
-                        question_data=item,
-                    )
-                )
-            counts[qtype] = len(items)
-
-        _set_progress(task, 90, f"Saving {len(all_questions)} questions...")
-        if all_questions:
-            services.kt_question_store.save_questions(all_questions)
-
-        _set_progress(task, 100, "Done")
-        elapsed = time.perf_counter() - t0
-        logger.info(
-            "Generated questions for knowledge chapter %d in %.1fs: %s",
-            chapter_number,
-            elapsed,
-            counts,
-        )
-        return {"chapter": chapter_number, "counts": counts}
-    except Exception as e:
-        logger.error("Knowledge question generation failed: %s", e)
-        raise
-
-
 @router.post(
     "/knowledge-trees/{tree_id}/chapters/{number}/questions",
     status_code=202,
@@ -1200,15 +697,7 @@ async def generate_questions(
     req: GenerateQuestionsRequest | None = None,
 ) -> dict:
     """Start background question generation for a knowledge chapter."""
-    uid = _parse_uuid(tree_id, "tree_id")
-    tree = services.kt_tree_store.get_tree(uid)
-    if tree is None:
-        raise HTTPException(status_code=404, detail="Knowledge tree not found")
-
-    chapters = services.kt_chapter_store.list_chapters(uid)
-    chapter = next((c for c in chapters if c.number == number), None)
-    if chapter is None:
-        raise HTTPException(status_code=404, detail=f"Chapter {number} not found")
+    uid, chapter = resolve_chapter(services, tree_id, number)
 
     requested_types = req.question_types if req else None
     model = req.model if req else None
@@ -1216,7 +705,7 @@ async def generate_questions(
     num_questions = req.num_questions if req else None
 
     task_id = services.task_registry.submit(
-        _questions_background,
+        generate_questions_task,
         uid,
         chapter.id,
         number,
@@ -1242,11 +731,7 @@ async def get_chapter_questions(
     type: QuestionType | None = None,
 ) -> list[QuestionOut]:
     """Get stored questions for a knowledge chapter."""
-    uid = _parse_uuid(tree_id, "tree_id")
-    chapters = services.kt_chapter_store.list_chapters(uid)
-    chapter = next((c for c in chapters if c.number == number), None)
-    if chapter is None:
-        raise HTTPException(status_code=404, detail=f"Chapter {number} not found")
+    uid, chapter = resolve_chapter(services, tree_id, number)
 
     questions = services.kt_question_store.get_questions(uid, chapter.id, question_type=type)
     return [
@@ -1271,7 +756,7 @@ async def delete_question(
     services: ServicesDep,
 ) -> None:
     """Delete a single question by ID."""
-    q_uid = _parse_uuid(question_id, "question_id")
+    q_uid = parse_uuid(question_id, "question_id")
     services.kt_question_store.delete_question(q_uid)
 
 
@@ -1286,7 +771,7 @@ async def delete_all_questions(
     type: str | None = None,
 ) -> None:
     """Delete all questions for a chapter, optionally filtered by type."""
-    uid, chapter = _resolve_chapter(services, tree_id, number)
+    uid, chapter = resolve_chapter(services, tree_id, number)
     services.kt_question_store.delete_all_questions(uid, chapter.id, question_type=type)
 
 
@@ -1307,7 +792,7 @@ async def save_exam_session(
     services: ServicesDep,
 ) -> ExamSessionOut:
     """Save the results of an exam session for a knowledge chapter."""
-    uid, chapter = _resolve_chapter(services, tree_id, number)
+    uid, chapter = resolve_chapter(services, tree_id, number)
 
     session = ExamSession(
         id=uuid4(),
@@ -1344,7 +829,7 @@ async def list_exam_sessions(
     services: ServicesDep,
 ) -> list[ExamSessionOut]:
     """List exam sessions for a knowledge chapter, newest first."""
-    uid, chapter = _resolve_chapter(services, tree_id, number)
+    uid, chapter = resolve_chapter(services, tree_id, number)
     sessions = services.kt_exam_store.list_sessions(uid, chapter.id)
     return [
         ExamSessionOut(
@@ -1373,7 +858,7 @@ async def get_exam_session(
     services: ServicesDep,
 ) -> ExamSessionOut:
     """Get a single exam session by ID."""
-    sid = _parse_uuid(session_id, "session_id")
+    sid = parse_uuid(session_id, "session_id")
     session = services.kt_exam_store.get_session(sid)
     if session is None:
         raise HTTPException(status_code=404, detail="Exam session not found")
@@ -1399,37 +884,12 @@ class GenerateFlashcardRequest(BaseModel):
     selected_text: str
 
 
-def _flashcard_background(
-    task: Task,
-    tree_id: UUID,
-    chapter_id: UUID,
-    _chapter_number: int,
-    selected_text: str,
-    services: ServicesDep,
-) -> dict:
-    try:
-        _set_progress(task, 10, "Generating flashcard...")
-        agent = FlashcardGeneratorAgent(services.llm)
-        flashcard = agent.create_flashcard(
-            selected_text=selected_text,
-            tree_id=str(tree_id),
-            chapter_id=str(chapter_id),
-        )
-        _set_progress(task, 70, "Saving flashcard...")
-        services.kt_flashcard_store.save_flashcard(flashcard)
-        _set_progress(task, 100, "Done")
-        return {"flashcard_id": str(flashcard.id)}
-    except Exception as e:
-        logger.error("Flashcard generation failed: %s", e)
-        raise
-
-
 @router.get("/knowledge-trees/{tree_id}/chapters/{number}/flashcards")
 async def list_flashcards(
     tree_id: str, number: int, services: ServicesDep
 ) -> list[dict]:
     """List saved flashcards for a chapter."""
-    uid, chapter = _resolve_chapter(services, tree_id, number)
+    uid, chapter = resolve_chapter(services, tree_id, number)
     cards = services.kt_flashcard_store.list_flashcards(uid, chapter.id)
     return [
         {
@@ -1448,7 +908,7 @@ async def delete_all_flashcards(
     tree_id: str, number: int, services: ServicesDep
 ) -> None:
     """Delete all flashcards for a chapter."""
-    uid, chapter = _resolve_chapter(services, tree_id, number)
+    uid, chapter = resolve_chapter(services, tree_id, number)
     services.kt_flashcard_store.delete_all_flashcards(uid, chapter.id)
 
 
@@ -1460,7 +920,7 @@ async def delete_flashcard(
     tree_id: str, number: int, flashcard_id: str, services: ServicesDep
 ) -> None:
     """Delete a single flashcard by ID."""
-    f_uid = _parse_uuid(flashcard_id, "flashcard_id")
+    f_uid = parse_uuid(flashcard_id, "flashcard_id")
     services.kt_flashcard_store.delete_flashcard(f_uid)
 
 
@@ -1468,16 +928,9 @@ async def delete_flashcard(
 async def generate_flashcard(
     tree_id: str, number: int, req: GenerateFlashcardRequest, services: ServicesDep
 ) -> dict:
-    uid = _parse_uuid(tree_id, "tree_id")
-    tree = services.kt_tree_store.get_tree(uid)
-    if tree is None:
-        raise HTTPException(status_code=404, detail="Knowledge tree not found")
-    chapters = services.kt_chapter_store.list_chapters(uid)
-    chapter = next((c for c in chapters if c.number == number), None)
-    if chapter is None:
-        raise HTTPException(status_code=404, detail=f"Chapter {number} not found")
+    uid, chapter = resolve_chapter(services, tree_id, number)
     task_id = services.task_registry.submit(
-        _flashcard_background,
+        generate_flashcard_task,
         uid,
         chapter.id,
         number,
@@ -1499,76 +952,6 @@ class GenerateFlashcardsRequest(BaseModel):
     agent_id: str | None = None
 
 
-def _flashcards_bulk_background(
-    task: Task,
-    tree_id: UUID,
-    chapter_id: UUID,
-    chapter_number: int,
-    services: ServicesDep,
-    user_id: UUID,
-    num_flashcards: int | None = None,
-    model: str | None = None,
-    agent_id: str | None = None,
-) -> dict:
-    """Background task: generate multiple flashcards for a chapter from its chunks."""
-    t0 = time.perf_counter()
-    try:
-        _set_progress(task, 5, f"Retrieving chunks for chapter {chapter_number}...")
-        kt_chunks = services.kt_content_store.get_chunks(tree_id, chapter_number)
-        if not kt_chunks:
-            raise ValueError(f"No content found for chapter {chapter_number}")
-
-        chunks = [
-            Chunk(
-                text=kc.text,
-                token_count=kc.token_count,
-                metadata=ChunkMetadata(
-                    source_file=str(kc.tree_id),
-                    chapter_index=chapter_number - 1,
-                    page_number=0,
-                    start_char=0,
-                    end_char=0,
-                ),
-            )
-            for kc in kt_chunks
-        ]
-
-        _set_progress(task, 15, "Starting flashcard generation...")
-        agent_uid = UUID(agent_id) if agent_id else None
-        llm, agent_prompt, _ = resolve_llm_for_agent(
-            user_id, agent_uid, services, model_override=model
-        )
-        agent = FlashcardGeneratorAgent(llm)
-
-        def on_progress(batch_i: int, total_batches: int) -> None:
-            pct = 15 + int((batch_i / total_batches) * 75) if total_batches > 0 else 90
-            _set_progress(task, pct, f"Generating flashcards... batch {batch_i}/{total_batches}")
-
-        flashcards = agent.generate_batch(
-            chunks,
-            tree_id=tree_id,
-            chapter_id=chapter_id,
-            num_flashcards=num_flashcards,
-            agent_prompt=agent_prompt or None,
-            on_progress=on_progress,
-        )
-
-        _set_progress(task, 90, f"Saving {len(flashcards)} flashcards...")
-        for card in flashcards:
-            services.kt_flashcard_store.save_flashcard(card)
-
-        _set_progress(task, 100, "Done")
-        elapsed = time.perf_counter() - t0
-        logger.info(
-            "Generated %d flashcards for chapter %d in %.1fs",
-            len(flashcards), chapter_number, elapsed,
-        )
-        return {"count": len(flashcards)}
-    except Exception as e:
-        logger.error("Bulk flashcard generation failed: %s", e)
-        raise
-
-
 @router.post(
     "/knowledge-trees/{tree_id}/chapters/{number}/flashcards/generate",
     status_code=202,
@@ -1581,12 +964,12 @@ async def generate_flashcards_bulk(
     req: GenerateFlashcardsRequest | None = None,
 ) -> dict:
     """Start background bulk flashcard generation from chapter chunks."""
-    uid, chapter = _resolve_chapter(services, tree_id, number)
+    uid, chapter = resolve_chapter(services, tree_id, number)
     num_flashcards = req.num_flashcards if req else None
     model = req.model if req else None
     agent_id = req.agent_id if req else None
     task_id = services.task_registry.submit(
-        _flashcards_bulk_background,
+        generate_flashcards_bulk_task,
         uid,
         chapter.id,
         number,
@@ -1629,31 +1012,6 @@ class SaveQuestionRequest(BaseModel):
     question_data: dict
 
 
-def _resolve_chapter(services: ServicesDep, tree_id: str, number: int):
-    uid = _parse_uuid(tree_id, "tree_id")
-    if services.kt_tree_store.get_tree(uid) is None:
-        raise HTTPException(status_code=404, detail="Knowledge tree not found")
-    chapter = next(
-        (c for c in services.kt_chapter_store.list_chapters(uid) if c.number == number), None
-    )
-    if chapter is None:
-        raise HTTPException(status_code=404, detail=f"Chapter {number} not found")
-    return uid, chapter
-
-
-def _chapter_context(
-    services: ServicesDep,
-    tree_id: UUID,
-    number: int,
-    selected_text: str = "",
-    max_tokens: int = 4000,
-) -> str:
-    chunks = services.kt_content_store.get_chunks(tree_id, number)
-    window = chunks_around_selection(chunks, selected_text, neighbors=1)
-    joined = "\n\n".join(c.text for c in window if c.text)
-    return truncate_tokens(joined, max_tokens)
-
-
 @router.post("/knowledge-trees/{tree_id}/chapters/{number}/flashcards/draft")
 async def draft_flashcard(
     tree_id: str,
@@ -1663,10 +1021,10 @@ async def draft_flashcard(
     services: ServicesDep,
 ) -> dict:
     """Generate a flashcard from a selection synchronously without persisting."""
-    uid, chapter = _resolve_chapter(services, tree_id, number)
+    uid, chapter = resolve_chapter(services, tree_id, number)
     if not req.selected_text.strip():
         raise HTTPException(status_code=400, detail="selected_text is required")
-    context = _chapter_context(services, uid, number, selected_text=req.selected_text)
+    context = get_chapter_context(services, uid, number, selected_text=req.selected_text)
     agent_uid = UUID(req.agent_id) if req.agent_id else None
     try:
         llm, agent_prompt, _ = resolve_llm_for_agent(
@@ -1694,7 +1052,7 @@ async def save_flashcard(
     tree_id: str, number: int, req: SaveFlashcardRequest, services: ServicesDep
 ) -> dict:
     """Persist a user-approved (possibly edited) flashcard."""
-    uid, chapter = _resolve_chapter(services, tree_id, number)
+    uid, chapter = resolve_chapter(services, tree_id, number)
     front = req.front.strip()
     back = req.back.strip()
     if not front or not back:
@@ -1722,10 +1080,10 @@ async def draft_question(
     services: ServicesDep,
 ) -> dict:
     """Generate a single question of the given type from a selection without persisting."""
-    uid, chapter = _resolve_chapter(services, tree_id, number)
+    uid, chapter = resolve_chapter(services, tree_id, number)
     if not req.selected_text.strip():
         raise HTTPException(status_code=400, detail="selected_text is required")
-    context = _chapter_context(services, uid, number, selected_text=req.selected_text)
+    context = get_chapter_context(services, uid, number, selected_text=req.selected_text)
     agent_uid = UUID(req.agent_id) if req.agent_id else None
     try:
         llm, agent_prompt, _ = resolve_llm_for_agent(
@@ -1756,7 +1114,7 @@ async def save_question(
     tree_id: str, number: int, req: SaveQuestionRequest, services: ServicesDep
 ) -> dict:
     """Persist a user-approved (possibly edited) question."""
-    uid, chapter = _resolve_chapter(services, tree_id, number)
+    uid, chapter = resolve_chapter(services, tree_id, number)
     if not QuestionGeneratorAgent.validate(req.question_type, req.question_data):
         raise HTTPException(status_code=422, detail="Question data failed validation")
     question = Question(
