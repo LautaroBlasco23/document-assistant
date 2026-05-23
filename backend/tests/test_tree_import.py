@@ -86,7 +86,7 @@ def test_create_tree_from_file_task_returns_tree_id_and_chapter_count():
     doc = _make_document(chapters=[chapter])
 
     with patch("application.services.tree_import._parse_and_chunk") as mock_parse:
-        mock_parse.return_value = (doc, [], "hash123")
+        mock_parse.return_value = (doc, [], "hash123", {})
 
         with patch("application.services.tree_import.PROJECT_ROOT", Path(tempfile.gettempdir())):
             with patch("application.services.tree_import.ChapterAwareSplitter") as mock_splitter_cls:
@@ -116,7 +116,7 @@ def test_create_tree_from_file_task_respects_chapter_indices():
     doc = _make_document(chapters=chapters)
 
     with patch("application.services.tree_import._parse_and_chunk") as mock_parse:
-        mock_parse.return_value = (doc, [], "hash123")
+        mock_parse.return_value = (doc, [], "hash123", {})
 
         with patch("application.services.tree_import.PROJECT_ROOT", Path(tempfile.gettempdir())):
             with patch("application.services.tree_import.ChapterAwareSplitter") as mock_splitter_cls:
@@ -147,7 +147,7 @@ def test_create_tree_from_file_task_enforces_document_limit():
     doc = _make_document(chapters=chapters)
 
     with patch("application.services.tree_import._parse_and_chunk") as mock_parse:
-        mock_parse.return_value = (doc, [], "hash123")
+        mock_parse.return_value = (doc, [], "hash123", {})
 
         with patch("application.services.tree_import.PROJECT_ROOT", Path(tempfile.gettempdir())):
             with patch("application.services.tree_import.ChapterAwareSplitter") as mock_splitter_cls:
@@ -169,7 +169,7 @@ def test_create_tree_from_file_task_no_chapters():
     doc = _make_document(chapters=[])
 
     with patch("application.services.tree_import._parse_and_chunk") as mock_parse:
-        mock_parse.return_value = (doc, [], "hash123")
+        mock_parse.return_value = (doc, [], "hash123", {})
 
         with patch("application.services.tree_import.PROJECT_ROOT", Path(tempfile.gettempdir())):
             result = create_tree_from_file_task(
@@ -200,7 +200,7 @@ def test_create_tree_from_file_task_cleans_up_temp_file():
     doc = _make_document(chapters=[chapter])
 
     with patch("application.services.tree_import._parse_and_chunk") as mock_parse:
-        mock_parse.return_value = (doc, [], "hash123")
+        mock_parse.return_value = (doc, [], "hash123", {})
 
         with patch("application.services.tree_import.PROJECT_ROOT", Path(tempfile.gettempdir())):
             with patch("application.services.tree_import.ChapterAwareSplitter") as mock_splitter_cls:
@@ -363,7 +363,7 @@ def test_ingest_file_task_returns_doc_id_title_and_chunks():
 
     with patch("application.services.tree_import._parse_and_chunk") as mock_parse:
         mock_doc = _make_document()
-        mock_parse.return_value = (mock_doc, [chunk], "hash123")
+        mock_parse.return_value = (mock_doc, [chunk], "hash123", {})
 
         with patch("application.services.tree_import.PROJECT_ROOT", Path(tempfile.gettempdir())):
             result = ingest_file_task(
@@ -372,9 +372,9 @@ def test_ingest_file_task_returns_doc_id_title_and_chunks():
                 services=services,
             )
 
-            assert result["doc_id"] == str(doc_uid)
-            assert result["title"] == "test"
-            assert result["chunks"] == 1
+        assert result["doc_id"] == str(doc_uid)
+        assert result["title"] == "test"
+        assert result["chunks"] == 1
 
 
 def test_ingest_file_task_raises_when_no_text():
@@ -389,7 +389,7 @@ def test_ingest_file_task_raises_when_no_text():
 
     with patch("application.services.tree_import._parse_and_chunk") as mock_parse:
         mock_doc = _make_document()
-        mock_parse.return_value = (mock_doc, [chunk], "hash123")
+        mock_parse.return_value = (mock_doc, [chunk], "hash123", {})
 
         with patch("application.services.tree_import.PROJECT_ROOT", Path(tempfile.gettempdir())):
             with pytest.raises(ValueError, match="No text could be extracted"):
@@ -416,7 +416,7 @@ def test_ingest_file_task_saves_chunks():
 
     with patch("application.services.tree_import._parse_and_chunk") as mock_parse:
         mock_doc = _make_document()
-        mock_parse.return_value = (mock_doc, chunks, "hash123")
+        mock_parse.return_value = (mock_doc, chunks, "hash123", {})
 
         with patch("application.services.tree_import.PROJECT_ROOT", Path(tempfile.gettempdir())):
             ingest_file_task(

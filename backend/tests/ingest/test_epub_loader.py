@@ -8,13 +8,17 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from ebooklib import epub
+from lxml import etree
 
+from core.model.document import ImageRef
 from infrastructure.config import EpubConfig
 from infrastructure.ingest.epub_loader import (
     ChapterPreview,
     _apply_min_words_merge,
+    _build_image_map,
     _build_toc_groups,
     _extract_text,
+    _extract_text_with_images,
     _get_metadata,
     _parse_item,
     load_epub,
@@ -113,10 +117,11 @@ def test_parse_item_returns_title_and_text():
         f'<html xmlns="{ns}"><head><title>Real Title</title></head>'
         f'<body><h1>Heading</h1><p>Body text.</p></body></html>'
     ).encode()
-    title, text = _parse_item(item)
+    title, text, imgs = _parse_item(item)
     # title should come from <title> tag
     assert title == "Real Title"
     assert "Body text." in text
+    assert imgs == []
 
 
 def test_parse_item_falls_back_to_h1():
@@ -126,18 +131,186 @@ def test_parse_item_falls_back_to_h1():
     item.get_content.return_value = (
         f'<html xmlns="{ns}"><body><h1>Chapter One</h1><p>Text.</p></body></html>'
     ).encode()
-    title, text = _parse_item(item)
+    title, text, imgs = _parse_item(item)
     assert title == "Chapter One"
     assert "Text." in text
+    assert imgs == []
 
 
 def test_parse_item_bad_content_returns_empty():
     """Malformed XML returns empty strings without crashing."""
     item = MagicMock()
     item.get_content.return_value = b"not valid xml <<<"
-    title, text = _parse_item(item)
+    title, text, imgs = _parse_item(item)
     assert title == ""
     assert text == ""
+    assert imgs == []
+
+
+# ---------------------------------------------------------------------------
+# Image extraction
+# ---------------------------------------------------------------------------
+
+
+def test_extract_text_with_images_inline(tmp_path: Path):
+    """<img> tags produce __IMG__name__ placeholders in document order."""
+    ns = "http://www.w3.org/1999/xhtml"
+    html = (
+        f'<html xmlns="{ns}"><body>'
+        f"<p>Before image.</p>"
+        f'<p>Text <img src="images/fig1.jpg" alt="Figure 1"/> after.</p>'
+        f"<p>Last paragraph.</p>"
+        f"</body></html>"
+    )
+    root = etree.fromstring(html.encode())
+    text, images = _extract_text_with_images(root)
+    assert "__IMG__fig1.jpg__" in text
+    assert any(img.name == "fig1.jpg" and img.alt == "Figure 1" for img in images)
+    # Placeholder appears between text fragments
+    parts = text.split("\n")
+    img_line = [p for p in parts if "__IMG__" in p]
+    assert len(img_line) == 1
+    assert "Text" in img_line[0] and "after" in img_line[0]
+
+
+def test_extract_text_with_images_multiple(tmp_path: Path):
+    """Multiple images in the same chapter produce multiple placeholders."""
+    ns = "http://www.w3.org/1999/xhtml"
+    html = (
+        f'<html xmlns="{ns}"><body>'
+        f'<p><img src="cover.jpg" alt="Cover"/></p>'
+        f"<p>Intro text.</p>"
+        f'<p>See <img src="diagram.png" alt="Diagram"/> below.</p>'
+        f"</body></html>"
+    )
+    root = etree.fromstring(html.encode())
+    text, images = _extract_text_with_images(root)
+    assert "__IMG__cover.jpg__" in text
+    assert "__IMG__diagram.png__" in text
+    assert len(images) == 2
+
+
+def test_extract_text_with_images_no_images(tmp_path: Path):
+    """XHTML without images returns empty image list unchanged text."""
+    ns = "http://www.w3.org/1999/xhtml"
+    html = (
+        f'<html xmlns="{ns}"><body>'
+        f"<p>Just text.</p>"
+        f"</body></html>"
+    )
+    root = etree.fromstring(html.encode())
+    text, images = _extract_text_with_images(root)
+    assert images == []
+    assert "Just text." in text
+
+
+def test_parse_item_with_images():
+    """_parse_item with image_map extracts images and placeholders."""
+    ns = "http://www.w3.org/1999/xhtml"
+    item = MagicMock()
+    item.get_content.return_value = (
+        f'<html xmlns="{ns}"><head><title>Ch1</title></head>'
+        f'<body><p>Text</p><p><img src="fig1.jpg" alt="Fig1"/></p></body></html>'
+    ).encode()
+    image_map = {"fig1.jpg": b"fake-image-bytes"}
+    title, text, images = _parse_item(item, image_map)
+    assert title == "Ch1"
+    assert "__IMG__fig1.jpg__" in text
+    assert len(images) == 1
+    assert images[0].name == "fig1.jpg"
+    assert images[0].alt == "Fig1"
+
+
+def test_build_image_map(tmp_path: Path):
+    """_build_image_map extracts image filenames and bytes from an EPUB."""
+    path = _make_epub_with_images(tmp_path)
+    book = epub.read_epub(str(path))
+    image_map = _build_image_map(book)
+    assert "cover.jpg" in image_map
+    assert "fig1.png" in image_map
+    assert image_map["cover.jpg"] == b"cover-content"
+    assert image_map["fig1.png"] == b"fig1-content"
+
+
+def test_load_epub_with_images(tmp_path: Path):
+    """load_epub returns image bytes alongside the Document."""
+    path = _make_epub_with_images(tmp_path, chapter_count=1)
+    doc, image_bytes = load_epub(path, "hash123")
+    assert len(doc.chapters) == 1
+    # Chapter should have images attached
+    ch = doc.chapters[0]
+    assert len(ch.images) > 0
+    assert any(img.name == "cover.jpg" for img in ch.images)
+    assert any(img.name == "fig1.png" for img in ch.images)
+    # Image bytes should be present
+    assert "cover.jpg" in image_bytes
+    assert "fig1.png" in image_bytes
+    # Text should contain image placeholders
+    assert "__IMG__cover.jpg__" in ch.pages[0].text
+    assert "__IMG__fig1.png__" in ch.pages[0].text
+
+
+# ---------------------------------------------------------------------------
+# Helpers for image tests
+# ---------------------------------------------------------------------------
+
+
+def _make_epub_with_images(
+    tmp_path: Path,
+    title: str = "Test Book",
+    chapter_count: int = 1,
+) -> Path:
+    """Create a synthetic EPUB file on disk with images."""
+    book = epub.EpubBook()
+    book.set_identifier("test-id")
+    book.set_title(title)
+    book.set_language("en")
+
+    # Add image items
+    cover_img = epub.EpubImage(
+        uid="cover",
+        file_name="images/cover.jpg",
+        media_type="image/jpeg",
+        content=b"cover-content",
+    )
+    book.add_item(cover_img)
+
+    fig_img = epub.EpubImage(
+        uid="fig1",
+        file_name="images/fig1.png",
+        media_type="image/png",
+        content=b"fig1-content",
+    )
+    book.add_item(fig_img)
+
+    spine = []
+    for i in range(chapter_count):
+        ch_title = f"Chapter {i + 1}"
+        ch_file = f"ch{i + 1}.xhtml"
+        item = epub.EpubHtml(title=ch_title, file_name=ch_file, lang="en")
+        item.content = (
+            f"<html><head><title>{ch_title}</title></head>"
+            f"<body>"
+            f"<h1>{ch_title}</h1>"
+            f"<p>Text before image.</p>"
+            f'<p><img src="images/cover.jpg" alt="Cover"/></p>'
+            f"<p>More text.</p>"
+            f'<p><img src="images/fig1.png" alt="Figure 1"/></p>'
+            f"<p>Text after image.</p>"
+            f"</body></html>"
+        ).encode()
+        book.add_item(item)
+        spine.append(item)
+
+    book.toc = [epub.Link(f"ch{i + 1}.xhtml", f"Chapter {i + 1}", f"ch{i + 1}")
+                for i in range(chapter_count)]
+    book.add_item(epub.EpubNcx())
+    book.add_item(epub.EpubNav())
+    book.spine = spine
+
+    path = tmp_path / "test_with_images.epub"
+    epub.write_epub(str(path), book)
+    return path
 
 
 def test_apply_min_words_merge_merges_short():
@@ -269,7 +442,7 @@ def test_load_epub_returns_document(tmp_path: Path):
         author="Alice",
         chapters=[("c1.xhtml", "Ch1", "<p>" + "word " * 50 + "</p>")],
     )
-    doc = load_epub(path, "hash123", original_filename="book.epub")
+    doc, _ = load_epub(path, "hash123", original_filename="book.epub")
     assert doc.source_path == str(path)
     assert doc.title == "Great Book"
     assert doc.file_hash == "hash123"
@@ -287,7 +460,7 @@ def test_load_epub_chapter_titles(tmp_path: Path):
         ],
     )
     cfg = EpubConfig(min_chapter_words=10)
-    doc = load_epub(path, "hash", epub_config=cfg)
+    doc, _ = load_epub(path, "hash", epub_config=cfg)
     assert len(doc.chapters) == 2
     assert doc.chapters[0].title == "Alpha"
     assert doc.chapters[1].title == "Beta"
@@ -303,7 +476,7 @@ def test_load_epub_pages(tmp_path: Path):
         ],
     )
     cfg = EpubConfig(min_chapter_words=10)
-    doc = load_epub(path, "hash", epub_config=cfg)
+    doc, _ = load_epub(path, "hash", epub_config=cfg)
     assert len(doc.chapters) == 2
     for ch in doc.chapters:
         assert len(ch.pages) == 1
@@ -321,7 +494,7 @@ def test_load_epub_reindexes_sequentially(tmp_path: Path):
         ],
     )
     cfg = EpubConfig(min_chapter_words=10)
-    doc = load_epub(path, "hash", epub_config=cfg)
+    doc, _ = load_epub(path, "hash", epub_config=cfg)
     for i, ch in enumerate(doc.chapters):
         assert ch.index == i
 
@@ -337,7 +510,7 @@ def test_load_epub_min_words_merge(tmp_path: Path):
         ],
     )
     cfg = EpubConfig(min_chapter_words=50)
-    doc = load_epub(path, "hash", epub_config=cfg)
+    doc, _ = load_epub(path, "hash", epub_config=cfg)
     # Short chapter merges into Long
     assert len(doc.chapters) == 2
     assert doc.chapters[0].title == "Long"
@@ -355,7 +528,7 @@ def test_load_epub_no_merge_when_above_threshold(tmp_path: Path):
         ],
     )
     cfg = EpubConfig(min_chapter_words=50)
-    doc = load_epub(path, "hash", epub_config=cfg)
+    doc, _ = load_epub(path, "hash", epub_config=cfg)
     assert len(doc.chapters) == 3
 
 
@@ -452,7 +625,7 @@ def test_load_epub_empty_spine():
     mock_book.get_metadata.return_value = ""
 
     with patch("infrastructure.ingest.epub_loader.epub.read_epub", return_value=mock_book):
-        doc = load_epub(Path("/fake/path.epub"), "hash")
+        doc, _ = load_epub(Path("/fake/path.epub"), "hash")
     assert doc.chapters == []
     assert doc.title == "path"  # falls back to path.stem
 
@@ -482,7 +655,7 @@ def test_load_epub_deeply_nested_toc():
     mock_book.get_metadata.return_value = ""
 
     with patch("infrastructure.ingest.epub_loader.epub.read_epub", return_value=mock_book):
-        doc = load_epub(Path("/fake/path.epub"), "hash")
+        doc, _ = load_epub(Path("/fake/path.epub"), "hash")
     # Fallback means each spine item becomes its own chapter
     assert len(doc.chapters) >= 0
 
@@ -506,7 +679,7 @@ def test_load_epub_skips_empty_text_groups():
     mock_book.get_metadata.return_value = ""
 
     with patch("infrastructure.ingest.epub_loader.epub.read_epub", return_value=mock_book):
-        doc = load_epub(
+        doc, _ = load_epub(
             Path("/fake/path.epub"), "hash", epub_config=EpubConfig(min_chapter_words=5)
         )
     titles = [ch.title for ch in doc.chapters]

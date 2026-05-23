@@ -63,6 +63,15 @@ export const readerMarkdownComponents = {
       </code>
     )
   },
+  img: ({ src, alt, ...props }: React.ImgHTMLAttributes<HTMLImageElement>) => (
+    <img
+      src={src}
+      alt={alt ?? ''}
+      className="max-w-full h-auto rounded-md my-4 mx-auto block"
+      loading="lazy"
+      {...props}
+    />
+  ),
   a: ({ children, href, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement>) => (
     <a
       href={href}

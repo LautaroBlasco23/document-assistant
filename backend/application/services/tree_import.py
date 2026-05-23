@@ -25,17 +25,19 @@ def _parse_and_chunk(
 ) -> tuple:
     """Shared: save temp file, call appropriate loader, chunk with ChapterAwareSplitter.
 
-    Returns (doc, chunks, file_hash).
+    Returns (doc, chunks, file_hash, images).
+    images is a dict[str, bytes] for EPUBs, empty dict for other types.
     """
     file_hash = hashlib.sha256(file_bytes).hexdigest()
     suffix = Path(filename).suffix.lower()
+    images: dict[str, bytes] = {}
 
     if suffix == ".pdf":
         from infrastructure.ingest.pdf_loader import load_pdf as _load_pdf
         doc = _load_pdf(tmp_path, file_hash, filename)
     elif suffix == ".epub":
         from infrastructure.ingest.epub_loader import load_epub as _load_epub
-        doc = _load_epub(tmp_path, file_hash, filename)
+        doc, images = _load_epub(tmp_path, file_hash, filename)
     elif suffix == ".txt":
         from infrastructure.ingest.txt_loader import load_txt as _load_txt
         doc = _load_txt(tmp_path, file_hash, filename)
@@ -46,7 +48,7 @@ def _parse_and_chunk(
 
     splitter = ChapterAwareSplitter()
     chunks = splitter.split(doc)
-    return doc, chunks, file_hash
+    return doc, chunks, file_hash, images
 
 
 def create_tree_from_file_task(
@@ -70,7 +72,7 @@ def create_tree_from_file_task(
 
         try:
             set_task_progress(task, 10, "Parsing document...")
-            doc, _, file_hash = _parse_and_chunk(file_bytes, filename, tmp_path, services)
+            doc, _, file_hash, images = _parse_and_chunk(file_bytes, filename, tmp_path, services)
 
             set_task_progress(task, 20, "Creating knowledge tree...")
 
@@ -151,12 +153,31 @@ def create_tree_from_file_task(
                 ch_page_start = chapter.pages[0].number if chapter.pages else None
                 ch_page_end = chapter.pages[-1].number if chapter.pages else None
 
+                ft = 'md' if suffix == '.epub' else None
                 kt_doc = services.kt_doc_store.create_document(
                     tree_uid, chapter_uid, chapter_title, full_text, is_main=False,
                     page_start=ch_page_start,
                     page_end=ch_page_end,
+                    file_type=ft,
                 )
                 doc_uid = kt_doc.id
+
+                if suffix == ".epub" and images and chapter.images:
+                    doc_images_dir = storage_dir / str(doc_uid) / "images"
+                    doc_images_dir.mkdir(parents=True, exist_ok=True)
+                    for img_ref in chapter.images:
+                        if img_ref.name in images:
+                            (doc_images_dir / img_ref.name).write_bytes(images[img_ref.name])
+                    api_base = f"/api/knowledge-trees/{tree_uid}/documents/{doc_uid}/images"
+                    updated_text = full_text
+                    for img_ref in chapter.images:
+                        placeholder = f"__IMG__{img_ref.name}__"
+                        md_img = f"![{img_ref.alt}]({api_base}/{img_ref.name})"
+                        updated_text = updated_text.replace(placeholder, md_img)
+                    services.kt_doc_store.update_document(
+                        doc_uid, chapter_title, updated_text
+                    )
+                    full_text = updated_text
 
                 if suffix == ".pdf" and ch_page_start and ch_page_end:
                     src_pdf = fitz.open(str(tree_file_path))
@@ -321,7 +342,9 @@ def ingest_file_task(
 
         try:
             set_task_progress(task, 15, "Parsing document...")
-            doc, chunks, file_hash = _parse_and_chunk(file_bytes, filename, tmp_path, services)
+            doc, chunks, file_hash, images = _parse_and_chunk(
+                file_bytes, filename, tmp_path, services
+            )
 
             set_task_progress(task, 40, "Chunking document...")
 
@@ -336,8 +359,10 @@ def ingest_file_task(
             title = Path(filename).stem
 
             set_task_progress(task, 60, "Storing document...")
+            ft = 'md' if suffix == '.epub' else None
             kt_doc = services.kt_doc_store.create_document(
-                tree_id, chapter_id, title, full_text, is_main=False
+                tree_id, chapter_id, title, full_text, is_main=False,
+                file_type=ft,
             )
             doc_uid = kt_doc.id
             storage_dir = PROJECT_ROOT / "data" / "storage"
@@ -345,6 +370,25 @@ def ingest_file_task(
             file_path = storage_dir / f"{doc_uid}{suffix}"
             file_path.write_bytes(file_bytes)
             services.kt_doc_store.update_document_source_file(doc_uid, str(file_path), filename)
+
+            if images and doc.chapters:
+                doc_images_dir = storage_dir / str(doc_uid) / "images"
+                doc_images_dir.mkdir(parents=True, exist_ok=True)
+                for chapter in doc.chapters:
+                    for img_ref in chapter.images:
+                        if img_ref.name in images:
+                            (doc_images_dir / img_ref.name).write_bytes(images[img_ref.name])
+                api_base = f"/api/knowledge-trees/{tree_id}/documents/{doc_uid}/images"
+                updated_text = full_text
+                for chapter in doc.chapters:
+                    for img_ref in chapter.images:
+                        placeholder = f"__IMG__{img_ref.name}__"
+                        md_img = f"![{img_ref.alt}]({api_base}/{img_ref.name})"
+                        updated_text = updated_text.replace(placeholder, md_img)
+                services.kt_doc_store.update_document(
+                    doc_uid, title, updated_text
+                )
+                full_text = updated_text
 
             set_task_progress(task, 75, "Storing content chunks...")
             kt_chunks = [

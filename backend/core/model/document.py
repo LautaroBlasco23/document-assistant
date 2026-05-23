@@ -15,12 +15,19 @@ class Section:
 
 
 @dataclass
+class ImageRef:
+    name: str  # bare filename (e.g. "cover.jpg")
+    alt: str   # alt text from the <img> tag
+
+
+@dataclass
 class Chapter:
     index: int
     title: str
     pages: list[Page] = field(default_factory=list)
     sections: list[Section] = field(default_factory=list)
     toc_href: str = ""  # EPUB TOC href for direct navigation (empty for PDFs)
+    images: list[ImageRef] = field(default_factory=list)
 
 
 @dataclass

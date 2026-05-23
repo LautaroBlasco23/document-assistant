@@ -577,6 +577,29 @@ async def get_document_file(tree_id: str, doc_id: str, services: ServicesDep):
     )
 
 
+@router.get("/knowledge-trees/{tree_id}/documents/{doc_id}/images/{image_name:path}")
+async def get_document_image(tree_id: str, doc_id: str, image_name: str, services: ServicesDep):
+    """Serve an image extracted from an EPUB document."""
+    uid = parse_uuid(tree_id, "tree_id")
+    doc_uid = parse_uuid(doc_id, "doc_id")
+    doc = services.kt_doc_store.get_document(doc_uid)
+    if doc is None or doc.tree_id != uid:
+        raise HTTPException(status_code=404, detail="Document not found")
+    storage_dir = PROJECT_ROOT / "data" / "storage"
+    img_path = storage_dir / str(doc_uid) / "images" / image_name
+    if not img_path.exists() or not img_path.is_file():
+        raise HTTPException(status_code=404, detail="Image not found")
+    suffix = img_path.suffix.lower()
+    media_type = {
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".png": "image/png",
+        ".gif": "image/gif",
+        ".webp": "image/webp",
+    }.get(suffix, "application/octet-stream")
+    return FileResponse(img_path, media_type=media_type)
+
+
 @router.get("/knowledge-trees/{tree_id}/documents/{doc_id}/thumbnail")
 async def get_document_thumbnail(tree_id: str, doc_id: str, services: ServicesDep):
     """Return a PNG thumbnail of the first page of a PDF document."""
