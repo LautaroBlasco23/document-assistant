@@ -16,15 +16,9 @@ help:
 	@echo "  \033[1;32mDocker\033[0m"
 	@echo "    make start                          Build & run all containers (detached)"
 	@echo "    make stop                           Stop all containers"
-	@echo "    make app-logs                       View container logs"
-	@echo "    make app-ps                         List container status"
 	@echo ""
 	@echo "  \033[1;32mDevelopment (host backend + frontend)\033[0m"
 	@echo "    make dev                            Start dev server"
-	@echo "    make dev PROVIDER=groq              Start dev server with specific provider"
-	@echo "    make dev-backend                    Start backend only (with PostgreSQL)"
-	@echo "    make dev-backend PROVIDER=groq      Start backend only with specific provider"
-	@echo "    make mock                           Frontend only, no backend (mock data)"
 	@echo ""
 	@echo "  \033[1;32mServices\033[0m"
 	@echo "    make dev-kill                       Force kill backend (8000) & frontend (5173)"
@@ -71,31 +65,9 @@ stop:
 	pkill -f "uvicorn api.main:app" || true
 	pkill -f "npm run dev" || true
 
-app-logs:
-	$(DOCKER_COMPOSE) logs -f
-
-app-ps:
-	$(DOCKER_COMPOSE) ps
-
 dev: env-check tools-check
 	@echo "Starting dev server (dev mode)..."
 	@AUTO_DEFAULTS=1 PROVIDER=$(PROVIDER) bash scripts/start.sh
-
-dev-backend: env-check tools-check
-	@echo "Starting backend only..."
-	@echo "Starting PostgreSQL..."
-	$(DOCKER_COMPOSE) up -d postgres
-	@echo "Waiting for PostgreSQL to be ready..."
-	@until $(DOCKER_COMPOSE) exec -T postgres pg_isready -U docassist > /dev/null 2>&1; do sleep 1; done
-	@echo "Installing Python dependencies..."
-	cd $(BACKEND_DIR) && uv sync
-	@echo "Starting backend on port 8000..."
-	@set -a; [ -f .env ] && . ./.env; set +a; \
-	cd $(BACKEND_DIR) && DOCASSIST_POSTGRES__HOST=localhost DOCASSIST_POSTGRES__PORT="$${DEV_POSTGRES_PORT:-5433}" DOCASSIST_LLM_PROVIDER="$(PROVIDER)" uv run uvicorn api.main:app --port 8000 --reload
-
-mock: tools-check dev-deps
-	@echo "Starting frontend in mock mode (no backend required)..."
-	@cd frontend && VITE_MOCK=true npm run dev
 
 env-check:
 	@bash scripts/setupEnv.sh
