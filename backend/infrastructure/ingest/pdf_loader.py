@@ -53,6 +53,101 @@ _CHAPTER_PATTERNS = [
 
 SYNTHETIC_CHAPTER_SIZE = 20  # pages per synthetic chapter when no headings found
 
+_STOP_WORDS = frozenset({
+    "the", "a", "an", "of", "and", "in", "to", "for", "is", "on",
+    "at", "by", "with", "from", "or", "but", "not", "it", "this", "that",
+})
+
+
+def _validate_toc_page(
+    toc_page: int,
+    chapter_title: str,
+    pages: list[Page],
+    search_radius: int = 15,
+) -> int:
+    """Validate and correct a ToC page number against actual page content.
+
+    If the page at toc_page doesn't contain text matching chapter_title,
+    search nearby pages for the best match. Returns corrected 1-based page number.
+    """
+    if not pages or toc_page < 1 or toc_page > len(pages):
+        return toc_page
+
+    title_words = [
+        w.lower() for w in re.findall(r"\w+", chapter_title)
+        if w.lower() not in _STOP_WORDS
+    ]
+    if not title_words:
+        return toc_page
+
+    def _score_page(p: Page) -> float:
+        lines = p.text.strip().split("\n")[:5]
+        page_text = " ".join(lines).lower()
+        matched = sum(1 for w in title_words if w in page_text)
+        return matched / len(title_words)
+
+    best_idx = toc_page - 1
+    best_score = _score_page(pages[best_idx])
+
+    start = max(0, toc_page - 1 - search_radius)
+    end = min(len(pages), toc_page - 1 + search_radius + 1)
+    for idx in range(start, end):
+        if idx == best_idx:
+            continue
+        score = _score_page(pages[idx])
+        if score > best_score:
+            best_score = score
+            best_idx = idx
+
+    if best_score >= 0.6:
+        return best_idx + 1
+    return toc_page
+
+
+def _validate_toc_page_preview(
+    doc: fitz.Document,
+    toc_page: int,
+    chapter_title: str,
+    total_pages: int,
+    search_radius: int = 15,
+) -> int:
+    """Validate ToC page number for preview (reads only first 500 chars per page).
+
+    Same logic as _validate_toc_page but uses doc[page_num].get_text()[:500]
+    instead of Page objects.
+    """
+    if not total_pages or toc_page < 1 or toc_page > total_pages:
+        return toc_page
+
+    title_words = [
+        w.lower() for w in re.findall(r"\w+", chapter_title)
+        if w.lower() not in _STOP_WORDS
+    ]
+    if not title_words:
+        return toc_page
+
+    def _score_preview_page(doc: fitz.Document, page_num: int) -> float:
+        text = doc[page_num].get_text()[:500].lower()
+        matched = sum(1 for w in title_words if w in text)
+        return matched / len(title_words)
+
+    best_idx = toc_page - 1
+    best_score = _score_preview_page(doc, best_idx)
+
+    start = max(0, toc_page - 1 - search_radius)
+    end = min(total_pages, toc_page - 1 + search_radius + 1)
+    for idx in range(start, end):
+        if idx == best_idx:
+            continue
+        score = _score_preview_page(doc, idx)
+        if score > best_score:
+            best_score = score
+            best_idx = idx
+
+    if best_score >= 0.6:
+        return best_idx + 1
+    return toc_page
+
 
 @dataclass
 class ChapterPreview:
@@ -94,14 +189,59 @@ def preview_pdf(path: Path, file_hash: str) -> tuple[Document | None, list[Chapt
     return result_doc, chapters
 
 
+def _detect_chapter_headings_preview(doc: fitz.Document, total_pages: int) -> list[ChapterPreview]:
+    """Lightweight heuristic chapter detection for preview (no full text load)."""
+    chapters: list[ChapterPreview] = []
+    current_start = 1
+    current_title = "Introduction"
+    chapter_index = 0
+
+    for page_num in range(total_pages):
+        page = doc[page_num]
+        text = page.get_text()[:500]
+        is_heading, _ = _is_chapter_heading(text)
+        if is_heading and page_num + 1 > current_start:
+            chapters.append(ChapterPreview(
+                index=chapter_index,
+                title=current_title,
+                page_start=current_start,
+                page_end=page_num,
+            ))
+            chapter_index += 1
+            lines = text.strip().split("\n")
+            current_title = lines[0].strip() if lines else f"Chapter {chapter_index + 1}"
+            current_start = page_num + 1
+
+    if current_start <= total_pages:
+        chapters.append(ChapterPreview(
+            index=chapter_index,
+            title=current_title,
+            page_start=current_start,
+            page_end=total_pages,
+        ))
+
+    return chapters if len(chapters) >= 2 else []
+
+
 def _extract_chapter_structure(doc: fitz.Document, total_pages: int) -> list[ChapterPreview]:
     """Extract chapter structure from ToC or heuristics without loading page text."""
     toc = doc.get_toc()
     if not toc:
-        return _synthetic_chapter_structure(total_pages)
+        headings = _detect_chapter_headings_preview(doc, total_pages)
+        return headings or _synthetic_chapter_structure(total_pages)
 
     level1 = [(title, page_num) for level, title, page_num in toc if level == 1]
     level2 = [(title, page_num) for level, title, page_num in toc if level == 2]
+
+    # Validate ToC page numbers against actual page content (preview mode)
+    level1 = [
+        (title, _validate_toc_page_preview(doc, page_num, title, total_pages))
+        for title, page_num in level1
+    ]
+    level2 = [
+        (title, _validate_toc_page_preview(doc, page_num, title, total_pages))
+        for title, page_num in level2
+    ]
 
     if not level1 and not level2:
         return _synthetic_chapter_structure(total_pages)
@@ -110,7 +250,11 @@ def _extract_chapter_structure(doc: fitz.Document, total_pages: int) -> list[Cha
         return [ChapterPreview(index=0, title="Document", page_start=1, page_end=total_pages)]
 
     chapters: list[ChapterPreview] = []
-    all_entries = [(level, title, page_num) for level, title, page_num in toc if level in (1, 2)]
+    all_entries = sorted(
+        [(1, title, page_num) for title, page_num in level1] +
+        [(2, title, page_num) for title, page_num in level2],
+        key=lambda e: e[2],
+    )
 
     chapter_index = 0
     for i, (entry_level, entry_title, entry_page) in enumerate(all_entries):
@@ -302,8 +446,16 @@ def load_pdf(path: Path, file_hash: str, original_filename: str = "") -> Documen
     pages = [Page(number=i + 1, text=text) for i, text in enumerate(normalized)]
 
     # Detect chapters BEFORE cross-page reflow to preserve page boundaries accurately
+    toc_chapters = _detect_chapters_from_toc(doc, pages)
+    if toc_chapters and _toc_confidence(toc_chapters, pages) < 0.5:
+        logger.info(
+            "ToC confidence low for %s (%.2f), falling back to heuristic",
+            display_name,
+            _toc_confidence(toc_chapters, pages),
+        )
+        toc_chapters = None
     chapters = (
-        _detect_chapters_from_toc(doc, pages)
+        toc_chapters
         or _detect_chapters(pages)
         or _synthetic_chapters(pages)
     )
@@ -332,6 +484,45 @@ def load_pdf(path: Path, file_hash: str, original_filename: str = "") -> Documen
     )
 
 
+def _toc_confidence(chapters: list[Chapter], pages: list[Page]) -> float:
+    """Score ToC reliability 0.0-1.0 based on page range sanity checks."""
+    if not chapters:
+        return 0.0
+    checks_passed = 0
+    total_checks = 0
+
+    for i, ch in enumerate(chapters):
+        if not ch.pages:
+            continue
+        ch_start = ch.pages[0].number
+        ch_end = ch.pages[-1].number
+        total_checks += 1
+        overlaps = any(
+            other.pages and
+            not (other.pages[-1].number < ch_start or other.pages[0].number > ch_end)
+            for j, other in enumerate(chapters) if j != i
+        )
+        if not overlaps:
+            checks_passed += 1
+
+    for ch in chapters:
+        if not ch.pages:
+            continue
+        title_words = {
+            w.lower() for w in re.findall(r"\w+", ch.title)
+            if w.lower() not in _STOP_WORDS
+        }
+        if not title_words:
+            continue
+        total_checks += 1
+        first_lines = ch.pages[0].text.strip().split("\n")[:5]
+        page_text = " ".join(first_lines).lower()
+        if any(w in page_text for w in title_words):
+            checks_passed += 1
+
+    return checks_passed / total_checks if total_checks else 0.0
+
+
 def _detect_chapters_from_toc(doc: fitz.Document, pages: list[Page]) -> list[Chapter]:
     """Build chapter/section hierarchy from PDF outline (table of contents).
 
@@ -353,6 +544,16 @@ def _detect_chapters_from_toc(doc: fitz.Document, pages: list[Page]) -> list[Cha
     # Separate by level
     level1 = [(title, page_num) for level, title, page_num in toc if level == 1]
     level2 = [(title, page_num) for level, title, page_num in toc if level == 2]
+
+    # Validate and correct ToC page numbers against actual page content
+    level1 = [
+        (title, _validate_toc_page(page_num, title, pages))
+        for title, page_num in level1
+    ]
+    level2 = [
+        (title, _validate_toc_page(page_num, title, pages))
+        for title, page_num in level2
+    ]
 
     if not level1 and not level2:
         return []
@@ -377,8 +578,12 @@ def _detect_chapters_from_toc(doc: fitz.Document, pages: list[Page]) -> list[Cha
     chapter_index = 0
 
     # Build a flat list combining level-1 (chapters) and level-2 (sections)
-    # with type tags to process in order
-    all_entries = [(level, title, page_num) for level, title, page_num in toc if level in (1, 2)]
+    # with type tags to process in order, sorted by corrected page number
+    all_entries = sorted(
+        [(1, title, page_num) for title, page_num in level1] +
+        [(2, title, page_num) for title, page_num in level2],
+        key=lambda e: e[2],
+    )
 
     i = 0
     while i < len(all_entries):
@@ -429,13 +634,13 @@ def _detect_chapters_from_toc(doc: fitz.Document, pages: list[Page]) -> list[Cha
 
 
 def _is_chapter_heading(text: str) -> tuple[bool, int]:
-    """Check if any of the first 5 lines is a chapter heading.
+    """Check if any of the first 2 lines is a chapter heading.
 
     Returns (is_heading, line_index) where line_index is the index of
     the matching line (0-based). Returns (False, -1) if no match found.
     """
     lines = text.strip().split("\n")
-    for i, line in enumerate(lines[:5]):
+    for i, line in enumerate(lines[:2]):
         stripped = line.strip()
         if stripped and any(p.match(stripped) for p in _CHAPTER_PATTERNS):
             return True, i
@@ -463,6 +668,17 @@ def _detect_chapters(pages: list[Page]) -> list[Chapter]:
 
     if current_pages:
         chapters.append(Chapter(index=chapter_index, title=current_title, pages=current_pages))
+
+    # Merge chapters that are too small (< 2 pages) into the previous chapter
+    merged: list[Chapter] = []
+    for ch in chapters:
+        if len(ch.pages) < 2 and merged:
+            prev = merged[-1]
+            prev.pages = prev.pages + ch.pages
+            prev.sections = prev.sections + ch.sections
+        else:
+            merged.append(ch)
+    chapters = merged
 
     # Return chapters if we found at least 2, or if we found exactly 1
     # (single-chapter documents should use "Document" as title, not "Introduction")

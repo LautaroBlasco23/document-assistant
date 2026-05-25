@@ -314,6 +314,82 @@ export class MockClient implements ServiceClient {
     return updated
   }
 
+  async splitKnowledgeChapter(
+    treeId: string,
+    chapterNumber: number,
+    entries: { page_start: number; page_end: number; title?: string | null }[]
+  ): Promise<{ chapters: KnowledgeChapter[] }> {
+    await delay(200)
+    const existing = this.chapters.get(treeId) ?? []
+    const chapter = existing.find((c) => c.number === chapterNumber)
+    if (!chapter) throw new Error(`Chapter not found: ${chapterNumber}`)
+
+    const pdfDoc = this.documents.find(
+      (d) => d.tree_id === treeId && d.chapter_number === chapterNumber && d.source_file_path && d.page_start != null && d.page_end != null
+    )
+    if (!pdfDoc) throw new Error('No PDF document with page range found for this chapter')
+
+    const maxOffset = pdfDoc.page_end! - pdfDoc.page_start!
+
+    if (entries.length < 2) throw new Error('Must split into at least 2 chapters')
+    for (let i = 0; i < entries.length; i++) {
+      const e = entries[i]
+      if (e.page_start > e.page_end) throw new Error(`Entry ${i + 1}: page_start must be ≤ page_end`)
+      if (e.page_start < 0 || e.page_end > maxOffset) throw new Error(`Entry ${i + 1}: range exceeds chapter range (0-${maxOffset})`)
+      if (i > 0 && e.page_start !== entries[i - 1].page_end + 1) throw new Error(`Entry ${i + 1}: chapters must be contiguous`)
+    }
+    if (entries[entries.length - 1].page_end !== maxOffset) throw new Error('Last chapter must end at the last page')
+
+    const numNewChapters = entries.length - 1
+    const absBase = pdfDoc.page_start!
+
+    const updatedChapters = existing.map((c) =>
+      c.number > chapterNumber ? { ...c, number: c.number + numNewChapters } : c
+    )
+
+    const newChapters: KnowledgeChapter[] = []
+    for (let i = 1; i < entries.length; i++) {
+      const newNumber = chapterNumber + i
+      const entry = entries[i]
+      const newChapter: KnowledgeChapter = {
+        id: crypto.randomUUID(),
+        number: newNumber,
+        title: entry.title ?? `Chapter ${newNumber}`,
+        tree_id: treeId,
+      }
+      newChapters.push(newChapter)
+
+      const newDoc: KnowledgeDocument = {
+        ...pdfDoc,
+        id: `doc-${crypto.randomUUID().slice(0, 8)}`,
+        chapter_id: newChapter.id,
+        chapter_number: newNumber,
+        page_start: absBase + entry.page_start,
+        page_end: absBase + entry.page_end,
+        title: entry.title ?? `${pdfDoc.title} (Part ${i + 1})`,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }
+      this.documents.push(newDoc)
+    }
+
+    pdfDoc.page_start = absBase + entries[0].page_start
+    pdfDoc.page_end = absBase + entries[0].page_end
+
+    const insertAt = updatedChapters.findIndex((c) => c.number > chapterNumber)
+    const spliceIdx = insertAt === -1 ? updatedChapters.length : insertAt
+    updatedChapters.splice(spliceIdx, 0, ...newChapters)
+    this.chapters.set(treeId, updatedChapters)
+
+    const tree = this.trees.find((t) => t.id === treeId)
+    if (tree) tree.num_chapters = updatedChapters.length
+
+    const resultChapters = updatedChapters.filter(
+      (c) => c.number >= chapterNumber && c.number < chapterNumber + entries.length
+    )
+    return { chapters: resultChapters }
+  }
+
   async ingestFileAsKnowledgeDocument(treeId: string, chapter: number, file: File): Promise<{ task_id: string }> {
     await delay(1500)
     const extractedContent = `[Extracted from ${file.name}]\n\nSimulated text content from ${file.type || 'file'}.\n\nFile size: ${(file.size / 1024).toFixed(1)} KB`

@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Plus, Pencil, Trash2, Check, X, FileText, Upload, BookOpen, Files, Wand2, RotateCcw, Youtube } from 'lucide-react'
+import { Plus, Pencil, Trash2, Check, X, FileText, Upload, BookOpen, Files, Wand2, RotateCcw, Youtube, Scissors } from 'lucide-react'
 import { Button } from '../../components/ui/button'
 import { Input } from '../../components/ui/input'
 import { Badge } from '../../components/ui/badge'
@@ -10,6 +10,31 @@ import { client } from '../../services'
 import { UnifiedDocumentReader } from '../../components/reader/UnifiedDocumentReader'
 import { cn } from '../../lib/cn'
 import type { KnowledgeChapter, KnowledgeDocument } from '../../types/knowledge-tree'
+
+interface SplitChapterEntry {
+  pageStart: string
+  pageEnd: string
+  title: string
+}
+
+function validateSplitEntries(entries: SplitChapterEntry[], maxOffset: number): string | null {
+  if (entries.length < 2) return 'Must split into at least 2 chapters'
+  for (let i = 0; i < entries.length; i++) {
+    const start = parseInt(entries[i].pageStart, 10)
+    const end = parseInt(entries[i].pageEnd, 10)
+    if (isNaN(start) || isNaN(end)) return `Row ${i + 1}: invalid page numbers`
+    if (start < 1) return `Row ${i + 1}: page ${start} is before the start (1)`
+    if (end > maxOffset + 1) return `Row ${i + 1}: page ${end} is beyond the document (${maxOffset + 1})`
+    if (start > end) return `Row ${i + 1}: start page (${start}) must be ≤ end page (${end})`
+    if (i > 0) {
+      const prevEnd = parseInt(entries[i - 1].pageEnd, 10)
+      if (start !== prevEnd + 1) return `Row ${i + 1}: chapters must be contiguous (expected page ${prevEnd + 1})`
+    }
+  }
+  const lastEnd = parseInt(entries[entries.length - 1].pageEnd, 10)
+  if (lastEnd !== maxOffset + 1) return 'Last chapter must end at the last page'
+  return null
+}
 
 interface KnowledgeDocumentsTabProps {
   treeId: string
@@ -39,6 +64,7 @@ export function KnowledgeDocumentsTab({
     revertDocument,
     ingestFileAsDocument,
     importYouTubeDocument,
+    splitChapter,
   } = useKnowledgeTreeStore()
   const addError = useAppStore((s) => s.addError)
 
@@ -50,6 +76,10 @@ export function KnowledgeDocumentsTab({
   const [youtubeModalOpen, setYoutubeModalOpen] = React.useState(false)
   const [youtubeUrl, setYoutubeUrl] = React.useState('')
   const [youtubeImporting, setYoutubeImporting] = React.useState(false)
+  const [splitFormOpen, setSplitFormOpen] = React.useState(false)
+  const [splitting, setSplitting] = React.useState(false)
+  const [splitEntries, setSplitEntries] = React.useState<SplitChapterEntry[]>([])
+  const [splitError, setSplitError] = React.useState<string | null>(null)
   const fileInputRef = React.useRef<HTMLInputElement>(null)
   const multiFileInputRef = React.useRef<HTMLInputElement>(null)
 
@@ -60,6 +90,10 @@ export function KnowledgeDocumentsTab({
   const selectedChapterId = selectedChapter !== null
     ? chapters.find((c) => c.number === selectedChapter)?.id ?? null
     : null
+
+  const pdfDoc = docs.find(
+    (d) => d.source_file_path && d.page_start != null && d.page_end != null && d.page_end > d.page_start
+  )
 
   React.useEffect(() => {
     void fetchDocuments(treeId, selectedChapter, selectedChapterId)
@@ -205,6 +239,35 @@ export function KnowledgeDocumentsTab({
     }
   }
 
+  const handleSplit = async () => {
+    if (!pdfDoc || selectedChapter === null) return
+    const maxOffset = pdfDoc.page_end! - pdfDoc.page_start!
+    const validationError = validateSplitEntries(splitEntries, maxOffset)
+    if (validationError) {
+      setSplitError(validationError)
+      return
+    }
+    setSplitError(null)
+    setSplitting(true)
+    try {
+      const chapters = splitEntries.map(e => ({
+        page_start: parseInt(e.pageStart, 10) - 1,
+        page_end: parseInt(e.pageEnd, 10) - 1,
+        title: e.title.trim() || null,
+      }))
+      await splitChapter(treeId, selectedChapter, chapters)
+      await fetchDocuments(treeId, selectedChapter, selectedChapterId)
+      setSplitFormOpen(false)
+      setSplitEntries([])
+      setSplitError(null)
+    } catch (err: unknown) {
+      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+      addError(detail ?? 'Failed to split chapter.')
+    } finally {
+      setSplitting(false)
+    }
+  }
+
   const isMain = selectedChapter === null
   const mainDoc = isMain ? docs.find((d) => d.is_main) : undefined
 
@@ -319,6 +382,41 @@ export function KnowledgeDocumentsTab({
                 onSave={() => void handleSave()}
                 onCancel={handleCancelEditor}
                 isNew
+              />
+            )}
+
+            {/* Split Chapter — collapsible card */}
+            {!splitFormOpen && pdfDoc && (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={async () => {
+                  await fetchDocuments(treeId, selectedChapter, selectedChapterId)
+                  const chapter = chapters.find(c => c.number === selectedChapter)
+                  const maxOffset = pdfDoc.page_end! - pdfDoc.page_start!
+                  setSplitEntries([{
+                    pageStart: '1',
+                    pageEnd: String(maxOffset + 1),
+                    title: chapter?.title ?? '',
+                  }])
+                  setSplitFormOpen(true)
+                  setSplitError(null)
+                }}
+                className="self-start"
+              >
+                <Scissors className="h-3.5 w-3.5 mr-1" />
+                Split Chapter
+              </Button>
+            )}
+            {splitFormOpen && pdfDoc && (
+              <SplitChapterCard
+                pdfDoc={pdfDoc}
+                splitEntries={splitEntries}
+                splitting={splitting}
+                splitError={splitError}
+                onEntriesChange={setSplitEntries}
+                onSplit={() => void handleSplit()}
+                onCancel={() => { setSplitFormOpen(false); setSplitEntries([]); setSplitError(null) }}
               />
             )}
 
@@ -764,6 +862,144 @@ function DocumentCard({ doc, onEdit, onDelete, onRead, onImprove, onRevert, onUp
             {doc.content.trim().split(/\s+/).filter(Boolean).length} words
           </Badge>
         </div>
+      </div>
+    </div>
+  )
+}
+
+interface SplitChapterCardProps {
+  pdfDoc: KnowledgeDocument
+  splitEntries: SplitChapterEntry[]
+  splitting: boolean
+  splitError: string | null
+  onEntriesChange: (entries: SplitChapterEntry[]) => void
+  onSplit: () => void
+  onCancel: () => void
+}
+
+function SplitChapterCard({
+  pdfDoc,
+  splitEntries,
+  splitting,
+  splitError,
+  onEntriesChange,
+  onSplit,
+  onCancel,
+}: SplitChapterCardProps) {
+  const maxOffset = pdfDoc.page_end! - pdfDoc.page_start!
+  const totalPages = maxOffset + 1
+  const isValid = splitEntries.length >= 2 && splitEntries.every(
+    (e) => !isNaN(parseInt(e.pageStart, 10)) && !isNaN(parseInt(e.pageEnd, 10))
+  ) && splitError === null
+
+  const handleEntryChange = (index: number, field: 'pageStart' | 'pageEnd' | 'title', value: string) => {
+    const updated = splitEntries.map((entry, i) => i === index ? { ...entry, [field]: value } : entry)
+    onEntriesChange(updated)
+  }
+
+  const handleAddEntry = () => {
+    const last = splitEntries[splitEntries.length - 1]
+    const lastEnd = parseInt(last.pageEnd, 10)
+    onEntriesChange([...splitEntries, { pageStart: String(lastEnd + 1), pageEnd: String(maxOffset + 1), title: '' }])
+  }
+
+  const handleRemoveEntry = (index: number) => {
+    const removed = splitEntries[index]
+    const updated = splitEntries.filter((_, i) => i !== index)
+    if (index > 0) {
+      updated[index - 1] = { ...updated[index - 1], pageEnd: removed.pageEnd }
+    }
+    onEntriesChange(updated)
+  }
+
+  return (
+    <div className="border border-primary/40 rounded-lg p-4 flex flex-col gap-3 bg-primary-light dark:bg-primary/12">
+      <div className="flex items-center gap-2 text-sm font-semibold text-text-primary">
+        <Scissors className="h-4 w-4" />
+        Split Chapter
+      </div>
+      <div className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 rounded-md px-3 py-2">
+        This will re-extract text, re-chunk, and update the vector store. It may take a moment.
+      </div>
+      <div className="text-xs text-text-tertiary">
+        Current range: Pages 1 – {maxOffset + 1} ({totalPages} pages total)
+      </div>
+      <div className="text-xs font-medium text-text-primary">Resulting chapters:</div>
+      <div className="flex flex-col gap-2">
+        {splitEntries.map((entry, i) => (
+          <div key={i} className="flex items-center gap-2">
+            <span className="text-xs text-text-secondary w-5 shrink-0">{i + 1}.</span>
+            <span className="text-xs text-text-secondary shrink-0">Pages</span>
+            <Input
+              type="number"
+              className="w-[72px]"
+              value={entry.pageStart}
+              onChange={(e) => handleEntryChange(i, 'pageStart', e.target.value)}
+              disabled={splitting}
+            />
+            <span className="text-xs text-text-secondary">–</span>
+            <Input
+              type="number"
+              className="w-[72px]"
+              value={entry.pageEnd}
+              onChange={(e) => handleEntryChange(i, 'pageEnd', e.target.value)}
+              disabled={splitting}
+            />
+            <span className="text-xs text-text-secondary shrink-0">Title:</span>
+            <Input
+              type="text"
+              className="flex-1 min-w-0"
+              placeholder={`Chapter title (optional)`}
+              value={entry.title}
+              onChange={(e) => handleEntryChange(i, 'title', e.target.value)}
+              disabled={splitting}
+            />
+            {i > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => handleRemoveEntry(i)}
+                disabled={splitting}
+                className="h-8 w-8 p-0 shrink-0"
+              >
+                <X className="h-3.5 w-3.5" />
+              </Button>
+            )}
+          </div>
+        ))}
+      </div>
+      {splitError && (
+        <div className="text-xs text-red-500">{splitError}</div>
+      )}
+      <div className="flex gap-2">
+        <Button variant="ghost" size="sm" onClick={handleAddEntry} disabled={splitting}>
+          <Plus className="h-3.5 w-3.5 mr-1" />
+          Add Chapter
+        </Button>
+      </div>
+      <div className="flex gap-2 justify-end">
+        <Button variant="ghost" size="sm" onClick={onCancel} disabled={splitting}>
+          <X className="h-3.5 w-3.5 mr-1" />
+          Cancel
+        </Button>
+        <Button
+          variant="primary"
+          size="sm"
+          onClick={onSplit}
+          disabled={!isValid || splitting}
+        >
+          {splitting ? (
+            <>
+              <div className="h-3.5 w-3.5 rounded-full border-2 border-white border-t-transparent animate-spin mr-1" />
+              Splitting...
+            </>
+          ) : (
+            <>
+              <Scissors className="h-3.5 w-3.5 mr-1" />
+              Split Chapter
+            </>
+          )}
+        </Button>
       </div>
     </div>
   )

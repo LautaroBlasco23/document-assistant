@@ -222,6 +222,50 @@ class PostgresKnowledgeChapterStore(_BaseKnowledgeRepo):
                     )
         logger.debug("Deleted knowledge chapter tree=%s number=%d", tree_id, number)
 
+    def shift_chapter_numbers(self, tree_id: UUID, from_number: int, delta: int) -> None:
+        with self._pool.lock:
+            conn = self._conn()
+            with conn.transaction():
+                with conn.cursor() as cur:
+                    order = "DESC" if delta > 0 else "ASC"
+                    cur.execute(
+                        "SELECT number FROM knowledge_chapters"
+                        " WHERE tree_id = %s AND number >= %s"
+                        f" ORDER BY number {order}",
+                        (tree_id, from_number),
+                    )
+                    rows = cur.fetchall()
+                    for row in rows:
+                        old_number = row["number"]
+                        new_number = old_number + delta
+                        cur.execute(
+                            "UPDATE knowledge_chapters SET number = %s"
+                            " WHERE tree_id = %s AND number = %s",
+                            (new_number, tree_id, old_number),
+                        )
+
+    def create_chapter_with_number(
+        self, tree_id: UUID, number: int, title: str
+    ) -> KnowledgeChapter:
+        with self._pool.lock:
+            conn = self._conn()
+            with conn.transaction():
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "INSERT INTO knowledge_chapters (tree_id, number, title)"
+                        " VALUES (%s, %s, %s)"
+                        " RETURNING id, tree_id, number, title, created_at",
+                        (tree_id, number, title),
+                    )
+                    row = cur.fetchone()
+        return KnowledgeChapter(
+            id=row["id"],
+            tree_id=row["tree_id"],
+            number=row["number"],
+            title=row["title"],
+            created_at=_ensure_naive(row["created_at"]),
+        )
+
 
 class PostgresKnowledgeDocumentStore(_BaseKnowledgeRepo):
     """CRUD for knowledge_documents table."""
@@ -394,6 +438,31 @@ class PostgresKnowledgeDocumentStore(_BaseKnowledgeRepo):
         logger.debug("Updated knowledge document id=%s", id)
         return _row_to_doc(row)
 
+    def update_document_page_range(
+        self, id: UUID, page_start: int | None, page_end: int | None
+    ) -> KnowledgeDocument:
+        with self._pool.lock:
+            conn = self._conn()
+            with conn.transaction():
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "UPDATE knowledge_documents"
+                        " SET page_start = %s, page_end = %s, updated_at = NOW()"
+                        " WHERE id = %s"
+                        " RETURNING id, tree_id, chapter_id, title, content, original_content,"
+                        " is_main, created_at, updated_at,"
+                        " source_file_path, source_file_name, page_start, page_end,"
+                        " source_type, source_url, file_type,"
+                        " (SELECT c.number FROM knowledge_chapters c"
+                        "  WHERE c.id = chapter_id) AS chapter_number",
+                        (page_start, page_end, id),
+                    )
+                    row = cur.fetchone()
+        if row is None:
+            raise ValueError(f"Knowledge document not found: {id}")
+        logger.debug("Updated page range for document id=%s", id)
+        return _row_to_doc(row)
+
     def save_improvement(self, id: UUID, improved_content: str) -> KnowledgeDocument:
         """Save AI-improved text, preserving the original if not already improved."""
         with self._pool.lock:
@@ -483,7 +552,8 @@ class PostgresKnowledgeContentStore(_BaseKnowledgeRepo):
                         "INSERT INTO knowledge_content"
                         " (id, tree_id, chapter_id, doc_id, chunk_index, text, token_count)"
                         " VALUES (%s, %s, %s, %s, %s, %s, %s)"
-                        " ON CONFLICT (doc_id, chunk_index) DO NOTHING",
+                        " ON CONFLICT (doc_id, chunk_index)"
+                        " DO UPDATE SET text = EXCLUDED.text, token_count = EXCLUDED.token_count",
                         [
                             (
                                 chunk.id,
@@ -498,6 +568,17 @@ class PostgresKnowledgeContentStore(_BaseKnowledgeRepo):
                         ],
                     )
         logger.debug("Saved %d knowledge content chunks", len(chunks))
+
+    def delete_chunks_by_doc_id(self, doc_id: UUID) -> None:
+        with self._pool.lock:
+            conn = self._conn()
+            with conn.transaction():
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "DELETE FROM knowledge_content WHERE doc_id = %s",
+                        (doc_id,),
+                    )
+        logger.debug("Deleted chunks for doc_id=%s", str(doc_id)[:12])
 
     def get_chunks(self, tree_id: UUID, chapter_number: int) -> list[KnowledgeChunk]:
         """Fetch chunks for a tree chapter identified by 1-based chapter number."""

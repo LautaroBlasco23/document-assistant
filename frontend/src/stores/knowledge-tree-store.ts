@@ -50,6 +50,7 @@ interface KnowledgeTreeState {
   deleteDocument: (id: string, treeId: string, chapter: number | null) => Promise<void>
   improveDocument: (treeId: string, docId: string, chapter: number | null) => Promise<KnowledgeDocument>
   revertDocument: (treeId: string, docId: string, chapter: number | null) => Promise<KnowledgeDocument>
+  splitChapter: (treeId: string, chapterNumber: number, chapters: { page_start: number; page_end: number; title?: string | null }[]) => Promise<{ chapters: KnowledgeChapter[] }>
   ingestFileAsDocument: (treeId: string, chapter: number, file: File) => Promise<{ task_id: string }>
   importYouTubeDocument: (treeId: string, url: string, chapterId?: string | null) => Promise<{ task_id: string }>
   createTreeFromFile: (file: File, title?: string, chapterIndices?: number[]) => Promise<string>
@@ -247,6 +248,13 @@ export const useKnowledgeTreeStore = create<KnowledgeTreeState>((set, get) => ({
       },
     }))
     return doc
+  },
+
+  splitChapter: async (treeId, chapterNumber, chapters) => {
+    const result = await client.splitKnowledgeChapter(treeId, chapterNumber, chapters)
+    await get().fetchChapters(treeId)
+    await get().fetchDocuments(treeId, chapterNumber, null)
+    return result
   },
 
   ingestFileAsDocument: async (treeId, chapter, file) => {

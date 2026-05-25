@@ -1,6 +1,32 @@
 """Pydantic schemas for the Knowledge Tree API."""
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
+
+
+class ChapterSplitEntry(BaseModel):
+    page_start: int
+    page_end: int
+    title: str | None = None
+
+
+class SplitChapterRequest(BaseModel):
+    chapters: list[ChapterSplitEntry]
+
+    @field_validator("chapters")
+    @classmethod
+    def validate_chapters(cls, v):
+        if len(v) < 2:
+            raise ValueError("At least 2 chapter entries are required")
+        for entry in v:
+            if entry.page_start > entry.page_end:
+                raise ValueError(
+                    f"page_start ({entry.page_start}) must be <= page_end ({entry.page_end})"
+                )
+        return v
+
+
+class SplitChapterResponse(BaseModel):
+    chapters: list["KnowledgeChapterOut"]
 
 # --- Requests ---
 

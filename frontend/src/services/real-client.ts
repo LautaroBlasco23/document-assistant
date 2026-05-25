@@ -278,6 +278,18 @@ export class RealClient implements ServiceClient {
     return { task_id: res.data.task_id }
   }
 
+  async splitKnowledgeChapter(
+    treeId: string,
+    chapterNumber: number,
+    chapters: { page_start: number; page_end: number; title?: string | null }[]
+  ): Promise<{ chapters: KnowledgeChapter[] }> {
+    const res = await httpClient.post<{ chapters: KnowledgeChapter[] }>(
+      `/knowledge-trees/${treeId}/chapters/${chapterNumber}/split`,
+      { chapters }
+    )
+    return res.data
+  }
+
   async ingestFileAsKnowledgeDocument(treeId: string, chapter: number, file: File): Promise<{ task_id: string }> {
     const formData = new FormData()
     formData.append('file', file)

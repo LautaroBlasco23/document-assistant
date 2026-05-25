@@ -50,6 +50,11 @@ export interface ServiceClient {
   deleteKnowledgeDocument(treeId: string, id: string): Promise<void>
   improveKnowledgeDocument(treeId: string, docId: string): Promise<KnowledgeDocument>
   revertKnowledgeDocument(treeId: string, docId: string): Promise<KnowledgeDocument>
+  splitKnowledgeChapter(
+    treeId: string,
+    chapterNumber: number,
+    chapters: { page_start: number; page_end: number; title?: string | null }[]
+  ): Promise<{ chapters: KnowledgeChapter[] }>
   ingestFileAsKnowledgeDocument(treeId: string, chapter: number, file: File): Promise<{ task_id: string }>
   importYouTubeDocument(treeId: string, url: string, chapterId?: string | null): Promise<{ task_id: string }>
   previewKnowledgeTreeFile(file: File): Promise<DocumentPreviewOut>

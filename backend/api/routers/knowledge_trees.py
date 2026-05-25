@@ -27,6 +27,8 @@ from api.schemas.knowledge_tree import (
     KnowledgeChunkOut,
     KnowledgeDocumentOut,
     KnowledgeTreeOut,
+    SplitChapterRequest,
+    SplitChapterResponse,
     UpdateChapterRequest,
     UpdateDocumentRequest,
     UpdateTreeRequest,
@@ -46,6 +48,7 @@ from application.services.tree_import import (
     create_tree_from_file_task,
     import_youtube_task,
     ingest_file_task,
+    split_chapter_into_ranges,
 )
 from core.exceptions import ProviderNotConfigured
 from core.model.knowledge_tree import ExamSession, Flashcard
@@ -412,6 +415,39 @@ async def delete_chapter(tree_id: str, number: int, services: ServicesDep) -> No
     """Delete a chapter (1-based number) and its documents/content."""
     uid = parse_uuid(tree_id, "tree_id")
     services.kt_chapter_store.delete_chapter(uid, number)
+
+
+@router.post(
+    "/knowledge-trees/{tree_id}/chapters/{number}/split",
+    response_model=SplitChapterResponse,
+    status_code=201,
+)
+async def split_chapter(
+    tree_id: str,
+    number: int,
+    req: SplitChapterRequest,
+    current_user: CurrentUser,
+    services: ServicesDep,
+) -> SplitChapterResponse:
+    """Split a chapter into multiple chapters by page ranges."""
+    uid = parse_uuid(tree_id, "tree_id")
+    tree = services.kt_tree_store.get_tree(uid)
+    if tree is None or tree.user_id != current_user.id:
+        raise HTTPException(status_code=404, detail="Knowledge tree not found")
+
+    try:
+        result_chapters = split_chapter_into_ranges(
+            tree_id=uid,
+            chapter_number=number,
+            chapters=req.chapters,
+            services=services,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    return SplitChapterResponse(
+        chapters=[_chapter_out(c) for c in result_chapters]
+    )
 
 
 # ---------------------------------------------------------------------------
