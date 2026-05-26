@@ -8,6 +8,7 @@ interface ReaderPreferences {
   defaultShowLeft: boolean
   defaultShowRight: boolean
   contentWidth: ContentWidth
+  zoom: number
 }
 
 function load(): ReaderPreferences {
@@ -15,7 +16,7 @@ function load(): ReaderPreferences {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (raw) return JSON.parse(raw) as ReaderPreferences
   } catch { /* ignore */ }
-  return { defaultShowLeft: true, defaultShowRight: true, contentWidth: 'comfortable' }
+  return { defaultShowLeft: true, defaultShowRight: true, contentWidth: 'comfortable', zoom: 1 }
 }
 
 function save(value: ReaderPreferences) {

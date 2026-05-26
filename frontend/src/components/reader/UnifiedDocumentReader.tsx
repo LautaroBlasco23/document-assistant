@@ -68,7 +68,7 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
   const [showRight, setShowRight] = React.useState(() => useReaderPreferences.getState().preferences.defaultShowRight)
   const [contentWidth, setContentWidth] = React.useState(() => useReaderPreferences.getState().preferences.contentWidth)
   const [isFullscreen, setIsFullscreen] = React.useState(true)
-  const [zoom, setZoom] = React.useState(1)
+  const [zoom, setZoom] = React.useState(() => useReaderPreferences.getState().preferences.zoom)
   const [contextMenu, setContextMenu] = React.useState<{
     x: number
     y: number
@@ -557,9 +557,21 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
     window.getSelection()?.removeAllRanges()
   }
 
-  const zoomIn = React.useCallback(() => setZoom((z) => Math.min(2, +(z + 0.1).toFixed(1))), [])
-  const zoomOut = React.useCallback(() => setZoom((z) => Math.max(0.5, +(z - 0.1).toFixed(1))), [])
+  const zoomIn = React.useCallback(() => setZoom((z) => {
+    const next = Math.min(2, +(z + 0.1).toFixed(1))
+    useReaderPreferences.getState().update({ zoom: next })
+    return next
+  }), [])
+  const zoomOut = React.useCallback(() => setZoom((z) => {
+    const next = Math.max(0.5, +(z - 0.1).toFixed(1))
+    useReaderPreferences.getState().update({ zoom: next })
+    return next
+  }), [])
 
+  const zoomInRef = React.useRef(zoomIn)
+  zoomInRef.current = zoomIn
+  const zoomOutRef = React.useRef(zoomOut)
+  zoomOutRef.current = zoomOut
   const handleHighlightRef = React.useRef(handleHighlight)
   handleHighlightRef.current = handleHighlight
   const onCloseRef = React.useRef(onClose)
@@ -575,12 +587,25 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
         }
         return
       }
+      const activeEl = document.activeElement
+      const isInput =
+        activeEl instanceof HTMLInputElement ||
+        activeEl instanceof HTMLTextAreaElement ||
+        (activeEl as HTMLElement)?.isContentEditable
+
+      if (!isInput) {
+        if (e.key === '+' || e.key === '=') {
+          e.preventDefault()
+          zoomInRef.current()
+          return
+        }
+        if (e.key === '-') {
+          e.preventDefault()
+          zoomOutRef.current()
+          return
+        }
+      }
       if (e.ctrlKey && e.key === 'a') {
-        const activeEl = document.activeElement
-        const isInput =
-          activeEl instanceof HTMLInputElement ||
-          activeEl instanceof HTMLTextAreaElement ||
-          (activeEl as HTMLElement)?.isContentEditable
         if (!isInput) {
           const selection = window.getSelection()
           const selected = selection?.toString()?.trim() ?? ''
