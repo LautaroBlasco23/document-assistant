@@ -14,6 +14,7 @@ import type {
   MultipleChoiceQuestion,
   MatchingQuestion,
   CheckboxQuestion,
+  FlashcardQuestion,
 } from '../../types/knowledge-tree'
 
 // ---------------------------------------------------------------------------
@@ -59,6 +60,7 @@ export function ExamTab({ treeId, selectedChapter, chapters }: ExamTabProps) {
 
   const chapterKey = selectedChapter !== null ? questionKey(treeId, selectedChapter) : null
   const questionsByType = chapterKey ? (store.questionsByType[chapterKey] ?? {}) : {}
+  const flashcards = chapterKey ? (store.flashcardsByChapter[chapterKey] ?? []) : []
   const examSessions = chapterKey ? (store.examSessionsByChapter[chapterKey] ?? []) : []
 
   const tfQuestions = (questionsByType['true_false'] ?? []) as TrueFalseQuestion[]
@@ -66,8 +68,15 @@ export function ExamTab({ treeId, selectedChapter, chapters }: ExamTabProps) {
   const matchingQuestions = (questionsByType['matching'] ?? []) as MatchingQuestion[]
   const cbQuestions = (questionsByType['checkbox'] ?? []) as CheckboxQuestion[]
 
+  const flashcardQuestions: FlashcardQuestion[] = flashcards.map((f) => ({
+    type: 'flashcard' as const,
+    id: f.id,
+    front: f.front,
+    back: f.back,
+  }))
+
   const examQuestions: ExamQuestion[] = selectedChapter !== null
-    ? [...tfQuestions, ...mcQuestions, ...matchingQuestions, ...cbQuestions]
+    ? [...tfQuestions, ...mcQuestions, ...matchingQuestions, ...cbQuestions, ...flashcardQuestions]
     : []
 
   const typeCounts = selectedChapter !== null
@@ -76,13 +85,15 @@ export function ExamTab({ treeId, selectedChapter, chapters }: ExamTabProps) {
         { label: 'Multiple Choice', count: mcQuestions.length },
         { label: 'Matching', count: matchingQuestions.length },
         { label: 'Checkbox', count: cbQuestions.length },
+        { label: 'Flashcards', count: flashcardQuestions.length },
       ]
     : []
 
-  // Load questions and exam sessions when chapter is selected
+  // Load questions, flashcards, and exam sessions when chapter is selected
   React.useEffect(() => {
     if (treeId && selectedChapter !== null) {
       void store.fetchQuestions(treeId, selectedChapter)
+      void store.fetchFlashcards(treeId, selectedChapter)
       void store.fetchExamSessions(treeId, selectedChapter)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
