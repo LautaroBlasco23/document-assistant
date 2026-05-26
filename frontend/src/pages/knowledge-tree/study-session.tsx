@@ -8,9 +8,10 @@ import type { ExamQuestion } from '../../types/knowledge-tree'
 interface StudySessionProps {
   questions: ExamQuestion[]
   onFinish: () => void
+  onSave?: (results: { total_cards: number; question_ids: string[] }) => void
 }
 
-export function StudySession({ questions, onFinish }: StudySessionProps) {
+export function StudySession({ questions, onFinish, onSave }: StudySessionProps) {
   const [shuffledQuestions] = React.useState(() => shuffleArray(questions))
   const [currentIndex, setCurrentIndex] = React.useState(0)
   const [answeredSet, setAnsweredSet] = React.useState<Set<number>>(new Set())
@@ -26,6 +27,8 @@ export function StudySession({ questions, onFinish }: StudySessionProps) {
   const handleNext = () => {
     const nextIndex = currentIndex + 1
     if (nextIndex >= total) {
+      const studiedIds = shuffledQuestions.map((q) => q.id)
+      onSave?.({ total_cards: total, question_ids: studiedIds })
       onFinish()
     } else {
       setCurrentIndex(nextIndex)

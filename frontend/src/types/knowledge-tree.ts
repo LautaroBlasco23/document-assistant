@@ -174,3 +174,21 @@ export interface CreateExamSessionPayload {
   question_ids: string[]
   results: Record<string, boolean>
 }
+
+// ---------------------------------------------------------------------------
+// Study session types
+// ---------------------------------------------------------------------------
+
+export interface StudySession {
+  id: string
+  tree_id: string
+  chapter_id: string
+  total_cards: number
+  question_ids: string[]
+  created_at: string
+}
+
+export interface CreateStudySessionPayload {
+  total_cards: number
+  question_ids: string[]
+}

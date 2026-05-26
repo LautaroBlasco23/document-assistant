@@ -71,6 +71,16 @@ class ExamSession:
 
 
 @dataclass
+class StudySession:
+    id: UUID
+    tree_id: UUID
+    chapter_id: UUID
+    total_cards: int
+    question_ids: list[str]
+    created_at: datetime
+
+
+@dataclass
 class KnowledgeChunk:
     id: UUID
     tree_id: UUID

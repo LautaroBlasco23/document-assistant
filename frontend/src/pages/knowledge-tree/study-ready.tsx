@@ -1,4 +1,4 @@
-import { GraduationCap } from 'lucide-react'
+import { BookOpen } from 'lucide-react'
 import { Button } from '../../components/ui/button'
 
 interface StudyTypeCount {
@@ -18,7 +18,7 @@ export function StudyReady({ typeCounts, totalCount, onStart }: StudyReadyProps)
   if (!hasQuestions) {
     return (
       <div className="flex flex-col items-center justify-center py-12 text-center gap-3">
-        <GraduationCap className="h-9 w-9 text-gray-200" />
+        <BookOpen className="h-9 w-9 text-gray-200" />
         <div>
           <p className="text-sm font-medium text-gray-500">No questions or flashcards yet</p>
           <p className="text-xs text-text-tertiary mt-1">

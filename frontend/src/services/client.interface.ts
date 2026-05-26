@@ -19,7 +19,7 @@ import type {
   AuthTokenResponse,
   UserProfile,
 } from '../types/api'
-import type { KnowledgeTree, KnowledgeChapter, KnowledgeDocument, ExamSession, CreateExamSessionPayload } from '../types/knowledge-tree'
+import type { KnowledgeTree, KnowledgeChapter, KnowledgeDocument, ExamSession, CreateExamSessionPayload, StudySession, CreateStudySessionPayload } from '../types/knowledge-tree'
 
 export interface ServiceClient {
   health(): Promise<HealthOut>
@@ -106,6 +106,11 @@ export interface ServiceClient {
   saveExamSession(treeId: string, chapter: number, payload: CreateExamSessionPayload): Promise<ExamSession>
   listExamSessions(treeId: string, chapter: number): Promise<ExamSession[]>
   getExamSession(treeId: string, chapter: number, sessionId: string): Promise<ExamSession>
+
+  // Study Sessions
+  saveStudySession(treeId: string, chapter: number, payload: CreateStudySessionPayload): Promise<StudySession>
+  listStudySessions(treeId: string, chapter: number): Promise<StudySession[]>
+  getStudySession(treeId: string, chapter: number, sessionId: string): Promise<StudySession>
 
   // Provider credentials
   listProviders(): Promise<ProviderInfo[]>

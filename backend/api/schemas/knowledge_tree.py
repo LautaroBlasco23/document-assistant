@@ -152,3 +152,20 @@ class ExamSessionOut(BaseModel):
     question_ids: list[str]
     results: dict[str, bool]
     created_at: str
+
+
+# --- Study Sessions ---
+
+
+class CreateStudySessionRequest(BaseModel):
+    total_cards: int
+    question_ids: list[str]
+
+
+class StudySessionOut(BaseModel):
+    id: str
+    tree_id: str
+    chapter_id: str
+    total_cards: int
+    question_ids: list[str]
+    created_at: str

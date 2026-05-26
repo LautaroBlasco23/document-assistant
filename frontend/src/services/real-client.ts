@@ -22,7 +22,7 @@ import type {
   UserProfile,
 } from '../types/api'
 import type { ServiceClient } from './client.interface'
-import type { KnowledgeTree, KnowledgeChapter, KnowledgeDocument, ExamSession, CreateExamSessionPayload } from '../types/knowledge-tree'
+import type { KnowledgeTree, KnowledgeChapter, KnowledgeDocument, ExamSession, CreateExamSessionPayload, StudySession, CreateStudySessionPayload } from '../types/knowledge-tree'
 
 // Detect if running in Electron
 const isElectron = typeof window !== 'undefined' && !!(window as Window & { desktopAPI?: unknown }).desktopAPI
@@ -501,6 +501,29 @@ export class RealClient implements ServiceClient {
   async getExamSession(treeId: string, chapter: number, sessionId: string): Promise<ExamSession> {
     const res = await httpClient.get<ExamSession>(
       `/knowledge-trees/${treeId}/chapters/${chapter}/exam-sessions/${sessionId}`
+    )
+    return res.data
+  }
+
+  // Study Sessions
+  async saveStudySession(treeId: string, chapter: number, payload: CreateStudySessionPayload): Promise<StudySession> {
+    const res = await httpClient.post<StudySession>(
+      `/knowledge-trees/${treeId}/chapters/${chapter}/study-sessions`,
+      payload,
+    )
+    return res.data
+  }
+
+  async listStudySessions(treeId: string, chapter: number): Promise<StudySession[]> {
+    const res = await httpClient.get<StudySession[]>(
+      `/knowledge-trees/${treeId}/chapters/${chapter}/study-sessions`
+    )
+    return res.data
+  }
+
+  async getStudySession(treeId: string, chapter: number, sessionId: string): Promise<StudySession> {
+    const res = await httpClient.get<StudySession>(
+      `/knowledge-trees/${treeId}/chapters/${chapter}/study-sessions/${sessionId}`
     )
     return res.data
   }

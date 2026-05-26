@@ -19,6 +19,7 @@ from api.schemas.knowledge_tree import (
     CreateChapterRequest,
     CreateDocumentRequest,
     CreateExamSessionRequest,
+    CreateStudySessionRequest,
     CreateTreeRequest,
     DocumentPreviewOut,
     ExamSessionOut,
@@ -29,6 +30,7 @@ from api.schemas.knowledge_tree import (
     KnowledgeTreeOut,
     SplitChapterRequest,
     SplitChapterResponse,
+    StudySessionOut,
     UpdateChapterRequest,
     UpdateDocumentRequest,
     UpdateTreeRequest,
@@ -51,7 +53,7 @@ from application.services.tree_import import (
     split_chapter_into_ranges,
 )
 from core.exceptions import ProviderNotConfigured
-from core.model.knowledge_tree import ExamSession, Flashcard
+from core.model.knowledge_tree import ExamSession, Flashcard, StudySession
 from core.model.question import Question, QuestionType
 from infrastructure.config import PROJECT_ROOT
 from infrastructure.ingest.epub_loader import preview_epub
@@ -930,6 +932,94 @@ async def get_exam_session(
         correct_count=session.correct_count,
         question_ids=session.question_ids,
         results=session.results,
+        created_at=session.created_at.isoformat(),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Study sessions
+# ---------------------------------------------------------------------------
+
+
+@router.post(
+    "/knowledge-trees/{tree_id}/chapters/{number}/study-sessions",
+    response_model=StudySessionOut,
+    status_code=201,
+)
+async def save_study_session(
+    tree_id: str,
+    number: int,
+    req: CreateStudySessionRequest,
+    services: ServicesDep,
+) -> StudySessionOut:
+    """Save the results of a study session for a knowledge chapter."""
+    uid, chapter = resolve_chapter(services, tree_id, number)
+
+    session = StudySession(
+        id=uuid4(),
+        tree_id=uid,
+        chapter_id=chapter.id,
+        total_cards=req.total_cards,
+        question_ids=req.question_ids,
+        created_at=datetime.now(),
+    )
+    saved = services.kt_study_store.save_session(session)
+    return StudySessionOut(
+        id=str(saved.id),
+        tree_id=str(saved.tree_id),
+        chapter_id=str(saved.chapter_id),
+        total_cards=saved.total_cards,
+        question_ids=saved.question_ids,
+        created_at=saved.created_at.isoformat(),
+    )
+
+
+@router.get(
+    "/knowledge-trees/{tree_id}/chapters/{number}/study-sessions",
+    response_model=list[StudySessionOut],
+)
+async def list_study_sessions(
+    tree_id: str,
+    number: int,
+    services: ServicesDep,
+) -> list[StudySessionOut]:
+    """List study sessions for a knowledge chapter, newest first."""
+    uid, chapter = resolve_chapter(services, tree_id, number)
+    sessions = services.kt_study_store.list_sessions(uid, chapter.id)
+    return [
+        StudySessionOut(
+            id=str(s.id),
+            tree_id=str(s.tree_id),
+            chapter_id=str(s.chapter_id),
+            total_cards=s.total_cards,
+            question_ids=s.question_ids,
+            created_at=s.created_at.isoformat(),
+        )
+        for s in sessions
+    ]
+
+
+@router.get(
+    "/knowledge-trees/{tree_id}/chapters/{number}/study-sessions/{session_id}",
+    response_model=StudySessionOut,
+)
+async def get_study_session(
+    tree_id: str,
+    number: int,
+    session_id: str,
+    services: ServicesDep,
+) -> StudySessionOut:
+    """Get a single study session by ID."""
+    sid = parse_uuid(session_id, "session_id")
+    session = services.kt_study_store.get_session(sid)
+    if session is None:
+        raise HTTPException(status_code=404, detail="Study session not found")
+    return StudySessionOut(
+        id=str(session.id),
+        tree_id=str(session.tree_id),
+        chapter_id=str(session.chapter_id),
+        total_cards=session.total_cards,
+        question_ids=session.question_ids,
         created_at=session.created_at.isoformat(),
     )
 

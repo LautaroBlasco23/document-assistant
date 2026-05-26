@@ -15,6 +15,7 @@ from core.model.knowledge_tree import (
     KnowledgeChunk,
     KnowledgeDocument,
     KnowledgeTree,
+    StudySession,
 )
 from core.model.question import Question, QuestionType
 from infrastructure.db.postgres import PostgresConnection
@@ -855,6 +856,70 @@ def _row_to_exam_session(row: dict) -> ExamSession:
         correct_count=row["correct_count"],
         question_ids=list(row["question_ids"]),
         results={str(k): bool(v) for k, v in row["results"].items()},
+        created_at=_ensure_naive(row["created_at"]),
+    )
+
+
+class PostgresStudySessionStore(_BaseKnowledgeRepo):
+    """CRUD for study_sessions table."""
+
+    def save_session(self, session: StudySession) -> StudySession:
+        with self._pool.lock:
+            conn = self._conn()
+            with conn.transaction():
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "INSERT INTO study_sessions"
+                        " (id, tree_id, chapter_id, total_cards, question_ids, created_at)"
+                        " VALUES (%s, %s, %s, %s, %s::jsonb, %s)"
+                        " RETURNING id, tree_id, chapter_id, total_cards, question_ids, created_at",
+                        (
+                            session.id,
+                            session.tree_id,
+                            session.chapter_id,
+                            session.total_cards,
+                            json.dumps(session.question_ids),
+                            session.created_at,
+                        ),
+                    )
+                    row = cur.fetchone()
+        return _row_to_study_session(row)
+
+    def list_sessions(self, tree_id: UUID, chapter_id: UUID) -> list[StudySession]:
+        conn = self._conn()
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT id, tree_id, chapter_id, total_cards, question_ids, created_at"
+                " FROM study_sessions"
+                " WHERE tree_id = %s AND chapter_id = %s"
+                " ORDER BY created_at DESC",
+                (tree_id, chapter_id),
+            )
+            rows = cur.fetchall()
+        return [_row_to_study_session(row) for row in rows]
+
+    def get_session(self, session_id: UUID) -> StudySession | None:
+        conn = self._conn()
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT id, tree_id, chapter_id, total_cards, question_ids, created_at"
+                " FROM study_sessions"
+                " WHERE id = %s",
+                (session_id,),
+            )
+            row = cur.fetchone()
+        if row is None:
+            return None
+        return _row_to_study_session(row)
+
+
+def _row_to_study_session(row: dict) -> StudySession:
+    return StudySession(
+        id=row["id"],
+        tree_id=row["tree_id"],
+        chapter_id=row["chapter_id"],
+        total_cards=row["total_cards"],
+        question_ids=list(row["question_ids"]),
         created_at=_ensure_naive(row["created_at"]),
     )
 

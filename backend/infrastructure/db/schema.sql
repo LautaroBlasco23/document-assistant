@@ -265,3 +265,18 @@ CREATE TABLE IF NOT EXISTS exam_sessions (
 );
 
 CREATE INDEX IF NOT EXISTS idx_exam_sessions_tree_chapter ON exam_sessions(tree_id, chapter_id);
+
+-- ============================================
+-- STUDY SESSIONS
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS study_sessions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tree_id UUID NOT NULL REFERENCES knowledge_trees(id) ON DELETE CASCADE,
+    chapter_id UUID NOT NULL REFERENCES knowledge_chapters(id) ON DELETE CASCADE,
+    total_cards INT NOT NULL,
+    question_ids JSONB NOT NULL DEFAULT '[]'::jsonb,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_study_sessions_tree_chapter ON study_sessions(tree_id, chapter_id);

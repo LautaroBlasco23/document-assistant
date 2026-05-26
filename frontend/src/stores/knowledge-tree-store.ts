@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { KnowledgeTree, KnowledgeChapter, KnowledgeDocument, ExamQuestion, ExamSession, CreateExamSessionPayload } from '../types/knowledge-tree'
+import type { KnowledgeTree, KnowledgeChapter, KnowledgeDocument, ExamQuestion, ExamSession, CreateExamSessionPayload, StudySession, CreateStudySessionPayload } from '../types/knowledge-tree'
 import { mapApiQuestionToExamQuestion } from '../types/knowledge-tree'
 import type { KnowledgeTreeQuestionType, FlashcardOut } from '../types/api'
 import { client } from '../services'
@@ -32,6 +32,10 @@ interface KnowledgeTreeState {
   // Exam sessions keyed by `${treeId}:${chapterNumber}`
   examSessionsByChapter: Record<QuestionChapterKey, ExamSession[]>
   examSessionsLoading: Record<QuestionChapterKey, boolean>
+
+  // Study sessions keyed by `${treeId}:${chapterNumber}`
+  studySessionsByChapter: Record<QuestionChapterKey, StudySession[]>
+  studySessionsLoading: Record<QuestionChapterKey, boolean>
 
   fetchTrees: () => Promise<void>
   createTree: (title: string, description?: string) => Promise<KnowledgeTree>
@@ -67,6 +71,9 @@ interface KnowledgeTreeState {
 
   saveExamSession: (treeId: string, chapter: number, payload: CreateExamSessionPayload) => Promise<ExamSession>
   fetchExamSessions: (treeId: string, chapter: number) => Promise<void>
+
+  saveStudySession: (treeId: string, chapter: number, payload: CreateStudySessionPayload) => Promise<StudySession>
+  fetchStudySessions: (treeId: string, chapter: number) => Promise<void>
 }
 
 function docKey(treeId: string, chapter: number | null) {
@@ -96,6 +103,8 @@ export const useKnowledgeTreeStore = create<KnowledgeTreeState>((set, get) => ({
   flashcardsLoading: {},
   examSessionsByChapter: {},
   examSessionsLoading: {},
+  studySessionsByChapter: {},
+  studySessionsLoading: {},
 
   fetchTrees: async () => {
     set({ treesLoading: true })
@@ -380,6 +389,29 @@ export const useKnowledgeTreeStore = create<KnowledgeTreeState>((set, get) => ({
       set((s) => ({ examSessionsByChapter: { ...s.examSessionsByChapter, [key]: sessions } }))
     } finally {
       set((s) => ({ examSessionsLoading: { ...s.examSessionsLoading, [key]: false } }))
+    }
+  },
+
+  saveStudySession: async (treeId, chapter, payload) => {
+    const session = await client.saveStudySession(treeId, chapter, payload)
+    const key = questionKey(treeId, chapter)
+    set((s) => ({
+      studySessionsByChapter: {
+        ...s.studySessionsByChapter,
+        [key]: [session, ...(s.studySessionsByChapter[key] ?? [])],
+      },
+    }))
+    return session
+  },
+
+  fetchStudySessions: async (treeId, chapter) => {
+    const key = questionKey(treeId, chapter)
+    set((s) => ({ studySessionsLoading: { ...s.studySessionsLoading, [key]: true } }))
+    try {
+      const sessions = await client.listStudySessions(treeId, chapter)
+      set((s) => ({ studySessionsByChapter: { ...s.studySessionsByChapter, [key]: sessions } }))
+    } finally {
+      set((s) => ({ studySessionsLoading: { ...s.studySessionsLoading, [key]: false } }))
     }
   },
 }))

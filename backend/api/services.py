@@ -17,6 +17,7 @@ from infrastructure.db.knowledge_tree_repository import (
     PostgresKnowledgeDocumentStore,
     PostgresKnowledgeQuestionStore,
     PostgresKnowledgeTreeStore,
+    PostgresStudySessionStore,
 )
 from infrastructure.db.llm_credential_repository import PostgresLLMCredentialStore
 from infrastructure.db.postgres import PostgresConnection
@@ -49,6 +50,7 @@ class Services:
     kt_question_store: PostgresKnowledgeQuestionStore
     kt_flashcard_store: PostgresFlashcardStore
     kt_exam_store: PostgresExamSessionStore
+    kt_study_store: PostgresStudySessionStore
     agent_store: PostgresAgentRepository
     llm_credential_store: PostgresLLMCredentialStore
     encryption: EncryptionService
@@ -83,6 +85,7 @@ def init_services(config: AppConfig | None = None) -> Services:
     kt_question_store = PostgresKnowledgeQuestionStore(pg_pool)
     kt_flashcard_store = PostgresFlashcardStore(pg_pool)
     kt_exam_store = PostgresExamSessionStore(pg_pool)
+    kt_study_store = PostgresStudySessionStore(pg_pool)
     agent_store = PostgresAgentRepository(pg_pool)
     llm_credential_store = PostgresLLMCredentialStore(pg_pool)
     _enc_key = config.auth.encryption_key
@@ -105,6 +108,7 @@ def init_services(config: AppConfig | None = None) -> Services:
         kt_question_store=kt_question_store,
         kt_flashcard_store=kt_flashcard_store,
         kt_exam_store=kt_exam_store,
+        kt_study_store=kt_study_store,
         agent_store=agent_store,
         llm_credential_store=llm_credential_store,
         encryption=encryption,
