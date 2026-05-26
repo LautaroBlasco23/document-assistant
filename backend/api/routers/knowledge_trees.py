@@ -86,6 +86,7 @@ def _chapter_out(ch) -> KnowledgeChapterOut:
         tree_id=str(ch.tree_id),
         number=ch.number,
         title=ch.title,
+        status=ch.status,
         created_at=ch.created_at.isoformat(),
     )
 
@@ -407,6 +408,16 @@ async def update_chapter(
     except ValueError:
         raise HTTPException(status_code=404, detail=f"Chapter {number} not found")
     return _chapter_out(updated)
+
+
+@router.post(
+    "/knowledge-trees/{tree_id}/chapters/{number}/mark-read",
+    status_code=204,
+)
+async def mark_chapter_read(tree_id: str, number: int, services: ServicesDep) -> None:
+    """Mark a chapter as read."""
+    uid = parse_uuid(tree_id, "tree_id")
+    services.kt_chapter_store.mark_chapter_read(uid, number)
 
 
 @router.delete(

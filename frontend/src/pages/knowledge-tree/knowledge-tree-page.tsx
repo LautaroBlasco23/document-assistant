@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { useParams, Link, useSearchParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, TreePine, Layers, Pencil, Plus, FileText, BookMarked, Check, X, Trash2, FolderOpen, Download } from 'lucide-react'
+import { ArrowLeft, TreePine, Layers, Pencil, Plus, FileText, BookMarked, Check, X, Trash2, FolderOpen, Download, BookOpenCheck } from 'lucide-react'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../../components/ui/tabs'
 import { Badge } from '../../components/ui/badge'
 import { Button } from '../../components/ui/button'
@@ -51,7 +51,7 @@ function SectionsSidebar({
   onChapterChange,
   onChaptersRefresh,
 }: SectionsSidebarProps) {
-  const { createChapter, updateChapter, deleteChapter } = useKnowledgeTreeStore()
+  const { createChapter, updateChapter, deleteChapter, markChapterRead } = useKnowledgeTreeStore()
 
   const [editingChapter, setEditingChapter] = React.useState<{ number: number; title: string } | null>(null)
   const [showNewChapter, setShowNewChapter] = React.useState(false)
@@ -137,8 +137,13 @@ function SectionsSidebar({
       {/* Chapters */}
       <p className="text-xs font-medium text-text-tertiary uppercase tracking-wide px-2 mb-1">Chapters</p>
 
-      {chapters.map((ch) => (
-        <div key={ch.number} className="group flex flex-col">
+          {chapters.map((ch) => (
+        <div
+          key={ch.number}
+          className={`group flex flex-col rounded-md ${
+            ch.status === 'read' ? 'bg-green-50 dark:bg-green-950/20' : ''
+          }`}
+        >
           {editingChapter?.number === ch.number ? (
             <form
               onSubmit={(e) => { e.preventDefault(); void handleRenameChapter(ch.number, editingChapter.title) }}
@@ -170,6 +175,17 @@ function SectionsSidebar({
                 <FileText className="h-3.5 w-3.5 shrink-0" />
                 <span className="truncate">{ch.title}</span>
               </button>
+              {ch.status === 'read' ? (
+                <BookOpenCheck className="h-3 w-3 mr-1 text-success shrink-0" />
+              ) : (
+                <button
+                  onClick={() => void markChapterRead(treeId, ch.number)}
+                  className="opacity-0 group-hover:opacity-100 p-1 text-text-tertiary hover:text-success transition-opacity rounded"
+                  aria-label={`Mark chapter ${ch.title} as read`}
+                >
+                  <Check className="h-3 w-3" />
+                </button>
+              )}
               <button
                 onClick={() => setEditingChapter({ number: ch.number, title: ch.title })}
                 className="opacity-0 group-hover:opacity-100 p-1 text-text-tertiary hover:text-gray-700 dark:hover:text-slate-200 transition-opacity rounded"

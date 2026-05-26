@@ -72,6 +72,8 @@ interface KnowledgeTreeState {
   saveExamSession: (treeId: string, chapter: number, payload: CreateExamSessionPayload) => Promise<ExamSession>
   fetchExamSessions: (treeId: string, chapter: number) => Promise<void>
 
+  markChapterRead: (treeId: string, chapterNumber: number) => Promise<void>
+
   saveStudySession: (treeId: string, chapter: number, payload: CreateStudySessionPayload) => Promise<StudySession>
   fetchStudySessions: (treeId: string, chapter: number) => Promise<void>
 }
@@ -390,6 +392,18 @@ export const useKnowledgeTreeStore = create<KnowledgeTreeState>((set, get) => ({
     } finally {
       set((s) => ({ examSessionsLoading: { ...s.examSessionsLoading, [key]: false } }))
     }
+  },
+
+  markChapterRead: async (treeId, chapterNumber) => {
+    await client.markKnowledgeChapterRead(treeId, chapterNumber)
+    set((s) => ({
+      chapters: {
+        ...s.chapters,
+        [treeId]: (s.chapters[treeId] ?? []).map((c) =>
+          c.number === chapterNumber ? { ...c, status: 'read' } : c
+        ),
+      },
+    }))
   },
 
   saveStudySession: async (treeId, chapter, payload) => {

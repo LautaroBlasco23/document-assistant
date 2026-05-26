@@ -12,6 +12,7 @@ export interface KnowledgeChapter {
   id: string
   number: number
   title: string
+  status: string
   tree_id: string
 }
 

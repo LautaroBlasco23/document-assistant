@@ -145,7 +145,7 @@ class PostgresKnowledgeChapterStore(_BaseKnowledgeRepo):
         conn = self._conn()
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT id, tree_id, number, title, created_at"
+                "SELECT id, tree_id, number, title, status, created_at"
                 " FROM knowledge_chapters WHERE tree_id = %s ORDER BY number",
                 (tree_id,),
             )
@@ -156,6 +156,7 @@ class PostgresKnowledgeChapterStore(_BaseKnowledgeRepo):
                 tree_id=row["tree_id"],
                 number=row["number"],
                 title=row["title"],
+                status=row["status"],
                 created_at=_ensure_naive(row["created_at"]),
             )
             for row in rows
@@ -211,6 +212,15 @@ class PostgresKnowledgeChapterStore(_BaseKnowledgeRepo):
             title=row["title"],
             created_at=_ensure_naive(row["created_at"]),
         )
+
+    def mark_chapter_read(self, tree_id: UUID, number: int) -> None:
+        conn = self._conn()
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE knowledge_chapters SET status = 'read'"
+                " WHERE tree_id = %s AND number = %s",
+                (tree_id, number),
+            )
 
     def delete_chapter(self, tree_id: UUID, number: int) -> None:
         with self._pool.lock:

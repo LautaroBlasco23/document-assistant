@@ -83,9 +83,14 @@ CREATE TABLE IF NOT EXISTS knowledge_chapters (
     tree_id UUID NOT NULL REFERENCES knowledge_trees(id) ON DELETE CASCADE,
     number INTEGER NOT NULL,
     title TEXT NOT NULL,
+    status VARCHAR(16) NOT NULL DEFAULT 'pending',
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    UNIQUE(tree_id, number)
+    UNIQUE(tree_id, number),
+    CHECK (status IN ('pending', 'read'))
 );
+
+-- Idempotent: add status column to knowledge_chapters
+ALTER TABLE knowledge_chapters ADD COLUMN IF NOT EXISTS status VARCHAR(16) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'read'));
 
 -- ============================================
 -- KNOWLEDGE DOCUMENTS (with page range)

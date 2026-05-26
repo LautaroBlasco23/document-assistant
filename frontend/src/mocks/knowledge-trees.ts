@@ -19,13 +19,13 @@ export const mockKnowledgeTrees: KnowledgeTree[] = [
 
 export const mockKnowledgeChapters: Record<string, KnowledgeChapter[]> = {
   'tree-ml': [
-    { id: 'ch-ml-1', number: 1, title: 'Supervised Learning', tree_id: 'tree-ml' },
-    { id: 'ch-ml-2', number: 2, title: 'Unsupervised Learning', tree_id: 'tree-ml' },
-    { id: 'ch-ml-3', number: 3, title: 'Neural Networks & Deep Learning', tree_id: 'tree-ml' },
+    { id: 'ch-ml-1', number: 1, title: 'Supervised Learning', status: 'pending', tree_id: 'tree-ml' },
+    { id: 'ch-ml-2', number: 2, title: 'Unsupervised Learning', status: 'pending', tree_id: 'tree-ml' },
+    { id: 'ch-ml-3', number: 3, title: 'Neural Networks & Deep Learning', status: 'pending', tree_id: 'tree-ml' },
   ],
   'tree-clean-arch': [
-    { id: 'ch-ca-1', number: 1, title: 'SOLID Principles', tree_id: 'tree-clean-arch' },
-    { id: 'ch-ca-2', number: 2, title: 'Layered Architecture', tree_id: 'tree-clean-arch' },
+    { id: 'ch-ca-1', number: 1, title: 'SOLID Principles', status: 'pending', tree_id: 'tree-clean-arch' },
+    { id: 'ch-ca-2', number: 2, title: 'Layered Architecture', status: 'pending', tree_id: 'tree-clean-arch' },
   ],
 }
 

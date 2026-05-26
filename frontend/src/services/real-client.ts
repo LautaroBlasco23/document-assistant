@@ -151,6 +151,10 @@ export class RealClient implements ServiceClient {
     return res.data
   }
 
+  async markKnowledgeChapterRead(treeId: string, chapterNumber: number): Promise<void> {
+    await httpClient.post(`/knowledge-trees/${treeId}/chapters/${chapterNumber}/mark-read`)
+  }
+
   // Knowledge Trees
   async listKnowledgeTrees(): Promise<KnowledgeTree[]> {
     const res = await httpClient.get<KnowledgeTree[]>('/knowledge-trees')

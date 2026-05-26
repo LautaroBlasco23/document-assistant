@@ -78,6 +78,7 @@ class KnowledgeChapterOut(BaseModel):
     tree_id: str
     number: int
     title: str
+    status: str = "pending"
     created_at: str
 
 

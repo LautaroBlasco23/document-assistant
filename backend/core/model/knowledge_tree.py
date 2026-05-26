@@ -21,6 +21,7 @@ class KnowledgeChapter:
     number: int  # 1-based, user-facing
     title: str
     created_at: datetime
+    status: str = "pending"
 
 
 @dataclass

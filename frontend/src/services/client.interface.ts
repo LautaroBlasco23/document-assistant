@@ -35,6 +35,8 @@ export interface ServiceClient {
   deleteAgent(id: string): Promise<void>
   getDefaultAgent(): Promise<AgentOut>
 
+  markKnowledgeChapterRead(treeId: string, chapterNumber: number): Promise<void>
+
   // Knowledge Trees
   listKnowledgeTrees(): Promise<KnowledgeTree[]>
   createKnowledgeTree(title: string, description?: string): Promise<KnowledgeTree>

@@ -210,7 +210,7 @@ export class MockClient implements ServiceClient {
     await delay(150)
     const existing = this.chapters.get(treeId) ?? []
     const number = existing.length + 1
-    const chapter: KnowledgeChapter = { id: crypto.randomUUID(), number, title, tree_id: treeId }
+    const chapter: KnowledgeChapter = { id: crypto.randomUUID(), number, title, status: 'pending', tree_id: treeId }
     this.chapters.set(treeId, [...existing, chapter])
     const tree = this.trees.find((t) => t.id === treeId)
     if (tree) tree.num_chapters = number
@@ -224,6 +224,13 @@ export class MockClient implements ServiceClient {
     if (!chapter) throw new Error(`Chapter not found: ${chapterNumber}`)
     chapter.title = title
     return { ...chapter }
+  }
+
+  async markKnowledgeChapterRead(treeId: string, chapterNumber: number): Promise<void> {
+    await delay(100)
+    const existing = this.chapters.get(treeId) ?? []
+    const chapter = existing.find((c) => c.number === chapterNumber)
+    if (chapter) chapter.status = 'read'
   }
 
   async deleteKnowledgeChapter(treeId: string, chapterNumber: number): Promise<void> {
@@ -355,6 +362,7 @@ export class MockClient implements ServiceClient {
         id: crypto.randomUUID(),
         number: newNumber,
         title: entry.title ?? `Chapter ${newNumber}`,
+        status: 'pending',
         tree_id: treeId,
       }
       newChapters.push(newChapter)
