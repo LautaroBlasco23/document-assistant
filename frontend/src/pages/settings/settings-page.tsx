@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { Link } from 'react-router-dom'
-import { CreditCard, Bot, Plus, Info } from 'lucide-react'
+import { CreditCard, Bot, Plus, Trash2, Info } from 'lucide-react'
 import { Card } from '../../components/ui/card'
 import { Badge } from '../../components/ui/badge'
 import { Button } from '../../components/ui/button'
@@ -13,6 +13,7 @@ import { useAgents } from '../../hooks/use-agents'
 import { useModels } from '../../hooks/use-models'
 import { useProviderCredentials } from '../../hooks/useProviderCredentials'
 import { client } from '../../services'
+import { ConfirmDialog } from '../../components/ui/confirm-dialog'
 import { AgentCreationDialog } from './agent-creation-dialog'
 import { ModelSelect } from '../../components/ui/model-select'
 import { ProviderSelect } from '../../components/ui/provider-select'
@@ -62,6 +63,8 @@ export function SettingsPage() {
   const [draftMaxTokens, setDraftMaxTokens] = React.useState(1024)
   const [saving, setSaving] = React.useState(false)
   const [saveError, setSaveError] = React.useState('')
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = React.useState(false)
+  const [deleting, setDeleting] = React.useState(false)
 
   React.useEffect(() => {
     if (selectedAgent) {
@@ -107,6 +110,23 @@ export function SettingsPage() {
       setSaveError((e as Error).message || 'Failed to save')
     } finally {
       setSaving(false)
+    }
+  }
+
+  const handleDelete = async () => {
+    if (!selectedAgent) return
+    setDeleting(true)
+    try {
+      await client.deleteAgent(selectedAgent.id)
+      if (settings.agent_id === selectedAgent.id) {
+        setAgent('')
+      }
+      refreshAgents()
+    } catch (e) {
+      setSaveError((e as Error).message || 'Failed to delete')
+    } finally {
+      setDeleting(false)
+      setDeleteConfirmOpen(false)
     }
   }
 
@@ -355,17 +375,36 @@ export function SettingsPage() {
                   </div>
                 )}
 
-                {isDirty && (
-                  <div className="flex justify-end">
+                <div className="flex items-center justify-between pt-2 border-t border-surface-200 dark:border-surface-200">
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => setDeleteConfirmOpen(true)}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    Delete agent
+                  </Button>
+                  {isDirty && (
                     <Button variant="primary" onClick={handleSave} disabled={saving}>
                       {saving ? 'Saving...' : 'Save changes'}
                     </Button>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             )}
           </div>
         </Card>
+
+        <ConfirmDialog
+          open={deleteConfirmOpen}
+          onOpenChange={setDeleteConfirmOpen}
+          title="Delete agent"
+          description={`Are you sure you want to delete "${selectedAgent?.name}"? This action cannot be undone.`}
+          confirmLabel={deleting ? 'Deleting...' : 'Delete'}
+          variant="destructive"
+          loading={deleting}
+          onConfirm={handleDelete}
+        />
 
         <AgentCreationDialog
           open={createDialogOpen}
