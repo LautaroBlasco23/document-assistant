@@ -30,29 +30,6 @@ class PostgresAgentRepository(AgentRepository):
             conn.rollback()
         return conn
 
-    def ensure_default(self, user_id: UUID, model: str) -> Agent | None:
-        """Ensure the user has a default agent. Creates one if not found."""
-        existing = self.get_default(user_id)
-        if existing:
-            return existing
-        agent = Agent(
-            user_id=user_id,
-            name="Default",
-            model=model,
-            provider="groq",
-            temperature=0.7,
-            top_p=1.0,
-            max_tokens=1024,
-            is_default=True,
-            prompt=(
-                "You are a knowledgeable assistant specialized in helping users deeply understand "
-                "and retain the content of their documents. Your goal is to generate valuable "
-                "knowledge-related content — clear explanations, insightful summaries, and "
-                "connections between concepts — to support effective learning."
-            ),
-        )
-        return self.create(agent)
-
     def list_by_user(self, user_id: UUID) -> list[Agent]:
         conn = self._conn()
         with conn.cursor() as cur:
@@ -161,8 +138,6 @@ class PostgresAgentRepository(AgentRepository):
         agent = self.get_by_id(agent_id)
         if agent is None:
             raise ValueError("Agent not found")
-        if agent.is_default:
-            raise ValueError("Cannot delete the default agent")
         with self._pool.lock:
             conn = self._conn()
             with conn.transaction():

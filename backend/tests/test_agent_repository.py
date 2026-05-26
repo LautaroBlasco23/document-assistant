@@ -244,25 +244,24 @@ def test_update_duplicate_name_raises():
 # delete
 # ---------------------------------------------------------------------------
 
-def test_delete_non_default_agent():
-    """delete must remove a non-default agent."""
+def test_delete_agent():
+    """delete must remove an agent."""
     pool, cur, _ = _make_pool_and_cursor()
     cur.fetchone.return_value = _agent_row(is_default=False)
 
     repo = PostgresAgentRepository(pool)
     repo.delete(FIXED_UUID)
 
+    assert cur.execute.call_count == 2
+    args, _ = cur.execute.call_args
+    sql, params = args
+    assert sql == "DELETE FROM agents WHERE id = %s"
+    assert params == (FIXED_UUID,)
+
     assert cur.execute.call_count == 2  # SELECT for lookup + DELETE
 
 
-def test_delete_default_agent_raises():
-    """delete must raise ValueError when attempting to delete the default agent."""
-    pool, cur, _ = _make_pool_and_cursor()
-    cur.fetchone.return_value = _agent_row(is_default=True)
 
-    repo = PostgresAgentRepository(pool)
-    with pytest.raises(ValueError, match="Cannot delete the default agent"):
-        repo.delete(FIXED_UUID)
 
 
 def test_delete_nonexistent_agent_raises():
@@ -275,38 +274,4 @@ def test_delete_nonexistent_agent_raises():
         repo.delete(FIXED_UUID)
 
 
-# ---------------------------------------------------------------------------
-# ensure_default
-# ---------------------------------------------------------------------------
 
-def test_ensure_default_returns_existing():
-    """ensure_default must return the existing default agent without creating a new one."""
-    pool, cur, _ = _make_pool_and_cursor()
-    cur.fetchone.return_value = _agent_row(is_default=True, name="Existing Default")
-
-    repo = PostgresAgentRepository(pool)
-    agent = repo.ensure_default(FIXED_USER_ID, "llama-3.3-70b")
-
-    assert agent is not None
-    assert agent.name == "Existing Default"
-    # Only one execute call (the get_default SELECT), no INSERT
-    assert cur.execute.call_count == 1
-
-
-def test_ensure_default_creates_when_missing():
-    """ensure_default must create a default agent when none exists."""
-    pool, cur, _ = _make_pool_and_cursor()
-    # First call: get_default returns None
-    # Second call: create INSERT returns new agent
-    cur.fetchone.side_effect = [
-        None,
-        _agent_row(name="Default", is_default=True, model="llama-3.3-70b"),
-    ]
-
-    repo = PostgresAgentRepository(pool)
-    agent = repo.ensure_default(FIXED_USER_ID, "llama-3.3-70b")
-
-    assert agent is not None
-    assert agent.name == "Default"
-    assert agent.model == "llama-3.3-70b"
-    assert agent.is_default is True

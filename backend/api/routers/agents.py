@@ -68,22 +68,7 @@ async def list_agents(
     current_user: CurrentUser,
     services: ServicesDep,
 ) -> list[AgentOut]:
-    """List all agents for the current user, ensuring a default exists."""
-    # Ensure default agent exists
-    provider = services.config.llm_provider
-    if provider == "groq":
-        current_model = services.config.groq.model
-    elif provider == "nvidia":
-        current_model = services.config.nvidia.model
-    elif provider == "gemini":
-        current_model = services.config.gemini.model
-    elif provider == "openrouter":
-        current_model = services.config.openrouter.model
-    elif provider == "huggingface":
-        current_model = services.config.huggingface.model
-    else:
-        current_model = services.config.ollama.generation_model
-    services.agent_store.ensure_default(current_user.id, current_model)
+    """List all agents for the current user."""
     agents = services.agent_store.list_by_user(current_user.id)
     return [_agent_out(a) for a in agents]
 
@@ -171,7 +156,7 @@ async def delete_agent(
     current_user: CurrentUser,
     services: ServicesDep,
 ) -> None:
-    """Delete an agent. Cannot delete the default agent."""
+    """Delete an agent."""
     from uuid import UUID as _UUID
     try:
         uid = _UUID(agent_id)

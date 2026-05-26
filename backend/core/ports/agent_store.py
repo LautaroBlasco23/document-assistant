@@ -27,4 +27,4 @@ class AgentRepository(ABC):
 
     @abstractmethod
     def delete(self, agent_id: UUID) -> None:
-        """Delete an agent (cannot delete the default agent)."""
+        """Delete an agent."""

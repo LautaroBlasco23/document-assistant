@@ -104,10 +104,7 @@ def _build_unauth_client(mock_services_):
 # ---------------------------------------------------------------------------
 
 def test_list_agents_returns_empty_list(test_client, mock_services):
-    """When the user has no agents, the default is auto-created and the list
-    should not be empty (ensure_default is called), but if the store returns
-    an empty list, the endpoint returns an empty array."""
-    mock_services.agent_store.ensure_default = MagicMock()
+    """When the user has no agents, the endpoint returns an empty array."""
     mock_services.agent_store.list_by_user.return_value = []
 
     response = test_client.get("/api/agents")
@@ -121,7 +118,6 @@ def test_list_agents_returns_empty_list(test_client, mock_services):
 def test_list_agents_returns_existing_agents(test_client, mock_services):
     """When agents exist for the user, they are returned as AgentOut items."""
     agent = _make_agent()
-    mock_services.agent_store.ensure_default = MagicMock()
     mock_services.agent_store.list_by_user.return_value = [agent]
 
     response = test_client.get("/api/agents")
@@ -273,16 +269,7 @@ def test_delete_agent_nonexistent_returns_404(test_client, mock_services):
     assert response.status_code == 404
 
 
-def test_delete_agent_default_returns_400(test_client, mock_services):
-    """Deleting the default agent is not allowed — store raises ValueError → 400."""
-    agent = _make_agent(is_default=True)
-    mock_services.agent_store.get_by_id.return_value = agent
-    mock_services.agent_store.delete.side_effect = ValueError("Cannot delete default")
 
-    response = test_client.delete(f"/api/agents/{FIXED_AGENT_ID}")
-
-    assert response.status_code == 400
-    assert "Cannot delete default" in response.json()["detail"]
 
 
 # ---------------------------------------------------------------------------
