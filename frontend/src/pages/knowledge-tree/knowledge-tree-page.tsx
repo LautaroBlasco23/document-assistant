@@ -12,15 +12,17 @@ import { client } from '../../services'
 import { KnowledgeDocumentsTab } from './knowledge-documents-tab'
 import { AllDocumentsTab } from './all-documents-tab'
 import { ContentTab } from './content-tab'
+import { StudyTab } from './study-tab'
 import { ExamTab } from './exam-tab'
 import { EditKnowledgeTreeDialog } from '../library/edit-knowledge-tree-dialog'
 import type { KnowledgeChapter, KnowledgeTreeTab } from '../../types/knowledge-tree'
 
-const VALID_TABS: KnowledgeTreeTab[] = ['documents', 'content', 'exam']
+const VALID_TABS: KnowledgeTreeTab[] = ['documents', 'content', 'study', 'exam']
 
 const TAB_LABELS: Record<KnowledgeTreeTab, string> = {
   documents: 'Knowledge Documents',
   content: 'Content',
+  study: 'Study',
   exam: 'Exam',
 }
 
@@ -411,6 +413,14 @@ export function KnowledgeTreePage() {
 
               <TabsContent value="content">
                 <ContentTab
+                  treeId={treeId}
+                  selectedChapter={selectedChapter}
+                  chapters={treeChapters}
+                />
+              </TabsContent>
+
+              <TabsContent value="study">
+                <StudyTab
                   treeId={treeId}
                   selectedChapter={selectedChapter}
                   chapters={treeChapters}

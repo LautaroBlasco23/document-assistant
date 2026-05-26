@@ -36,7 +36,7 @@ export interface KnowledgeDocument {
   file_type?: string    // 'pdf' | 'epub' | 'txt' | 'md' — null = auto-detect from extension
 }
 
-export type KnowledgeTreeTab = 'documents' | 'content' | 'exam'
+export type KnowledgeTreeTab = 'documents' | 'content' | 'study' | 'exam'
 
 // --- Exam question types ---
 
