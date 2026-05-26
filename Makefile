@@ -1,4 +1,4 @@
-.PHONY: start dev dev-backend mock stop app-logs app-ps dev-kill check clean prune help env-check dev-deps infra-deps tools jwt-secret encryption-key
+.PHONY: dev dev-backend mock app-logs app-ps dev-kill clean prune help env-check dev-deps infra-deps tools jwt-secret encryption-key
 
 DOCKER_COMPOSE := docker compose
 BACKEND_DIR := backend
@@ -13,16 +13,11 @@ help:
 	@echo "    make tools                          Check/install required development tools"
 	@echo "    make tools install                  Install missing tools (auto-installs uv)"
 	@echo ""
-	@echo "  \033[1;32mDocker\033[0m"
-	@echo "    make start                          Build & run all containers (detached)"
-	@echo "    make stop                           Stop all containers"
-	@echo ""
 	@echo "  \033[1;32mDevelopment (host backend + frontend)\033[0m"
 	@echo "    make dev                            Start dev server"
 	@echo ""
 	@echo "  \033[1;32mServices\033[0m"
 	@echo "    make dev-kill                       Force kill backend (8000) & frontend (5173)"
-	@echo "    make check                          Health check all services"
 	@echo ""
 	@echo "  \033[1;32mMaintenance\033[0m"
 	@echo "    make clean                          Remove volumes, cache, generated output"
@@ -31,6 +26,7 @@ help:
 	@echo "  \033[1;32mHelp\033[0m"
 	@echo "    make encryption-key                 Generate a Fernet encryption key for .env"
 	@echo "    make help                           Show this help message"
+
 
 tools-check:
 	@bash scripts/check-tools.sh check || { \
@@ -52,18 +48,6 @@ jwt-secret:
 
 encryption-key:
 	@bash scripts/generate-encryption-key.sh
-
-start: env-check
-	@echo "Building Docker images (current code)..."
-	$(DOCKER_COMPOSE) build
-	@echo "Starting all services (detached)..."
-	$(DOCKER_COMPOSE) up -d --remove-orphans
-
-stop:
-	@echo "Stopping containers and dev processes..."
-	$(DOCKER_COMPOSE) down
-	pkill -f "uvicorn api.main:app" || true
-	pkill -f "npm run dev" || true
 
 dev: env-check tools-check
 	@echo "Starting dev server (dev mode)..."
@@ -90,11 +74,6 @@ dev-kill:
 	@fuser -k 8000/tcp 2>/dev/null || true
 	@fuser -k 5173/tcp 2>/dev/null || true
 	@echo "Processes killed."
-
-check:
-	@echo "Checking service health..."
-	@set -a; [ -f .env ] && . ./.env; set +a; \
-	cd $(BACKEND_DIR) && uv run python -m cli.main check
 
 clean:
 	@echo "Stopping services and removing Docker volumes..."
