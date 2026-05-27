@@ -254,6 +254,18 @@ export class MockClient implements ServiceClient {
     if (tree) tree.num_chapters = Math.max(0, tree.num_chapters - 1)
   }
 
+  async deleteKnowledgeChapters(treeId: string, chapterNumbers: number[]): Promise<void> {
+    await delay(150)
+    const existing = this.chapters.get(treeId) ?? []
+    const deletedSet = new Set(chapterNumbers)
+    this.chapters.set(treeId, existing.filter((c) => !deletedSet.has(c.number)))
+    this.documents = this.documents.filter(
+      (d) => !(d.tree_id === treeId && d.chapter_number !== null && deletedSet.has(d.chapter_number))
+    )
+    const tree = this.trees.find((t) => t.id === treeId)
+    if (tree) tree.num_chapters = Math.max(0, tree.num_chapters - chapterNumbers.length)
+  }
+
   async listKnowledgeDocuments(treeId: string, chapterId?: string | null): Promise<KnowledgeDocument[]> {
     await delay(100)
     if (chapterId === undefined || chapterId === null) {

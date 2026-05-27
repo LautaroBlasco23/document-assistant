@@ -1,6 +1,7 @@
 import * as React from 'react'
 import { useParams, Link, useSearchParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, TreePine, Layers, Pencil, Plus, FileText, BookMarked, Check, X, Trash2, FolderOpen, Download, BookOpenCheck } from 'lucide-react'
+import { cn } from '../../lib/cn'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../../components/ui/tabs'
 import { Badge } from '../../components/ui/badge'
 import { Button } from '../../components/ui/button'
@@ -51,7 +52,7 @@ function SectionsSidebar({
   onChapterChange,
   onChaptersRefresh,
 }: SectionsSidebarProps) {
-  const { createChapter, updateChapter, deleteChapter, markChapterRead } = useKnowledgeTreeStore()
+  const { createChapter, updateChapter, deleteChapter, deleteChapters, markChapterRead } = useKnowledgeTreeStore()
 
   const [editingChapter, setEditingChapter] = React.useState<{ number: number; title: string } | null>(null)
   const [showNewChapter, setShowNewChapter] = React.useState(false)
@@ -60,6 +61,51 @@ function SectionsSidebar({
   const [deleteChapterOpen, setDeleteChapterOpen] = React.useState(false)
   const [deletingChapterNumber, setDeletingChapterNumber] = React.useState<number | null>(null)
   const [deletingChapter, setDeletingChapter] = React.useState(false)
+
+  const [selectedChapters, setSelectedChapters] = React.useState<Set<number>>(new Set())
+  const [bulkDeleteOpen, setBulkDeleteOpen] = React.useState(false)
+  const [bulkDeleting, setBulkDeleting] = React.useState(false)
+
+  const toggleChapterSelection = (number: number) => {
+    setSelectedChapters((prev) => {
+      const next = new Set(prev)
+      if (next.has(number)) {
+        next.delete(number)
+      } else {
+        next.add(number)
+      }
+      return next
+    })
+  }
+
+  const toggleSelectAll = () => {
+    setSelectedChapters((prev) => {
+      if (prev.size === chapters.length) {
+        return new Set()
+      }
+      return new Set(chapters.map((c) => c.number))
+    })
+  }
+
+  const handleBulkDelete = () => {
+    setBulkDeleteOpen(true)
+  }
+
+  const handleConfirmBulkDelete = async () => {
+    if (selectedChapters.size === 0) return
+    setBulkDeleting(true)
+    try {
+      await deleteChapters(treeId, Array.from(selectedChapters))
+      if (selectedChapter !== null && selectedChapters.has(selectedChapter)) {
+        onChapterChange(null)
+      }
+      setSelectedChapters(new Set())
+      onChaptersRefresh()
+    } finally {
+      setBulkDeleting(false)
+      setBulkDeleteOpen(false)
+    }
+  }
 
   const handleCreateChapter = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -137,7 +183,56 @@ function SectionsSidebar({
       {/* Chapters */}
       <p className="text-xs font-medium text-text-tertiary uppercase tracking-wide px-2 mb-1">Chapters</p>
 
-          {chapters.map((ch) => (
+      {/* Select all */}
+      <div className="flex items-center gap-2 px-1 py-1">
+        <button
+          type="button"
+          onClick={toggleSelectAll}
+          className="flex items-center gap-2 text-sm text-text-secondary hover:text-gray-900 dark:hover:text-slate-100 transition-colors"
+        >
+          <div
+            className={cn(
+              'w-4 h-4 rounded border-2 flex items-center justify-center transition-colors',
+              selectedChapters.size === chapters.length && chapters.length > 0
+                ? 'bg-primary border-primary'
+                : 'border-surface-200 dark:border-surface-200 bg-surface dark:bg-surface-200',
+            )}
+          >
+            {selectedChapters.size === chapters.length && chapters.length > 0 && (
+              <Check className="h-2.5 w-2.5 text-white" />
+            )}
+          </div>
+          <span className="text-xs">Select all</span>
+        </button>
+      </div>
+
+      {/* Bulk action bar */}
+      {selectedChapters.size > 0 && (
+        <div className="flex items-center gap-2 px-1 py-1.5 border-b border-surface-200 dark:border-surface-200 mb-1">
+          <span className="text-xs text-text-tertiary flex-1">
+            {selectedChapters.size} of {chapters.length} selected
+          </span>
+          <Button
+            size="sm"
+            variant="destructive"
+            onClick={handleBulkDelete}
+            className="h-6 text-xs"
+          >
+            <Trash2 className="h-3 w-3 mr-1" />
+            Delete
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => setSelectedChapters(new Set())}
+            className="h-6 text-xs"
+          >
+            Clear
+          </Button>
+        </div>
+      )}
+
+      {chapters.map((ch) => (
         <div
           key={ch.number}
           className={`group flex flex-col rounded-md ${
@@ -164,13 +259,37 @@ function SectionsSidebar({
             </form>
           ) : (
             <div className="flex items-center">
-                <button
-                  onClick={() => onChapterChange(ch.number)}
-                  className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm text-left flex-1 min-w-0 transition-colors ${
-                    selectedChapter === ch.number && !showAllDocuments
-                      ? 'bg-primary-light dark:bg-primary/12 text-primary font-medium'
-                      : 'text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100'
-                  }`}
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); toggleChapterSelection(ch.number) }}
+                className={cn(
+                  'p-1 rounded transition-opacity',
+                  selectedChapters.size > 0
+                    ? 'opacity-100'
+                    : 'opacity-0 group-hover:opacity-100',
+                )}
+                aria-label={`Select chapter ${ch.title}`}
+              >
+                <div
+                  className={cn(
+                    'w-4 h-4 rounded border-2 flex items-center justify-center transition-colors',
+                    selectedChapters.has(ch.number)
+                      ? 'bg-primary border-primary'
+                      : 'border-surface-200 dark:border-surface-200 bg-surface dark:bg-surface-200',
+                  )}
+                >
+                  {selectedChapters.has(ch.number) && (
+                    <Check className="h-2.5 w-2.5 text-white" />
+                  )}
+                </div>
+              </button>
+              <button
+                onClick={() => onChapterChange(ch.number)}
+                className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm text-left flex-1 min-w-0 transition-colors ${
+                  selectedChapter === ch.number && !showAllDocuments
+                    ? 'bg-primary-light dark:bg-primary/12 text-primary font-medium'
+                    : 'text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100'
+                }`}
               >
                 <FileText className="h-3.5 w-3.5 shrink-0" />
                 <span className="truncate">{ch.title}</span>
@@ -244,6 +363,17 @@ function SectionsSidebar({
         variant="destructive"
         loading={deletingChapter}
         onConfirm={handleConfirmDeleteChapter}
+      />
+      <ConfirmDialog
+        open={bulkDeleteOpen}
+        onOpenChange={setBulkDeleteOpen}
+        title={`Delete ${selectedChapters.size} chapters?`}
+        description={`Delete ${selectedChapters.size === 1 ? '"' + (chapters.find((c) => c.number === Array.from(selectedChapters)[0])?.title ?? '') + '"' : selectedChapters.size + ' chapters'}? All their documents will be removed.`}
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        variant="destructive"
+        loading={bulkDeleting}
+        onConfirm={handleConfirmBulkDelete}
       />
     </aside>
   )

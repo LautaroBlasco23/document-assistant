@@ -205,6 +205,12 @@ export class RealClient implements ServiceClient {
     await httpClient.delete(`/knowledge-trees/${treeId}/chapters/${chapterNumber}`)
   }
 
+  async deleteKnowledgeChapters(treeId: string, chapterNumbers: number[]): Promise<void> {
+    await Promise.all(
+      chapterNumbers.map((n) => httpClient.delete(`/knowledge-trees/${treeId}/chapters/${n}`))
+    )
+  }
+
   async listKnowledgeDocuments(treeId: string, chapterId?: string | null): Promise<KnowledgeDocument[]> {
     const params: Record<string, unknown> = {}
     if (chapterId !== undefined && chapterId !== null) {

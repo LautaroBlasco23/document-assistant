@@ -46,6 +46,7 @@ interface KnowledgeTreeState {
   createChapter: (treeId: string, title: string) => Promise<KnowledgeChapter>
   updateChapter: (treeId: string, chapterNumber: number, title: string) => Promise<KnowledgeChapter>
   deleteChapter: (treeId: string, chapterNumber: number) => Promise<void>
+  deleteChapters: (treeId: string, chapterNumbers: number[]) => Promise<void>
 
   fetchDocuments: (treeId: string, chapter: number | null, chapterId: string | null) => Promise<void>
   fetchAllDocuments: (treeId: string) => Promise<void>
@@ -173,6 +174,18 @@ export const useKnowledgeTreeStore = create<KnowledgeTreeState>((set, get) => ({
         [treeId]: (s.chapters[treeId] ?? []).filter((c) => c.number !== chapterNumber),
       },
       trees: s.trees.map((t) => t.id === treeId ? { ...t, num_chapters: Math.max(0, t.num_chapters - 1) } : t),
+    }))
+  },
+
+  deleteChapters: async (treeId, chapterNumbers) => {
+    const deleted = new Set(chapterNumbers)
+    await client.deleteKnowledgeChapters(treeId, chapterNumbers)
+    set((s) => ({
+      chapters: {
+        ...s.chapters,
+        [treeId]: (s.chapters[treeId] ?? []).filter((c) => !deleted.has(c.number)),
+      },
+      trees: s.trees.map((t) => t.id === treeId ? { ...t, num_chapters: Math.max(0, t.num_chapters - chapterNumbers.length) } : t),
     }))
   },
 
