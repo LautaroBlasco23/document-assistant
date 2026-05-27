@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { Link } from 'react-router-dom'
-import { CreditCard, Bot, Plus, Trash2, Info } from 'lucide-react'
+import { CreditCard, Bot, Plus, Trash2, Star, Info } from 'lucide-react'
 import { Card } from '../../components/ui/card'
 import { Badge } from '../../components/ui/badge'
 import { Button } from '../../components/ui/button'
@@ -65,6 +65,7 @@ export function SettingsPage() {
   const [saveError, setSaveError] = React.useState('')
   const [deleteConfirmOpen, setDeleteConfirmOpen] = React.useState(false)
   const [deleting, setDeleting] = React.useState(false)
+  const [settingDefault, setSettingDefault] = React.useState(false)
 
   React.useEffect(() => {
     if (selectedAgent) {
@@ -110,6 +111,20 @@ export function SettingsPage() {
       setSaveError((e as Error).message || 'Failed to save')
     } finally {
       setSaving(false)
+    }
+  }
+
+  const handleSetDefault = async () => {
+    if (!selectedAgent || selectedAgent.is_default) return
+    setSettingDefault(true)
+    try {
+      await client.setDefaultAgent(selectedAgent.id)
+      setAgent(selectedAgent.id)
+      refreshAgents()
+    } catch (e) {
+      setSaveError((e as Error).message || 'Failed to set default')
+    } finally {
+      setSettingDefault(false)
     }
   }
 
@@ -215,7 +230,7 @@ export function SettingsPage() {
                 >
                   {agents.map((a) => (
                     <option key={a.id} value={a.id}>
-                      {a.name} — {a.model}
+                      {a.is_default ? '★ ' : ''}{a.name} — {a.model}
                     </option>
                   ))}
                 </select>
@@ -376,14 +391,32 @@ export function SettingsPage() {
                 )}
 
                 <div className="flex items-center justify-between pt-2 border-t border-surface-200 dark:border-surface-200">
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => setDeleteConfirmOpen(true)}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                    Delete agent
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => setDeleteConfirmOpen(true)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      Delete agent
+                    </Button>
+                    {selectedAgent.is_default ? (
+                      <span className="flex items-center gap-1 text-xs text-warning font-medium px-2 py-1 rounded-md bg-warning/10">
+                        <Star className="h-3 w-3 fill-warning" />
+                        Default agent
+                      </span>
+                    ) : (
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={handleSetDefault}
+                        disabled={settingDefault}
+                      >
+                        <Star className="h-4 w-4" />
+                        {settingDefault ? 'Setting...' : 'Set as default'}
+                      </Button>
+                    )}
+                  </div>
                   {isDirty && (
                     <Button variant="primary" onClick={handleSave} disabled={saving}>
                       {saving ? 'Saving...' : 'Save changes'}

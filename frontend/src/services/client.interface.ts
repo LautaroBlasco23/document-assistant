@@ -34,6 +34,7 @@ export interface ServiceClient {
   updateAgent(id: string, req: UpdateAgentRequest): Promise<AgentOut>
   deleteAgent(id: string): Promise<void>
   getDefaultAgent(): Promise<AgentOut>
+  setDefaultAgent(agentId: string): Promise<AgentOut>
 
   markKnowledgeChapterRead(treeId: string, chapterNumber: number): Promise<void>
 

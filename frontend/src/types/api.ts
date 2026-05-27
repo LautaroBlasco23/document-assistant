@@ -173,6 +173,7 @@ export interface UpdateAgentRequest {
   temperature?: number
   top_p?: number
   max_tokens?: number
+  is_default?: boolean
 }
 
 export interface ChatRequest {

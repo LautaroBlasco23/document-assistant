@@ -110,6 +110,12 @@ export class MockClient implements ServiceClient {
       top_p: req.top_p ?? agent.top_p,
       max_tokens: req.max_tokens ?? agent.max_tokens,
     }
+    if (req.is_default === true) {
+      this.agents = this.agents.map((a) => ({ ...a, is_default: a.id === id }))
+      updated.is_default = true
+    } else if (req.is_default === false) {
+      updated.is_default = false
+    }
     this.agents[idx] = updated
     return updated
   }
@@ -124,6 +130,10 @@ export class MockClient implements ServiceClient {
     const def = this.agents.find((a) => a.is_default)
     if (def) return def
     return this.agents[0]
+  }
+
+  async setDefaultAgent(agentId: string): Promise<AgentOut> {
+    return this.updateAgent(agentId, { is_default: true })
   }
 
   async getTaskStatus(taskId: string): Promise<TaskStatusOut> {

@@ -141,6 +141,11 @@ export class RealClient implements ServiceClient {
     return res.data
   }
 
+  async setDefaultAgent(agentId: string): Promise<AgentOut> {
+    const res = await httpClient.put<AgentOut>(`/agents/${agentId}`, { is_default: true })
+    return res.data
+  }
+
   async getTaskStatus(taskId: string): Promise<TaskStatusOut> {
     const res = await httpClient.get<TaskStatusOut>(`/tasks/${taskId}`)
     return res.data
