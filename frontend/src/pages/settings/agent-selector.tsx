@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Plus, ChevronDown } from 'lucide-react'
+import { Plus, ChevronDown, Pencil } from 'lucide-react'
 import { cn } from '../../lib/cn'
 import { useAgents } from '../../hooks/use-agents'
 import { useGenerationSettings } from '../../stores/generation-settings'
@@ -18,6 +18,7 @@ export function AgentSelector({ compact = false }: AgentSelectorProps) {
   const { useCredentials } = useProviderCredentials()
   const { credentials } = useCredentials()
   const [dialogOpen, setDialogOpen] = React.useState(false)
+  const [editDialogOpen, setEditDialogOpen] = React.useState(false)
 
   const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const value = e.target.value
@@ -36,7 +37,8 @@ export function AgentSelector({ compact = false }: AgentSelectorProps) {
   }
 
   const defaultAgent = agents.find((a) => a.is_default)
-  const selectedId = settings.agent_id ?? defaultAgent?.id ?? ''
+  const selectedId = settings.agent_id || defaultAgent?.id || agents[0]?.id || ''
+  const selectedAgent = agents.find((a) => a.id === selectedId)
 
   if (loading || modelsLoading) {
     return (
@@ -75,6 +77,15 @@ export function AgentSelector({ compact = false }: AgentSelectorProps) {
             </select>
             <ChevronDown className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 h-3 w-3 text-text-tertiary" />
           </div>
+          {selectedAgent && (
+            <button
+              onClick={() => setEditDialogOpen(true)}
+              title="Edit agent"
+              className="p-1 rounded text-text-tertiary hover:text-primary transition-colors"
+            >
+              <Pencil className="h-3 w-3" />
+            </button>
+          )}
         </div>
         <AgentCreationDialog
           open={dialogOpen}
@@ -83,6 +94,16 @@ export function AgentSelector({ compact = false }: AgentSelectorProps) {
           currentModel={currentModel}
           onCreated={handleCreated}
           credentials={credentials}
+        />
+        <AgentCreationDialog
+          open={editDialogOpen}
+          onOpenChange={setEditDialogOpen}
+          models={models}
+          currentModel={currentModel}
+          onUpdated={refresh}
+          editAgent={selectedAgent}
+          credentials={credentials}
+          onClose={() => setEditDialogOpen(false)}
         />
       </>
     )
@@ -115,6 +136,15 @@ export function AgentSelector({ compact = false }: AgentSelectorProps) {
           >
             <Plus className="h-4 w-4" />
           </button>
+          {selectedAgent && (
+            <button
+              onClick={() => setEditDialogOpen(true)}
+              title="Edit agent"
+              className="p-2 rounded-md border border-surface-200 dark:border-surface-200 text-text-tertiary hover:bg-primary-light dark:hover:bg-primary/12 hover:text-primary hover:border-primary/40 dark:hover:border-primary/30 transition-colors"
+            >
+              <Pencil className="h-4 w-4" />
+            </button>
+          )}
         </div>
         {selectedId && (
           <p className="text-xs text-text-tertiary leading-relaxed">
@@ -130,6 +160,16 @@ export function AgentSelector({ compact = false }: AgentSelectorProps) {
         currentModel={currentModel}
         onCreated={handleCreated}
         credentials={credentials}
+      />
+      <AgentCreationDialog
+        open={editDialogOpen}
+        onOpenChange={setEditDialogOpen}
+        models={models}
+        currentModel={currentModel}
+        onUpdated={refresh}
+        editAgent={selectedAgent}
+        credentials={credentials}
+        onClose={() => setEditDialogOpen(false)}
       />
     </>
   )

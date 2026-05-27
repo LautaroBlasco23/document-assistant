@@ -51,7 +51,7 @@ export function SettingsPage() {
   const [createDialogOpen, setCreateDialogOpen] = React.useState(false)
 
   const defaultAgent = agents.find((a) => a.is_default)
-  const selectedId = settings.agent_id ?? defaultAgent?.id ?? ''
+  const selectedId = settings.agent_id || defaultAgent?.id || agents[0]?.id || ''
   const selectedAgent = agents.find((a) => a.id === selectedId)
 
   const [draftName, setDraftName] = React.useState('')

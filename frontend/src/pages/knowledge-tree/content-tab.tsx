@@ -10,6 +10,7 @@ import {
   BookMarked,
   ChevronDown,
   BookOpen,
+  Pencil,
 } from 'lucide-react'
 import { Button } from '../../components/ui/button'
 import { Badge } from '../../components/ui/badge'
@@ -738,16 +739,18 @@ function QuestionGenerator({
 
 export function ContentTab({ treeId, selectedChapter, chapters }: ContentTabProps) {
   const [agentDialogOpen, setAgentDialogOpen] = React.useState(false)
+  const [editAgentDialogOpen, setEditAgentDialogOpen] = React.useState(false)
 
   const store = useKnowledgeTreeStore()
   const { settings, setAgent } = useGenerationSettings()
-  const { agents, loading: agentsLoading } = useAgents()
+  const { agents, loading: agentsLoading, refresh: refreshAgents } = useAgents()
   const { models, currentModel, loading: modelsLoading } = useModels({ recommendedFor: 'questions' })
   const { useCredentials } = useProviderCredentials()
   const { credentials } = useCredentials()
 
   const defaultAgent = agents.find((a) => a.is_default)
-  const selectedAgentId = settings.agent_id ?? defaultAgent?.id ?? ''
+  const selectedAgentId = settings.agent_id || defaultAgent?.id || agents[0]?.id || ''
+  const selectedAgent = agents.find((a) => a.id === selectedAgentId)
 
   const handleAgentChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const value = e.target.value
@@ -826,6 +829,15 @@ export function ContentTab({ treeId, selectedChapter, chapters }: ContentTabProp
                 </select>
                 <ChevronDown className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 h-3 w-3 text-text-tertiary" />
               </div>
+              {selectedAgent && (
+                <button
+                  onClick={() => setEditAgentDialogOpen(true)}
+                  title="Edit agent"
+                  className="p-1 rounded text-text-tertiary hover:text-primary transition-colors"
+                >
+                  <Pencil className="h-3 w-3" />
+                </button>
+              )}
             </div>
           )}
           <AgentCreationDialog
@@ -835,6 +847,16 @@ export function ContentTab({ treeId, selectedChapter, chapters }: ContentTabProp
             currentModel={currentModel}
             onCreated={(id) => setAgent(id)}
             credentials={credentials}
+          />
+          <AgentCreationDialog
+            open={editAgentDialogOpen}
+            onOpenChange={setEditAgentDialogOpen}
+            models={models}
+            currentModel={currentModel}
+            onUpdated={refreshAgents}
+            editAgent={selectedAgent}
+            credentials={credentials}
+            onClose={() => setEditAgentDialogOpen(false)}
           />
 
           <p className="text-xs text-text-tertiary">

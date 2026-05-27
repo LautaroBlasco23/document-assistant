@@ -22,14 +22,16 @@ interface ContentPanelProps {
 export function ContentPanel({ treeId, chapter }: ContentPanelProps) {
   const items = usePendingContent((s) => s.items)
   const { settings, setAgent } = useGenerationSettings()
-  const { agents, loading: agentsLoading } = useAgents()
+  const { agents, loading: agentsLoading, refresh: refreshAgents } = useAgents()
   const { models, currentModel, loading: modelsLoading } = useModels()
   const { useCredentials } = useProviderCredentials()
   const { credentials } = useCredentials()
   const [agentDialogOpen, setAgentDialogOpen] = React.useState(false)
+  const [editAgentDialogOpen, setEditAgentDialogOpen] = React.useState(false)
 
   const defaultAgent = agents.find((a) => a.is_default)
-  const selectedAgentId = settings.agent_id ?? defaultAgent?.id ?? ''
+  const selectedAgentId = settings.agent_id || defaultAgent?.id || agents[0]?.id || ''
+  const selectedAgent = agents.find((a) => a.id === selectedAgentId)
 
   const handleAgentChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const value = e.target.value
@@ -61,18 +63,37 @@ export function ContentPanel({ treeId, chapter }: ContentPanelProps) {
               </option>
               <option value="__create__">+ Create new agent</option>
             </select>
-            <ChevronDown className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 h-3 w-3 text-text-tertiary" />
-          </div>
-        </div>
-      )}
-      <AgentCreationDialog
-        open={agentDialogOpen}
-        onOpenChange={setAgentDialogOpen}
-        models={models}
-        currentModel={currentModel}
-        onCreated={(id) => setAgent(id)}
-        credentials={credentials}
-      />
+                <ChevronDown className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 h-3 w-3 text-text-tertiary" />
+              </div>
+              {selectedAgent && (
+                <button
+                  onClick={() => setEditAgentDialogOpen(true)}
+                  title="Edit agent"
+                  className="p-1 rounded text-text-tertiary hover:text-primary transition-colors"
+                >
+                  <Pencil className="h-3 w-3" />
+                </button>
+              )}
+            </div>
+          )}
+          <AgentCreationDialog
+            open={agentDialogOpen}
+            onOpenChange={setAgentDialogOpen}
+            models={models}
+            currentModel={currentModel}
+            onCreated={(id) => setAgent(id)}
+            credentials={credentials}
+          />
+          <AgentCreationDialog
+            open={editAgentDialogOpen}
+            onOpenChange={setEditAgentDialogOpen}
+            models={models}
+            currentModel={currentModel}
+            onUpdated={refreshAgents}
+            editAgent={selectedAgent}
+            credentials={credentials}
+            onClose={() => setEditAgentDialogOpen(false)}
+          />
 
       {items.length === 0 ? (
         <div className="flex-1 overflow-y-auto p-4">

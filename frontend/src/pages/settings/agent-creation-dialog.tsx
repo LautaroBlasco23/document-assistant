@@ -15,7 +15,7 @@ interface AgentCreationDialogProps {
   onOpenChange: (open: boolean) => void
   models: ModelInfo[]
   currentModel: string
-  onCreated: (agentId: string) => void
+  onCreated?: (agentId: string) => void
   onUpdated?: () => void
   editAgent?: AgentOut | null
   onClose?: () => void
@@ -130,7 +130,7 @@ export function AgentCreationDialog({
           top_p: topP,
           max_tokens: maxTokens,
         })
-        onCreated(agent.id)
+        onCreated?.(agent.id)
       }
       onOpenChange(false)
       onClose?.()
