@@ -234,7 +234,8 @@ export const useKnowledgeTreeStore = create<KnowledgeTreeState>((set, get) => ({
   },
 
   improveDocument: async (treeId, docId, chapter) => {
-    const doc = await client.improveKnowledgeDocument(treeId, docId)
+    const { agent_id } = useGenerationSettings.getState().settings
+    const doc = await client.improveKnowledgeDocument(treeId, docId, agent_id)
     const key = docKey(treeId, chapter)
     const allKey = `${treeId}:all`
     set((s) => ({

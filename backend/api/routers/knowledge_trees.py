@@ -536,6 +536,8 @@ class ImproveDocumentRequest(BaseModel):
     temperature: float | None = None
     top_p: float | None = None
     max_tokens: int | None = None
+    agent_id: str | None = None
+    model: str | None = None
 
 
 @router.post(
@@ -560,13 +562,38 @@ async def improve_document(
 
     from core.ports.llm import GenerationParams
 
+    agent_uid = None
+    if req.agent_id:
+        try:
+            agent_uid = UUID(req.agent_id)
+        except ValueError:
+            raise HTTPException(status_code=422, detail="Invalid agent_id")
+
+    try:
+        llm, agent_prompt, agent_params = resolve_llm_for_agent(
+            _user.id,
+            agent_uid,
+            services,
+            model_override=req.model,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except ProviderNotConfigured as e:
+        raise HTTPException(
+            status_code=412,
+            detail=f"Provider not configured: {e.provider}. Add an API key in Settings.",
+        )
+
+    def _param(value: float | None, fallback: float | None) -> float | None:
+        return value if value is not None else fallback
+
     params = GenerationParams(
-        temperature=req.temperature,
-        top_p=req.top_p,
-        max_tokens=req.max_tokens,
+        temperature=_param(req.temperature, getattr(agent_params, "temperature", None)),
+        top_p=_param(req.top_p, getattr(agent_params, "top_p", None)),
+        max_tokens=_param(req.max_tokens, getattr(agent_params, "max_tokens", None)),
     )
-    agent = TextImprovementAgent(services.llm)
-    improved = agent.improve(doc.content, params=params)
+    agent = TextImprovementAgent(llm)
+    improved = agent.improve(doc.content, params=params, agent_prompt=agent_prompt)
     updated = services.kt_doc_store.save_improvement(doc_uid, improved)
     return _doc_out(updated)
 

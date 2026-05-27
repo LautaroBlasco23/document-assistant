@@ -20,18 +20,25 @@ _SYSTEM = (
 class TextImprovementAgent(BaseAgent):
     """Agent that improves document text style and applies Markdown formatting."""
 
-    def improve(self, text: str, params: GenerationParams | None = None) -> str:
+    def improve(
+        self,
+        text: str,
+        params: GenerationParams | None = None,
+        agent_prompt: str | None = None,
+    ) -> str:
         """Rewrite text with improved style and Markdown formatting.
 
         Args:
             text: The original document content to improve.
             params: Optional generation parameters.
+            agent_prompt: Optional user-defined agent prompt prepended to the system prompt.
 
         Returns:
             The improved, Markdown-formatted text.
         """
+        system = (agent_prompt + "\n\n" + _SYSTEM) if agent_prompt else _SYSTEM
         try:
-            return self._call(_SYSTEM, text, params=params)
+            return self._call(system, text, params=params)
         except Exception as e:
             logger.error("Text improvement LLM call failed: %s", e)
             raise

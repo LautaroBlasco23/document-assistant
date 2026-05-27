@@ -382,7 +382,12 @@ def test_improve_document_calls_agent_and_saves(test_client, mock_services):
     mock_services.kt_doc_store.get_document.return_value = doc
     mock_services.kt_doc_store.save_improvement.return_value = improved_doc
 
-    with patch("api.routers.knowledge_trees.TextImprovementAgent") as mock_agent_cls:
+    with (
+        patch("api.routers.knowledge_trees.TextImprovementAgent") as mock_agent_cls,
+        patch("api.routers.knowledge_trees.resolve_llm_for_agent") as mock_resolve,
+    ):
+        mock_llm = MagicMock()
+        mock_resolve.return_value = (mock_llm, None, None)
         mock_agent = MagicMock()
         mock_agent.improve.return_value = "# Improved\n\nContent."
         mock_agent_cls.return_value = mock_agent
@@ -392,6 +397,8 @@ def test_improve_document_calls_agent_and_saves(test_client, mock_services):
         )
 
     assert response.status_code == 200
+    mock_resolve.assert_called_once()
+    mock_agent_cls.assert_called_once_with(mock_llm)
     mock_agent.improve.assert_called_once()
     mock_services.kt_doc_store.save_improvement.assert_called_once_with(
         DOC_ID, "# Improved\n\nContent."

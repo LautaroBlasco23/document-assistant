@@ -302,7 +302,7 @@ export class MockClient implements ServiceClient {
     this.documents = this.documents.filter((d) => d.id !== id)
   }
 
-  async improveKnowledgeDocument(_treeId: string, docId: string): Promise<KnowledgeDocument> {
+  async improveKnowledgeDocument(_treeId: string, docId: string, _agentId?: string): Promise<KnowledgeDocument> {
     await delay(1200)
     const doc = this.documents.find((d) => d.id === docId)
     if (!doc) throw new Error('Document not found')
