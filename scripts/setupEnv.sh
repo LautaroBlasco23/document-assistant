@@ -76,6 +76,7 @@ FRONTEND_PORT=$(get_val "$ENV_FILE" "FRONTEND_PORT"); FRONTEND_PORT="${FRONTEND_
 
 origins="http://${DOMAIN}"
 [ "$FRONTEND_PORT" != "80" ] && origins="${origins},http://${DOMAIN}:${FRONTEND_PORT}"
+origins="${origins},http://${DOMAIN}:5173"
 write_val "ALLOWED_ORIGINS" "$origins"
 echo "  Set ALLOWED_ORIGINS=${origins}"
 

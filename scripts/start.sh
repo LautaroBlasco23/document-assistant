@@ -85,13 +85,13 @@ if [ "$ENV_MODE" = "dev" ]; then
     done
 
     echo "Starting infrastructure services (PostgreSQL)..."
-    if docker inspect docassist_postgres > /dev/null 2>&1; then
-        docker start docassist_postgres > /dev/null
+    if docker inspect docassist_dev_postgres > /dev/null 2>&1; then
+        docker start docassist_dev_postgres > /dev/null
     else
-        $DOCKER_COMPOSE up -d postgres
+        $DOCKER_COMPOSE up -d postgres-dev
     fi
     echo "Waiting for PostgreSQL to be ready..."
-    until $DOCKER_COMPOSE exec -T postgres pg_isready -U docassist > /dev/null 2>&1; do
+    until $DOCKER_COMPOSE exec -T postgres-dev pg_isready -U docassist > /dev/null 2>&1; do
         sleep 1
     done
 
@@ -111,13 +111,13 @@ if [ "$ENV_MODE" = "dev" ]; then
     echo "Starting backend (http://localhost:8000) and frontend (http://localhost:5173) with provider: $CHOSEN_PROVIDER..."
 
     cleanup() {
-        $DOCKER_COMPOSE stop postgres
+        $DOCKER_COMPOSE stop postgres-dev
         pkill -f "uvicorn api.main:app" 2>/dev/null || true
         pkill -f "npm run dev" 2>/dev/null || true
     }
     trap cleanup EXIT
 
-    (cd "$BACKEND_DIR" && DOCASSIST_POSTGRES__HOST=localhost DOCASSIST_POSTGRES__PORT="${DEV_POSTGRES_PORT:-5433}" DOCASSIST_LLM_PROVIDER="$CHOSEN_PROVIDER" uv run uvicorn api.main:app --port 8000 --reload --log-level warning --no-access-log) &
+    (cd "$BACKEND_DIR" && DOCASSIST_POSTGRES__HOST=localhost DOCASSIST_POSTGRES__PORT=5434 DOCASSIST_LLM_PROVIDER="$CHOSEN_PROVIDER" uv run uvicorn api.main:app --port 8000 --reload --log-level warning --no-access-log) &
     BACKEND_PID=$!
 
     echo "Waiting for backend to be ready..."
