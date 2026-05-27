@@ -206,6 +206,17 @@ class OpenRouterLLM(LLM):
                     "Check available models at https://openrouter.ai/models and update your config."
                 )
 
+            if not resp.ok:
+                try:
+                    error_body = resp.json()
+                except Exception:
+                    error_body = resp.text[:1000]
+                logger.error(
+                    "OpenRouter API error (HTTP %d) for model '%s': %s",
+                    resp.status_code,
+                    self._model,
+                    error_body,
+                )
             resp.raise_for_status()
             return resp
 
