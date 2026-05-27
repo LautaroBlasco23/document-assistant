@@ -568,6 +568,10 @@ async def improve_document(
             agent_uid = UUID(req.agent_id)
         except ValueError:
             raise HTTPException(status_code=422, detail="Invalid agent_id")
+    elif not req.model:
+        default = services.agent_store.get_default(_user.id)
+        if default is not None:
+            agent_uid = default.id
 
     try:
         llm, agent_prompt, agent_params = resolve_llm_for_agent(
