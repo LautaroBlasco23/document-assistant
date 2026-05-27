@@ -112,7 +112,7 @@ class PostgresAgentRepository(AgentRepository):
                         cur.execute(
                             "UPDATE agents SET name = %s, prompt = %s, model = %s, "
                             "provider = %s, temperature = %s, top_p = %s, max_tokens = %s, "
-                            "updated_at = NOW() "
+                            "is_default = %s, updated_at = NOW() "
                             "WHERE id = %s "
                             "RETURNING id, user_id, name, prompt, model, provider, temperature, "
                             "top_p, max_tokens, is_default, created_at, updated_at",
@@ -124,6 +124,7 @@ class PostgresAgentRepository(AgentRepository):
                                 agent.temperature,
                                 agent.top_p,
                                 agent.max_tokens,
+                                agent.is_default,
                                 agent.id,
                             ),
                         )
@@ -132,6 +133,29 @@ class PostgresAgentRepository(AgentRepository):
                         raise ValueError(
                             f"Agent with name '{agent.name}' already exists"
                         )
+        return self._row_to_agent(row)
+
+    def set_default(self, user_id: UUID, agent_id: UUID) -> Agent:
+        with self._pool.lock:
+            conn = self._conn()
+            with conn.transaction():
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "UPDATE agents SET is_default = FALSE "
+                        "WHERE user_id = %s AND is_default = TRUE",
+                        (user_id,),
+                    )
+                    cur.execute(
+                        "UPDATE agents SET is_default = TRUE, updated_at = NOW() "
+                        "WHERE id = %s AND user_id = %s "
+                        "RETURNING id, user_id, name, prompt, model, provider, temperature, "
+                        "top_p, max_tokens, is_default, created_at, updated_at",
+                        (agent_id, user_id),
+                    )
+                    row = cur.fetchone()
+        if row is None:
+            raise ValueError("Agent not found")
+        logger.info("Set agent %s as default for user %s", agent_id, user_id)
         return self._row_to_agent(row)
 
     def delete(self, agent_id: UUID) -> None:

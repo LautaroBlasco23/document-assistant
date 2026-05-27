@@ -26,5 +26,9 @@ class AgentRepository(ABC):
         """Update an existing agent."""
 
     @abstractmethod
+    def set_default(self, user_id: UUID, agent_id: UUID) -> Agent:
+        """Set an agent as the default for a user, unsetting any previous default."""
+
+    @abstractmethod
     def delete(self, agent_id: UUID) -> None:
         """Delete an agent."""

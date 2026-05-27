@@ -46,6 +46,7 @@ class UpdateAgentRequest(BaseModel):
     temperature: float | None = Field(default=None, ge=0, le=2)
     top_p: float | None = Field(default=None, ge=0, le=1)
     max_tokens: int | None = Field(default=None, ge=1, le=32768)
+    is_default: bool | None = None
 
 
 def _agent_out(agent) -> AgentOut:
@@ -142,6 +143,12 @@ async def update_agent(
         agent.top_p = req.top_p
     if req.max_tokens is not None:
         agent.max_tokens = req.max_tokens
+
+    if req.is_default is not None and req.is_default:
+        services.agent_store.set_default(current_user.id, agent.id)
+        agent.is_default = True
+    elif req.is_default is not None:
+        agent.is_default = False
 
     try:
         updated = services.agent_store.update(agent)
