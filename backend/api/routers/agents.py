@@ -86,6 +86,7 @@ async def create_agent(
     if req.provider not in _KNOWN_PROVIDERS:
         raise HTTPException(status_code=422, detail=f"Unknown provider: {req.provider}")
 
+    is_first = not current_user.has_first_agent
     agent = Agent(
         user_id=current_user.id,
         name=req.name,
@@ -95,9 +96,8 @@ async def create_agent(
         temperature=req.temperature,
         top_p=req.top_p,
         max_tokens=req.max_tokens,
-        is_default=False,
+        is_default=is_first,
     )
-    is_first = not current_user.has_first_agent
     try:
         created = services.agent_store.create(agent)
     except ValueError as e:
