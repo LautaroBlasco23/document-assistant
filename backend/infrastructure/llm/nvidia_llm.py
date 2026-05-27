@@ -184,6 +184,17 @@ class NvidiaLLM(LLM):
             if resp.status_code == 401:
                 raise ValueError("Invalid or missing Nvidia API key")
 
+            if not resp.ok:
+                try:
+                    error_body = resp.json()
+                except Exception:
+                    error_body = resp.text[:1000]
+                logger.error(
+                    "Nvidia API error (HTTP %d) for model '%s': %s",
+                    resp.status_code,
+                    self._model,
+                    error_body,
+                )
             resp.raise_for_status()
             return resp
 
