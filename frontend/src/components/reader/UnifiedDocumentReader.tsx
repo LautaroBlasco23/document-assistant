@@ -1,9 +1,11 @@
 import * as React from 'react'
+import { useNavigate } from 'react-router-dom'
 import { X, Sparkles, PanelLeft, PanelRight, BookOpen, MessageCircleQuestion, Maximize, Minimize, ZoomIn, ZoomOut, AlignJustify, Highlighter, Trash2, Columns2 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import { client } from '../../services'
 import { useKnowledgeTreeStore } from '../../stores/knowledge-tree-store'
 import { useAppStore } from '../../stores/app-store'
+import { useTaskStore } from '../../stores/task-store'
 import { cn } from '../../lib/cn'
 import type { KnowledgeDocument, KnowledgeChapter } from '../../types/knowledge-tree'
 import { ChatPanel, type ChatPanelHandle } from './ChatPanel'
@@ -25,6 +27,10 @@ interface UnifiedDocumentReaderProps {
   treeId: string
   chapters: KnowledgeChapter[]
   onClose: () => void
+  /** 'modal' = fullscreen overlay (default), 'page' = standalone page without overlay */
+  mode?: 'modal' | 'page'
+  /** Chapter number for back navigation in page mode */
+  chapterNumber?: number | null
 }
 
 function loadReadMode(): ReadMode {
@@ -43,7 +49,20 @@ function loadLastPage(treeId: string, docId: string): number | undefined {
   return undefined
 }
 
-export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: UnifiedDocumentReaderProps) {
+export function UnifiedDocumentReader({ doc, treeId, chapters, onClose, mode = 'modal', chapterNumber }: UnifiedDocumentReaderProps) {
+  const navigate = useNavigate()
+  const isPageMode = mode === 'page'
+
+  const goBack = React.useCallback(() => {
+    if (isPageMode) {
+      const path = chapterNumber != null
+        ? `/trees/${treeId}/chapters/${chapterNumber}`
+        : `/trees/${treeId}`
+      navigate(path, { replace: true })
+    } else {
+      onClose()
+    }
+  }, [isPageMode, navigate, treeId, chapterNumber, onClose])
   // Derive doc type up front — needed by useState initializers below.
   // Uses doc.file_type if set, otherwise falls back to extension detection.
   const isYouTube = doc.source_type === 'youtube'
@@ -67,7 +86,7 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
   const [showLeft, setShowLeft] = React.useState(() => useReaderPreferences.getState().preferences.defaultShowLeft)
   const [showRight, setShowRight] = React.useState(() => useReaderPreferences.getState().preferences.defaultShowRight)
   const [contentWidth, setContentWidth] = React.useState(() => useReaderPreferences.getState().preferences.contentWidth)
-  const [isFullscreen, setIsFullscreen] = React.useState(true)
+  const [isFullscreen, setIsFullscreen] = React.useState(!isPageMode)
   const [zoom, setZoom] = React.useState(() => useReaderPreferences.getState().preferences.zoom)
   const [contextMenu, setContextMenu] = React.useState<{
     x: number
@@ -168,6 +187,9 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
   const updateDocument = useKnowledgeTreeStore((s) => s.updateDocument)
   const revertDocument = useKnowledgeTreeStore((s) => s.revertDocument)
   const [isImproving, setIsImproving] = React.useState(false)
+  const [improveTaskId, setImproveTaskId] = React.useState<string | null>(null)
+  const submitTask = useTaskStore((s) => s.submitTask)
+  const clearTask = useTaskStore((s) => s.clearTask)
   // For non-text docs (content-only, YouTube), the prop `doc` doesn't update after
   // improve/revert because the parent state isn't wired to the store. Track it locally.
   const [currentDocOverride, setCurrentDocOverride] = React.useState<KnowledgeDocument | null>(null)
@@ -289,20 +311,43 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
     try { localStorage.setItem(`docassist_format_mode:${treeId}:${resolvedDoc.id}`, mode) } catch { /* ignore */ }
   }, [treeId, resolvedDoc.id])
 
-  const handleImprove = React.useCallback(async () => {
+  const handleImproveFormatting = React.useCallback(async () => {
     setIsImproving(true)
     try {
-      const improved = await improveDocument(treeId, resolvedDoc.id, resolvedDoc.chapter_number ?? null)
-      // For non-text docs the reader renders from doc.content (prop), which is stale after
-      // improve. Update the local override so the viewer reflects the new content.
-      if (!isText) setCurrentDocOverride(improved)
+      const taskId = await improveDocument(treeId, resolvedDoc.id, resolvedDoc.chapter_number ?? null, 'formatting')
+      submitTask({
+        taskId,
+        type: 'kt_improve',
+        entityId: treeId,
+        chapter: resolvedDoc.chapter_number ?? 0,
+        entityTitle: `Improve formatting: ${resolvedDoc.title}`,
+      })
+      setImproveTaskId(taskId)
       handleFormatModeChange('markdown')
     } catch (e) {
-      addError((e as Error).message || 'Failed to improve document. Please try again.')
-    } finally {
+      addError((e as Error).message || 'Failed to improve formatting. Please try again.')
       setIsImproving(false)
     }
-  }, [treeId, resolvedDoc.id, resolvedDoc.chapter_number, isText, improveDocument, handleFormatModeChange, addError])
+  }, [treeId, resolvedDoc.id, resolvedDoc.chapter_number, resolvedDoc.title, improveDocument, submitTask, handleFormatModeChange, addError])
+
+  const handleImproveText = React.useCallback(async () => {
+    setIsImproving(true)
+    try {
+      const taskId = await improveDocument(treeId, resolvedDoc.id, resolvedDoc.chapter_number ?? null, 'text')
+      submitTask({
+        taskId,
+        type: 'kt_improve',
+        entityId: treeId,
+        chapter: resolvedDoc.chapter_number ?? 0,
+        entityTitle: `Improve text: ${resolvedDoc.title}`,
+      })
+      setImproveTaskId(taskId)
+      handleFormatModeChange('markdown')
+    } catch (e) {
+      addError((e as Error).message || 'Failed to improve text. Please try again.')
+      setIsImproving(false)
+    }
+  }, [treeId, resolvedDoc.id, resolvedDoc.chapter_number, resolvedDoc.title, improveDocument, submitTask, handleFormatModeChange, addError])
 
   const handleRevert = React.useCallback(async () => {
     setIsImproving(true)
@@ -316,6 +361,36 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
       setIsImproving(false)
     }
   }, [treeId, resolvedDoc.id, resolvedDoc.chapter_number, isText, revertDocument, handleFormatModeChange, addError])
+
+  const improveTaskEntry = useTaskStore((s) => (improveTaskId ? (s.tasks[improveTaskId] ?? null) : null))
+
+  React.useEffect(() => {
+    if (!improveTaskId || !improveTaskEntry) return
+    if (improveTaskEntry.status === 'completed') {
+      if (improveTaskEntry.result) {
+        const updatedDoc = improveTaskEntry.result as unknown as KnowledgeDocument
+        setCurrentDocOverride(updatedDoc)
+      }
+      setIsImproving(false)
+      clearTask(improveTaskId)
+      setImproveTaskId(null)
+    } else if (improveTaskEntry.status === 'failed') {
+      addError(improveTaskEntry.error ?? 'Improvement failed')
+      setIsImproving(false)
+      clearTask(improveTaskId)
+      setImproveTaskId(null)
+    } else if (improveTaskEntry.status === 'rate_limited') {
+      const retryAfter = (improveTaskEntry.result as { retry_after?: number } | null)?.retry_after
+      addError(
+        retryAfter
+          ? `AI provider is rate-limiting. Please retry in ${Math.ceil(retryAfter)}s.`
+          : (improveTaskEntry.error ?? 'Rate limited by AI provider.')
+      )
+      setIsImproving(false)
+      clearTask(improveTaskId)
+      setImproveTaskId(null)
+    }
+  }, [improveTaskId, improveTaskEntry?.status, clearTask, addError])
 
   const visiblePages = React.useMemo(() => {
     // Chapter-scoped PDFs are served as individually-extracted files (pages re-indexed
@@ -574,16 +649,16 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
   zoomOutRef.current = zoomOut
   const handleHighlightRef = React.useRef(handleHighlight)
   handleHighlightRef.current = handleHighlight
-  const onCloseRef = React.useRef(onClose)
-  onCloseRef.current = onClose
+  const goBackRef = React.useRef(goBack)
+  goBackRef.current = goBack
 
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        if (isFullscreen) {
+        if (!isPageMode && isFullscreen) {
           setIsFullscreen(false)
         } else {
-          onCloseRef.current()
+          goBackRef.current()
         }
         return
       }
@@ -651,7 +726,432 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
     }
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [isFullscreen])
+  }, [isFullscreen, isPageMode])
+
+  const topBar = (
+    <>
+      {/* Top bar */}
+      <div className="flex items-center justify-between px-4 py-2 border-b border-surface-200 dark:border-surface-200 shrink-0 bg-surface-100 dark:bg-surface-100">
+        <div className="flex items-center gap-3 min-w-0 flex-1">
+          <h2 className="text-sm font-semibold text-text-primary truncate">{doc.title}</h2>
+          {activeChapter !== null && (
+            <span className="text-xs px-2 py-0.5 bg-primary-light dark:bg-primary/12 text-primary rounded-full shrink-0">
+              {scopedChapters.find((c) => c.number === activeChapter)?.title ?? `Chapter ${activeChapter}`}
+            </span>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0">
+          {/* Page / chapter progress */}
+          {isTruePdf && numPages > 0 && (
+            <span className="text-xs tabular-nums text-text-tertiary select-none">
+              {currentPage} / {numPages}
+            </span>
+          )}
+          {isText && scopedChapters.length > 0 && textActiveChapter !== null && (
+            <span className="text-xs tabular-nums text-text-tertiary select-none">
+              Ch {textActiveChapter} / {scopedChapters.length}
+            </span>
+          )}
+
+          {/* Zoom controls */}
+          {(isTruePdf || isText || isContentOnly || isYouTube) && (
+            <div className="flex items-center gap-0.5 bg-surface dark:bg-surface-200 rounded-md shadow-sm border border-surface-200 dark:border-surface-200 px-1.5 py-0.5">
+              <button
+                onClick={zoomOut}
+                disabled={zoom <= 0.5}
+                className="p-0.5 rounded text-text-tertiary hover:text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                aria-label="Zoom out"
+                title="Zoom out"
+              >
+                <ZoomOut className="h-3.5 w-3.5" />
+              </button>
+              <span className="text-xs tabular-nums text-text-tertiary min-w-[3ch] text-center select-none">
+                {Math.round(zoom * 100)}%
+              </span>
+              <button
+                onClick={zoomIn}
+                disabled={zoom >= 2}
+                className="p-0.5 rounded text-text-tertiary hover:text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                aria-label="Zoom in"
+                title="Zoom in"
+              >
+                <ZoomIn className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          )}
+
+          {/* Read mode toggle */}
+          {(isTruePdf || isText || isContentOnly || isYouTube) && (
+            <div className="flex items-center gap-0.5 bg-surface dark:bg-surface-200 rounded-md shadow-sm border border-surface-200 dark:border-surface-200 px-0.5 py-0.5">
+              <button
+                onClick={() => readMode !== 'scroll' && handleModeChange('scroll', textActiveChapter)}
+                className={cn(
+                  'p-1 rounded transition-colors',
+                  readMode === 'scroll'
+                    ? 'bg-primary-light dark:bg-primary/20 text-primary'
+                    : 'text-text-tertiary hover:text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100'
+                )}
+                aria-label="Scroll mode"
+                title="Scroll mode — continuous pages"
+              >
+                <AlignJustify className="h-3.5 w-3.5" />
+              </button>
+              <button
+                onClick={() => readMode !== 'paged' && handleModeChange('paged', textActiveChapter)}
+                className={cn(
+                  'p-1 rounded transition-colors',
+                  readMode === 'paged'
+                    ? 'bg-primary-light dark:bg-primary/20 text-primary'
+                    : 'text-text-tertiary hover:text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100'
+                )}
+                aria-label="Paged mode"
+                title="Paged mode — one page at a time (← →)"
+              >
+                <BookOpen className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          )}
+
+          {/* Formatter menu — all text-content docs (EPUB, TXT, content-only, YouTube) */}
+          {showFormatter && (
+            <FormatterMenu
+              mode={formatMode}
+              isImproved={resolvedDoc.original_content !== null}
+              isImproving={isImproving}
+              onModeChange={handleFormatModeChange}
+              onImprove={handleImproveText}
+              onImproveFormatting={handleImproveFormatting}
+              onRevert={handleRevert}
+            />
+          )}
+        </div>
+
+        <div className="flex items-center gap-1 flex-1 justify-end">
+          {!isPageMode && (
+            <button
+              onClick={() => setIsFullscreen(!isFullscreen)}
+              className="p-1.5 rounded-md transition-colors text-text-tertiary hover:text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100"
+              aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+              title={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+            >
+              {isFullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
+            </button>
+          )}
+          {!isHighlightsDoc && (isTruePdf || isText) && (
+            <button
+              onClick={() => setShowLeft(!showLeft)}
+              className={cn(
+                'p-1.5 rounded-md transition-colors',
+                showLeft
+                  ? 'text-primary bg-primary-light hover:bg-primary-light dark:bg-primary/12 dark:hover:bg-primary/12'
+                  : 'text-text-tertiary hover:text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100'
+              )}
+              aria-label="Toggle chapter sidebar"
+              title="Toggle chapter sidebar"
+            >
+              <PanelLeft className="h-4 w-4" />
+            </button>
+          )}
+          {!isHighlightsDoc && (
+            <button
+              onClick={() => setShowRight(!showRight)}
+              className={cn(
+                'p-1.5 rounded-md transition-colors',
+                showRight
+                  ? 'text-primary bg-primary-light hover:bg-primary-light dark:bg-primary/12 dark:hover:bg-primary/12'
+                  : 'text-text-tertiary hover:text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100'
+              )}
+              aria-label="Toggle chat panel"
+              title="Toggle chat & notes"
+            >
+              <PanelRight className="h-4 w-4" />
+            </button>
+          )}
+          {!isHighlightsDoc && (
+            <button
+              onClick={cycleContentWidth}
+              className={cn(
+                'p-1.5 rounded-md transition-colors',
+                contentWidth !== 'comfortable'
+                  ? 'text-primary bg-primary-light hover:bg-primary-light dark:bg-primary/12 dark:hover:bg-primary/12'
+                  : 'text-text-tertiary hover:text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100'
+              )}
+              aria-label="Content width"
+              title={
+                contentWidth === 'comfortable' ? 'Comfortable width' :
+                contentWidth === 'wide' ? 'Wider width' :
+                'Full width'
+              }
+            >
+              <Columns2 className="h-4 w-4" />
+            </button>
+          )}
+            <button
+              onClick={goBack}
+              className="p-1.5 text-text-tertiary hover:text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100 rounded-md transition-colors ml-2"
+            aria-label="Close reader"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+    </>
+  )
+
+  const contentArea = (
+    <>
+      {/* Content area */}
+      <div className="flex-1 min-h-0 flex">
+        {/* Left panel: Chapter sidebar */}
+        {!isHighlightsDoc && (isTruePdf || isText) && (
+          <>
+            <div
+              className={cn(
+                'border-r border-surface-200 dark:border-surface-200 bg-surface-100 dark:bg-surface-100 transition-all duration-300 ease-in-out overflow-hidden',
+                showLeft ? 'block' : 'hidden'
+              )}
+              style={{ width: showLeft ? leftWidth : 0 }}
+            >
+              <div className="h-full flex flex-col">
+                <div className="px-3 py-2 border-b border-surface-200 dark:border-surface-200">
+                  <h3 className="text-xs font-semibold text-text-tertiary uppercase tracking-wide">Chapters</h3>
+                </div>
+                <div className="flex-1 overflow-y-auto">
+                  {scopedChapters.map((ch) => {
+                    const isActive = activeChapter === ch.number
+                    const chDoc = scopedChapterDocs.find((d) => d.chapter_number === ch.number)
+                    return (
+                      <button
+                        key={ch.number}
+                        onClick={() => scrollToChapter(ch.number)}
+                        className={cn(
+                          'w-full text-left px-3 py-2 text-sm transition-colors flex items-center gap-2',
+                          isActive
+                            ? 'bg-primary-light dark:bg-primary/12 text-primary font-medium'
+                            : 'text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100'
+                        )}
+                      >
+                        <BookOpen className="h-3.5 w-3.5 shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <div className="truncate">{ch.title}</div>
+                          {isTruePdf && chDoc?.page_start && (
+                            <div className="text-xs text-text-tertiary">
+                              Page {chDoc.page_start}
+                              {chDoc.page_end && chDoc.page_end !== chDoc.page_start
+                                ? ` - ${chDoc.page_end}`
+                                : ''}
+                            </div>
+                          )}
+                        </div>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            </div>
+            {showLeft && (
+              <ResizeHandle
+                onResizeStart={() => { startLeftWidthRef.current = leftWidth }}
+                onResize={(delta) => applyLeftWidth(startLeftWidthRef.current + delta)}
+                onResizeEnd={saveLeftWidth}
+              />
+            )}
+          </>
+        )}
+
+        {/* Center: Document content */}
+        {isTruePdf ? (
+          <PdfPagesView
+            key={readerKey}
+            fileUrl={fileUrl}
+            visiblePages={visiblePages}
+            zoom={zoom}
+            mode={readMode}
+            initialPage={initialPos}
+            contentWidth={contentWidth}
+            onCurrentPageChange={handlePageChange}
+            onNumPagesChange={setNumPages}
+            onContextMenu={handleContextMenu}
+            onClickAway={hideContextMenu}
+            scrollRef={pdfScrollRef}
+            highlights={docHighlights}
+          />
+        ) : isText ? (
+          <TextPagesView
+            key={readerKey}
+            chapters={scopedChapters}
+            chapterDocs={scopedChapterDocs}
+            zoom={zoom}
+            mode={readMode}
+            formatMode={formatMode}
+            contentWidth={contentWidth}
+            initialChapter={initialPos}
+            onCurrentChapterChange={handleTextChapterChange}
+            onContextMenu={handleContextMenu}
+            onClickAway={hideContextMenu}
+            scrollRef={textScrollRef}
+            isTxt={isTxt}
+            highlights={docHighlights}
+          />
+        ) : isYouTube ? (
+          <div
+            className="flex-1 min-w-0 bg-surface-100 dark:bg-bg-inset overflow-auto"
+            onContextMenu={handleContextMenu}
+            onClick={hideContextMenu}
+          >
+            <div
+              className={cn('mx-auto py-8 px-6 text-text-secondary leading-relaxed', contentWidthClass)}
+              style={{ fontSize: `${Math.round(zoom * 100)}%` }}
+            >
+              {formatMode === 'markdown' ? (
+                <ReactMarkdown components={readerMarkdownComponents}>{effectiveDoc.content ?? ''}</ReactMarkdown>
+              ) : (
+                <p className="whitespace-pre-wrap break-words">{effectiveDoc.content}</p>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div
+            className="flex-1 min-w-0 bg-surface-100 dark:bg-bg-inset overflow-auto"
+            onContextMenu={handleContextMenu}
+            onClick={hideContextMenu}
+          >
+            {effectiveDoc.content ? (
+              <div
+                className={cn('mx-auto py-8 px-6 text-text-secondary leading-relaxed', contentWidthClass)}
+                style={{ fontSize: `${Math.round(zoom * 100)}%` }}
+              >
+                {formatMode === 'markdown' ? (
+                  <ReactMarkdown components={readerMarkdownComponents}>{effectiveDoc.content}</ReactMarkdown>
+                ) : (
+                  <p className="whitespace-pre-wrap break-words">{effectiveDoc.content}</p>
+                )}
+              </div>
+            ) : (
+              <div className="flex items-center justify-center h-full">
+                <p className="text-sm text-text-tertiary">No content available.</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Right panel: Chat & Notes */}
+        {!isHighlightsDoc && showRight && (
+          <ResizeHandle
+            onResizeStart={() => { startRightWidthRef.current = rightWidth }}
+            onResize={(delta) => applyRightWidth(startRightWidthRef.current - delta)}
+            onResizeEnd={saveRightWidth}
+          />
+        )}
+        {!isHighlightsDoc && (
+          <div
+            className={cn(
+              'border-l border-surface-200 dark:border-surface-200 transition-all duration-300 ease-in-out overflow-hidden',
+              showRight ? 'block' : 'hidden'
+            )}
+            style={{ width: showRight ? rightWidth : 0 }}
+          >
+            <div className="h-full">
+              <ChatPanel
+                ref={chatPanelRef}
+                getContext={getContext}
+                storageKey={`${treeId}:${doc.id}:unified`}
+                treeId={treeId}
+                chapter={activeChapter}
+                docId={doc.id}
+                docTitle={doc.title}
+              />
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Context menu */}
+      {!isHighlightsDoc && contextMenu && (
+        <div
+          className="fixed z-[60] bg-surface dark:bg-surface-200 rounded-lg shadow-lg border border-surface-200 dark:border-surface-200 py-1 min-w-[200px]"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+        >
+          {docHighlights.some((h) => {
+            if (h.text.toLowerCase() !== contextMenu.text.toLowerCase()) return false
+            if (contextMenu.startOffset !== undefined && h.startOffset !== contextMenu.startOffset) return false
+            if (contextMenu.endOffset !== undefined && h.endOffset !== contextMenu.endOffset) return false
+            if (h.isTitleHighlight !== (contextMenu.isTitleHighlight ?? false)) return false
+            return true
+          }) ? (
+            <button
+              onClick={() => handleDeleteHighlight(contextMenu.text, { startOffset: contextMenu.startOffset, endOffset: contextMenu.endOffset })}
+              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100 transition-colors"
+            >
+              <Trash2 className="h-3.5 w-3.5 text-danger" />
+              Delete highlight
+            </button>
+          ) : (
+            <button
+              onClick={() => handleHighlight(contextMenu.text, { chapterNumber: contextMenu.chapterNumber, pageNumber: contextMenu.pageNumber, startOffset: contextMenu.startOffset, endOffset: contextMenu.endOffset, isTitleHighlight: contextMenu.isTitleHighlight })}
+              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100 transition-colors"
+            >
+              <Highlighter className="h-3.5 w-3.5 text-yellow-500" />
+              Highlight
+            </button>
+          )}
+          <div className="my-1 border-t border-surface-200 dark:border-surface-200" />
+          <div className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-text-tertiary">
+            Ask
+          </div>
+          <button
+            onClick={handleAskDefinition}
+            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100 transition-colors"
+          >
+            <MessageCircleQuestion className="h-3.5 w-3.5 text-accent" />
+            Ask definition in chat
+          </button>
+          <div className="my-1 border-t border-surface-200 dark:border-surface-200" />
+          <div className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-text-tertiary">
+            Generate
+          </div>
+          <button
+            onClick={handleMakeFlashcard}
+            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100 transition-colors"
+          >
+            <Sparkles className="h-3.5 w-3.5 text-warning" />
+            Flashcard
+          </button>
+          <button
+            onClick={() => handleMakeQuestion('true_false')}
+            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100 transition-colors"
+          >
+            <Sparkles className="h-3.5 w-3.5 text-success" />
+            True / False question
+          </button>
+          <button
+            onClick={() => handleMakeQuestion('multiple_choice')}
+            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100 transition-colors"
+          >
+            <Sparkles className="h-3.5 w-3.5 text-primary" />
+            Multiple choice question
+          </button>
+          <button
+            onClick={() => handleMakeQuestion('checkbox')}
+            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100 transition-colors"
+          >
+            <Sparkles className="h-3.5 w-3.5 text-accent" />
+            Select all that apply
+          </button>
+        </div>
+      )}
+    </>
+  )
+
+  if (isPageMode) {
+    return (
+      <div className="flex flex-col h-screen bg-surface dark:bg-surface animate-fade-in">
+        {topBar}
+        {contentArea}
+      </div>
+    )
+  }
 
   return (
     <div
@@ -661,7 +1161,7 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
         isFullscreen ? 'p-0' : 'p-4'
       )}
       onClick={(e) => {
-        if (e.target === overlayRef.current) onClose()
+        if (e.target === overlayRef.current) goBack()
       }}
     >
       <div
@@ -673,410 +1173,8 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose }: Unifie
         )}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Top bar */}
-        <div className="flex items-center justify-between px-4 py-2 border-b border-surface-200 dark:border-surface-200 shrink-0 bg-surface-100 dark:bg-surface-100">
-          <div className="flex items-center gap-3 min-w-0 flex-1">
-            <h2 className="text-sm font-semibold text-text-primary truncate">{doc.title}</h2>
-            {activeChapter !== null && (
-              <span className="text-xs px-2 py-0.5 bg-primary-light dark:bg-primary/12 text-primary rounded-full shrink-0">
-                {scopedChapters.find((c) => c.number === activeChapter)?.title ?? `Chapter ${activeChapter}`}
-              </span>
-            )}
-          </div>
-
-          <div className="flex items-center gap-2 shrink-0">
-            {/* Page / chapter progress */}
-            {isTruePdf && numPages > 0 && (
-              <span className="text-xs tabular-nums text-text-tertiary select-none">
-                {currentPage} / {numPages}
-              </span>
-            )}
-            {isText && scopedChapters.length > 0 && textActiveChapter !== null && (
-              <span className="text-xs tabular-nums text-text-tertiary select-none">
-                Ch {textActiveChapter} / {scopedChapters.length}
-              </span>
-            )}
-
-            {/* Zoom controls */}
-            {(isTruePdf || isText || isContentOnly || isYouTube) && (
-              <div className="flex items-center gap-0.5 bg-surface dark:bg-surface-200 rounded-md shadow-sm border border-surface-200 dark:border-surface-200 px-1.5 py-0.5">
-                <button
-                  onClick={zoomOut}
-                  disabled={zoom <= 0.5}
-                  className="p-0.5 rounded text-text-tertiary hover:text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                  aria-label="Zoom out"
-                  title="Zoom out"
-                >
-                  <ZoomOut className="h-3.5 w-3.5" />
-                </button>
-                <span className="text-xs tabular-nums text-text-tertiary min-w-[3ch] text-center select-none">
-                  {Math.round(zoom * 100)}%
-                </span>
-                <button
-                  onClick={zoomIn}
-                  disabled={zoom >= 2}
-                  className="p-0.5 rounded text-text-tertiary hover:text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                  aria-label="Zoom in"
-                  title="Zoom in"
-                >
-                  <ZoomIn className="h-3.5 w-3.5" />
-                </button>
-              </div>
-            )}
-
-            {/* Read mode toggle */}
-            {(isTruePdf || isText || isContentOnly || isYouTube) && (
-              <div className="flex items-center gap-0.5 bg-surface dark:bg-surface-200 rounded-md shadow-sm border border-surface-200 dark:border-surface-200 px-0.5 py-0.5">
-                <button
-                  onClick={() => readMode !== 'scroll' && handleModeChange('scroll', textActiveChapter)}
-                  className={cn(
-                    'p-1 rounded transition-colors',
-                    readMode === 'scroll'
-                      ? 'bg-primary-light dark:bg-primary/20 text-primary'
-                      : 'text-text-tertiary hover:text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100'
-                  )}
-                  aria-label="Scroll mode"
-                  title="Scroll mode — continuous pages"
-                >
-                  <AlignJustify className="h-3.5 w-3.5" />
-                </button>
-                <button
-                  onClick={() => readMode !== 'paged' && handleModeChange('paged', textActiveChapter)}
-                  className={cn(
-                    'p-1 rounded transition-colors',
-                    readMode === 'paged'
-                      ? 'bg-primary-light dark:bg-primary/20 text-primary'
-                      : 'text-text-tertiary hover:text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100'
-                  )}
-                  aria-label="Paged mode"
-                  title="Paged mode — one page at a time (← →)"
-                >
-                  <BookOpen className="h-3.5 w-3.5" />
-                </button>
-              </div>
-            )}
-
-            {/* Formatter menu — all text-content docs (EPUB, TXT, content-only, YouTube) */}
-            {showFormatter && (
-              <FormatterMenu
-                mode={formatMode}
-                isImproved={resolvedDoc.original_content !== null}
-                isImproving={isImproving}
-                onModeChange={handleFormatModeChange}
-                onImprove={handleImprove}
-                onRevert={handleRevert}
-              />
-            )}
-          </div>
-
-          <div className="flex items-center gap-1 flex-1 justify-end">
-            <button
-              onClick={() => setIsFullscreen(!isFullscreen)}
-              className="p-1.5 rounded-md transition-colors text-text-tertiary hover:text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100"
-              aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
-              title={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
-            >
-              {isFullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
-            </button>
-            {!isHighlightsDoc && (isTruePdf || isText) && (
-              <button
-                onClick={() => setShowLeft(!showLeft)}
-                className={cn(
-                  'p-1.5 rounded-md transition-colors',
-                  showLeft
-                    ? 'text-primary bg-primary-light hover:bg-primary-light dark:bg-primary/12 dark:hover:bg-primary/12'
-                    : 'text-text-tertiary hover:text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100'
-                )}
-                aria-label="Toggle chapter sidebar"
-                title="Toggle chapter sidebar"
-              >
-                <PanelLeft className="h-4 w-4" />
-              </button>
-            )}
-            {!isHighlightsDoc && (
-              <button
-                onClick={() => setShowRight(!showRight)}
-                className={cn(
-                  'p-1.5 rounded-md transition-colors',
-                  showRight
-                    ? 'text-primary bg-primary-light hover:bg-primary-light dark:bg-primary/12 dark:hover:bg-primary/12'
-                    : 'text-text-tertiary hover:text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100'
-                )}
-                aria-label="Toggle chat panel"
-                title="Toggle chat & notes"
-              >
-                <PanelRight className="h-4 w-4" />
-              </button>
-            )}
-            {!isHighlightsDoc && (
-              <button
-                onClick={cycleContentWidth}
-                className={cn(
-                  'p-1.5 rounded-md transition-colors',
-                  contentWidth !== 'comfortable'
-                    ? 'text-primary bg-primary-light hover:bg-primary-light dark:bg-primary/12 dark:hover:bg-primary/12'
-                    : 'text-text-tertiary hover:text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100'
-                )}
-                aria-label="Content width"
-                title={
-                  contentWidth === 'comfortable' ? 'Comfortable width' :
-                  contentWidth === 'wide' ? 'Wider width' :
-                  'Full width'
-                }
-              >
-                <Columns2 className="h-4 w-4" />
-              </button>
-            )}
-              <button
-                onClick={onClose}
-                className="p-1.5 text-text-tertiary hover:text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100 rounded-md transition-colors ml-2"
-              aria-label="Close reader"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
-
-        {/* Content area */}
-        <div className="flex-1 min-h-0 flex">
-          {/* Left panel: Chapter sidebar */}
-          {!isHighlightsDoc && (isTruePdf || isText) && (
-            <>
-              <div
-                className={cn(
-                  'border-r border-surface-200 dark:border-surface-200 bg-surface-100 dark:bg-surface-100 transition-all duration-300 ease-in-out overflow-hidden',
-                  showLeft ? 'block' : 'hidden'
-                )}
-                style={{ width: showLeft ? leftWidth : 0 }}
-              >
-                <div className="h-full flex flex-col">
-                  <div className="px-3 py-2 border-b border-surface-200 dark:border-surface-200">
-                    <h3 className="text-xs font-semibold text-text-tertiary uppercase tracking-wide">Chapters</h3>
-                  </div>
-                  <div className="flex-1 overflow-y-auto">
-                    {scopedChapters.map((ch) => {
-                      const isActive = activeChapter === ch.number
-                      const chDoc = scopedChapterDocs.find((d) => d.chapter_number === ch.number)
-                      return (
-                        <button
-                          key={ch.number}
-                          onClick={() => scrollToChapter(ch.number)}
-                          className={cn(
-                            'w-full text-left px-3 py-2 text-sm transition-colors flex items-center gap-2',
-                            isActive
-                              ? 'bg-primary-light dark:bg-primary/12 text-primary font-medium'
-                              : 'text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100'
-                          )}
-                        >
-                          <BookOpen className="h-3.5 w-3.5 shrink-0" />
-                          <div className="flex-1 min-w-0">
-                            <div className="truncate">{ch.title}</div>
-                            {isTruePdf && chDoc?.page_start && (
-                              <div className="text-xs text-text-tertiary">
-                                Page {chDoc.page_start}
-                                {chDoc.page_end && chDoc.page_end !== chDoc.page_start
-                                  ? ` - ${chDoc.page_end}`
-                                  : ''}
-                              </div>
-                            )}
-                          </div>
-                        </button>
-                      )
-                    })}
-                  </div>
-                </div>
-              </div>
-              {showLeft && (
-                <ResizeHandle
-                  onResizeStart={() => { startLeftWidthRef.current = leftWidth }}
-                  onResize={(delta) => applyLeftWidth(startLeftWidthRef.current + delta)}
-                  onResizeEnd={saveLeftWidth}
-                />
-              )}
-            </>
-          )}
-
-          {/* Center: Document content */}
-          {isTruePdf ? (
-            <PdfPagesView
-              key={readerKey}
-              fileUrl={fileUrl}
-              visiblePages={visiblePages}
-              zoom={zoom}
-              mode={readMode}
-              initialPage={initialPos}
-              contentWidth={contentWidth}
-              onCurrentPageChange={handlePageChange}
-              onNumPagesChange={setNumPages}
-              onContextMenu={handleContextMenu}
-              onClickAway={hideContextMenu}
-              scrollRef={pdfScrollRef}
-              highlights={docHighlights}
-            />
-          ) : isText ? (
-            <TextPagesView
-              key={readerKey}
-              chapters={scopedChapters}
-              chapterDocs={scopedChapterDocs}
-              zoom={zoom}
-              mode={readMode}
-              formatMode={formatMode}
-              contentWidth={contentWidth}
-              initialChapter={initialPos}
-              onCurrentChapterChange={handleTextChapterChange}
-              onContextMenu={handleContextMenu}
-              onClickAway={hideContextMenu}
-              scrollRef={textScrollRef}
-              isTxt={isTxt}
-              highlights={docHighlights}
-            />
-          ) : isYouTube ? (
-            <div
-              className="flex-1 min-w-0 bg-surface-100 dark:bg-bg-inset overflow-auto"
-              onContextMenu={handleContextMenu}
-              onClick={hideContextMenu}
-            >
-              <div
-                className={cn('mx-auto py-8 px-6 text-text-secondary leading-relaxed', contentWidthClass)}
-                style={{ fontSize: `${Math.round(zoom * 100)}%` }}
-              >
-                {formatMode === 'markdown' ? (
-                  <ReactMarkdown components={readerMarkdownComponents}>{effectiveDoc.content ?? ''}</ReactMarkdown>
-                ) : (
-                  <p className="whitespace-pre-wrap break-words">{effectiveDoc.content}</p>
-                )}
-              </div>
-            </div>
-          ) : (
-            <div
-              className="flex-1 min-w-0 bg-surface-100 dark:bg-bg-inset overflow-auto"
-              onContextMenu={handleContextMenu}
-              onClick={hideContextMenu}
-            >
-              {effectiveDoc.content ? (
-                <div
-                  className={cn('mx-auto py-8 px-6 text-text-secondary leading-relaxed', contentWidthClass)}
-                  style={{ fontSize: `${Math.round(zoom * 100)}%` }}
-                >
-                  {formatMode === 'markdown' ? (
-                    <ReactMarkdown components={readerMarkdownComponents}>{effectiveDoc.content}</ReactMarkdown>
-                  ) : (
-                    <p className="whitespace-pre-wrap break-words">{effectiveDoc.content}</p>
-                  )}
-                </div>
-              ) : (
-                <div className="flex items-center justify-center h-full">
-                  <p className="text-sm text-text-tertiary">No content available.</p>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Right panel: Chat & Notes */}
-          {!isHighlightsDoc && showRight && (
-            <ResizeHandle
-              onResizeStart={() => { startRightWidthRef.current = rightWidth }}
-              onResize={(delta) => applyRightWidth(startRightWidthRef.current - delta)}
-              onResizeEnd={saveRightWidth}
-            />
-          )}
-          {!isHighlightsDoc && (
-            <div
-              className={cn(
-                'border-l border-surface-200 dark:border-surface-200 transition-all duration-300 ease-in-out overflow-hidden',
-                showRight ? 'block' : 'hidden'
-              )}
-              style={{ width: showRight ? rightWidth : 0 }}
-            >
-              <div className="h-full">
-                <ChatPanel
-                  ref={chatPanelRef}
-                  getContext={getContext}
-                  storageKey={`${treeId}:${doc.id}:unified`}
-                  treeId={treeId}
-                  chapter={activeChapter}
-                  docId={doc.id}
-                  docTitle={doc.title}
-                />
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Context menu */}
-        {!isHighlightsDoc && contextMenu && (
-          <div
-            className="fixed z-[60] bg-surface dark:bg-surface-200 rounded-lg shadow-lg border border-surface-200 dark:border-surface-200 py-1 min-w-[200px]"
-            style={{ left: contextMenu.x, top: contextMenu.y }}
-          >
-            {docHighlights.some((h) => {
-              if (h.text.toLowerCase() !== contextMenu.text.toLowerCase()) return false
-              if (contextMenu.startOffset !== undefined && h.startOffset !== contextMenu.startOffset) return false
-              if (contextMenu.endOffset !== undefined && h.endOffset !== contextMenu.endOffset) return false
-              if (h.isTitleHighlight !== (contextMenu.isTitleHighlight ?? false)) return false
-              return true
-            }) ? (
-              <button
-                onClick={() => handleDeleteHighlight(contextMenu.text, { startOffset: contextMenu.startOffset, endOffset: contextMenu.endOffset })}
-                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100 transition-colors"
-              >
-                <Trash2 className="h-3.5 w-3.5 text-danger" />
-                Delete highlight
-              </button>
-            ) : (
-              <button
-                onClick={() => handleHighlight(contextMenu.text, { chapterNumber: contextMenu.chapterNumber, pageNumber: contextMenu.pageNumber, startOffset: contextMenu.startOffset, endOffset: contextMenu.endOffset, isTitleHighlight: contextMenu.isTitleHighlight })}
-                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100 transition-colors"
-              >
-                <Highlighter className="h-3.5 w-3.5 text-yellow-500" />
-                Highlight
-              </button>
-            )}
-            <div className="my-1 border-t border-surface-200 dark:border-surface-200" />
-            <div className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-text-tertiary">
-              Ask
-            </div>
-            <button
-              onClick={handleAskDefinition}
-              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100 transition-colors"
-            >
-              <MessageCircleQuestion className="h-3.5 w-3.5 text-accent" />
-              Ask definition in chat
-            </button>
-            <div className="my-1 border-t border-surface-200 dark:border-surface-200" />
-            <div className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-text-tertiary">
-              Generate
-            </div>
-            <button
-              onClick={handleMakeFlashcard}
-              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100 transition-colors"
-            >
-              <Sparkles className="h-3.5 w-3.5 text-warning" />
-              Flashcard
-            </button>
-            <button
-              onClick={() => handleMakeQuestion('true_false')}
-              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100 transition-colors"
-            >
-              <Sparkles className="h-3.5 w-3.5 text-success" />
-              True / False question
-            </button>
-            <button
-              onClick={() => handleMakeQuestion('multiple_choice')}
-              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100 transition-colors"
-            >
-              <Sparkles className="h-3.5 w-3.5 text-primary" />
-              Multiple choice question
-            </button>
-            <button
-              onClick={() => handleMakeQuestion('checkbox')}
-              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100 transition-colors"
-            >
-              <Sparkles className="h-3.5 w-3.5 text-accent" />
-              Select all that apply
-            </button>
-          </div>
-        )}
+        {topBar}
+        {contentArea}
       </div>
     </div>
   )
