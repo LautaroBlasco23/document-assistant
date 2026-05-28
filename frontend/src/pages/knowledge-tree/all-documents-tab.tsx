@@ -1,8 +1,8 @@
 import * as React from 'react'
+import { useNavigate } from 'react-router-dom'
 import { BookOpen, FileText, FolderOpen, Layers } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useKnowledgeTreeStore } from '../../stores/knowledge-tree-store'
-import { UnifiedDocumentReader } from '../../components/reader/UnifiedDocumentReader'
 import { client } from '../../services'
 import { cn } from '../../lib/cn'
 import type { KnowledgeChapter, KnowledgeDocument } from '../../types/knowledge-tree'
@@ -13,10 +13,17 @@ interface AllDocumentsTabProps {
   resumeDocId?: string
 }
 
+function getViewerUrl(treeId: string, doc: KnowledgeDocument): string {
+  const base = doc.chapter_number != null
+    ? `/trees/${treeId}/chapters/${doc.chapter_number}`
+    : `/trees/${treeId}`
+  return `${base}/viewer/${doc.id}`
+}
+
 export function AllDocumentsTab({ treeId, chapters, resumeDocId }: AllDocumentsTabProps) {
+  const navigate = useNavigate()
   const { documents: docsByKey, documentsLoading, fetchAllDocuments } = useKnowledgeTreeStore()
 
-  const [readerDoc, setReaderDoc] = React.useState<KnowledgeDocument | null>(null)
   const resumedRef = React.useRef(false)
 
   const key = `${treeId}:all`
@@ -32,9 +39,9 @@ export function AllDocumentsTab({ treeId, chapters, resumeDocId }: AllDocumentsT
     const doc = allDocs.find((d) => d.id === resumeDocId)
     if (doc) {
       resumedRef.current = true
-      setReaderDoc(doc)
+      navigate(getViewerUrl(treeId, doc), { replace: true })
     }
-  }, [resumeDocId, loading, allDocs])
+  }, [resumeDocId, loading, allDocs, navigate, treeId])
 
   // A "source file" is any tree-level document that has an original file attached.
   // We check both chapter_number and chapter_id to be defensive against API quirks.
@@ -81,7 +88,7 @@ export function AllDocumentsTab({ treeId, chapters, resumeDocId }: AllDocumentsT
           </div>
           <div className="flex flex-col gap-2">
             {sourceFiles.map((doc) => (
-              <SourceDocumentRow key={doc.id} doc={doc} onReadUnified={setReaderDoc} />
+              <SourceDocumentRow key={doc.id} doc={doc} treeId={treeId} />
             ))}
           </div>
         </div>
@@ -108,29 +115,20 @@ export function AllDocumentsTab({ treeId, chapters, resumeDocId }: AllDocumentsT
             </div>
             <div className="flex flex-col gap-2 pl-1">
               {docs.map((doc) => (
-                <DocumentRow key={doc.id} doc={doc} onRead={setReaderDoc} />
+                <DocumentRow key={doc.id} doc={doc} treeId={treeId} />
               ))}
             </div>
           </div>
         )
       })}
 
-      {/* Document Reader Modal */}
-      {readerDoc && (
-        <UnifiedDocumentReader
-          doc={readerDoc}
-          treeId={treeId}
-          chapters={chapters}
-          onClose={() => setReaderDoc(null)}
-        />
-      )}
     </div>
   )
 }
 
 interface DocumentRowProps {
   doc: KnowledgeDocument
-  onRead: (doc: KnowledgeDocument) => void
+  treeId: string
 }
 
 function getDocIsViewable(doc: KnowledgeDocument): boolean {
@@ -145,7 +143,8 @@ function getDocIsPdf(doc: KnowledgeDocument): boolean {
   return fileName.endsWith('.pdf')
 }
 
-function SourceDocumentRow({ doc, onReadUnified }: { doc: KnowledgeDocument; onReadUnified: (doc: KnowledgeDocument) => void }) {
+function SourceDocumentRow({ doc, treeId }: { doc: KnowledgeDocument; treeId: string }) {
+  const navigate = useNavigate()
   const isPdf = getDocIsPdf(doc)
   const isViewable = getDocIsViewable(doc)
   const canOpen = isViewable
@@ -161,7 +160,7 @@ function SourceDocumentRow({ doc, onReadUnified }: { doc: KnowledgeDocument; onR
     >
     <div
       className="flex items-center gap-3 px-3 py-3 rounded-[9px] bg-surface dark:bg-surface-200 shadow-sm"
-      onClick={() => canOpen && onReadUnified(doc)}
+      onClick={() => canOpen && navigate(getViewerUrl(treeId, doc))}
     >
       {/* Thumbnail */}
       <div className="shrink-0 w-[72px] h-[96px] rounded overflow-hidden bg-surface-100 dark:bg-surface-200 flex items-center justify-center">
@@ -192,7 +191,8 @@ function SourceDocumentRow({ doc, onReadUnified }: { doc: KnowledgeDocument; onR
   )
 }
 
-function DocumentRow({ doc, onRead }: DocumentRowProps) {
+function DocumentRow({ doc, treeId }: DocumentRowProps) {
+  const navigate = useNavigate()
   const hasSourceFile = !!doc.source_file_path
   const isPdf = getDocIsPdf(doc)
   const isViewable = getDocIsViewable(doc)
@@ -202,7 +202,7 @@ function DocumentRow({ doc, onRead }: DocumentRowProps) {
   const [thumbError, setThumbError] = React.useState(false)
 
   const handleClick = () => {
-    if (canOpen) onRead(doc)
+    if (canOpen) navigate(getViewerUrl(treeId, doc))
   }
 
   return (

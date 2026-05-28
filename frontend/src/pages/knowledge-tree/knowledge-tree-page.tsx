@@ -382,15 +382,16 @@ function SectionsSidebar({
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export function KnowledgeTreePage() {
-  const { treeId } = useParams<{ treeId: string }>()
+  const { treeId, chapterNumber: chapterParam } = useParams<{ treeId: string; chapterNumber?: string }>()
   const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
   const addError = useAppStore((s) => s.addError)
   const { trees, treesLoading, treesFetched, fetchTrees, chapters, fetchChapters } = useKnowledgeTreeStore()
 
-  // Single shared chapter selection (null = Overview)
-  const [selectedChapter, setSelectedChapter] = React.useState<number | null>(null)
-  const [showAllDocuments, setShowAllDocuments] = React.useState(true)
+  // Chapter is URL-driven: derive from path param
+  const selectedChapter = chapterParam ? parseInt(chapterParam, 10) : null
+  // showAllDocuments: true when no chapter is selected in the URL
+  const showAllDocuments = selectedChapter === null
 
   const rawTab = searchParams.get('tab')
   const activeTab: KnowledgeTreeTab = isValidTab(rawTab) ? rawTab : 'documents'
@@ -404,8 +405,11 @@ export function KnowledgeTreePage() {
   }
 
   const handleChapterChange = (chapter: number | null) => {
-    setSelectedChapter(chapter)
-    setShowAllDocuments(false)
+    if (chapter === null) {
+      navigate(`/trees/${treeId}`)
+    } else {
+      navigate(`/trees/${treeId}/chapters/${chapter}`)
+    }
   }
 
   // Load trees if not yet loaded
@@ -521,7 +525,7 @@ export function KnowledgeTreePage() {
           chapters={treeChapters}
           selectedChapter={selectedChapter}
           showAllDocuments={showAllDocuments}
-          onSelectAllDocuments={() => setShowAllDocuments(true)}
+          onSelectAllDocuments={() => navigate(`/trees/${treeId}`)}
           onChapterChange={handleChapterChange}
           onChaptersRefresh={handleChaptersRefresh}
         />

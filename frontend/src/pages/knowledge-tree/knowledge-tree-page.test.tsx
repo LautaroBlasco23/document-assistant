@@ -91,6 +91,7 @@ function renderTreePage(treeId: string, storeOverrides = {}, appOverrides = {}) 
   return renderWithProviders(
     <Routes>
       <Route path="/trees/:treeId" element={<KnowledgeTreePage />} />
+      <Route path="/trees/:treeId/chapters/:chapterNumber" element={<KnowledgeTreePage />} />
       <Route path="/" element={<div data-testid="library">Library</div>} />
     </Routes>,
     { routerProps: { initialEntries: [`/trees/${treeId}`] } }

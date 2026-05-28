@@ -24,6 +24,9 @@ const PlanPage = React.lazy(() =>
 const NotFoundPage = React.lazy(() =>
   import('./pages/not-found-page').then((m) => ({ default: m.NotFoundPage }))
 )
+const ViewerPage = React.lazy(() =>
+  import('./pages/viewer/viewer-page').then((m) => ({ default: m.ViewerPage }))
+)
 
 function PageFallback() {
   return (
@@ -76,6 +79,14 @@ export const router = createBrowserRouter([
         ),
       },
       {
+        path: 'trees/:treeId/chapters/:chapterNumber',
+        element: (
+          <Suspense fallback={<PageFallback />}>
+            <KnowledgeTreePage />
+          </Suspense>
+        ),
+      },
+      {
         path: 'settings',
         element: (
           <Suspense fallback={<PageFallback />}>
@@ -100,5 +111,25 @@ export const router = createBrowserRouter([
         ),
       },
     ],
+  },
+  {
+    path: 'trees/:treeId/viewer/:docId',
+    element: (
+      <ProtectedRoute>
+        <Suspense fallback={<PageFallback />}>
+          <ViewerPage />
+        </Suspense>
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: 'trees/:treeId/chapters/:chapterNumber/viewer/:docId',
+    element: (
+      <ProtectedRoute>
+        <Suspense fallback={<PageFallback />}>
+          <ViewerPage />
+        </Suspense>
+      </ProtectedRoute>
+    ),
   },
 ])
