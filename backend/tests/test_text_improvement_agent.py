@@ -5,11 +5,15 @@ Subject: application/agents/text_improvement.py
 Scope:   improve() — LLM call, error propagation.
 """
 
-from unittest.mock import MagicMock
+from datetime import datetime, timezone
+from unittest.mock import MagicMock, patch
+from uuid import uuid4
 
 import pytest
 
+from api.tasks import Task
 from application.agents.text_improvement import TextImprovementAgent
+from application.services.text_improvement import improve_document_task
 from core.ports.llm import GenerationParams
 
 
@@ -75,3 +79,156 @@ def test_improve_preserves_multiline_output():
     expected = "## Heading\n\n- Item 1\n- Item 2\n\n**Bold text.**"
     agent, _ = _make_agent(expected)
     assert agent.improve("Raw text.") == expected
+
+
+def test_improve_formatting_uses_formatting_prompt():
+    """improve(mode='formatting') must use the formatting-specific system prompt."""
+    agent, mock_llm = _make_agent()
+    agent.improve("Some text.", mode="formatting")
+    system_msg = mock_llm.chat.call_args.args[0]
+    assert "formatter" in system_msg.lower()
+    assert "Preserve ALL factual content" in system_msg
+
+
+def test_improve_formatting_returns_llm_output():
+    """improve(mode='formatting') must return whatever the LLM produces."""
+    agent, _ = _make_agent("## Formatted\n\nClean text.")
+    result = agent.improve("Raw text.", mode="formatting")
+    assert result == "## Formatted\n\nClean text."
+
+
+def test_improve_text_uses_text_prompt():
+    """improve(mode='text') must use the text improvement system prompt."""
+    agent, mock_llm = _make_agent()
+    agent.improve("Some text.", mode="text")
+    system_msg = mock_llm.chat.call_args.args[0]
+    assert "writing assistant" in system_msg.lower()
+    assert "clarity" in system_msg.lower()
+
+
+def test_improve_default_mode_is_text():
+    """improve() without mode must use the text improvement prompt."""
+    agent, mock_llm = _make_agent()
+    agent.improve("Some text.")
+    system_msg = mock_llm.chat.call_args.args[0]
+    assert "writing assistant" in system_msg.lower()
+
+
+def test_improve_formatting_with_agent_prompt():
+    """improve(mode='formatting') must prepend agent_prompt to the formatting prompt."""
+    agent, mock_llm = _make_agent()
+    agent.improve("Some text.", agent_prompt="Custom instructions.", mode="formatting")
+    system_msg = mock_llm.chat.call_args.args[0]
+    assert system_msg.startswith("Custom instructions.")
+    assert "formatter" in system_msg.lower()
+
+
+# ---------------------------------------------------------------------------
+# Background task tests
+# ---------------------------------------------------------------------------
+
+
+def _make_task() -> Task:
+    return Task(task_id=str(uuid4()), task_type="kt_improve")
+
+
+def _make_doc(**overrides):
+    defaults = dict(
+        id=uuid4(),
+        tree_id=uuid4(),
+        chapter_id=None,
+        chapter_number=None,
+        title="Test Doc",
+        content="Original content.",
+        original_content=None,
+        is_main=True,
+        created_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(timezone.utc),
+        source_file_path=None,
+        source_file_name=None,
+        page_start=None,
+        page_end=None,
+        source_type="file",
+        source_url=None,
+        file_type=None,
+    )
+    defaults.update(overrides)
+    return MagicMock(**defaults)
+
+
+def _make_services(doc=None):
+    services = MagicMock()
+    services.kt_doc_store.get_document.return_value = doc or _make_doc()
+    updated = _make_doc(content="# Improved\n\nContent.", original_content="Original content.")
+    services.kt_doc_store.save_improvement.return_value = updated
+    return services
+
+
+def test_improve_document_task_returns_document_dict():
+    """improve_document_task must return a dict with document fields."""
+    task = _make_task()
+    doc = _make_doc()
+    tree_id = doc.tree_id
+    services = _make_services(doc)
+
+    with patch("application.services.text_improvement.resolve_llm_for_agent") as mock_resolve:
+        mock_llm = MagicMock()
+        mock_resolve.return_value = (mock_llm, None, None)
+        with patch("application.services.text_improvement.TextImprovementAgent") as mock_agent_cls:
+            mock_agent = MagicMock()
+            mock_agent.improve.return_value = "# Improved\n\nContent."
+            mock_agent_cls.return_value = mock_agent
+
+            result = improve_document_task(
+                task, doc.id, tree_id, "text", services, uuid4(),
+            )
+
+    assert isinstance(result, dict)
+    assert result["content"] == "# Improved\n\nContent."
+    assert result["original_content"] == "Original content."
+    assert result["title"] == "Test Doc"
+
+
+def test_improve_document_task_passes_mode():
+    """improve_document_task must pass mode to the agent."""
+    task = _make_task()
+    doc = _make_doc()
+    tree_id = doc.tree_id
+    services = _make_services(doc)
+
+    with patch("application.services.text_improvement.resolve_llm_for_agent") as mock_resolve:
+        mock_llm = MagicMock()
+        mock_resolve.return_value = (mock_llm, None, None)
+        with patch("application.services.text_improvement.TextImprovementAgent") as mock_agent_cls:
+            mock_agent = MagicMock()
+            mock_agent.improve.return_value = "# Formatted"
+            mock_agent_cls.return_value = mock_agent
+
+            improve_document_task(
+                task, doc.id, tree_id, "formatting", services, uuid4(),
+            )
+
+    call_kwargs = mock_agent.improve.call_args.kwargs
+    assert call_kwargs["mode"] == "formatting"
+
+
+def test_improve_document_task_saves_improvement():
+    """improve_document_task must save the improvement to the store."""
+    task = _make_task()
+    doc = _make_doc()
+    tree_id = doc.tree_id
+    services = _make_services(doc)
+
+    with patch("application.services.text_improvement.resolve_llm_for_agent") as mock_resolve:
+        mock_llm = MagicMock()
+        mock_resolve.return_value = (mock_llm, None, None)
+        with patch("application.services.text_improvement.TextImprovementAgent") as mock_agent_cls:
+            mock_agent = MagicMock()
+            mock_agent.improve.return_value = "# Improved"
+            mock_agent_cls.return_value = mock_agent
+
+            improve_document_task(
+                task, doc.id, tree_id, "text", services, uuid4(),
+            )
+
+    services.kt_doc_store.save_improvement.assert_called_once_with(doc.id, "# Improved")

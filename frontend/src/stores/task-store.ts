@@ -3,7 +3,7 @@ import { client } from '../services'
 
 const pollingIntervals = new Map<string, ReturnType<typeof setInterval>>()
 
-export type GenerationTaskType = 'kt_questions' | 'kt_flashcards' | 'kt_ingest' | 'kt_create_from_file'
+export type GenerationTaskType = 'kt_questions' | 'kt_flashcards' | 'kt_ingest' | 'kt_create_from_file' | 'kt_improve'
 
 export interface GenerationTask {
   taskId: string

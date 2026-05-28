@@ -10,6 +10,7 @@ interface FormatterMenuProps {
   isImproving: boolean
   onModeChange: (mode: FormatMode) => void
   onImprove: () => void
+  onImproveFormatting: () => void
   onRevert: () => void
 }
 
@@ -19,6 +20,7 @@ export function FormatterMenu({
   isImproving,
   onModeChange,
   onImprove,
+  onImproveFormatting,
   onRevert,
 }: FormatterMenuProps) {
   const [open, setOpen] = React.useState(false)
@@ -108,12 +110,21 @@ export function FormatterMenu({
           </div>
 
           <button
+            onClick={() => { onImproveFormatting(); setOpen(false) }}
+            disabled={isImproving}
+            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            <Sparkles className="h-3.5 w-3.5 text-warning shrink-0" />
+            {isImproved ? 'Re-improve formatting' : 'Improve formatting'}
+          </button>
+
+          <button
             onClick={() => { onImprove(); setOpen(false) }}
             disabled={isImproving}
             className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <Sparkles className="h-3.5 w-3.5 text-warning shrink-0" />
-            {isImproved ? 'Re-improve with AI' : 'Improve with AI'}
+            {isImproved ? 'Re-improve text' : 'Improve text'}
           </button>
 
           {isImproved && (

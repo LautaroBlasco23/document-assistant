@@ -1,15 +1,20 @@
 import * as React from 'react'
-import { Plus, Pencil, Trash2, Check, X, FileText, Upload, BookOpen, Files, Wand2, RotateCcw, Youtube, Scissors } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { Plus, Pencil, Trash2, Check, X, FileText, Upload, BookOpen, Files, Wand2, RotateCcw, Youtube, Scissors, Sparkles, Loader2 } from 'lucide-react'
 import { Button } from '../../components/ui/button'
 import { Input } from '../../components/ui/input'
 import { Badge } from '../../components/ui/badge'
 import { ConfirmDialog } from '../../components/ui/confirm-dialog'
 import { useKnowledgeTreeStore, docKey } from '../../stores/knowledge-tree-store'
 import { useAppStore } from '../../stores/app-store'
+import { useTaskStore } from '../../stores/task-store'
 import { client } from '../../services'
-import { UnifiedDocumentReader } from '../../components/reader/UnifiedDocumentReader'
 import { cn } from '../../lib/cn'
 import type { KnowledgeChapter, KnowledgeDocument } from '../../types/knowledge-tree'
+
+function useTaskEntry(taskId: string | null) {
+  return useTaskStore((s) => (taskId ? (s.tasks[taskId] ?? null) : null))
+}
 
 interface SplitChapterEntry {
   pageStart: string
@@ -53,6 +58,7 @@ export function KnowledgeDocumentsTab({
   selectedChapter,
   chapters,
 }: KnowledgeDocumentsTabProps) {
+  const navigate = useNavigate()
   const {
     documents: docsByKey,
     documentsLoading,
@@ -72,7 +78,6 @@ export function KnowledgeDocumentsTab({
   const [saving, setSaving] = React.useState(false)
   const [ingesting, setIngesting] = React.useState(false)
   const [multiIngestProgress, setMultiIngestProgress] = React.useState<{ current: number; total: number } | null>(null)
-  const [readerDoc, setReaderDoc] = React.useState<KnowledgeDocument | null>(null)
   const [youtubeModalOpen, setYoutubeModalOpen] = React.useState(false)
   const [youtubeUrl, setYoutubeUrl] = React.useState('')
   const [youtubeImporting, setYoutubeImporting] = React.useState(false)
@@ -223,8 +228,8 @@ export function KnowledgeDocumentsTab({
     await deleteDocument(doc.id, treeId, selectedChapter)
   }
 
-  const handleImprove = (doc: KnowledgeDocument) => () =>
-    improveDocument(treeId, doc.id, selectedChapter)
+  const handleImprove = (doc: KnowledgeDocument) => (mode: 'text' | 'formatting' = 'text') =>
+    improveDocument(treeId, doc.id, selectedChapter, mode)
 
   const handleRevert = (doc: KnowledgeDocument) => () =>
     revertDocument(treeId, doc.id, selectedChapter)
@@ -447,7 +452,12 @@ export function KnowledgeDocumentsTab({
                       doc={doc}
                       onEdit={() => handleOpenEdit(doc)}
                       onDelete={() => void handleDelete(doc)}
-                      onRead={setReaderDoc}
+                      onRead={(d) => {
+                        const viewerBase = selectedChapter !== null
+                          ? `/trees/${treeId}/chapters/${selectedChapter}`
+                          : `/trees/${treeId}`
+                        navigate(`${viewerBase}/viewer/${d.id}`)
+                      }}
                       onImprove={handleImprove(doc)}
                       onRevert={handleRevert(doc)}
                       onUpdateFileType={(ft) => void handleUpdateFileType(doc.id, ft)}
@@ -456,15 +466,6 @@ export function KnowledgeDocumentsTab({
                ))
              )}
 
-             {/* Document Reader Modal */}
-             {readerDoc && (
-               <UnifiedDocumentReader
-                 doc={readerDoc}
-                 treeId={treeId}
-                 chapters={chapters}
-                 onClose={() => setReaderDoc(null)}
-               />
-             )}
            </>
          )}
 
@@ -589,7 +590,7 @@ interface DocumentCardProps {
   onEdit: () => void
   onDelete: () => void
   onRead: (doc: KnowledgeDocument) => void
-  onImprove: () => Promise<KnowledgeDocument>
+  onImprove: (mode?: 'text' | 'formatting') => Promise<string>
   onRevert: () => Promise<KnowledgeDocument>
   onUpdateFileType: (fileType: string) => void
 }
@@ -611,11 +612,15 @@ function DocumentCard({ doc, onEdit, onDelete, onRead, onImprove, onRevert, onUp
   const [revertOpen, setRevertOpen] = React.useState(false)
   const [deleteOpen, setDeleteOpen] = React.useState(false)
   const [acting, setActing] = React.useState(false)
+  const [improveTaskId, setImproveTaskId] = React.useState<string | null>(null)
   const [thumbError, setThumbError] = React.useState(false)
   const [ftDropdownOpen, setFtDropdownOpen] = React.useState(false)
   const ftButtonRef = React.useRef<HTMLButtonElement>(null)
   const ftDropdownRef = React.useRef<HTMLDivElement>(null)
   const addError = useAppStore((s) => s.addError)
+  const submitTask = useTaskStore((s) => s.submitTask)
+  const clearTask = useTaskStore((s) => s.clearTask)
+  const applyImproveResult = useKnowledgeTreeStore((s) => s.applyImproveResult)
 
   React.useEffect(() => {
     if (!ftDropdownOpen) return
@@ -635,10 +640,18 @@ function DocumentCard({ doc, onEdit, onDelete, onRead, onImprove, onRevert, onUp
 
   const isImproved = doc.original_content !== null
 
-  const handleConfirmImprove = async () => {
+  const handleConfirmImprove = async (mode: 'text' | 'formatting' = 'text') => {
     setActing(true)
     try {
-      await onImprove()
+      const taskId = await onImprove(mode)
+      submitTask({
+        taskId,
+        type: 'kt_improve',
+        entityId: doc.tree_id,
+        chapter: doc.chapter_number ?? 0,
+        entityTitle: `Improve: ${doc.title}`,
+      })
+      setImproveTaskId(taskId)
       setImproveOpen(false)
     } catch {
       addError('Failed to improve document. Please try again.')
@@ -646,6 +659,32 @@ function DocumentCard({ doc, onEdit, onDelete, onRead, onImprove, onRevert, onUp
       setActing(false)
     }
   }
+
+  const improveTaskEntry = useTaskEntry(improveTaskId)
+
+  React.useEffect(() => {
+    if (!improveTaskId || !improveTaskEntry) return
+    if (improveTaskEntry.status === 'completed') {
+      if (improveTaskEntry.result) {
+        applyImproveResult(doc.tree_id, doc.chapter_number, doc.id, improveTaskEntry.result)
+      }
+      clearTask(improveTaskId)
+      setImproveTaskId(null)
+    } else if (improveTaskEntry.status === 'failed') {
+      addError(improveTaskEntry.error ?? 'Improvement failed')
+      clearTask(improveTaskId)
+      setImproveTaskId(null)
+    } else if (improveTaskEntry.status === 'rate_limited') {
+      const retryAfter = (improveTaskEntry.result as { retry_after?: number } | null)?.retry_after
+      addError(
+        retryAfter
+          ? `AI provider is rate-limiting. Please retry in ${Math.ceil(retryAfter)}s.`
+          : (improveTaskEntry.error ?? 'Rate limited by AI provider.')
+      )
+      clearTask(improveTaskId)
+      setImproveTaskId(null)
+    }
+  }, [improveTaskId, improveTaskEntry?.status, applyImproveResult, clearTask, addError, doc])
 
   const handleConfirmRevert = async () => {
     setActing(true)
@@ -752,7 +791,8 @@ function DocumentCard({ doc, onEdit, onDelete, onRead, onImprove, onRevert, onUp
             variant="ghost"
             size="sm"
             onClick={(e) => { e.stopPropagation(); setRevertOpen(true); }}
-            className="h-8 w-8 p-0 text-amber-500 hover:text-amber-600 dark:hover:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20"
+            disabled={!!improveTaskId}
+            className="h-8 w-8 p-0 text-amber-500 hover:text-amber-600 dark:hover:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20 disabled:opacity-50 disabled:cursor-not-allowed"
             title="Revert improvement"
           >
             <RotateCcw className="h-4 w-4" />
@@ -762,10 +802,14 @@ function DocumentCard({ doc, onEdit, onDelete, onRead, onImprove, onRevert, onUp
             variant="ghost"
             size="sm"
             onClick={(e) => { e.stopPropagation(); setImproveOpen(true); }}
-            className="h-8 w-8 p-0 text-text-tertiary hover:text-primary dark:hover:text-primary hover:bg-surface-100 dark:hover:bg-surface-100"
-            title="Improve text with AI"
+            disabled={!!improveTaskId}
+            className="h-8 w-8 p-0 text-text-tertiary hover:text-primary dark:hover:text-primary hover:bg-surface-100 dark:hover:bg-surface-100 disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Improve with AI"
           >
-            <Wand2 className="h-4 w-4" />
+            {improveTaskId
+              ? <Loader2 className="h-4 w-4 animate-spin" />
+              : <Wand2 className="h-4 w-4" />
+            }
           </Button>
         )}
 
@@ -793,16 +837,41 @@ function DocumentCard({ doc, onEdit, onDelete, onRead, onImprove, onRevert, onUp
         onConfirm={() => void handleConfirmDelete()}
       />
 
-      {/* Improve confirmation dialog */}
+      {/* Improve modal — choose between formatting and text improvement */}
       <ConfirmDialog
         open={improveOpen}
         onOpenChange={(o) => { if (!acting) setImproveOpen(o) }}
-        title="Improve text with AI?"
-        description="The document will be rewritten with improved style and Markdown formatting. The original version is saved so you can revert at any time."
+        title="Improve document"
+        description="Choose how to improve this document:"
         confirmLabel="Improve"
         loading={acting}
-        onConfirm={() => void handleConfirmImprove()}
-      />
+        onConfirm={() => void handleConfirmImprove('text')}
+      >
+        <div className="flex flex-col gap-2">
+          <button
+            onClick={() => void handleConfirmImprove('formatting')}
+            disabled={acting}
+            className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-left rounded-lg border border-surface-200 dark:border-surface-200 hover:bg-surface-100 dark:hover:bg-surface-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            <Wand2 className="h-4 w-4 text-text-tertiary shrink-0" />
+            <div>
+              <div className="font-medium text-text-primary">Improve formatting</div>
+              <div className="text-xs text-text-tertiary">Apply Markdown structure for readability</div>
+            </div>
+          </button>
+          <button
+            onClick={() => void handleConfirmImprove('text')}
+            disabled={acting}
+            className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-left rounded-lg border border-surface-200 dark:border-surface-200 hover:bg-surface-100 dark:hover:bg-surface-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            <Sparkles className="h-4 w-4 text-warning shrink-0" />
+            <div>
+              <div className="font-medium text-text-primary">Improve text</div>
+              <div className="text-xs text-text-tertiary">Rewrite for clarity, style, and structure</div>
+            </div>
+          </button>
+        </div>
+      </ConfirmDialog>
 
       {/* Revert confirmation dialog */}
       <ConfirmDialog

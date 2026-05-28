@@ -38,7 +38,6 @@ from api.schemas.knowledge_tree import (
 from api.schemas.question import GenerateQuestionsRequest, QuestionOut
 from application.agents.flashcard_generator import FlashcardGeneratorAgent
 from application.agents.question_generator import QuestionGeneratorAgent
-from application.agents.text_improvement import TextImprovementAgent
 from application.llm_resolver import resolve_llm_for_agent
 from application.services.chapter_helpers import get_chapter_context, parse_uuid, resolve_chapter
 from application.services.flashcard_generation import (
@@ -538,11 +537,12 @@ class ImproveDocumentRequest(BaseModel):
     max_tokens: int | None = None
     agent_id: str | None = None
     model: str | None = None
+    mode: str = "text"  # "text" | "formatting"
 
 
 @router.post(
     "/knowledge-trees/{tree_id}/documents/{doc_id}/improve",
-    response_model=KnowledgeDocumentOut,
+    status_code=202,
 )
 async def improve_document(
     tree_id: str,
@@ -550,17 +550,10 @@ async def improve_document(
     req: ImproveDocumentRequest,
     _user: CurrentUser,
     services: ServicesDep,
-) -> KnowledgeDocumentOut:
-    """Improve document text style, apply Markdown formatting, and save atomically."""
+) -> dict:
+    """Submit background task to improve document text or formatting."""
     uid = parse_uuid(tree_id, "tree_id")
     doc_uid = parse_uuid(doc_id, "doc_id")
-    doc = services.kt_doc_store.get_document(doc_uid)
-    if doc is None or doc.tree_id != uid:
-        raise HTTPException(status_code=404, detail="Knowledge document not found")
-    if not doc.content or not doc.content.strip():
-        raise HTTPException(status_code=422, detail="Document has no content to improve")
-
-    from core.ports.llm import GenerationParams
 
     agent_uid = None
     if req.agent_id:
@@ -573,33 +566,23 @@ async def improve_document(
         if default is not None:
             agent_uid = default.id
 
-    try:
-        llm, agent_prompt, agent_params = resolve_llm_for_agent(
-            _user.id,
-            agent_uid,
-            services,
-            model_override=req.model,
-        )
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
-    except ProviderNotConfigured as e:
-        raise HTTPException(
-            status_code=412,
-            detail=f"Provider not configured: {e.provider}. Add an API key in Settings.",
-        )
+    from application.services.text_improvement import improve_document_task
 
-    def _param(value: float | None, fallback: float | None) -> float | None:
-        return value if value is not None else fallback
-
-    params = GenerationParams(
-        temperature=_param(req.temperature, getattr(agent_params, "temperature", None)),
-        top_p=_param(req.top_p, getattr(agent_params, "top_p", None)),
-        max_tokens=_param(req.max_tokens, getattr(agent_params, "max_tokens", None)),
+    task_id = services.task_registry.submit(
+        improve_document_task,
+        doc_uid,
+        uid,
+        req.mode,
+        services,
+        _user.id,
+        agent_id=agent_uid,
+        model_override=req.model,
+        temperature=req.temperature,
+        top_p=req.top_p,
+        max_tokens=req.max_tokens,
+        task_type="kt_improve",
     )
-    agent = TextImprovementAgent(llm)
-    improved = agent.improve(doc.content, params=params, agent_prompt=agent_prompt)
-    updated = services.kt_doc_store.save_improvement(doc_uid, improved)
-    return _doc_out(updated)
+    return {"task_id": task_id}
 
 
 @router.post(

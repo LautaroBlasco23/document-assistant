@@ -374,66 +374,46 @@ def test_delete_document_returns_204(test_client, mock_services):
 # ---------------------------------------------------------------------------
 
 
-def test_improve_document_calls_agent_and_saves(test_client, mock_services):
-    doc = _doc()
-    doc.content = "Original content."
-    improved_doc = _doc()
-    improved_doc.content = "# Improved\n\nContent."
-    mock_services.kt_doc_store.get_document.return_value = doc
-    mock_services.kt_doc_store.save_improvement.return_value = improved_doc
-
-    with (
-        patch("api.routers.knowledge_trees.TextImprovementAgent") as mock_agent_cls,
-        patch("api.routers.knowledge_trees.resolve_llm_for_agent") as mock_resolve,
-    ):
-        mock_llm = MagicMock()
-        mock_resolve.return_value = (mock_llm, None, None)
-        mock_agent = MagicMock()
-        mock_agent.improve.return_value = "# Improved\n\nContent."
-        mock_agent_cls.return_value = mock_agent
+def test_improve_document_submits_task(test_client, mock_services):
+    """Improve endpoint must submit a background task and return 202 with task_id."""
+    with patch("application.services.text_improvement.improve_document_task"):
+        mock_services.task_registry.submit.return_value = "test-task-id-123"
 
         response = test_client.post(
             f"/api/knowledge-trees/{TREE_ID}/documents/{DOC_ID}/improve", json={}
         )
 
-    assert response.status_code == 200
-    mock_resolve.assert_called_once()
-    mock_agent_cls.assert_called_once_with(mock_llm)
-    mock_agent.improve.assert_called_once()
-    mock_services.kt_doc_store.save_improvement.assert_called_once_with(
-        DOC_ID, "# Improved\n\nContent."
-    )
+    assert response.status_code == 202
+    data = response.json()
+    assert data["task_id"] == "test-task-id-123"
+    mock_services.task_registry.submit.assert_called_once()
+    call_kwargs = mock_services.task_registry.submit.call_args
+    assert call_kwargs.kwargs["task_type"] == "kt_improve"
 
 
-def test_improve_document_not_found_returns_404(test_client, mock_services):
-    mock_services.kt_doc_store.get_document.return_value = None
+def test_improve_document_formatting_mode_submits_task(test_client, mock_services):
+    """Improve with mode='formatting' must pass mode to the background task."""
+    with patch("application.services.text_improvement.improve_document_task"):
+        mock_services.task_registry.submit.return_value = "test-task-id-456"
+
+        response = test_client.post(
+            f"/api/knowledge-trees/{TREE_ID}/documents/{DOC_ID}/improve",
+            json={"mode": "formatting"},
+        )
+
+    assert response.status_code == 202
+    call_args = mock_services.task_registry.submit.call_args
+    # mode is the 4th positional arg (after fn, doc_uid, uid)
+    assert call_args.args[3] == "formatting"
+
+
+def test_improve_document_invalid_agent_id_returns_422(test_client, mock_services):
+    """Invalid agent_id must return 422 before submitting task."""
     response = test_client.post(
-        f"/api/knowledge-trees/{TREE_ID}/documents/{DOC_ID}/improve", json={}
-    )
-    assert response.status_code == 404
-
-
-def test_improve_document_empty_content_returns_422(test_client, mock_services):
-    doc = _doc()
-    doc.content = "   "
-    mock_services.kt_doc_store.get_document.return_value = doc
-
-    response = test_client.post(
-        f"/api/knowledge-trees/{TREE_ID}/documents/{DOC_ID}/improve", json={}
+        f"/api/knowledge-trees/{TREE_ID}/documents/{DOC_ID}/improve",
+        json={"agent_id": "not-a-uuid"},
     )
     assert response.status_code == 422
-
-
-def test_improve_document_wrong_tree_returns_404(test_client, mock_services):
-    """A document belonging to a different tree must return 404."""
-    doc = _doc()
-    doc.tree_id = UUID("99999999-9999-9999-9999-999999999999")
-    mock_services.kt_doc_store.get_document.return_value = doc
-
-    response = test_client.post(
-        f"/api/knowledge-trees/{TREE_ID}/documents/{DOC_ID}/improve", json={}
-    )
-    assert response.status_code == 404
 
 
 def test_revert_document_returns_original(test_client, mock_services):

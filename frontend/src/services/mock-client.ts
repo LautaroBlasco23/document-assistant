@@ -324,14 +324,9 @@ export class MockClient implements ServiceClient {
     this.documents = this.documents.filter((d) => d.id !== id)
   }
 
-  async improveKnowledgeDocument(_treeId: string, docId: string, _agentId?: string): Promise<KnowledgeDocument> {
+  async improveKnowledgeDocument(_treeId: string, _docId: string, _agentId?: string, _mode: 'text' | 'formatting' = 'text'): Promise<{ task_id: string }> {
     await delay(1200)
-    const doc = this.documents.find((d) => d.id === docId)
-    if (!doc) throw new Error('Document not found')
-    const improved = '## Improved Document\n\nThis is a **mock-improved** version of the document with proper Markdown formatting.\n\n- Bullet point one\n- Bullet point two\n\nThe content has been restructured for clarity.'
-    const updated = { ...doc, content: improved, original_content: doc.original_content ?? doc.content }
-    this.documents = this.documents.map((d) => d.id === docId ? updated : d)
-    return updated
+    return { task_id: `mock-improve-${_docId}` }
   }
 
   async revertKnowledgeDocument(_treeId: string, docId: string): Promise<KnowledgeDocument> {
