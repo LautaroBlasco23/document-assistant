@@ -39,12 +39,12 @@ def test_improve_passes_text_to_llm():
 
 
 def test_improve_uses_system_prompt():
-    """improve() must pass a system prompt that includes clarity/Markdown instructions."""
+    """improve() must pass a system prompt with book/text-type instructions."""
     agent, mock_llm = _make_agent()
     agent.improve("Some text.")
     system_msg = mock_llm.chat.call_args.args[0]
-    assert "Markdown" in system_msg or "markdown" in system_msg.lower()
-    assert "clarity" in system_msg.lower() or "clarity" in system_msg
+    assert "STRUCTURAL MARKERS" in system_msg or "__HEADING__" in system_msg
+    assert "books" in system_msg.lower() or "writing assistant" in system_msg.lower()
 
 
 def test_improve_passes_generation_params():
@@ -87,7 +87,7 @@ def test_improve_formatting_uses_formatting_prompt():
     agent.improve("Some text.", mode="formatting")
     system_msg = mock_llm.chat.call_args.args[0]
     assert "formatter" in system_msg.lower()
-    assert "Preserve ALL factual content" in system_msg
+    assert "__HEADING__" in system_msg or "STRUCTURAL MARKERS" in system_msg
 
 
 def test_improve_formatting_returns_llm_output():
@@ -103,7 +103,7 @@ def test_improve_text_uses_text_prompt():
     agent.improve("Some text.", mode="text")
     system_msg = mock_llm.chat.call_args.args[0]
     assert "writing assistant" in system_msg.lower()
-    assert "clarity" in system_msg.lower()
+    assert "TEXT TYPE RULES" in system_msg
 
 
 def test_improve_default_mode_is_text():
@@ -121,6 +121,39 @@ def test_improve_formatting_with_agent_prompt():
     system_msg = mock_llm.chat.call_args.args[0]
     assert system_msg.startswith("Custom instructions.")
     assert "formatter" in system_msg.lower()
+
+
+def test_improve_preprocesses_input():
+    """improve() must remove duplicates and mark titles before sending to LLM."""
+    agent, mock_llm = _make_agent("## Result")
+    # Input with a duplicate paragraph and a title
+    text = "The Trunchbull\n\nSome body text.\n\nThe Trunchbull\n\nMore text."
+    agent.improve(text)
+    _, user_msg = mock_llm.chat.call_args.args[:2]
+    # Title should be marked
+    assert "__HEADING__The Trunchbull__END_HEADING__" in user_msg
+    # Duplicate should be removed
+    assert user_msg.count("The Trunchbull") == 1
+
+
+def test_improve_formatting_preprocesses_input():
+    """improve(mode='formatting') must also preprocess input."""
+    agent, mock_llm = _make_agent("## Result")
+    text = "Chapter One\n\nSome text.\n\nChapter One\n\nMore text."
+    agent.improve(text, mode="formatting")
+    _, user_msg = mock_llm.chat.call_args.args[:2]
+    assert "__HEADING__Chapter One__END_HEADING__" in user_msg
+    assert user_msg.count("Chapter One") == 1
+
+
+def test_improve_passes_preprocessed_text_not_raw():
+    """The user message sent to the LLM must be the preprocessed version."""
+    agent, mock_llm = _make_agent("Result")
+    raw = "Title\n\nBody.\n\nTitle\n\nBody."
+    agent.improve(raw)
+    _, user_msg = mock_llm.chat.call_args.args[:2]
+    # Should not contain duplicate paragraphs
+    assert user_msg.count("Body.") == 1
 
 
 # ---------------------------------------------------------------------------
