@@ -311,6 +311,47 @@ describe('useKnowledgeTreeStore', () => {
     expect(useKnowledgeTreeStore.getState().documents['t1:main'][0].content).toBe('new')
   })
 
+  // updateDocument passes through the optional originalContent so the backend
+  // can capture a pre-edit baseline. The signature is purely a pass-through to
+  // the client; the merge into local state mirrors the regular update path.
+  it('updateDocument forwards originalContent to the client', async () => {
+    const existing: KnowledgeDocument = {
+      id: 'd1',
+      tree_id: 't1',
+      chapter_id: null,
+      chapter_number: null,
+      title: 'Old',
+      content: 'old',
+      is_main: false,
+      created_at: '2024-01-01',
+      updated_at: '2024-01-01',
+    }
+    useKnowledgeTreeStore.setState({ documents: { 't1:main': [existing] } })
+    const updated: KnowledgeDocument = {
+      ...existing,
+      content: 'new',
+      original_content: 'old',
+      updated_at: '2024-01-02',
+    }
+    mockClient.updateKnowledgeDocument.mockResolvedValue(updated)
+
+    const result = await useKnowledgeTreeStore.getState().updateDocument(
+      'd1',
+      'Old',
+      'new',
+      't1',
+      null,
+      undefined,
+      'old',
+    )
+
+    expect(mockClient.updateKnowledgeDocument).toHaveBeenCalledWith(
+      't1', 'd1', 'Old', 'new', undefined, 'old'
+    )
+    expect(result.original_content).toBe('old')
+    expect(useKnowledgeTreeStore.getState().documents['t1:main'][0].content).toBe('new')
+  })
+
   // deleteDocument filters out only the document with the matching id.
   it('deleteDocument removes document', async () => {
     const docs: KnowledgeDocument[] = [

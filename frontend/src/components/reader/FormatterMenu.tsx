@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Type, FileText, Sparkles, RotateCcw, ChevronDown, Loader2 } from 'lucide-react'
+import { Type, FileText, Sparkles, RotateCcw, ChevronDown, Loader2, Pencil, Check, X } from 'lucide-react'
 import { cn } from '../../lib/cn'
 
 export type FormatMode = 'plain' | 'markdown'
@@ -12,6 +12,21 @@ interface FormatterMenuProps {
   onImprove: () => void
   onImproveFormatting: () => void
   onRevert: () => void
+  // --- Edit mode (manual text improvement) ---
+  /** True while the user is editing the document text. Hides the format menu. */
+  isEditing: boolean
+  /** True while a Save request is in flight. Disables Save and Cancel. */
+  isSaving: boolean
+  /** True when the draft differs from the saved content. Disables Save until true. */
+  isDirty: boolean
+  /** Enters edit mode (and snapshots the baseline if needed). */
+  onEnterEdit: () => void
+  /** Persists the draft content to the document. */
+  onSave: () => void
+  /** Discards the draft and exits edit mode without saving. */
+  onCancel: () => void
+  /** True when entering edit mode is allowed (e.g. no AI improve in flight). */
+  canEdit: boolean
 }
 
 export function FormatterMenu({
@@ -22,6 +37,13 @@ export function FormatterMenu({
   onImprove,
   onImproveFormatting,
   onRevert,
+  isEditing,
+  isSaving,
+  isDirty,
+  onEnterEdit,
+  onSave,
+  onCancel,
+  canEdit,
 }: FormatterMenuProps) {
   const [open, setOpen] = React.useState(false)
   const ref = React.useRef<HTMLDivElement>(null)
@@ -42,11 +64,64 @@ export function FormatterMenu({
     return () => document.removeEventListener('keydown', handler)
   }, [open])
 
+  // Edit-mode bar: Save / Cancel replace the format dropdown.
+  if (isEditing) {
+    return (
+      <div ref={ref} className="flex items-center gap-1.5" data-testid="formatter-edit-bar">
+        <button
+          type="button"
+          onClick={onSave}
+          disabled={!isDirty || isSaving}
+          className={cn(
+            'inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium transition-colors border shadow-sm',
+            'bg-primary text-white border-primary',
+            'hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed'
+          )}
+          title={isDirty ? 'Save changes' : 'No changes to save'}
+        >
+          {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+          {isSaving ? 'Saving…' : 'Save'}
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          disabled={isSaving}
+          className={cn(
+            'inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium transition-colors border shadow-sm',
+            'bg-surface dark:bg-surface-200 border-surface-200 dark:border-surface-200',
+            'text-text-secondary hover:text-text-primary hover:bg-surface-100 dark:hover:bg-surface-100',
+            'disabled:opacity-50 disabled:cursor-not-allowed'
+          )}
+          title="Discard changes"
+        >
+          <X className="h-3.5 w-3.5" />
+          Cancel
+        </button>
+      </div>
+    )
+  }
+
   const label = mode === 'markdown' ? 'Markdown' : 'Plain'
   const Icon = mode === 'markdown' ? FileText : Type
 
   return (
-    <div ref={ref} className="relative">
+    <div ref={ref} className="relative flex items-center gap-1.5">
+      <button
+        type="button"
+        onClick={onEnterEdit}
+        disabled={!canEdit || isImproving}
+        className={cn(
+          'inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium transition-colors border shadow-sm',
+          'bg-surface dark:bg-surface-200 border-surface-200 dark:border-surface-200',
+          'text-text-secondary hover:text-text-primary hover:bg-surface-100 dark:hover:bg-surface-100',
+          'disabled:opacity-50 disabled:cursor-not-allowed'
+        )}
+        title="Manually edit document text"
+      >
+        <Pencil className="h-3.5 w-3.5" />
+        Edit
+      </button>
+
       <button
         onClick={() => setOpen((o) => !o)}
         disabled={isImproving}

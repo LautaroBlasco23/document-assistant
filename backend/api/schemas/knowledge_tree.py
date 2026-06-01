@@ -60,6 +60,11 @@ class UpdateDocumentRequest(BaseModel):
     title: str
     content: str
     file_type: str | None = None
+    # Optional baseline snapshot. When provided AND current original_content is NULL,
+    # the repository will set original_content to this value (used to capture a
+    # pre-edit baseline before the user starts manually modifying text). Existing
+    # AI-improvement baselines are preserved (only written when NULL).
+    original_content: str | None = None
 
 
 # --- Responses ---

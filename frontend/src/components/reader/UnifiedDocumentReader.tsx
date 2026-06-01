@@ -19,6 +19,8 @@ import { readerMarkdownComponents } from './markdownComponents'
 import { useGenerationSettings } from '../../stores/generation-settings'
 import { useHighlights } from '../../stores/highlights-store'
 import { useReaderPreferences, type ContentWidth } from '../../stores/reader-preferences'
+import { EditableTextPanel } from './EditableTextPanel'
+import { useEditGuard } from '../../hooks/use-edit-guard'
 
 type ReadMode = 'scroll' | 'paged'
 
@@ -190,6 +192,15 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose, mode = '
   const [improveTaskId, setImproveTaskId] = React.useState<string | null>(null)
   const submitTask = useTaskStore((s) => s.submitTask)
   const clearTask = useTaskStore((s) => s.clearTask)
+
+  // --- Manual edit state ---
+  const [isEditing, setIsEditing] = React.useState(false)
+  const [draftContent, setDraftContent] = React.useState<string>('')
+  const [isSaving, setIsSaving] = React.useState(false)
+  const [editError, setEditError] = React.useState<string | null>(null)
+  // Snapshot state guards: we set this the first time the user enters edit mode
+  // for a given doc so the baseline-snapshot PUT runs at most once.
+  const [baselineCaptured, setBaselineCaptured] = React.useState(false)
   // For non-text docs (content-only, YouTube), the prop `doc` doesn't update after
   // improve/revert because the parent state isn't wired to the store. Track it locally.
   const [currentDocOverride, setCurrentDocOverride] = React.useState<KnowledgeDocument | null>(null)
@@ -361,6 +372,78 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose, mode = '
       setIsImproving(false)
     }
   }, [treeId, resolvedDoc.id, resolvedDoc.chapter_number, isText, revertDocument, handleFormatModeChange, addError])
+
+  // --- Manual edit handlers ---
+  const isDirty = isEditing && draftContent !== resolvedDoc.content
+
+  // Reset edit state when the resolved doc identity changes (chapter switch, doc reload).
+  React.useEffect(() => {
+    setIsEditing(false)
+    setDraftContent('')
+    setIsSaving(false)
+    setEditError(null)
+    setBaselineCaptured(false)
+  }, [resolvedDoc.id])
+
+  // Browser unload guard while there is an unsaved draft.
+  useEditGuard(isEditing && isDirty)
+
+  const handleEnterEdit = React.useCallback(async () => {
+    if (isEditing) return
+    setEditError(null)
+    setDraftContent(resolvedDoc.content ?? '')
+    setIsEditing(true)
+    // Snapshot baseline (only when no AI improvement baseline exists yet).
+    if (!baselineCaptured && resolvedDoc.original_content == null) {
+      try {
+        await updateDocument(
+          resolvedDoc.id,
+          resolvedDoc.title,
+          resolvedDoc.content ?? '',
+          treeId,
+          resolvedDoc.chapter_number ?? null,
+          undefined,
+          resolvedDoc.content ?? ''
+        )
+        setBaselineCaptured(true)
+      } catch (e) {
+        // Snapshot failure must not block the user from editing. We surface
+        // the error and proceed; the user can still save their draft.
+        addError(`Could not capture pre-edit baseline: ${(e as Error).message || 'unknown error'}`)
+      }
+    } else {
+      setBaselineCaptured(true)
+    }
+  }, [isEditing, baselineCaptured, resolvedDoc, treeId, updateDocument, addError])
+
+  const handleSaveEdit = React.useCallback(async () => {
+    if (!isEditing || isSaving) return
+    setIsSaving(true)
+    setEditError(null)
+    try {
+      const updated = await updateDocument(
+        resolvedDoc.id,
+        resolvedDoc.title,
+        draftContent,
+        treeId,
+        resolvedDoc.chapter_number ?? null
+      )
+      if (!isText) setCurrentDocOverride(updated)
+      setIsEditing(false)
+      setDraftContent('')
+    } catch (e) {
+      setEditError((e as Error).message || 'Failed to save changes. Please try again.')
+    } finally {
+      setIsSaving(false)
+    }
+  }, [isEditing, isSaving, resolvedDoc, treeId, draftContent, updateDocument, isText])
+
+  const handleCancelEdit = React.useCallback(() => {
+    if (isSaving) return
+    setIsEditing(false)
+    setDraftContent('')
+    setEditError(null)
+  }, [isSaving])
 
   const improveTaskEntry = useTaskStore((s) => (improveTaskId ? (s.tasks[improveTaskId] ?? null) : null))
 
@@ -823,6 +906,13 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose, mode = '
               onImprove={handleImproveText}
               onImproveFormatting={handleImproveFormatting}
               onRevert={handleRevert}
+              isEditing={isEditing}
+              isSaving={isSaving}
+              isDirty={isDirty}
+              onEnterEdit={handleEnterEdit}
+              onSave={handleSaveEdit}
+              onCancel={handleCancelEdit}
+              canEdit={!isImproving}
             />
           )}
         </div>
@@ -993,6 +1083,12 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose, mode = '
             scrollRef={textScrollRef}
             isTxt={isTxt}
             highlights={docHighlights}
+            isEditing={isEditing}
+            draftContent={draftContent}
+            isSaving={isSaving}
+            editError={editError}
+            onDraftChange={setDraftContent}
+            editingChapter={textActiveChapter ?? resolvedDoc.chapter_number ?? null}
           />
         ) : isYouTube ? (
           <div
@@ -1004,7 +1100,16 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose, mode = '
               className={cn('mx-auto py-8 px-6 text-text-secondary leading-relaxed', contentWidthClass)}
               style={{ fontSize: `${Math.round(zoom * 100)}%` }}
             >
-              {formatMode === 'markdown' ? (
+              {isEditing ? (
+                <EditableTextPanel
+                  value={draftContent}
+                  fileType={effectiveDoc.file_type ?? null}
+                  isSaving={isSaving}
+                  error={editError}
+                  supportsPreview={formatMode === 'markdown'}
+                  onChange={setDraftContent}
+                />
+              ) : formatMode === 'markdown' ? (
                 <ReactMarkdown components={readerMarkdownComponents}>{effectiveDoc.content ?? ''}</ReactMarkdown>
               ) : (
                 <p className="whitespace-pre-wrap break-words">{effectiveDoc.content}</p>
@@ -1022,7 +1127,16 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose, mode = '
                 className={cn('mx-auto py-8 px-6 text-text-secondary leading-relaxed', contentWidthClass)}
                 style={{ fontSize: `${Math.round(zoom * 100)}%` }}
               >
-                {formatMode === 'markdown' ? (
+                {isEditing ? (
+                  <EditableTextPanel
+                    value={draftContent}
+                    fileType={effectiveDoc.file_type ?? null}
+                    isSaving={isSaving}
+                    error={editError}
+                    supportsPreview={formatMode === 'markdown'}
+                    onChange={setDraftContent}
+                  />
+                ) : formatMode === 'markdown' ? (
                   <ReactMarkdown components={readerMarkdownComponents}>{effectiveDoc.content}</ReactMarkdown>
                 ) : (
                   <p className="whitespace-pre-wrap break-words">{effectiveDoc.content}</p>

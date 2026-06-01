@@ -50,7 +50,7 @@ export interface ServiceClient {
   deleteKnowledgeChapters(treeId: string, chapterNumbers: number[]): Promise<void>
   listKnowledgeDocuments(treeId: string, chapterId?: string | null): Promise<KnowledgeDocument[]>
   createKnowledgeDocument(treeId: string, chapterId: string | null, title: string, content: string, isMain?: boolean): Promise<KnowledgeDocument>
-  updateKnowledgeDocument(treeId: string, id: string, title: string, content: string, fileType?: string | null): Promise<KnowledgeDocument>
+  updateKnowledgeDocument(treeId: string, id: string, title: string, content: string, fileType?: string | null, originalContent?: string | null): Promise<KnowledgeDocument>
   deleteKnowledgeDocument(treeId: string, id: string): Promise<void>
   improveKnowledgeDocument(treeId: string, docId: string, agentId?: string, mode?: 'text' | 'formatting'): Promise<{ task_id: string }>
   revertKnowledgeDocument(treeId: string, docId: string): Promise<KnowledgeDocument>

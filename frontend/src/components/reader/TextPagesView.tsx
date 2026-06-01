@@ -7,6 +7,7 @@ import type { FormatMode } from './FormatterMenu'
 import type { ContentWidth } from '../../stores/reader-preferences'
 import { readerMarkdownComponents } from './markdownComponents'
 import type { Highlight } from '../../stores/highlights-store'
+import { EditableTextPanel } from './EditableTextPanel'
 
 function markTextByPosition(text: string, highlights: Highlight[], chapterNumber: number, titleOnly?: boolean): React.ReactNode {
   const spans = highlights
@@ -48,6 +49,7 @@ export interface TextPagesViewHandle {
 interface ChapterDoc {
   chapter_number: number | null
   content: string
+  file_type?: string | null
 }
 
 interface TextPagesViewProps {
@@ -64,6 +66,14 @@ interface TextPagesViewProps {
   scrollRef?: React.MutableRefObject<TextPagesViewHandle | null>
   isTxt?: boolean
   highlights?: Highlight[]
+  // --- Edit mode (manual text improvement) ---
+  isEditing?: boolean
+  draftContent?: string
+  isSaving?: boolean
+  editError?: string | null
+  onDraftChange?: (next: string) => void
+  /** Chapter number currently being edited (multi-chapter docs). Required when isEditing is true. */
+  editingChapter?: number | null
 }
 
 export function TextPagesView({
@@ -80,6 +90,12 @@ export function TextPagesView({
   scrollRef,
   isTxt = false,
   highlights = [],
+  isEditing = false,
+  draftContent = '',
+  isSaving = false,
+  editError = null,
+  onDraftChange,
+  editingChapter = null,
 }: TextPagesViewProps) {
   const scrollContainerRef = React.useRef<HTMLDivElement>(null)
   const sectionRefs = React.useRef<Map<number, HTMLElement>>(new Map())
@@ -214,6 +230,40 @@ export function TextPagesView({
 
   const fontSize = `${Math.round(zoom * 100)}%`
   const contentWidthClass = contentWidth === 'full' ? '' : contentWidth === 'wide' ? 'max-w-5xl' : 'max-w-3xl'
+
+  // --- Edit-mode surface: single editor for the active chapter ---
+  if (isEditing) {
+    const editChapter = editingChapter ?? chapters[0]?.number ?? null
+    const editDoc = chapterDocs.find((d) => d.chapter_number === editChapter) ?? null
+    const editFileType = editDoc?.file_type ?? null
+    const isMd = editFileType === 'md'
+    return (
+      <div
+        className="flex-1 min-w-0 overflow-y-auto bg-surface-100 dark:bg-bg-inset"
+        onClick={onClickAway}
+      >
+        <div className={cn('mx-auto py-6 px-6', contentWidthClass)} style={{ fontSize }}>
+          {editDoc && (
+            <>
+              <h2 className="text-xl font-semibold text-text-primary mb-4 pb-2 border-b border-surface-200 dark:border-surface-200">
+                {editDoc.chapter_number != null
+                  ? `Chapter ${editDoc.chapter_number}`
+                  : 'Document'}
+              </h2>
+              <EditableTextPanel
+                value={draftContent}
+                fileType={editFileType}
+                isSaving={isSaving}
+                error={editError}
+                supportsPreview={isMd}
+                onChange={(v) => onDraftChange?.(v)}
+              />
+            </>
+          )}
+        </div>
+      </div>
+    )
+  }
 
   const renderContent = (chapterNumber: number) => {
     const doc = chapterDocs.find((d) => d.chapter_number === chapterNumber)

@@ -411,13 +411,34 @@ class PostgresKnowledgeDocumentStore(_BaseKnowledgeRepo):
         return _row_to_doc(row)
 
     def update_document(
-        self, id: UUID, title: str, content: str, file_type: str | None = None
+        self,
+        id: UUID,
+        title: str,
+        content: str,
+        file_type: str | None = None,
+        original_content: str | None = None,
     ) -> KnowledgeDocument:
         with self._pool.lock:
             conn = self._conn()
             with conn.transaction():
                 with conn.cursor() as cur:
-                    if file_type is not None:
+                    if file_type is not None and original_content is not None:
+                        cur.execute(
+                            "UPDATE knowledge_documents"
+                            " SET title = %s, content = %s, file_type = %s,"
+                            "     original_content = CASE WHEN original_content IS NULL"
+                            "         THEN %s ELSE original_content END,"
+                            "     updated_at = NOW()"
+                            " WHERE id = %s"
+                            " RETURNING id, tree_id, chapter_id, title, content, original_content,"
+                            " is_main, created_at, updated_at,"
+                            " source_file_path, source_file_name, page_start, page_end,"
+                            " source_type, source_url, file_type,"
+                            " (SELECT c.number FROM knowledge_chapters c"
+                            "  WHERE c.id = chapter_id) AS chapter_number",
+                            (title, content, file_type, original_content, id),
+                        )
+                    elif file_type is not None:
                         cur.execute(
                             "UPDATE knowledge_documents"
                             " SET title = %s, content = %s, file_type = %s, updated_at = NOW()"
@@ -429,6 +450,22 @@ class PostgresKnowledgeDocumentStore(_BaseKnowledgeRepo):
                             " (SELECT c.number FROM knowledge_chapters c"
                             "  WHERE c.id = chapter_id) AS chapter_number",
                             (title, content, file_type, id),
+                        )
+                    elif original_content is not None:
+                        cur.execute(
+                            "UPDATE knowledge_documents"
+                            " SET title = %s, content = %s,"
+                            "     original_content = CASE WHEN original_content IS NULL"
+                            "         THEN %s ELSE original_content END,"
+                            "     updated_at = NOW()"
+                            " WHERE id = %s"
+                            " RETURNING id, tree_id, chapter_id, title, content, original_content,"
+                            " is_main, created_at, updated_at,"
+                            " source_file_path, source_file_name, page_start, page_end,"
+                            " source_type, source_url, file_type,"
+                            " (SELECT c.number FROM knowledge_chapters c"
+                            "  WHERE c.id = chapter_id) AS chapter_number",
+                            (title, content, original_content, id),
                         )
                     else:
                         cur.execute(

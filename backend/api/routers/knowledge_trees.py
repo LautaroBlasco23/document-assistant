@@ -517,7 +517,9 @@ async def update_document(
     existing = services.kt_doc_store.get_document(doc_uid)
     if existing is None:
         raise HTTPException(status_code=404, detail="Knowledge document not found")
-    updated = services.kt_doc_store.update_document(doc_uid, req.title, req.content, req.file_type)
+    updated = services.kt_doc_store.update_document(
+        doc_uid, req.title, req.content, req.file_type, req.original_content
+    )
     return _doc_out(updated)
 
 
