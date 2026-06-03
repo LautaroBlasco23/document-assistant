@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Pencil, Trash2, Check, X, FileText, Upload, BookOpen, Files, Wand2, RotateCcw, Youtube, Scissors, Sparkles, Loader2 } from 'lucide-react'
+import { Plus, Pencil, Trash2, Check, X, FileText, Upload, BookOpen, Files, Wand2, RotateCcw, Youtube, Scissors, Loader2 } from 'lucide-react'
 import { Button } from '../../components/ui/button'
 import { Input } from '../../components/ui/input'
 import { Badge } from '../../components/ui/badge'
@@ -16,6 +16,7 @@ const invalidateLimits = () => {
   }
 }
 import { cn } from '../../lib/cn'
+import { ImproveDialog } from '../../components/reader/ImproveDialog'
 import type { KnowledgeChapter, KnowledgeDocument } from '../../types/knowledge-tree'
 
 function useTaskEntry(taskId: string | null) {
@@ -235,8 +236,8 @@ export function KnowledgeDocumentsTab({
     await deleteDocument(doc.id, treeId, selectedChapter)
   }
 
-  const handleImprove = (doc: KnowledgeDocument) => (mode: 'text' | 'formatting' = 'text') =>
-    improveDocument(treeId, doc.id, selectedChapter, mode)
+  const handleImprove = (doc: KnowledgeDocument) => (mode: 'text' | 'formatting', agentId?: string) =>
+    improveDocument(treeId, doc.id, selectedChapter, mode, agentId)
 
   const handleRevert = (doc: KnowledgeDocument) => () =>
     revertDocument(treeId, doc.id, selectedChapter)
@@ -597,7 +598,7 @@ interface DocumentCardProps {
   onEdit: () => void
   onDelete: () => void
   onRead: (doc: KnowledgeDocument) => void
-  onImprove: (mode?: 'text' | 'formatting') => Promise<string>
+  onImprove: (mode: 'text' | 'formatting', agentId?: string) => Promise<string>
   onRevert: () => Promise<KnowledgeDocument>
   onUpdateFileType: (fileType: string) => void
 }
@@ -647,10 +648,10 @@ function DocumentCard({ doc, onEdit, onDelete, onRead, onImprove, onRevert, onUp
 
   const isImproved = doc.original_content !== null
 
-  const handleConfirmImprove = async (mode: 'text' | 'formatting' = 'text') => {
+  const handleConfirmImprove = async (mode: 'text' | 'formatting', agentId: string) => {
     setActing(true)
     try {
-      const taskId = await onImprove(mode)
+      const taskId = await onImprove(mode, agentId)
       submitTask({
         taskId,
         type: 'kt_improve',
@@ -844,41 +845,15 @@ function DocumentCard({ doc, onEdit, onDelete, onRead, onImprove, onRevert, onUp
         onConfirm={() => void handleConfirmDelete()}
       />
 
-      {/* Improve modal — choose between formatting and text improvement */}
-      <ConfirmDialog
+      {/* Improve modal — agent selection + mode toggle */}
+      <ImproveDialog
         open={improveOpen}
         onOpenChange={(o) => { if (!acting) setImproveOpen(o) }}
-        title="Improve document"
-        description="Choose how to improve this document:"
-        confirmLabel="Improve"
-        loading={acting}
-        onConfirm={() => void handleConfirmImprove('text')}
-      >
-        <div className="flex flex-col gap-2">
-          <button
-            onClick={() => void handleConfirmImprove('formatting')}
-            disabled={acting}
-            className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-left rounded-lg border border-surface-200 dark:border-surface-200 hover:bg-surface-100 dark:hover:bg-surface-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            <Wand2 className="h-4 w-4 text-text-tertiary shrink-0" />
-            <div>
-              <div className="font-medium text-text-primary">Improve formatting</div>
-              <div className="text-xs text-text-tertiary">Apply Markdown structure for readability</div>
-            </div>
-          </button>
-          <button
-            onClick={() => void handleConfirmImprove('text')}
-            disabled={acting}
-            className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-left rounded-lg border border-surface-200 dark:border-surface-200 hover:bg-surface-100 dark:hover:bg-surface-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            <Sparkles className="h-4 w-4 text-ai shrink-0" />
-            <div>
-              <div className="font-medium text-text-primary">Improve text</div>
-              <div className="text-xs text-text-tertiary">Rewrite for clarity, style, and structure</div>
-            </div>
-          </button>
-        </div>
-      </ConfirmDialog>
+        mode="text"
+        modeSelectable
+        onConfirm={handleConfirmImprove}
+        isImproving={acting}
+      />
 
       {/* Revert confirmation dialog */}
       <ConfirmDialog

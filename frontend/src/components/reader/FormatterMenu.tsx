@@ -9,8 +9,8 @@ interface FormatterMenuProps {
   isImproved: boolean
   isImproving: boolean
   onModeChange: (mode: FormatMode) => void
-  onImprove: () => void
-  onImproveFormatting: () => void
+  onRequestImproveText: () => void
+  onRequestImproveFormatting: () => void
   onRevert: () => void
   // --- Edit mode (manual text improvement) ---
   /** True while the user is editing the document text. Hides the format menu. */
@@ -34,8 +34,8 @@ export function FormatterMenu({
   isImproved,
   isImproving,
   onModeChange,
-  onImprove,
-  onImproveFormatting,
+  onRequestImproveText,
+  onRequestImproveFormatting,
   onRevert,
   isEditing,
   isSaving,
@@ -193,7 +193,7 @@ export function FormatterMenu({
           </div>
 
           <button
-            onClick={() => { onImproveFormatting(); setOpen(false) }}
+            onClick={() => { onRequestImproveFormatting(); setOpen(false) }}
             disabled={isImproving}
             className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset"
           >
@@ -202,7 +202,7 @@ export function FormatterMenu({
           </button>
 
           <button
-            onClick={() => { onImprove(); setOpen(false) }}
+            onClick={() => { onRequestImproveText(); setOpen(false) }}
             disabled={isImproving}
             className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset"
           >

@@ -54,7 +54,7 @@ interface KnowledgeTreeState {
   createDocument: (treeId: string, chapter: number | null, title: string, content: string, isMain?: boolean) => Promise<KnowledgeDocument>
   updateDocument: (id: string, title: string, content: string, treeId: string, chapter: number | null, fileType?: string | null, originalContent?: string | null) => Promise<KnowledgeDocument>
   deleteDocument: (id: string, treeId: string, chapter: number | null) => Promise<void>
-  improveDocument: (treeId: string, docId: string, chapter: number | null, mode?: 'text' | 'formatting') => Promise<string>
+  improveDocument: (treeId: string, docId: string, chapter: number | null, mode?: 'text' | 'formatting', agentId?: string) => Promise<string>
   revertDocument: (treeId: string, docId: string, chapter: number | null) => Promise<KnowledgeDocument>
   applyImproveResult: (treeId: string, chapter: number | null, docId: string, result: Record<string, unknown>) => void
   splitChapter: (treeId: string, chapterNumber: number, chapters: { page_start: number; page_end: number; title?: string | null }[]) => Promise<{ chapters: KnowledgeChapter[] }>
@@ -258,9 +258,9 @@ export const useKnowledgeTreeStore = create<KnowledgeTreeState>((set, get) => ({
     invalidateLimits()
   },
 
-  improveDocument: async (treeId, docId, _chapter, mode = 'text') => {
-    const { agent_id } = useGenerationSettings.getState().settings
-    const { task_id } = await client.improveKnowledgeDocument(treeId, docId, agent_id, mode)
+  improveDocument: async (treeId, docId, _chapter, mode = 'text', agentId?: string) => {
+    const effectiveAgentId = agentId ?? useGenerationSettings.getState().settings.agent_id
+    const { task_id } = await client.improveKnowledgeDocument(treeId, docId, effectiveAgentId, mode)
     return task_id
   },
 

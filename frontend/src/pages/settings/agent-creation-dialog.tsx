@@ -144,8 +144,12 @@ export function AgentCreationDialog({
   return (
     <RadixDialog.Root open={open} onOpenChange={onOpenChange}>
       <RadixDialog.Portal>
-        <RadixDialog.Overlay className="bg-black/50 fixed inset-0 z-40 animate-fade-in" />
+        <RadixDialog.Overlay
+          className="bg-black/50 fixed inset-0 z-40 animate-fade-in"
+          onClick={(e) => e.stopPropagation()}
+        />
         <RadixDialog.Content
+          onClick={(e) => e.stopPropagation()}
           className="fixed z-50 left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-lg bg-surface dark:bg-surface-200 rounded-lg shadow-lg p-6 animate-fade-in max-h-[90vh] overflow-y-auto"
         >
           <RadixDialog.Title className="text-lg font-semibold text-text-primary mb-2">

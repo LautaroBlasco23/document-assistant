@@ -15,6 +15,7 @@ import { PdfPagesView, type PdfPagesViewHandle } from './PdfPagesView'
 import { TextPagesView, type TextPagesViewHandle } from './TextPagesView'
 import { ResizeHandle } from './ResizeHandle'
 import { FormatterMenu, type FormatMode } from './FormatterMenu'
+import { ImproveDialog } from './ImproveDialog'
 import { readerMarkdownComponents } from './markdownComponents'
 import { useGenerationSettings } from '../../stores/generation-settings'
 import { useHighlights } from '../../stores/highlights-store'
@@ -322,43 +323,58 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose, mode = '
     try { localStorage.setItem(`docassist_format_mode:${treeId}:${resolvedDoc.id}`, mode) } catch { /* ignore */ }
   }, [treeId, resolvedDoc.id])
 
-  const handleImproveFormatting = React.useCallback(async () => {
-    setIsImproving(true)
-    try {
-      const taskId = await improveDocument(treeId, resolvedDoc.id, resolvedDoc.chapter_number ?? null, 'formatting')
-      submitTask({
-        taskId,
-        type: 'kt_improve',
-        entityId: treeId,
-        chapter: resolvedDoc.chapter_number ?? 0,
-        entityTitle: `Improve formatting: ${resolvedDoc.title}`,
-      })
-      setImproveTaskId(taskId)
-      handleFormatModeChange('markdown')
-    } catch (e) {
-      addError((e as Error).message || 'Failed to improve formatting. Please try again.')
-      setIsImproving(false)
-    }
-  }, [treeId, resolvedDoc.id, resolvedDoc.chapter_number, resolvedDoc.title, improveDocument, submitTask, handleFormatModeChange, addError])
+  const [improveDialog, setImproveDialog] = React.useState<{
+    open: boolean
+    mode: 'text' | 'formatting'
+  }>({ open: false, mode: 'text' })
 
-  const handleImproveText = React.useCallback(async () => {
-    setIsImproving(true)
-    try {
-      const taskId = await improveDocument(treeId, resolvedDoc.id, resolvedDoc.chapter_number ?? null, 'text')
-      submitTask({
-        taskId,
-        type: 'kt_improve',
-        entityId: treeId,
-        chapter: resolvedDoc.chapter_number ?? 0,
-        entityTitle: `Improve text: ${resolvedDoc.title}`,
-      })
-      setImproveTaskId(taskId)
-      handleFormatModeChange('markdown')
-    } catch (e) {
-      addError((e as Error).message || 'Failed to improve text. Please try again.')
-      setIsImproving(false)
-    }
-  }, [treeId, resolvedDoc.id, resolvedDoc.chapter_number, resolvedDoc.title, improveDocument, submitTask, handleFormatModeChange, addError])
+  const handleOpenImproveDialog = React.useCallback((mode: 'text' | 'formatting') => {
+    setImproveDialog({ open: true, mode })
+  }, [])
+
+  const handleRunImprove = React.useCallback(
+    async (mode: 'text' | 'formatting', agentId: string) => {
+      setIsImproving(true)
+      setImproveDialog({ open: false, mode })
+      try {
+        const taskId = await improveDocument(
+          treeId,
+          resolvedDoc.id,
+          resolvedDoc.chapter_number ?? null,
+          mode,
+          agentId,
+        )
+        submitTask({
+          taskId,
+          type: 'kt_improve',
+          entityId: treeId,
+          chapter: resolvedDoc.chapter_number ?? 0,
+          entityTitle:
+            mode === 'formatting'
+              ? `Improve formatting: ${resolvedDoc.title}`
+              : `Improve text: ${resolvedDoc.title}`,
+        })
+        setImproveTaskId(taskId)
+        handleFormatModeChange('markdown')
+      } catch (e) {
+        addError(
+          (e as Error).message ||
+            `Failed to ${mode === 'formatting' ? 'improve formatting' : 'improve text'}. Please try again.`,
+        )
+        setIsImproving(false)
+      }
+    },
+    [
+      treeId,
+      resolvedDoc.id,
+      resolvedDoc.chapter_number,
+      resolvedDoc.title,
+      improveDocument,
+      submitTask,
+      handleFormatModeChange,
+      addError,
+    ],
+  )
 
   const handleRevert = React.useCallback(async () => {
     setIsImproving(true)
@@ -919,8 +935,8 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose, mode = '
               isImproved={resolvedDoc.original_content !== null}
               isImproving={isImproving}
               onModeChange={handleFormatModeChange}
-              onImprove={handleImproveText}
-              onImproveFormatting={handleImproveFormatting}
+              onRequestImproveText={() => handleOpenImproveDialog('text')}
+              onRequestImproveFormatting={() => handleOpenImproveDialog('formatting')}
               onRevert={handleRevert}
               isEditing={isEditing}
               isSaving={isSaving}
@@ -1309,38 +1325,45 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose, mode = '
     </>
   )
 
-  if (isPageMode) {
-    return (
-      <div className="flex flex-col h-screen bg-surface dark:bg-surface animate-fade-in">
-        {topBar}
-        {contentArea}
-      </div>
-    )
-  }
-
   return (
-    <div
-      ref={overlayRef}
-      className={cn(
-        'fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm',
-        isFullscreen ? 'p-0' : 'p-4'
+    <>
+      {isPageMode ? (
+        <div className="flex flex-col h-screen bg-surface dark:bg-surface animate-fade-in">
+          {topBar}
+          {contentArea}
+        </div>
+      ) : (
+        <div
+          ref={overlayRef}
+          className={cn(
+            'fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm',
+            isFullscreen ? 'p-0' : 'p-4'
+          )}
+          onClick={(e) => {
+            if (e.target === overlayRef.current) goBack()
+          }}
+        >
+          <div
+            className={cn(
+              'w-full h-full bg-surface dark:bg-surface flex flex-col overflow-hidden animate-fade-in',
+              isFullscreen
+                ? 'max-h-full max-w-full rounded-none shadow-none'
+                : 'max-h-[95vh] max-w-[1600px] rounded-xl shadow-2xl'
+            )}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {topBar}
+            {contentArea}
+          </div>
+        </div>
       )}
-      onClick={(e) => {
-        if (e.target === overlayRef.current) goBack()
-      }}
-    >
-      <div
-        className={cn(
-          'w-full h-full bg-surface dark:bg-surface flex flex-col overflow-hidden animate-fade-in',
-          isFullscreen
-            ? 'max-h-full max-w-full rounded-none shadow-none'
-            : 'max-h-[95vh] max-w-[1600px] rounded-xl shadow-2xl'
-        )}
-        onClick={(e) => e.stopPropagation()}
-      >
-        {topBar}
-        {contentArea}
-      </div>
-    </div>
+      <ImproveDialog
+        open={improveDialog.open}
+        onOpenChange={(open) => setImproveDialog((prev) => ({ ...prev, open }))}
+        mode={improveDialog.mode}
+        onConfirm={handleRunImprove}
+        isImproving={isImproving}
+      />
+    </>
   )
 }

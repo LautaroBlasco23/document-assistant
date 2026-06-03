@@ -30,6 +30,10 @@ vi.mock('@/services', () => ({
   client: {
     getTaskStatus: mockGetTaskStatus,
     getDocumentThumbnailUrl: mockGetDocumentThumbnailUrl,
+    getModels: vi.fn().mockResolvedValue({ provider: '', current_model: '', models: [] }),
+    listAgents: vi.fn().mockResolvedValue([]),
+    listCredentials: vi.fn().mockResolvedValue([]),
+    listProviders: vi.fn().mockResolvedValue([]),
   },
 }))
 
