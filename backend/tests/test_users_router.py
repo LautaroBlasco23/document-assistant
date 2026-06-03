@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 from api.auth import get_current_user
 from api.deps import get_services_dep
 from api.routers import users as users_router
-from core.model.user import User, UserLimits
+from core.model.user import SubscriptionPlan, User, UserLimits
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -30,12 +30,25 @@ def _make_user():
     )
 
 
+def _make_plan(slug="free", name="Free", description="Get started"):
+    return SubscriptionPlan(
+        id=UUID("11111111-1111-1111-1111-111111111111"),
+        slug=slug,
+        name=name,
+        description=description,
+        max_documents=200,
+        max_knowledge_trees=3,
+        is_active=True,
+        created_at=datetime(2024, 1, 1),
+    )
+
+
 # ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
 
 def test_get_limits_free_plan():
-    """An authenticated user on the free plan must see low limits and usage."""
+    """An authenticated user on the free plan must see low limits, usage, and plan info."""
     mock_services = MagicMock()
     mock_services.subscription_store.get_user_limits.return_value = UserLimits(
         max_documents=5,
@@ -45,6 +58,7 @@ def test_get_limits_free_plan():
         can_create_document=True,
         can_create_tree=True,
     )
+    mock_services.subscription_store.get_plan_for_user.return_value = _make_plan()
 
     app = FastAPI()
     app.include_router(users_router.router, prefix="/api")
@@ -62,10 +76,11 @@ def test_get_limits_free_plan():
     assert body["current_knowledge_trees"] == 1
     assert body["can_create_document"] is True
     assert body["can_create_tree"] is True
+    assert body["plan"] == {"slug": "free", "name": "Free", "description": "Get started"}
 
 
 def test_get_limits_pro_plan():
-    """An authenticated user on the pro plan must see elevated limits."""
+    """An authenticated user on the pro plan must see elevated limits and pro plan info."""
     mock_services = MagicMock()
     mock_services.subscription_store.get_user_limits.return_value = UserLimits(
         max_documents=100,
@@ -74,6 +89,9 @@ def test_get_limits_pro_plan():
         current_knowledge_trees=10,
         can_create_document=True,
         can_create_tree=True,
+    )
+    mock_services.subscription_store.get_plan_for_user.return_value = _make_plan(
+        slug="pro", name="Pro", description="For power users"
     )
 
     app = FastAPI()
@@ -88,6 +106,8 @@ def test_get_limits_pro_plan():
     body = response.json()
     assert body["max_documents"] == 100
     assert body["max_knowledge_trees"] == 50
+    assert body["plan"]["slug"] == "pro"
+    assert body["plan"]["name"] == "Pro"
 
 
 def test_get_limits_at_capacity():
@@ -101,6 +121,7 @@ def test_get_limits_at_capacity():
         can_create_document=False,
         can_create_tree=False,
     )
+    mock_services.subscription_store.get_plan_for_user.return_value = _make_plan()
 
     app = FastAPI()
     app.include_router(users_router.router, prefix="/api")
@@ -114,6 +135,31 @@ def test_get_limits_at_capacity():
     body = response.json()
     assert body["can_create_document"] is False
     assert body["can_create_tree"] is False
+
+
+def test_get_limits_no_plan_returns_null():
+    """A user with no assigned plan must receive plan: null."""
+    mock_services = MagicMock()
+    mock_services.subscription_store.get_user_limits.return_value = UserLimits(
+        max_documents=0,
+        max_knowledge_trees=0,
+        current_documents=0,
+        current_knowledge_trees=0,
+        can_create_document=False,
+        can_create_tree=False,
+    )
+    mock_services.subscription_store.get_plan_for_user.return_value = None
+
+    app = FastAPI()
+    app.include_router(users_router.router, prefix="/api")
+    app.dependency_overrides[get_services_dep] = lambda: mock_services
+    app.dependency_overrides[get_current_user] = _make_user
+
+    client = TestClient(app)
+    response = client.get("/api/users/me/limits")
+
+    assert response.status_code == 200
+    assert response.json()["plan"] is None
 
 
 def test_get_limits_no_token_returns_401():
