@@ -52,7 +52,7 @@ export function CreateKnowledgeTreeDialog({ open, onClose }: CreateKnowledgeTree
         <form onSubmit={(e) => void handleSubmit(e)} className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
             <label htmlFor="tree-title" className="text-sm font-medium text-text-secondary">
-              Title <span className="text-danger">*</span>
+              Title <span className="text-error">*</span>
             </label>
             <Input
               id="tree-title"

@@ -35,7 +35,7 @@ export function HighlightsPanel({ docId, docTitle }: HighlightsPanelProps) {
         </span>
         <button
           onClick={() => clear(docId)}
-          className="text-[10px] text-text-tertiary hover:text-danger transition-colors"
+          className="text-[10px] text-text-tertiary hover:text-error transition-colors"
         >
           Clear all
         </button>
@@ -51,17 +51,17 @@ export function HighlightsPanel({ docId, docTitle }: HighlightsPanelProps) {
       {highlights.map((h) => (
         <div
           key={h.id}
-          className="group relative rounded-lg border border-yellow-200 dark:border-yellow-700/40 bg-yellow-50 dark:bg-yellow-900/10 px-3 py-2 shadow-sm"
+          className="group relative rounded-lg border border-highlight bg-highlight/30 dark:bg-highlight/20 px-3 py-2 shadow-sm"
         >
           <div className="flex items-start gap-2">
-            <Highlighter className="h-3 w-3 mt-0.5 shrink-0 text-yellow-500 dark:text-yellow-400" />
-            <p className="flex-1 text-sm text-text-secondary leading-relaxed break-words whitespace-pre-wrap">
+            <Highlighter className="h-3 w-3 mt-0.5 shrink-0 text-text-tertiary" />
+            <p className="flex-1 text-sm text-text-primary leading-relaxed break-words whitespace-pre-wrap">
               {h.text}
             </p>
             <button
               onClick={() => remove(docId, h.id)}
               title="Remove from panel"
-              className="shrink-0 p-0.5 rounded text-text-tertiary hover:text-danger hover:bg-danger-light dark:hover:bg-danger/12 transition-colors opacity-0 group-hover:opacity-100"
+              className="shrink-0 p-0.5 rounded text-text-tertiary hover:text-error hover:bg-error-light dark:hover:bg-error/12 transition-colors opacity-0 group-hover:opacity-100"
             >
               <Trash2 className="h-3 w-3" />
             </button>

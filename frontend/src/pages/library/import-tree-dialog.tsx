@@ -281,7 +281,7 @@ function UploadStep({
         {/* File picker */}
         <div className="flex flex-col gap-1.5">
           <label htmlFor="import-file" className="text-sm font-medium text-text-secondary">
-            File <span className="text-danger">*</span>
+            File <span className="text-error">*</span>
           </label>
           <div className="flex items-center gap-2">
             <input
@@ -335,7 +335,7 @@ function UploadStep({
 
         {/* Error message */}
         {state === 'error' && errorMsg && (
-          <p className="text-sm text-danger">{errorMsg}</p>
+          <p className="text-sm text-error">{errorMsg}</p>
         )}
       </div>
 
@@ -491,7 +491,7 @@ function SelectChaptersStep({
 
         {/* Error message */}
         {state === 'error' && errorMsg && (
-          <p className="text-sm text-danger mb-4">{errorMsg}</p>
+          <p className="text-sm text-error mb-4">{errorMsg}</p>
         )}
 
         <div className="flex justify-between items-center">

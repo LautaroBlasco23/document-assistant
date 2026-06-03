@@ -7,6 +7,23 @@ export default {
   darkMode: 'class',
   theme: {
     extend: {
+      // Token-driven font families. `font-ui` is the chrome default (set on body);
+      // `font-reading` is the serif stack applied inside the reader surface only.
+      fontFamily: {
+        ui: 'var(--font-ui)',
+        reading: 'var(--font-reading)',
+      },
+      // Token-driven type scale. We extend (not override) so the default Tailwind
+      // sizes (`text-base`, `text-4xl`, `text-5xl`, etc.) keep working unchanged.
+      fontSize: {
+        xs: 'var(--text-xs)',
+        sm: 'var(--text-sm)',
+        md: 'var(--text-md)',
+        lg: 'var(--text-lg)',
+        xl: 'var(--text-xl)',
+        '2xl': 'var(--text-2xl)',
+        '3xl': 'var(--text-3xl)',
+      },
       colors: {
         bg: {
           DEFAULT: 'var(--color-bg)',
@@ -84,7 +101,9 @@ export default {
           bg: 'var(--color-warning-bg)',
           border: 'var(--color-warning-border)',
         },
-        danger: {
+        // `danger` is deprecated — use `error` instead. The CSS vars remain
+        // `--color-error-*`; the Tailwind group was renamed to match.
+        error: {
           DEFAULT: 'var(--color-error-fg)',
           light: 'var(--color-error-bg)',
           fg: 'var(--color-error-fg)',
@@ -96,9 +115,57 @@ export default {
           bg: 'var(--color-info-bg)',
           border: 'var(--color-info-border)',
         },
+        // Education domain states (chapter read, exam score, answer correctness).
+        // Distinct from `success/warning/error/info` which remain for system feedback
+        // (toasts, form validation). See Phase 3 notes in `.docs/plan.md`.
+        mastered: {
+          DEFAULT: 'var(--color-mastered-fg)',
+          fg: 'var(--color-mastered-fg)',
+          bg: 'var(--color-mastered-bg)',
+          border: 'var(--color-mastered-border)',
+        },
+        learning: {
+          DEFAULT: 'var(--color-learning-fg)',
+          fg: 'var(--color-learning-fg)',
+          bg: 'var(--color-learning-bg)',
+          border: 'var(--color-learning-border)',
+        },
+        review: {
+          DEFAULT: 'var(--color-review-fg)',
+          fg: 'var(--color-review-fg)',
+          bg: 'var(--color-review-bg)',
+          border: 'var(--color-review-border)',
+        },
+        difficult: {
+          DEFAULT: 'var(--color-difficult-fg)',
+          fg: 'var(--color-difficult-fg)',
+          bg: 'var(--color-difficult-bg)',
+          border: 'var(--color-difficult-border)',
+        },
+        // AI visual language — used for chat messages, model selectors,
+        // Sparkles icon contexts, "AI generated" badges, and toast accents.
+        ai: {
+          DEFAULT: 'var(--color-ai)',
+          bg: 'var(--color-ai-bg)',
+          border: 'var(--color-ai-border)',
+          fg: 'var(--color-ai-fg)',
+        },
+        highlight: 'var(--reader-highlight)',
+      },
+      spacing: {
+        reader: 'var(--reader-width)',
+        'reader-para': 'var(--reader-paragraph-spacing)',
+        page: 'var(--space-page)',
+        section: 'var(--space-section)',
+        card: 'var(--space-card)',
+        inline: 'var(--space-inline)',
       },
       borderRadius: {
         card: '0.75rem',
+      },
+      boxShadow: {
+        sm: 'var(--shadow-sm)',
+        focus: 'var(--shadow-focus)',
       },
       keyframes: {
         'skeleton-pulse': {
@@ -121,5 +188,8 @@ export default {
       },
     },
   },
-  plugins: [],
+  plugins: [
+    require('./tailwind-plugins/animations'),
+    require('./tailwind-plugins/three-d'),
+  ],
 }

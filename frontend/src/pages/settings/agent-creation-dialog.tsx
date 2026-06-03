@@ -159,7 +159,7 @@ export function AgentCreationDialog({
 
           <div className="flex flex-col gap-4">
             {error && (
-              <div className="text-sm text-danger bg-danger-light px-3 py-2 rounded">
+              <div className="text-sm text-error bg-error-light px-3 py-2 rounded">
                 {error}
               </div>
             )}

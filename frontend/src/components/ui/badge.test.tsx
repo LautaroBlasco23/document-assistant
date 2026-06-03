@@ -18,9 +18,15 @@ describe('Badge', () => {
 
   // Each variant maps to a distinct color scheme; we verify the correct Tailwind classes are present.
   it.each([
+    // Education domain states (Phase 3)
+    ['mastered', 'bg-mastered-bg'],
+    ['learning', 'bg-learning-bg'],
+    ['review', 'bg-review-bg'],
+    ['difficult', 'bg-difficult-bg'],
+    // System feedback
     ['success', 'bg-success-light'],
     ['warning', 'bg-warning-light'],
-    ['danger', 'bg-danger-light'],
+    ['error', 'bg-error-light'],
     ['info', 'bg-primary-light'],
     ['neutral', 'bg-surface-100'],
   ] as const)('applies %s variant classes', (variant, expectedClass) => {

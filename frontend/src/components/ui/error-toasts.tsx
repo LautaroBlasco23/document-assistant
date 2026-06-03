@@ -18,8 +18,8 @@ function ErrorToast({ error }: { error: AppError }) {
   }
 
   return (
-    <div className="flex items-start gap-3 bg-danger border border-danger text-text-inverse rounded-lg px-4 py-3 shadow-lg max-w-sm w-full">
-      <span className="text-danger mt-0.5">✕</span>
+    <div className="flex items-start gap-3 bg-error border border-error text-text-inverse rounded-lg px-4 py-3 shadow-lg max-w-sm w-full">
+      <span className="text-error mt-0.5">✕</span>
       <div className="flex-1 min-w-0">
         <p className="text-sm break-words">{error.message}</p>
         {error.link && (
@@ -33,7 +33,7 @@ function ErrorToast({ error }: { error: AppError }) {
       </div>
       <button
         onClick={() => removeError(error.id)}
-        className="text-danger hover:text-danger ml-1 shrink-0"
+        className="text-error hover:text-error ml-1 shrink-0"
         aria-label="Dismiss"
       >
         ×

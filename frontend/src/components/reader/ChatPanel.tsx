@@ -457,6 +457,7 @@ export const ChatPanel = React.forwardRef<ChatPanelHandle, ChatPanelProps>(funct
           onClick={() => setMode('chat')}
           className={cn(
             'flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-medium transition-colors',
+            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset',
             mode === 'chat'
               ? 'text-primary border-b-2 border-primary bg-primary-light dark:bg-primary/12'
               : 'text-text-tertiary hover:text-text-secondary'
@@ -469,6 +470,7 @@ export const ChatPanel = React.forwardRef<ChatPanelHandle, ChatPanelProps>(funct
           onClick={() => setMode('content')}
           className={cn(
             'flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-medium transition-colors',
+            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset',
             mode === 'content'
               ? 'text-primary border-b-2 border-primary bg-primary-light dark:bg-primary/12'
               : 'text-text-tertiary hover:text-text-secondary'
@@ -486,6 +488,7 @@ export const ChatPanel = React.forwardRef<ChatPanelHandle, ChatPanelProps>(funct
           onClick={() => setMode('highlights')}
           className={cn(
             'flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-medium transition-colors',
+            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset',
             mode === 'highlights'
               ? 'text-primary border-b-2 border-primary bg-primary-light dark:bg-primary/12'
               : 'text-text-tertiary hover:text-text-secondary'
@@ -508,7 +511,9 @@ export const ChatPanel = React.forwardRef<ChatPanelHandle, ChatPanelProps>(funct
             <div ref={dropdownRef} className="relative flex-1 min-w-0">
               <button
                 onClick={() => setDropdownOpen((o) => !o)}
-                className="w-full flex items-center justify-between gap-1 text-xs px-2 py-1 rounded border border-surface-200 dark:border-surface-200 bg-surface dark:bg-surface-200 text-text-primary hover:bg-surface-100 dark:hover:bg-surface-100 transition-colors truncate"
+                aria-haspopup="listbox"
+                aria-expanded={dropdownOpen}
+                className="w-full flex items-center justify-between gap-1 text-xs px-2 py-1 rounded border border-surface-200 dark:border-surface-200 bg-surface dark:bg-surface-200 text-text-primary hover:bg-surface-100 dark:hover:bg-surface-100 transition-colors truncate focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-bg"
               >
                 <span className="truncate">
                   {activeSession?.name} ({activeSession?.messages.length} msgs)
@@ -523,6 +528,7 @@ export const ChatPanel = React.forwardRef<ChatPanelHandle, ChatPanelProps>(funct
                       onClick={() => { setActiveSessionId(s.id); setDropdownOpen(false) }}
                       className={cn(
                         'w-full text-left text-xs px-3 py-1.5 truncate transition-colors',
+                        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset',
                         s.id === activeSessionId
                           ? 'bg-primary-light dark:bg-primary/12 text-primary font-medium'
                           : 'text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100'
@@ -537,7 +543,7 @@ export const ChatPanel = React.forwardRef<ChatPanelHandle, ChatPanelProps>(funct
             <button
               onClick={handleNewSession}
               title="New chat"
-              className="p-1 rounded text-text-tertiary hover:text-primary dark:hover:text-primary hover:bg-primary-light dark:hover:bg-primary/12 transition-colors"
+              className="p-1 rounded text-text-tertiary hover:text-primary dark:hover:text-primary hover:bg-primary-light dark:hover:bg-primary/12 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-bg"
             >
               <Plus className="h-3.5 w-3.5" />
             </button>
@@ -545,7 +551,7 @@ export const ChatPanel = React.forwardRef<ChatPanelHandle, ChatPanelProps>(funct
               <button
                 onClick={() => activeSession && handleDeleteSession(activeSession.id)}
                 title="Delete chat"
-                className="p-1 rounded text-text-tertiary hover:text-danger dark:hover:text-danger hover:bg-danger-light dark:hover:bg-danger/12 transition-colors"
+                className="p-1 rounded text-text-tertiary hover:text-error dark:hover:text-error hover:bg-error-light dark:hover:bg-error/12 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-bg"
               >
                 <Trash2 className="h-3.5 w-3.5" />
               </button>
@@ -560,7 +566,7 @@ export const ChatPanel = React.forwardRef<ChatPanelHandle, ChatPanelProps>(funct
                 <select
                   value={selectedAgentId}
                   onChange={handleAgentChange}
-                  className="w-full text-xs px-1.5 py-0.5 rounded border border-surface-200 dark:border-surface-200 bg-surface dark:bg-surface-200 text-text-primary appearance-none cursor-pointer"
+                  className="w-full text-xs px-1.5 py-0.5 rounded border border-surface-200 dark:border-surface-200 bg-surface dark:bg-surface-200 text-text-primary appearance-none cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-bg"
                 >
                   {agents.map((a) => (
                     <option key={a.id} value={a.id}>
@@ -578,7 +584,7 @@ export const ChatPanel = React.forwardRef<ChatPanelHandle, ChatPanelProps>(funct
                 <button
                   onClick={() => setEditAgentDialogOpen(true)}
                   title="Edit agent"
-                  className="p-1 rounded text-text-tertiary hover:text-primary transition-colors"
+                  className="p-1 rounded text-text-tertiary hover:text-primary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-bg"
                 >
                   <Pencil className="h-3 w-3" />
                 </button>
@@ -619,7 +625,7 @@ export const ChatPanel = React.forwardRef<ChatPanelHandle, ChatPanelProps>(funct
                   'text-sm leading-relaxed rounded-lg px-3 py-2 max-w-[90%]',
                   msg.role === 'user'
                     ? 'bg-primary text-text-inverse ml-auto'
-                    : 'bg-surface-100 dark:bg-surface-200 text-text-primary'
+                    : 'bg-ai-bg border border-ai-border text-text-primary'
                 )}
               >
                 <MessageContent content={msg.content} role={msg.role} />
@@ -633,7 +639,7 @@ export const ChatPanel = React.forwardRef<ChatPanelHandle, ChatPanelProps>(funct
                   : 'Thinking...'}
                 <button
                   onClick={handleCancel}
-                  className="ml-1 flex items-center gap-1 px-1.5 py-0.5 rounded text-text-tertiary hover:text-danger hover:bg-danger-light dark:hover:bg-danger/12 transition-colors"
+                  className="ml-1 flex items-center gap-1 px-1.5 py-0.5 rounded text-text-tertiary hover:text-error hover:bg-error-light dark:hover:bg-error/12 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-bg"
                 >
                   <X className="h-3 w-3" />
                   Cancel
@@ -649,7 +655,7 @@ export const ChatPanel = React.forwardRef<ChatPanelHandle, ChatPanelProps>(funct
                 onKeyDown={handleKeyDown}
                 placeholder="Ask a question..."
                 rows={2}
-                className="flex-1 resize-none rounded-lg border border-border-input bg-surface dark:bg-surface-200 px-3 py-2 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary placeholder:text-text-tertiary"
+                className="flex-1 resize-none rounded-lg border border-border-input bg-surface dark:bg-surface-200 px-3 py-2 text-sm text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-bg focus-visible:border-primary placeholder:text-text-tertiary"
                 disabled={loading}
               />
               <button
@@ -657,6 +663,7 @@ export const ChatPanel = React.forwardRef<ChatPanelHandle, ChatPanelProps>(funct
                 disabled={!input.trim() || loading}
                 className={cn(
                   'p-2 rounded-lg transition-colors shrink-0',
+                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-bg',
                   input.trim() && !loading
                     ? 'bg-primary text-text-inverse hover:bg-primary-hover'
                     : 'bg-surface-100 dark:bg-surface-200 text-text-tertiary cursor-not-allowed'

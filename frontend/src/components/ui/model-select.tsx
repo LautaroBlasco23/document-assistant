@@ -1,6 +1,7 @@
 import * as React from 'react'
 import { ChevronDown, Check, Star, Zap, Sparkles } from 'lucide-react'
 import { cn } from '../../lib/cn'
+import { useReducedMotion } from '../../hooks/use-reduced-motion'
 import type { ModelInfo } from '../../types/api'
 
 const PARTICLES: Array<{ x: number; delay: number }> = [
@@ -13,6 +14,8 @@ const PARTICLES: Array<{ x: number; delay: number }> = [
 ]
 
 function OptionParticles({ role }: { role: string | null }) {
+  const reducedMotion = useReducedMotion()
+  if (reducedMotion) return null
   if (role !== 'main' && role !== 'fast') return null
   return (
     <>
@@ -124,7 +127,9 @@ export function ModelSelect({ value, onChange, models, fallback, className }: Mo
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center justify-between gap-2 px-3 py-2 border border-surface-200 dark:border-surface-200 rounded-md text-sm bg-surface dark:bg-surface-200 text-text-primary cursor-pointer hover:border-border-strong transition-colors"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        className="w-full flex items-center justify-between gap-2 px-3 py-2 border border-ai-border rounded-md text-sm bg-surface dark:bg-surface-200 text-text-primary cursor-pointer hover:border-ai transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-bg"
       >
         <span className="flex items-center gap-2 min-w-0">
           <QualityDot tier={selectedModel?.quality_tier ?? 'medium'} />
@@ -141,7 +146,7 @@ export function ModelSelect({ value, onChange, models, fallback, className }: Mo
       </button>
 
       {open && (
-        <div className="absolute z-50 mt-1 w-full bg-surface dark:bg-surface-200 border border-surface-200 dark:border-surface-200 rounded-md shadow-lg max-h-72 overflow-y-auto">
+        <div className="absolute z-50 mt-1 w-full bg-surface dark:bg-surface-200 border border-ai-border rounded-md shadow-lg max-h-72 overflow-y-auto">
           {models.length > 0 ? (
             models.map((m) => {
               const isSelected = m.id === value
@@ -149,9 +154,12 @@ export function ModelSelect({ value, onChange, models, fallback, className }: Mo
                 <button
                   key={m.id}
                   type="button"
+                  role="option"
+                  aria-selected={isSelected}
                   onClick={() => { onChange(m.id); setOpen(false) }}
                   className={cn(
                     'relative w-full flex items-center gap-2 px-3 py-2.5 text-sm text-left overflow-hidden transition-colors',
+                    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset',
                     isSelected
                       ? 'bg-primary-light dark:bg-primary/12 text-primary'
                       : 'text-text-primary hover:bg-surface-100 dark:hover:bg-surface-100',

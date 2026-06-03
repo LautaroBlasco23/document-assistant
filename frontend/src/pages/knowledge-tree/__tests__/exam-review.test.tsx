@@ -182,17 +182,19 @@ describe('ExamReview', () => {
     expect(screen.getByText('0%')).toBeInTheDocument()
   })
 
-  // An 80+ score should use the green (success) color class; below 50 should use red (danger).
-  // Verifies the scoreColor helper renders the right semantic class.
+  // An 80+ score should use the mastered (green) color class; below 50 should use
+  // difficult (red). Verifies the scoreColor helper renders the right education-state
+  // class. (Phase 3: switched from `text-success`/`text-danger` to `text-mastered`/
+  // `text-difficult` to separate learning-state semantics from system feedback.)
   it('applies pass/fail coloration to score text', () => {
-    // Passing score (>= 80 appears green via text-success)
+    // Passing score (>= 80 appears green via text-mastered)
     const passSession = makeSession({ score: 85 })
     renderWithProviders(<ExamReview session={passSession} allQuestions={makeQuestions()} />)
     const score85 = screen.getByText('85%')
-    expect(score85.className).toContain('text-success')
+    expect(score85.className).toContain('text-mastered')
 
     // Cleanup before re-render
-    // Failing score (< 50 appears red via text-danger)
+    // Failing score (< 50 appears red via text-difficult)
     const failSession = makeSession({ score: 30, correct_count: 1, total_questions: 3 })
     // We need to unmount and re-render since renderWithProviders appends to body
     // Use a separate describe/it for proper isolation

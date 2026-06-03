@@ -1,0 +1,15 @@
+import plugin from 'tailwindcss/plugin'
+
+/**
+ * 3D card-flip utility classes migrated from hand-rolled CSS in
+ * `src/index.css`. These were previously undocumented — registering them
+ * here makes them available in Tailwind IntelliSense.
+ */
+export default plugin(({ addUtilities }) => {
+  addUtilities({
+    '.perspective-1000': { perspective: '1000px' },
+    '.transform-style-preserve-3d': { 'transform-style': 'preserve-3d' },
+    '.backface-hidden': { 'backface-visibility': 'hidden' },
+    '.rotate-y-180': { transform: 'rotateY(180deg)' },
+  })
+})

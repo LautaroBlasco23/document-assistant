@@ -46,7 +46,7 @@ export function TrueFalseCard({ question, onAnswer, answered, showCorrectAnswer 
   const optionClass = (value: boolean) => {
     const base = 'flex-1 rounded-lg border-2 px-4 py-3 text-sm font-medium transition-colors '
     if (showCorrectAnswer && answered && value === question.answer) {
-      return base + 'border-success bg-success-light text-success'
+      return base + 'border-mastered bg-mastered-bg text-mastered'
     }
     if (selected === value && !(showCorrectAnswer && answered && value !== question.answer)) {
       return base + 'border-primary bg-primary/10 text-primary'
@@ -81,9 +81,9 @@ export function TrueFalseCard({ question, onAnswer, answered, showCorrectAnswer 
       {answered && selected !== null && !showCorrectAnswer && (
         <div className="px-6 pb-5">
           {selected === question.answer ? (
-            <p className="text-sm font-medium text-success">Correct!</p>
+            <p className="text-sm font-medium text-mastered">Correct!</p>
           ) : (
-            <p className="text-sm font-medium text-danger">Incorrect</p>
+            <p className="text-sm font-medium text-difficult">Incorrect</p>
           )}
           {question.explanation && (
             <p className="text-xs text-text-tertiary mt-1">{question.explanation}</p>
@@ -135,7 +135,7 @@ export function MultipleChoiceCard({ question, onAnswer, answered, showCorrectAn
   const optionClass = (index: number) => {
     const base = 'w-full text-left rounded-lg border-2 px-4 py-3 text-sm font-medium transition-colors '
     if (showCorrectAnswer && answered && index === question.correctIndex) {
-      return base + 'border-success bg-success-light text-success'
+      return base + 'border-mastered bg-mastered-bg text-mastered'
     }
     if (selected === index && !(showCorrectAnswer && answered)) {
       return base + 'border-primary bg-primary/10 text-primary'
@@ -181,9 +181,9 @@ export function MultipleChoiceCard({ question, onAnswer, answered, showCorrectAn
       {answered && !showCorrectAnswer && selected !== null && (
         <div className="px-6 pb-5">
           {selected === question.correctIndex ? (
-            <p className="text-sm font-medium text-success">Correct!</p>
+            <p className="text-sm font-medium text-mastered">Correct!</p>
           ) : (
-            <p className="text-sm font-medium text-danger">Incorrect</p>
+            <p className="text-sm font-medium text-difficult">Incorrect</p>
           )}
           {question.explanation && (
             <p className="text-xs text-text-tertiary mt-1">{question.explanation}</p>
@@ -267,8 +267,8 @@ export function MatchingCard({ question, onAnswer, answered, showCorrectAnswer }
                 {showCorrectAnswer && submitted ? (
                   <div className={`w-full rounded-lg border-2 px-3 py-2 text-sm ${
                     isCorrectMatch
-                      ? 'border-success bg-success-light text-success'
-                      : 'border-danger/30 bg-danger-light/50 text-danger'
+                      ? 'border-mastered bg-mastered-bg text-mastered'
+                      : 'border-difficult/30 bg-difficult-bg/50 text-difficult'
                   }`}>
                     {isCorrectMatch ? pair.definition : `${pair.definition} (correct)`}
                   </div>
@@ -278,7 +278,7 @@ export function MatchingCard({ question, onAnswer, answered, showCorrectAnswer }
                     disabled={answered || submitted}
                     onChange={(e) => handleSelect(termIndex, Number(e.target.value))}
                     className={`w-full rounded-lg border-2 px-3 py-2 text-sm bg-surface dark:bg-surface-200 border-border text-text-secondary focus:outline-none focus:border-primary ${
-                      showCorrectAnswer && submitted && !isCorrectMatch ? 'border-danger/30' : ''
+                      showCorrectAnswer && submitted && !isCorrectMatch ? 'border-difficult/30' : ''
                     }`}
                   >
                     <option value="" disabled>— Select definition —</option>
@@ -312,11 +312,11 @@ export function MatchingCard({ question, onAnswer, answered, showCorrectAnswer }
               const correctCountLocal = selections.filter((pairIndex, termIndex) => pairIndex === termIndex).length
               const correct = correctCountLocal === question.pairs.length
               return correct ? (
-                <p className="text-sm font-medium text-success">
+                <p className="text-sm font-medium text-mastered">
                   Correct! {correctCountLocal} of {question.pairs.length} pairs matched correctly.
                 </p>
               ) : (
-                <p className="text-sm font-medium text-danger">
+                <p className="text-sm font-medium text-difficult">
                   Incorrect. {correctCountLocal} of {question.pairs.length} pairs matched correctly.
                 </p>
               )
@@ -366,7 +366,7 @@ export function CheckboxCard({ question, onAnswer, answered, showCorrectAnswer }
   const choiceClass = (index: number) => {
     const base = 'flex items-start gap-3 rounded-lg border-2 px-4 py-3 text-sm transition-colors '
     if (showCorrectAnswer && submitted && question.correctIndices.includes(index)) {
-      return base + 'border-success bg-success-light text-success'
+      return base + 'border-mastered bg-mastered-bg text-mastered'
     }
     if (checked.has(index) && !(showCorrectAnswer && submitted)) {
       return base + 'border-primary bg-primary/10 text-primary' + (!submitted ? ' cursor-pointer' : '')
@@ -429,9 +429,9 @@ export function CheckboxCard({ question, onAnswer, answered, showCorrectAnswer }
               const correctSet = new Set(question.correctIndices)
               const correct = checked.size === correctSet.size && [...checked].every((i) => correctSet.has(i))
               return correct ? (
-                <p className="text-sm font-medium text-success">Correct!</p>
+                <p className="text-sm font-medium text-mastered">Correct!</p>
               ) : (
-                <p className="text-sm font-medium text-danger">Incorrect</p>
+                <p className="text-sm font-medium text-difficult">Incorrect</p>
               )
             })()}
             {question.explanation && (
@@ -534,7 +534,7 @@ export function FlashcardCard({ question, onAnswer, answered, showCorrectAnswer 
                   variant="ghost"
                   size="sm"
                   onClick={handleDidntKnow}
-                  className="border border-danger/30 text-danger hover:bg-danger-light gap-1"
+                  className="border border-difficult/30 text-difficult hover:bg-difficult-bg gap-1"
                 >
                   <XCircle className="h-4 w-4" /> Didn't know
                 </Button>
@@ -542,7 +542,7 @@ export function FlashcardCard({ question, onAnswer, answered, showCorrectAnswer 
                   variant="ghost"
                   size="sm"
                   onClick={handleGotIt}
-                  className="border border-success/30 text-success hover:bg-success-light gap-1"
+                  className="border border-mastered/30 text-mastered hover:bg-mastered-bg gap-1"
                 >
                   <Check className="h-4 w-4" /> Got it
                 </Button>

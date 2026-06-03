@@ -26,7 +26,7 @@ export function Header({ title, breadcrumbs, actions, className }: HeaderProps) 
                 {crumb.href ? (
                   <Link
                     to={crumb.href}
-                    className="hover:text-text-secondary transition-colors"
+                    className="hover:text-text-secondary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-bg rounded"
                   >
                     {crumb.label}
                   </Link>

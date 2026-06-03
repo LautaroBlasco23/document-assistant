@@ -20,7 +20,8 @@
   /* ── Text ── */
   --color-text-primary: #1f2937;
   --color-text-secondary: #4b5563;
-  --color-text-tertiary: #9ca3af;
+  /* tertiary raised from #9ca3af (≈3.3:1, fails AA) to #5e6a7d (≈5.1:1 on bg, ≈5.5:1 on card) */
+  --color-text-tertiary: #5e6a7d;
   --color-text-disabled: #d1d5db;
   --color-text-inverse: #ffffff;
   --color-text-link: #00a6fb;
@@ -33,9 +34,9 @@
   --color-border-subtle: #f3f4f6;
 
   /* ── Primary ── */
-  --color-primary: #0a2540;
-  --color-primary-hover: #103558;
-  --color-primary-active: #071b2e;
+  --color-primary: #16324f;     /* was #0a2540 — lighter, more readable */
+  --color-primary-hover: #1f4263;
+  --color-primary-active: #0d2238;
   --color-primary-light: #eaeef3;
   --color-primary-border: #c1c9d5;
 
@@ -47,9 +48,9 @@
   --color-secondary-border: #c8e6c9;
 
   /* ── Accent ── */
-  --color-accent: #00a6fb;
-  --color-accent-hover: #0095e8;
-  --color-accent-active: #0084d1;
+  --color-accent: #3b82f6;     /* was #00a6fb — less saturated, calmer for reading */
+  --color-accent-hover: #2563eb;
+  --color-accent-active: #1d4ed8;
   --color-accent-light: #e5f6ff;
   --color-accent-border: #b3e5fc;
 
@@ -73,6 +74,32 @@
   --color-info-bg: #e5f6ff;
   --color-info-border: #b3e5fc;
 
+  /* ── Education: Mastered (chapter read, exam passed, answer correct) ── */
+  --color-mastered-fg:     #2e7d32;
+  --color-mastered-bg:     #e8f5e9;
+  --color-mastered-border: #c8e6c9;
+
+  /* ── Education: Learning (reserved — no current consumer) ── */
+  --color-learning-fg:     #1976d2;
+  --color-learning-bg:     #e3f2fd;
+  --color-learning-border: #bbdefb;
+
+  /* ── Education: Review (mid score 50-79, "needs attention") ── */
+  --color-review-fg:     #d97706;
+  --color-review-bg:     #fff3e0;
+  --color-review-border: #ffe0b2;
+
+  /* ── Education: Difficult (exam <50, answer wrong, missed) ── */
+  --color-difficult-fg:     #dc2626;
+  --color-difficult-bg:     #fee2e2;
+  --color-difficult-border: #fecaca;
+
+  /* ── AI visual language ── */
+  --color-ai:       #8b5cf6;   /* purple-500 */
+  --color-ai-bg:    #f5f3ff;   /* purple-50  */
+  --color-ai-border:#ddd6fe;   /* purple-200 */
+  --color-ai-fg:    #5b21b6;   /* purple-800 — AA on ai-bg */
+
   /* ── Icons ── */
   --color-icon-primary: #4b5563;
   --color-icon-secondary: #9ca3af;
@@ -90,6 +117,31 @@
   --shadow-md: 0 4px 6px -1px rgba(10, 37, 64, 0.10);
   --shadow-lg: 0 10px 15px -3px rgba(10, 37, 64, 0.10);
   --shadow-focus: 0 0 0 3px rgba(0, 166, 251, 0.20);
+
+  /* ── Semantic spacing ── */
+  --space-page:    2rem;
+  --space-section: 1.5rem;
+  --space-card:    1rem;
+  --space-inline:  0.5rem;
+
+  /* ── Type scale (rem) ── */
+  --text-xs:  0.75rem;   /* 12 */
+  --text-sm:  0.875rem;  /* 14 */
+  --text-md:  1rem;      /* 16 — body default */
+  --text-lg:  1.125rem;  /* 18 */
+  --text-xl:  1.25rem;   /* 20 */
+  --text-2xl: 1.5rem;    /* 24 */
+  --text-3xl: 1.875rem;  /* 30 */
+
+  /* ── Font families ── */
+  --font-ui:      'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-reading: 'Charter', 'Iowan Old Style', 'Georgia', 'Source Serif Pro', 'Cambria', serif;
+
+  /* ── Reader surface ── */
+  --reader-width:             72ch;
+  --reader-line-height:       1.8;
+  --reader-paragraph-spacing: 1.25rem;
+  --reader-highlight:         #fff3a3;  /* warm yellow on light */
 
   accent-color: var(--color-primary);
   caret-color: var(--color-primary);
@@ -119,7 +171,8 @@
   /* ── Text ── */
   --color-text-primary: #e2e8f0;
   --color-text-secondary: #94a3b8;
-  --color-text-tertiary: #64748b;
+  /* tertiary raised from #64748b (≈4.3:1, fails AA on card) to #8b9bb0 (≈5.3:1 on card) */
+  --color-text-tertiary: #8b9bb0;
   --color-text-disabled: #475569;
   --color-text-inverse: #0a1e33;
   --color-text-link: #00a6fb;
@@ -131,24 +184,24 @@
   --color-border-input: rgba(0, 166, 251, 0.4);
   --color-border-subtle: rgba(100, 116, 139, 0.08);
 
-  /* ── Primary ── */
-  --color-primary: #5b9df0;
-  --color-primary-hover: #3b82f6;
-  --color-primary-active: #2563eb;
+  /* ── Primary (dark) ── */
+  --color-primary: #6da3f0;
+  --color-primary-hover: #5b9df0;
+  --color-primary-active: #3b82f6;
   --color-primary-light: rgba(91, 157, 240, 0.12);
   --color-primary-border: rgba(91, 157, 240, 0.25);
 
-  /* ── Secondary ── */
+  /* ── Secondary (dark) ── */
   --color-secondary: #4caf50;
   --color-secondary-hover: #43a047;
   --color-secondary-active: #388e3c;
   --color-secondary-light: rgba(76, 175, 80, 0.10);
   --color-secondary-border: rgba(76, 175, 80, 0.25);
 
-  /* ── Accent ── */
-  --color-accent: #00a6fb;
-  --color-accent-hover: #33b4fc;
-  --color-accent-active: #0095e8;
+  /* ── Accent (dark) ── */
+  --color-accent: #60a5fa;
+  --color-accent-hover: #3b82f6;
+  --color-accent-active: #2563eb;
   --color-accent-light: rgba(0, 166, 251, 0.10);
   --color-accent-border: rgba(0, 166, 251, 0.25);
 
@@ -172,6 +225,32 @@
   --color-info-bg: rgba(0, 166, 251, 0.10);
   --color-info-border: rgba(0, 166, 251, 0.25);
 
+  /* ── Education: Mastered (dark — lighter green for AA on card surface) ── */
+  --color-mastered-fg:     #66bb6a;
+  --color-mastered-bg:     rgba(46, 125, 50, 0.15);
+  --color-mastered-border: rgba(46, 125, 50, 0.30);
+
+  /* ── Education: Learning (dark) ── */
+  --color-learning-fg:     #64b5f6;
+  --color-learning-bg:     rgba(25, 118, 210, 0.15);
+  --color-learning-border: rgba(25, 118, 210, 0.30);
+
+  /* ── Education: Review (dark) ── */
+  --color-review-fg:     #fbbf24;
+  --color-review-bg:     rgba(251, 191, 36, 0.10);
+  --color-review-border: rgba(251, 191, 36, 0.25);
+
+  /* ── Education: Difficult (dark) ── */
+  --color-difficult-fg:     #f87171;
+  --color-difficult-bg:     rgba(248, 113, 113, 0.10);
+  --color-difficult-border: rgba(248, 113, 113, 0.25);
+
+  /* ── AI visual language (dark) ── */
+  --color-ai:       #a78bfa;   /* purple-400 — brighter on dark */
+  --color-ai-bg:    rgba(139, 92, 246, 0.12);
+  --color-ai-border:rgba(139, 92, 246, 0.30);
+  --color-ai-fg:    #c4b5fd;   /* purple-300 — AA on ai-bg */
+
   /* ── Icons ── */
   --color-icon-primary: #94a3b8;
   --color-icon-secondary: #64748b;
@@ -190,6 +269,15 @@
   --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.50);
   --shadow-focus: 0 0 0 3px rgba(0, 166, 251, 0.30);
 
+  /* ── Semantic spacing (same as light) ── */
+  --space-page:    2rem;
+  --space-section: 1.5rem;
+  --space-card:    1rem;
+  --space-inline:  0.5rem;
+
+  /* ── Reader surface (dark) ── */
+  --reader-highlight: rgba(250, 204, 21, 0.45);  /* dimmed amber, semi-transparent for dark mode contrast */
+
   color-scheme: dark;
 }
 
@@ -204,34 +292,15 @@ html, body, #root {
   padding: 0;
 }
 
-/* 3D card flip support */
-.perspective-1000 {
-  perspective: 1000px;
+body {
+  font-family: var(--font-ui);
 }
 
-.transform-style-preserve-3d {
-  transform-style: preserve-3d;
-}
-
-.backface-hidden {
-  backface-visibility: hidden;
-}
-
-.rotate-y-180 {
-  transform: rotateY(180deg);
-}
-
-/* ─── Sidebar left-border breathing animation ─────────────────────────── */
-
-@keyframes breathe-green {
-   0%, 100% { box-shadow: inset 2px 0 0 0 color-mix(in srgb, var(--color-success-fg) 30%, transparent); }
-  50%      { box-shadow: inset 2px 0 0 0 color-mix(in srgb, var(--color-success-fg) 90%, transparent); }
-}
-
-@keyframes breathe-blue {
-  0%, 100% { box-shadow: inset 2px 0 0 0 color-mix(in srgb, var(--color-primary) 30%, transparent); }
-  50%      { box-shadow: inset 2px 0 0 0 color-mix(in srgb, var(--color-primary) 90%, transparent); }
-}
+/* ─── Sidebar left-border breathing animation ─────────────────────────────
+   Keyframes (`breathe-green`, `breathe-blue`) are registered in
+   `tailwind-plugins/animations.ts`. The class definitions stay here because
+   they use `box-shadow` with `color-mix()` referencing CSS custom properties
+   — impractical to express via `addUtilities`. */
 
 .sidebar-border-green {
   animation: breathe-green 2.5s ease-in-out infinite;
@@ -241,16 +310,16 @@ html, body, #root {
   animation: breathe-blue 2.5s ease-in-out infinite;
 }
 
-/* ─── Animated border for Original Source Document card ─────────────────── */
+/* ─── Animated border for Original Source Document card ───────────────────
+   The `source-border-spin` keyframe is registered in
+   `tailwind-plugins/animations.ts`. The `@property` rule and the
+   `::before` pseudo-element with conic-gradient stay here because they
+   cannot be expressed through `addUtilities`. */
 
 @property --source-border-angle {
   syntax: '<angle>';
   initial-value: 0deg;
   inherits: false;
-}
-
-@keyframes source-border-spin {
-  to { --source-border-angle: 360deg; }
 }
 
 .source-doc-animated-border {
@@ -289,13 +358,10 @@ textarea,
   cursor: default !important;
 }
 
-/* ─── Model selector — role particles ────────────────────────────────────── */
-
-@keyframes model-particle-rise {
-  0%   { transform: translateY(0)     scale(1);   opacity: 0.85; }
-  70%  { opacity: 0.5; }
-  100% { transform: translateY(-16px) scale(0.2); opacity: 0; }
-}
+/* ─── Model selector — role particles ──────────────────────────────────────
+   The `model-particle-rise` keyframe is registered in
+   `tailwind-plugins/animations.ts`. Only the positioning/color classes
+   remain here. */
 
 .model-particle {
   position: absolute;
@@ -318,11 +384,29 @@ textarea,
 
 .textLayer mark {
   color: transparent;
-  background-color: rgb(254 240 138);
+  background-color: var(--reader-highlight);
   border-radius: 2px;
   padding: 0 2px;
 }
 
-.dark .textLayer mark {
-  background-color: rgba(251, 191, 36, 0.5);
+/* ─── Respect prefers-reduced-motion ─────────────────────────────────────────
+   The global blanket reset (animation + transition) is intentionally scoped
+   per the plan: it lets the dialog's open/close fade-in and similar short
+   feedback still happen, while turning off the long-running flourishes below
+   (sidebar border breathing, source-doc spin, model particles). */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .model-particle,
+  .model-particle-green,
+  .model-particle-orange,
+  .source-doc-animated-border,
+  .sidebar-border-green,
+  .sidebar-border-blue {
+    display: none !important;
+  }
 }

@@ -27,7 +27,7 @@ function markTextByPosition(text: string, highlights: Highlight[], chapterNumber
     }
     if (end > lastEnd) {
       parts.push(
-        <mark key={start} className="bg-yellow-200 dark:bg-yellow-700/50 text-inherit rounded-sm px-0.5">
+        <mark key={start} className="bg-highlight text-inherit rounded-sm px-0.5">
           {text.slice(Math.max(start, lastEnd), Math.min(end, text.length))}
         </mark>,
       )
@@ -229,7 +229,7 @@ export function TextPagesView({
   }, [pagedChapter, mode])
 
   const fontSize = `${Math.round(zoom * 100)}%`
-  const contentWidthClass = contentWidth === 'full' ? '' : contentWidth === 'wide' ? 'max-w-5xl' : 'max-w-3xl'
+  const contentWidthClass = contentWidth === 'full' ? '' : contentWidth === 'wide' ? 'max-w-5xl' : 'max-w-reader'
 
   // --- Edit-mode surface: single editor for the active chapter ---
   if (isEditing) {
@@ -271,7 +271,10 @@ export function TextPagesView({
 
     if (formatMode === 'markdown') {
       return (
-        <div className="text-text-secondary leading-relaxed">
+        <div
+          className="font-reading text-text-secondary text-md space-y-reader-para"
+          style={{ lineHeight: 'var(--reader-line-height)' }}
+        >
           <ReactMarkdown components={readerMarkdownComponents}>{text}</ReactMarkdown>
         </div>
       )
@@ -287,7 +290,10 @@ export function TextPagesView({
       )
     }
     return (
-      <p className="text-text-secondary leading-relaxed whitespace-pre-wrap break-words">
+      <p
+        className="font-reading text-text-secondary text-md whitespace-pre-wrap break-words"
+        style={{ lineHeight: 'var(--reader-line-height)' }}
+      >
         {marked}
       </p>
     )
@@ -315,7 +321,7 @@ export function TextPagesView({
           <div className={cn('mx-auto py-8 px-6', contentWidthClass)} style={{ fontSize }}>
             {chapter && (
               <>
-                <h2 className="text-xl font-semibold text-text-primary mb-6">{markTextByPosition(chapter.title, highlights, chapter.number, true)}</h2>
+                <h2 className="font-reading text-2xl font-semibold text-text-primary mb-6">{markTextByPosition(chapter.title, highlights, chapter.number, true)}</h2>
                 {renderContent(chapter.number)}
               </>
             )}
@@ -354,7 +360,7 @@ export function TextPagesView({
             ref={getSectionRef(ch.number)}
             data-chapter={ch.number}
           >
-            <h2 className="text-xl font-semibold text-text-primary mb-6 pb-2 border-b border-surface-200 dark:border-surface-200">
+            <h2 className="font-reading text-2xl font-semibold text-text-primary mb-6 pb-2 border-b border-surface-200 dark:border-surface-200">
               {markTextByPosition(ch.title, highlights, ch.number, true)}
             </h2>
             {renderContent(ch.number)}

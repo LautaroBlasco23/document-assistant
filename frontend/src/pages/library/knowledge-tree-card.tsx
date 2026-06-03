@@ -25,7 +25,7 @@ export function KnowledgeTreeCard({ tree, onDelete }: KnowledgeTreeCardProps) {
   return (
     <>
       <Card
-        className="flex flex-col gap-3 hover:shadow-md transition-shadow cursor-pointer"
+        className="flex flex-col gap-3 hover:shadow-sm transition-shadow cursor-pointer"
         onClick={() => navigate(`/trees/${tree.id}`)}
       >
         {/* Icon + title */}
@@ -81,7 +81,7 @@ export function KnowledgeTreeCard({ tree, onDelete }: KnowledgeTreeCardProps) {
             variant="ghost"
             size="sm"
             onClick={(e) => { e.stopPropagation(); setDeleteOpen(true) }}
-            className="text-red-500 hover:text-danger hover:bg-danger-light dark:hover:bg-red-900/20"
+            className="text-red-500 hover:text-error hover:bg-error-light dark:hover:bg-red-900/20"
             aria-label="Delete tree"
           >
             <Trash2 className="h-4 w-4" />

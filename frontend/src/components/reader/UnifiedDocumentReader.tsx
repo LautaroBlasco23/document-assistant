@@ -1097,7 +1097,7 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose, mode = '
             onClick={hideContextMenu}
           >
             <div
-              className={cn('mx-auto py-8 px-6 text-text-secondary leading-relaxed', contentWidthClass)}
+              className={cn('mx-auto py-8 px-6 text-text-secondary text-md', contentWidthClass)}
               style={{ fontSize: `${Math.round(zoom * 100)}%` }}
             >
               {isEditing ? (
@@ -1110,9 +1110,19 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose, mode = '
                   onChange={setDraftContent}
                 />
               ) : formatMode === 'markdown' ? (
-                <ReactMarkdown components={readerMarkdownComponents}>{effectiveDoc.content ?? ''}</ReactMarkdown>
+                <div
+                  className="font-reading space-y-reader-para"
+                  style={{ lineHeight: 'var(--reader-line-height)' }}
+                >
+                  <ReactMarkdown components={readerMarkdownComponents}>{effectiveDoc.content ?? ''}</ReactMarkdown>
+                </div>
               ) : (
-                <p className="whitespace-pre-wrap break-words">{effectiveDoc.content}</p>
+                <p
+                  className="font-reading whitespace-pre-wrap break-words"
+                  style={{ lineHeight: 'var(--reader-line-height)' }}
+                >
+                  {effectiveDoc.content}
+                </p>
               )}
             </div>
           </div>
@@ -1124,7 +1134,7 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose, mode = '
           >
             {effectiveDoc.content ? (
               <div
-                className={cn('mx-auto py-8 px-6 text-text-secondary leading-relaxed', contentWidthClass)}
+                className={cn('mx-auto py-8 px-6 text-text-secondary text-md', contentWidthClass)}
                 style={{ fontSize: `${Math.round(zoom * 100)}%` }}
               >
                 {isEditing ? (
@@ -1137,9 +1147,19 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose, mode = '
                     onChange={setDraftContent}
                   />
                 ) : formatMode === 'markdown' ? (
-                  <ReactMarkdown components={readerMarkdownComponents}>{effectiveDoc.content}</ReactMarkdown>
+                  <div
+                    className="font-reading space-y-reader-para"
+                    style={{ lineHeight: 'var(--reader-line-height)' }}
+                  >
+                    <ReactMarkdown components={readerMarkdownComponents}>{effectiveDoc.content}</ReactMarkdown>
+                  </div>
                 ) : (
-                  <p className="whitespace-pre-wrap break-words">{effectiveDoc.content}</p>
+                  <p
+                    className="font-reading whitespace-pre-wrap break-words"
+                    style={{ lineHeight: 'var(--reader-line-height)' }}
+                  >
+                    {effectiveDoc.content}
+                  </p>
                 )}
               </div>
             ) : (
@@ -1198,7 +1218,7 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose, mode = '
               onClick={() => handleDeleteHighlight(contextMenu.text, { startOffset: contextMenu.startOffset, endOffset: contextMenu.endOffset })}
               className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100 transition-colors"
             >
-              <Trash2 className="h-3.5 w-3.5 text-danger" />
+              <Trash2 className="h-3.5 w-3.5 text-error" />
               Delete highlight
             </button>
           ) : (
@@ -1229,28 +1249,28 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose, mode = '
             onClick={handleMakeFlashcard}
             className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100 transition-colors"
           >
-            <Sparkles className="h-3.5 w-3.5 text-warning" />
+            <Sparkles className="h-3.5 w-3.5 text-ai" />
             Flashcard
           </button>
           <button
             onClick={() => handleMakeQuestion('true_false')}
             className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100 transition-colors"
           >
-            <Sparkles className="h-3.5 w-3.5 text-success" />
+            <Sparkles className="h-3.5 w-3.5 text-ai" />
             True / False question
           </button>
           <button
             onClick={() => handleMakeQuestion('multiple_choice')}
             className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100 transition-colors"
           >
-            <Sparkles className="h-3.5 w-3.5 text-primary" />
+            <Sparkles className="h-3.5 w-3.5 text-ai" />
             Multiple choice question
           </button>
           <button
             onClick={() => handleMakeQuestion('checkbox')}
             className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100 transition-colors"
           >
-            <Sparkles className="h-3.5 w-3.5 text-accent" />
+            <Sparkles className="h-3.5 w-3.5 text-ai" />
             Select all that apply
           </button>
         </div>

@@ -150,7 +150,7 @@ function CardShell({
       disposition === 'approved'
         ? 'border-success/30'
         : disposition === 'rejected'
-          ? 'border-red-300 dark:border-danger'
+          ? 'border-red-300 dark:border-error'
           : 'border-surface-200 dark:border-surface-200',
     )}>
       <div className={cn(
@@ -158,19 +158,19 @@ function CardShell({
         disposition === 'approved'
           ? 'border-success/30 '
           : disposition === 'rejected'
-            ? 'border-danger/30 '
+            ? 'border-error/30 '
             : 'border-surface-200 dark:border-surface-200',
       )}>
         <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-text-tertiary">
           {status === 'generating' && <Loader2 className="h-3 w-3 animate-spin" />}
-          {status === 'error' && <AlertCircle className="h-3 w-3 text-danger" />}
+          {status === 'error' && <AlertCircle className="h-3 w-3 text-error" />}
           <span>{label}</span>
           {disposition && (
             <span className={cn(
               'ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold',
               disposition === 'approved'
                 ? 'bg-success-light text-success'
-                : 'bg-danger-light text-danger',
+                : 'bg-error-light text-error',
             )}>
               {disposition === 'approved' ? 'Approved' : 'Rejected'}
             </span>
@@ -183,7 +183,7 @@ function CardShell({
                 onClick={onReject}
                 disabled={status === 'saving'}
                 title="Reject"
-                  className="p-1 rounded text-text-tertiary hover:text-danger hover:bg-danger-light dark:hover:bg-danger/12 transition-colors disabled:opacity-50"
+                  className="p-1 rounded text-text-tertiary hover:text-error hover:bg-error-light dark:hover:bg-error/12 transition-colors disabled:opacity-50"
                 >
                   <X className="h-3.5 w-3.5" />
                 </button>

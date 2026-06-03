@@ -129,7 +129,7 @@ function GeneratorSection({
               onClick={onGenerate}
               className="h-7"
             >
-              <Sparkles className="h-3.5 w-3.5 mr-1" />
+              <Sparkles className="h-3.5 w-3.5 text-ai mr-1" />
               {status === 'done' ? 'Generate more' : 'Generate'}
             </Button>
           )}
@@ -177,7 +177,7 @@ function TrueFalseList({
             className={`mt-0.5 shrink-0 rounded px-1 py-0.5 font-semibold uppercase text-[10px] ${
               q.answer
                 ? 'bg-success-light text-green-700'
-                : 'bg-danger-light text-danger'
+                : 'bg-error-light text-error'
             }`}
           >
             {q.answer ? 'True' : 'False'}
@@ -186,7 +186,7 @@ function TrueFalseList({
           {onDelete && (
             <button
               onClick={() => onDelete(q.id)}
-              className="ml-1 shrink-0 text-text-tertiary hover:text-danger transition-colors"
+              className="ml-1 shrink-0 text-text-tertiary hover:text-error transition-colors"
               aria-label="Delete question"
             >
               <Trash2 className="h-3.5 w-3.5" />
@@ -217,7 +217,7 @@ function MultipleChoiceList({
             {onDelete && (
               <button
                 onClick={() => onDelete(q.id)}
-                className="ml-2 shrink-0 text-text-tertiary hover:text-danger transition-colors"
+                className="ml-2 shrink-0 text-text-tertiary hover:text-error transition-colors"
                 aria-label="Delete question"
               >
                 <Trash2 className="h-3.5 w-3.5" />
@@ -265,7 +265,7 @@ function MatchingList({
             {onDelete && (
               <button
                 onClick={() => onDelete(q.id)}
-                className="ml-2 shrink-0 text-text-tertiary hover:text-danger transition-colors"
+                className="ml-2 shrink-0 text-text-tertiary hover:text-error transition-colors"
                 aria-label="Delete question"
               >
                 <Trash2 className="h-3.5 w-3.5" />
@@ -308,7 +308,7 @@ function CheckboxList({
             {onDelete && (
               <button
                 onClick={() => onDelete(q.id)}
-                className="ml-2 shrink-0 text-text-tertiary hover:text-danger transition-colors"
+                className="ml-2 shrink-0 text-text-tertiary hover:text-error transition-colors"
                 aria-label="Delete question"
               >
                 <Trash2 className="h-3.5 w-3.5" />
@@ -368,7 +368,7 @@ function FlashcardList({
             {onDelete && (
               <button
                 onClick={() => onDelete(card.id)}
-                className="ml-2 shrink-0 text-text-tertiary hover:text-danger transition-colors"
+                className="ml-2 shrink-0 text-text-tertiary hover:text-error transition-colors"
                 aria-label="Delete flashcard"
               >
                 <Trash2 className="h-3.5 w-3.5" />
@@ -534,7 +534,7 @@ function FlashcardGenerator({ treeId, chapter, chapterTitle, flashcardCount, onF
           )}
           {status !== 'loading' && (
             <Button variant="secondary" size="sm" onClick={() => void handleGenerate()} className="h-7">
-              <Sparkles className="h-3.5 w-3.5 mr-1" />
+              <Sparkles className="h-3.5 w-3.5 text-ai mr-1" />
               {status === 'done' ? 'Generate more' : 'Generate'}
             </Button>
           )}

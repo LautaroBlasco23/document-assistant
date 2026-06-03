@@ -11,7 +11,7 @@ const variantClasses: Record<NonNullable<ButtonProps['variant']>, string> = {
   primary: 'bg-primary text-text-inverse hover:bg-primary-hover',
   secondary: 'bg-primary/10 text-primary hover:bg-primary/20 border border-primary/20',
   ghost: 'bg-transparent text-text-tertiary hover:bg-surface-100 dark:hover:bg-surface-100 hover:text-text-secondary',
-  destructive: 'bg-danger text-text-inverse hover:opacity-90',
+  destructive: 'bg-error text-text-inverse hover:opacity-90',
 }
 
 const sizeClasses: Record<NonNullable<ButtonProps['size']>, string> = {
@@ -37,9 +37,10 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       <button
         ref={ref}
         disabled={disabled || loading}
+        aria-busy={loading || undefined}
         className={cn(
           'inline-flex items-center justify-center gap-2 rounded-md font-medium transition-colors',
-          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2',
+          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-bg',
           'disabled:opacity-50 disabled:cursor-not-allowed',
           variantClasses[variant],
           sizeClasses[size],

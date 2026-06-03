@@ -28,6 +28,8 @@ export interface DialogProps {
   title: string
   description?: string
   onConfirm: () => void
+  /** Async confirm — show loading spinner on the confirm button */
+  confirmLoading?: boolean
   confirmLabel?: string
   cancelLabel?: string
   variant?: 'default' | 'destructive'
@@ -40,13 +42,14 @@ export function Dialog({
   title,
   description,
   onConfirm,
+  confirmLoading = false,
   confirmLabel = 'Confirm',
   cancelLabel = 'Cancel',
   variant = 'default',
   className,
 }: DialogProps) {
   return (
-    <RadixDialog.Root open={open} onOpenChange={onOpenChange}>
+    <RadixDialog.Root open={open} onOpenChange={(o) => { if (!confirmLoading) onOpenChange(o) }}>
       <RadixDialog.Portal>
         <RadixDialog.Overlay className="bg-black/50 fixed inset-0 z-40 animate-fade-in" />
         <RadixDialog.Content
@@ -70,14 +73,16 @@ export function Dialog({
             <Button
               variant="secondary"
               onClick={() => onOpenChange(false)}
+              disabled={confirmLoading}
             >
               {cancelLabel}
             </Button>
             <Button
               variant={variant === 'destructive' ? 'destructive' : 'primary'}
+              loading={confirmLoading}
               onClick={() => {
                 onConfirm()
-                onOpenChange(false)
+                if (!confirmLoading) onOpenChange(false)
               }}
             >
               {confirmLabel}

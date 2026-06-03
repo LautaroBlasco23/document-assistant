@@ -236,7 +236,7 @@ function SectionsSidebar({
         <div
           key={ch.number}
           className={`group flex flex-col rounded-md ${
-            ch.status === 'read' ? 'bg-green-50 dark:bg-green-950/20' : ''
+            ch.status === 'read' ? 'bg-mastered-bg' : ''
           }`}
         >
           {editingChapter?.number === ch.number ? (
@@ -250,7 +250,7 @@ function SectionsSidebar({
                 className="text-xs h-7 flex-1"
                 autoFocus
               />
-              <button type="submit" className="p-1 text-success hover:text-green-700 rounded" aria-label="Save">
+              <button type="submit" className="p-1 text-mastered hover:text-mastered/80 rounded" aria-label="Save">
                 <Check className="h-3 w-3" />
               </button>
               <button type="button" onClick={() => setEditingChapter(null)} className="p-1 text-text-tertiary hover:text-text-secondary rounded" aria-label="Cancel">
@@ -295,11 +295,11 @@ function SectionsSidebar({
                 <span className="truncate">{ch.title}</span>
               </button>
               {ch.status === 'read' ? (
-                <BookOpenCheck className="h-3 w-3 mr-1 text-success shrink-0" />
+                <BookOpenCheck className="h-3 w-3 mr-1 text-mastered shrink-0" />
               ) : (
                 <button
                   onClick={() => void markChapterRead(treeId, ch.number)}
-                  className="opacity-0 group-hover:opacity-100 p-1 text-text-tertiary hover:text-success transition-opacity rounded"
+                  className="opacity-0 group-hover:opacity-100 p-1 text-text-tertiary hover:text-mastered transition-opacity rounded"
                   aria-label={`Mark chapter ${ch.title} as read`}
                 >
                   <Check className="h-3 w-3" />

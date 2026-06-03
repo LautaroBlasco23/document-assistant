@@ -26,15 +26,15 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
           className={cn(
             'w-full rounded-md border border-surface-200 dark:border-surface-200 bg-surface dark:bg-surface-100 px-3 py-2 text-sm text-text-primary',
             'placeholder:text-text-tertiary',
-            'focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent',
+            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-bg focus-visible:border-transparent',
             'disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-surface-100',
-            error && 'border-danger focus:ring-danger',
+            error && 'border-error focus-visible:ring-error',
             className,
           )}
           {...props}
         />
         {error && (
-          <p className="text-xs text-danger dark:text-danger">{error}</p>
+          <p className="text-xs text-error">{error}</p>
         )}
       </div>
     )

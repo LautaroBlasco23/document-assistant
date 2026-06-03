@@ -75,7 +75,8 @@ export function FormatterMenu({
           className={cn(
             'inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium transition-colors border shadow-sm',
             'bg-primary text-white border-primary',
-            'hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed'
+            'hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed',
+            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-bg'
           )}
           title={isDirty ? 'Save changes' : 'No changes to save'}
         >
@@ -90,7 +91,8 @@ export function FormatterMenu({
             'inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium transition-colors border shadow-sm',
             'bg-surface dark:bg-surface-200 border-surface-200 dark:border-surface-200',
             'text-text-secondary hover:text-text-primary hover:bg-surface-100 dark:hover:bg-surface-100',
-            'disabled:opacity-50 disabled:cursor-not-allowed'
+            'disabled:opacity-50 disabled:cursor-not-allowed',
+            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-bg'
           )}
           title="Discard changes"
         >
@@ -114,7 +116,8 @@ export function FormatterMenu({
           'inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium transition-colors border shadow-sm',
           'bg-surface dark:bg-surface-200 border-surface-200 dark:border-surface-200',
           'text-text-secondary hover:text-text-primary hover:bg-surface-100 dark:hover:bg-surface-100',
-          'disabled:opacity-50 disabled:cursor-not-allowed'
+          'disabled:opacity-50 disabled:cursor-not-allowed',
+          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-bg'
         )}
         title="Manually edit document text"
       >
@@ -125,11 +128,14 @@ export function FormatterMenu({
       <button
         onClick={() => setOpen((o) => !o)}
         disabled={isImproving}
+        aria-haspopup="menu"
+        aria-expanded={open}
         className={cn(
           'flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium transition-colors border shadow-sm',
           'bg-surface dark:bg-surface-200 border-surface-200 dark:border-surface-200',
           'text-text-secondary hover:text-text-primary hover:bg-surface-100 dark:hover:bg-surface-100',
           'disabled:opacity-50 disabled:cursor-not-allowed',
+          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-bg',
           open && 'bg-surface-100 dark:bg-surface-100'
         )}
         title="Text format"
@@ -155,6 +161,7 @@ export function FormatterMenu({
             onClick={() => { onModeChange('plain'); setOpen(false) }}
             className={cn(
               'w-full flex items-center gap-2 px-3 py-2 text-sm transition-colors',
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset',
               mode === 'plain'
                 ? 'text-primary bg-primary-light dark:bg-primary/12'
                 : 'text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100'
@@ -169,6 +176,7 @@ export function FormatterMenu({
             onClick={() => { onModeChange('markdown'); setOpen(false) }}
             className={cn(
               'w-full flex items-center gap-2 px-3 py-2 text-sm transition-colors',
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset',
               mode === 'markdown'
                 ? 'text-primary bg-primary-light dark:bg-primary/12'
                 : 'text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100'
@@ -187,18 +195,18 @@ export function FormatterMenu({
           <button
             onClick={() => { onImproveFormatting(); setOpen(false) }}
             disabled={isImproving}
-            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset"
           >
-            <Sparkles className="h-3.5 w-3.5 text-warning shrink-0" />
+            <Sparkles className="h-3.5 w-3.5 text-ai shrink-0" />
             {isImproved ? 'Re-improve formatting' : 'Improve formatting'}
           </button>
 
           <button
             onClick={() => { onImprove(); setOpen(false) }}
             disabled={isImproving}
-            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset"
           >
-            <Sparkles className="h-3.5 w-3.5 text-warning shrink-0" />
+            <Sparkles className="h-3.5 w-3.5 text-ai shrink-0" />
             {isImproved ? 'Re-improve text' : 'Improve text'}
           </button>
 
@@ -206,7 +214,7 @@ export function FormatterMenu({
             <button
               onClick={() => { onRevert(); setOpen(false) }}
               disabled={isImproving}
-              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset"
             >
               <RotateCcw className="h-3.5 w-3.5 text-text-tertiary shrink-0" />
               Revert to original

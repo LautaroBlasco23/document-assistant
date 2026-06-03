@@ -86,7 +86,7 @@ export function ViewerPage() {
 
   if (loading) {
     return (
-      <div className="flex flex-col h-screen bg-surface dark:bg-surface">
+      <div className="flex flex-col h-screen bg-surface dark:bg-surface font-ui">
         <div className="flex items-center gap-3 px-4 py-2 border-b border-surface-200 dark:border-surface-200 shrink-0 bg-surface-100 dark:bg-surface-100">
           <Button
             variant="ghost"

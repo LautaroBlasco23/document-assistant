@@ -49,7 +49,7 @@ export function EditKnowledgeTreeDialog({ tree, open, onClose }: EditKnowledgeTr
         <form onSubmit={(e) => void handleSubmit(e)} className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
             <label htmlFor="edit-tree-title" className="text-sm font-medium text-text-secondary">
-              Title <span className="text-danger">*</span>
+              Title <span className="text-error">*</span>
             </label>
             <Input
               id="edit-tree-title"

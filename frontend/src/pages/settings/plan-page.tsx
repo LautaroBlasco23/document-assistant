@@ -47,7 +47,7 @@ export function PlanPage() {
   if (error || !limits) {
     return (
       <div className="p-6">
-        <div className="text-danger">{error || 'Failed to load limits'}</div>
+        <div className="text-error">{error || 'Failed to load limits'}</div>
       </div>
     )
   }
@@ -71,13 +71,13 @@ export function PlanPage() {
           <div className="w-full bg-surface-200 dark:bg-surface-200 rounded-full h-2.5 mb-3">
             <div
               className={`h-2.5 rounded-full transition-all ${
-                treePercent >= 90 ? 'bg-danger' : 'bg-primary'
+                treePercent >= 90 ? 'bg-error' : 'bg-primary'
               }`}
               style={{ width: `${treePercent}%` }}
             />
           </div>
           {!limits.can_create_tree && (
-            <p className="text-sm text-danger">
+            <p className="text-sm text-error">
               You've reached your knowledge tree limit. Delete some trees or contact admin to upgrade.
             </p>
           )}
@@ -94,13 +94,13 @@ export function PlanPage() {
           <div className="w-full bg-surface-200 dark:bg-surface-200 rounded-full h-2.5 mb-3">
             <div
               className={`h-2.5 rounded-full transition-all ${
-                docPercent >= 90 ? 'bg-danger' : 'bg-success'
+                docPercent >= 90 ? 'bg-error' : 'bg-success'
               }`}
               style={{ width: `${docPercent}%` }}
             />
           </div>
           {!limits.can_create_document && (
-            <p className="text-sm text-danger">
+            <p className="text-sm text-error">
               You've reached your document limit. Delete some documents or contact admin to upgrade.
             </p>
           )}

@@ -58,8 +58,12 @@ export function ResizeHandle({
   return (
     <div
       onPointerDown={handlePointerDown}
+      role="separator"
+      aria-orientation={direction}
+      tabIndex={0}
       className={cn(
         'shrink-0 bg-transparent hover:bg-primary/20 active:bg-primary/40 transition-colors touch-none',
+        'focus-visible:outline-none focus-visible:bg-primary/30',
         direction === 'horizontal'
           ? 'w-1.5 cursor-col-resize self-stretch'
           : 'h-1.5 cursor-row-resize'

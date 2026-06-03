@@ -43,9 +43,9 @@ function formatDate(iso: string): string {
 }
 
 function scoreColor(score: number): string {
-  if (score >= 80) return 'text-success'
-  if (score >= 50) return 'text-amber-600'
-  return 'text-danger'
+  if (score >= 80) return 'text-mastered'
+  if (score >= 50) return 'text-review'
+  return 'text-difficult'
 }
 
 // ---------------------------------------------------------------------------

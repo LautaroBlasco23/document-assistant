@@ -68,7 +68,7 @@ export function EditableTextPanel({
       )}
 
       {error && (
-        <div className="text-xs text-danger bg-danger/10 border border-danger/30 rounded-md px-3 py-2">
+        <div className="text-xs text-error bg-error/10 border border-error/30 rounded-md px-3 py-2">
           {error}
         </div>
       )}
@@ -87,8 +87,8 @@ export function EditableTextPanel({
           spellCheck={true}
           aria-label="Edit document text"
           className={cn(
-            'w-full h-full min-h-[60vh] resize-none rounded-md border p-4 text-sm leading-relaxed',
-            'font-mono whitespace-pre-wrap break-words',
+            'w-full h-full min-h-[60vh] resize-none rounded-md border p-4 text-md leading-relaxed',
+            'font-reading focus:font-mono whitespace-pre-wrap break-words',
             'bg-surface dark:bg-surface-200',
             'border-surface-200 dark:border-surface-200',
             'text-text-primary placeholder:text-text-tertiary',
@@ -100,7 +100,7 @@ export function EditableTextPanel({
         {showPreview && (
           <div
             className={cn(
-              'min-h-[60vh] max-h-[80vh] overflow-auto rounded-md border p-4 text-sm leading-relaxed',
+              'min-h-[60vh] max-h-[80vh] overflow-auto rounded-md border p-4 text-md leading-relaxed',
               'bg-surface-100 dark:bg-bg-inset',
               'border-surface-200 dark:border-surface-200',
               'text-text-secondary'
@@ -108,9 +108,19 @@ export function EditableTextPanel({
             aria-label="Live preview"
           >
             {fileType === 'md' ? (
-              <ReactMarkdown components={readerMarkdownComponents}>{value || ''}</ReactMarkdown>
+              <div
+                className="font-reading space-y-reader-para"
+                style={{ lineHeight: 'var(--reader-line-height)' }}
+              >
+                <ReactMarkdown components={readerMarkdownComponents}>{value || ''}</ReactMarkdown>
+              </div>
             ) : (
-              <p className="whitespace-pre-wrap break-words">{value}</p>
+              <p
+                className="font-reading whitespace-pre-wrap break-words"
+                style={{ lineHeight: 'var(--reader-line-height)' }}
+              >
+                {value}
+              </p>
             )}
           </div>
         )}

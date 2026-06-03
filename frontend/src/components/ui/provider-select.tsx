@@ -52,7 +52,9 @@ export function ProviderSelect({ value, onChange, credentials, className }: Prov
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center justify-between gap-2 px-3 py-2 border border-surface-200 dark:border-surface-200 rounded-md text-sm bg-surface dark:bg-surface-200 text-text-primary cursor-pointer hover:border-border-strong transition-colors"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        className="w-full flex items-center justify-between gap-2 px-3 py-2 border border-ai-border rounded-md text-sm bg-surface dark:bg-surface-200 text-text-primary cursor-pointer hover:border-ai transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-bg"
       >
         <span className="truncate">{selectedLabel}</span>
         <ChevronDown
@@ -64,7 +66,7 @@ export function ProviderSelect({ value, onChange, credentials, className }: Prov
       </button>
 
       {open && (
-        <div className="absolute z-50 mt-1 w-full bg-surface dark:bg-surface-200 border border-surface-200 dark:border-surface-200 rounded-md shadow-lg max-h-72 overflow-y-auto">
+        <div className="absolute z-50 mt-1 w-full bg-surface dark:bg-surface-200 border border-ai-border rounded-md shadow-lg max-h-72 overflow-y-auto">
           {loading ? (
             <div className="px-3 py-2 text-sm text-text-tertiary">Loading...</div>
           ) : displayed.length > 0 ? (
@@ -78,9 +80,12 @@ export function ProviderSelect({ value, onChange, credentials, className }: Prov
                 <button
                   key={p.slug}
                   type="button"
+                  role="option"
+                  aria-selected={isSelected}
                   onClick={() => { onChange(p.slug); setOpen(false) }}
                   className={cn(
                     'relative w-full flex items-center gap-2 px-3 py-2.5 text-sm text-left transition-colors',
+                    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset',
                     needsKey && 'opacity-50',
                     isSelected
                       ? 'bg-primary-light dark:bg-primary/12 text-primary'

@@ -818,7 +818,7 @@ function DocumentCard({ doc, onEdit, onDelete, onRead, onImprove, onRevert, onUp
           size="sm"
           onClick={(e) => { e.stopPropagation(); setDeleteOpen(true); }}
           aria-label="Delete document"
-          className="h-8 w-8 p-0 text-danger hover:text-danger dark:hover:text-danger hover:bg-danger-light dark:hover:bg-danger/12"
+          className="h-8 w-8 p-0 text-error hover:text-error dark:hover:text-error hover:bg-error-light dark:hover:bg-error/12"
           title="Delete document"
         >
           <Trash2 className="h-4 w-4" />
@@ -864,7 +864,7 @@ function DocumentCard({ doc, onEdit, onDelete, onRead, onImprove, onRevert, onUp
             disabled={acting}
             className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-left rounded-lg border border-surface-200 dark:border-surface-200 hover:bg-surface-100 dark:hover:bg-surface-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            <Sparkles className="h-4 w-4 text-warning shrink-0" />
+            <Sparkles className="h-4 w-4 text-ai shrink-0" />
             <div>
               <div className="font-medium text-text-primary">Improve text</div>
               <div className="text-xs text-text-tertiary">Rewrite for clarity, style, and structure</div>

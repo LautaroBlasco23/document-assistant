@@ -382,14 +382,14 @@ export function PdfPagesView({
               </div>
             }
             error={
-              <div className="h-full flex items-center justify-center text-sm text-danger px-6">
+              <div className="h-full flex items-center justify-center text-sm text-error px-6">
                 Failed to load PDF. The file may not be available.
               </div>
             }
           >
             {pagedPage > 0 && (
               <div className="w-full flex flex-col items-center py-6">
-                <div className="bg-surface dark:bg-surface-100 shadow-md">
+                <div className="bg-surface dark:bg-surface-100 shadow-sm">
                   <MemoPage pageNumber={pagedPage} width={displayWidth} highlights={highlights} />
                 </div>
                 <div className="mt-3 text-xs tabular-nums text-text-tertiary select-none">
@@ -433,7 +433,7 @@ export function PdfPagesView({
           </div>
         }
         error={
-          <div className="w-[600px] h-[200px] flex items-center justify-center text-sm text-danger px-6">
+          <div className="w-[600px] h-[200px] flex items-center justify-center text-sm text-error px-6">
             Failed to load PDF. The file may not be available.
           </div>
         }
@@ -449,7 +449,7 @@ export function PdfPagesView({
               style={{ minHeight: isActive ? undefined : estimatedPageHeight }}
             >
               {isActive ? (
-                <div className="bg-surface dark:bg-surface-100 shadow-md">
+                <div className="bg-surface dark:bg-surface-100 shadow-sm">
                   <MemoPage
                     pageNumber={pageNumber}
                     width={displayWidth}
@@ -459,7 +459,7 @@ export function PdfPagesView({
                 </div>
               ) : (
                 <div
-                  className="bg-white shadow-md"
+                  className="bg-white shadow-sm"
                   style={{ width: displayWidth, height: estimatedPageHeight }}
                 />
               )}

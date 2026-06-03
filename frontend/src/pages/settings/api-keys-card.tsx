@@ -70,7 +70,7 @@ function ProviderRow({
       return { icon: CheckCircle2, color: 'text-success', label: 'Connected' }
     }
     if (lastTestedAt && !lastTestOk) {
-      return { icon: XCircle, color: 'text-danger', label: 'Failed' }
+      return { icon: XCircle, color: 'text-error', label: 'Failed' }
     }
     if (configured) {
       return { icon: CheckCircle2, color: 'text-success', label: 'Configured' }
@@ -166,7 +166,7 @@ function ProviderRow({
                 size="sm"
                 onClick={onDelete}
                 disabled={deleting}
-                className="text-danger hover:text-red-700 hover:bg-danger-light dark:hover:bg-red-900/20"
+                className="text-error hover:text-red-700 hover:bg-error-light dark:hover:bg-red-900/20"
               >
                 {deleting ? (
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -177,10 +177,10 @@ function ProviderRow({
             )}
           </div>
           {(saveError || error) && (
-            <p className="text-xs text-danger">{saveError || error}</p>
+            <p className="text-xs text-error">{saveError || error}</p>
           )}
           {testResult && (
-            <p className={cn('text-xs', testResult.ok ? 'text-success' : 'text-danger')}>
+            <p className={cn('text-xs', testResult.ok ? 'text-success' : 'text-error')}>
               {testResult.ok
                 ? `Connection successful${testResult.model_count != null ? ` (${testResult.model_count} models available)` : ''}`
                 : testResult.error ?? 'Connection failed'}

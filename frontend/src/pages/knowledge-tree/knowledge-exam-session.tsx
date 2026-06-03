@@ -72,15 +72,15 @@ function ResultsScreen({ questions, results, correctCount, total, onFinish }: Re
                   : q.type === 'matching' ? q.prompt
                   : q.question
                 return (
-                  <li key={idx} className="rounded-lg border border-danger/30 bg-danger-light/50 px-3 py-3 flex gap-2.5">
-                    <HelpCircle className="h-4 w-4 shrink-0 mt-0.5 text-danger" />
+                  <li key={idx} className="rounded-lg border border-difficult/30 bg-difficult-bg/50 px-3 py-3 flex gap-2.5">
+                    <HelpCircle className="h-4 w-4 shrink-0 mt-0.5 text-difficult" />
                     <div className="flex flex-col gap-1.5 min-w-0">
-                      <p className="text-sm text-danger font-medium leading-snug">{label}</p>
+                      <p className="text-sm text-difficult font-medium leading-snug">{label}</p>
                       <div className="flex flex-col gap-0.5 text-xs">
-                        <span className="text-danger">
+                        <span className="text-difficult">
                           <span className="font-semibold">Your answer:</span> {r.userAnswer}
                         </span>
-                        <span className="text-success">
+                        <span className="text-mastered">
                           <span className="font-semibold">Correct:</span> {r.correctAnswer}
                         </span>
                       </div>

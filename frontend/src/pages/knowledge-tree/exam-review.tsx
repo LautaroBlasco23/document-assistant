@@ -38,9 +38,9 @@ function rebuildQuestionOrder(
 }
 
 function scoreColor(score: number): string {
-  if (score >= 80) return 'text-success'
-  if (score >= 50) return 'text-warning'
-  return 'text-danger'
+  if (score >= 80) return 'text-mastered'
+  if (score >= 50) return 'text-review'
+  return 'text-difficult'
 }
 
 function formatDate(iso: string): string {
@@ -66,9 +66,9 @@ function ReviewQuestionCard({
   wasCorrect: boolean
 }) {
   const icon = wasCorrect ? (
-    <Check className="h-4 w-4 text-success" />
+    <Check className="h-4 w-4 text-mastered" />
   ) : (
-    <XCircle className="h-4 w-4 text-danger" />
+    <XCircle className="h-4 w-4 text-difficult" />
   )
 
   const questionLabel = (q: ExamQuestion): string => {
@@ -128,8 +128,8 @@ function ReviewQuestionCard({
     <div
       className={`rounded-lg border px-4 py-3 flex items-start gap-3 text-sm ${
         wasCorrect
-          ? 'border-success/30 bg-success-light text-success'
-          : 'border-danger/30 bg-danger-light text-danger'
+          ? 'border-mastered/30 bg-mastered-bg text-mastered'
+          : 'border-difficult/30 bg-difficult-bg text-difficult'
       }`}
     >
       <div className="shrink-0 mt-0.5">{icon}</div>
@@ -138,7 +138,7 @@ function ReviewQuestionCard({
           <span className="text-[10px] uppercase tracking-wide opacity-60 font-medium">
             {questionType(question)}
           </span>
-          <span className={`text-xs font-semibold ${wasCorrect ? 'text-success' : 'text-danger'}`}>
+          <span className={`text-xs font-semibold ${wasCorrect ? 'text-mastered' : 'text-difficult'}`}>
             {wasCorrect ? 'Correct' : 'Missed'}
           </span>
         </div>

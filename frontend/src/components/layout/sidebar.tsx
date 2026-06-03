@@ -49,7 +49,7 @@ export function Sidebar() {
         )}
         <button
           onClick={toggleSidebar}
-          className="ml-auto p-1 rounded-md hover:bg-surface-100 dark:hover:bg-surface-100 text-text-tertiary hover:text-text-secondary transition-colors shrink-0"
+          className="ml-auto p-1 rounded-md hover:bg-surface-100 dark:hover:bg-surface-100 text-text-tertiary hover:text-text-secondary transition-colors shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-bg"
           aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
         >
           {collapsed ? (
@@ -71,6 +71,7 @@ export function Sidebar() {
               className={({ isActive }) =>
                 cn(
                   'flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors',
+                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-bg',
                   isActive
                     ? 'bg-primary-light dark:bg-primary/12 text-primary border-l-2 border-primary'
                     : 'text-text-tertiary hover:bg-surface-100 dark:hover:bg-surface-100 hover:text-text-secondary',
@@ -140,7 +141,7 @@ function UserSection({ collapsed }: UserSectionProps) {
           </div>
           <button
             onClick={() => setSignOutOpen(true)}
-            className="p-1.5 rounded-md hover:bg-surface-100 dark:hover:bg-surface-100 text-text-tertiary hover:text-danger dark:hover:text-danger transition-colors"
+            className="p-1.5 rounded-md hover:bg-surface-100 dark:hover:bg-surface-100 text-text-tertiary hover:text-error dark:hover:text-error transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-bg"
             aria-label="Logout"
           >
             <LogOut className="h-4 w-4" />
@@ -202,7 +203,7 @@ function ServiceHealthDots({ collapsed }: ServiceHealthDotsProps) {
           <span
             className={cn(
               'h-2 w-2 rounded-full shrink-0',
-              healthy ? 'bg-success' : 'bg-danger',
+              healthy ? 'bg-success' : 'bg-error',
             )}
           />
         </Tooltip>
