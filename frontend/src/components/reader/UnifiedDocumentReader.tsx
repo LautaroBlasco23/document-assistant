@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { useNavigate } from 'react-router-dom'
-import { X, Sparkles, PanelLeft, PanelRight, BookOpen, MessageCircleQuestion, Maximize, Minimize, ZoomIn, ZoomOut, AlignJustify, Highlighter, Trash2, Columns2 } from 'lucide-react'
+import { X, Sparkles, PanelLeft, PanelRight, BookOpen, MessageCircleQuestion, Maximize, Minimize, ZoomIn, ZoomOut, AlignJustify, Highlighter, Trash2, Columns2, Copy, Search } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import { client } from '../../services'
 import { useKnowledgeTreeStore } from '../../stores/knowledge-tree-store'
@@ -646,6 +646,22 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose, mode = '
     chatPanelRef.current?.askInChat(text)
   }
 
+  const handleCopy = () => {
+    if (!contextMenu) return
+    const text = contextMenu.text
+    setContextMenu(null)
+    window.getSelection()?.removeAllRanges()
+    void navigator.clipboard.writeText(text)
+  }
+
+  const handleGoogleSearch = () => {
+    if (!contextMenu) return
+    const text = contextMenu.text
+    setContextMenu(null)
+    window.getSelection()?.removeAllRanges()
+    window.open(`https://www.google.com/search?q=${encodeURIComponent(text)}`, '_blank')
+  }
+
   const hideContextMenu = () => setContextMenu(null)
 
   const saveHighlightDocRef = React.useRef<(text: string) => Promise<void>>()
@@ -1207,6 +1223,21 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose, mode = '
           className="fixed z-[60] bg-surface dark:bg-surface-200 rounded-lg shadow-lg border border-surface-200 dark:border-surface-200 py-1 min-w-[200px]"
           style={{ left: contextMenu.x, top: contextMenu.y }}
         >
+          <button
+            onClick={handleCopy}
+            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100 transition-colors"
+          >
+            <Copy className="h-3.5 w-3.5 text-text-secondary" />
+            Copy
+          </button>
+          <button
+            onClick={handleGoogleSearch}
+            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100 transition-colors"
+          >
+            <Search className="h-3.5 w-3.5 text-text-secondary" />
+            Search in Google
+          </button>
+          <div className="my-1 border-t border-surface-200 dark:border-surface-200" />
           {docHighlights.some((h) => {
             if (h.text.toLowerCase() !== contextMenu.text.toLowerCase()) return false
             if (contextMenu.startOffset !== undefined && h.startOffset !== contextMenu.startOffset) return false
