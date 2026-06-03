@@ -135,4 +135,40 @@ describe('MockClient', () => {
     const chat = await chatPromise
     expect(chat.reply).toContain('mock')
   })
+
+  // getMyLimits returns the free plan summary and counts derived from in-memory state.
+  it('returns the free plan with counts derived from the mock state', async () => {
+    const limitsPromise = client.getMyLimits()
+    await vi.advanceTimersByTimeAsync(80)
+    const limits = await limitsPromise
+
+    expect(limits.plan).toEqual({
+      slug: 'free',
+      name: 'Free',
+      description: expect.any(String),
+    })
+    expect(limits.max_documents).toBe(200)
+    expect(limits.max_knowledge_trees).toBe(3)
+    expect(limits.current_knowledge_trees).toBe(mockKnowledgeTrees.length)
+    expect(limits.current_documents).toBeGreaterThanOrEqual(0)
+    expect(limits.can_create_document).toBe(true)
+    expect(limits.can_create_tree).toBe(true)
+  })
+
+  // After creating a tree, the limits current_knowledge_trees count reflects the new tree.
+  it('bumps current_knowledge_trees after createKnowledgeTree', async () => {
+    const beforePromise = client.getMyLimits()
+    await vi.advanceTimersByTimeAsync(80)
+    const before = await beforePromise
+
+    const createPromise = client.createKnowledgeTree('Limit Test')
+    await vi.advanceTimersByTimeAsync(200)
+    await createPromise
+
+    const afterPromise = client.getMyLimits()
+    await vi.advanceTimersByTimeAsync(80)
+    const after = await afterPromise
+
+    expect(after.current_knowledge_trees).toBe(before.current_knowledge_trees + 1)
+  })
 })

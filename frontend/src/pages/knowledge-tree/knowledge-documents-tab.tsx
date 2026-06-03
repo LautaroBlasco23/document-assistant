@@ -6,9 +6,15 @@ import { Input } from '../../components/ui/input'
 import { Badge } from '../../components/ui/badge'
 import { ConfirmDialog } from '../../components/ui/confirm-dialog'
 import { useKnowledgeTreeStore, docKey } from '../../stores/knowledge-tree-store'
-import { useAppStore } from '../../stores/app-store'
+import { useAppStore, LIMITS_INVALIDATE_EVENT } from '../../stores/app-store'
 import { useTaskStore } from '../../stores/task-store'
 import { client } from '../../services'
+
+const invalidateLimits = () => {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event(LIMITS_INVALIDATE_EVENT))
+  }
+}
 import { cn } from '../../lib/cn'
 import type { KnowledgeChapter, KnowledgeDocument } from '../../types/knowledge-tree'
 
@@ -196,6 +202,7 @@ export function KnowledgeDocumentsTab({
             if (status.status === 'completed') {
               clearInterval(interval)
               await fetchDocuments(tid, chapter, chapterId)
+              invalidateLimits()
               setIngesting(false)
               resolve()
             } else if (status.status === 'failed') {

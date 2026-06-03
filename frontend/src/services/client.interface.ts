@@ -18,6 +18,7 @@ import type {
   TestConnectionResult,
   AuthTokenResponse,
   UserProfile,
+  UserLimits,
 } from '../types/api'
 import type { KnowledgeTree, KnowledgeChapter, KnowledgeDocument, ExamSession, CreateExamSessionPayload, StudySession, CreateStudySessionPayload } from '../types/knowledge-tree'
 
@@ -130,6 +131,9 @@ export interface ServiceClient {
   login(email: string, password: string): Promise<AuthTokenResponse>
   register(email: string, password: string, displayName?: string): Promise<AuthTokenResponse>
   getMe(): Promise<UserProfile>
+
+  // Subscription
+  getMyLimits(): Promise<UserLimits>
 
   // Chat
   chat(request: ChatRequest, signal?: AbortSignal): Promise<ChatResponse>

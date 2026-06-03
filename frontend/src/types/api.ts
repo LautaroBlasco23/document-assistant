@@ -203,3 +203,19 @@ export interface UserProfile {
   has_first_agent: boolean
   created_at: string
 }
+
+export interface PlanSummary {
+  slug: string
+  name: string
+  description: string | null
+}
+
+export interface UserLimits {
+  max_documents: number
+  max_knowledge_trees: number
+  current_documents: number
+  current_knowledge_trees: number
+  can_create_document: boolean
+  can_create_tree: boolean
+  plan: PlanSummary | null
+}

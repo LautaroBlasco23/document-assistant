@@ -12,7 +12,7 @@ import { useAppStore } from './app-store'
 
 describe('useAppStore', () => {
   beforeEach(() => {
-    useAppStore.setState({ sidebarCollapsed: false, serviceHealth: null, errors: [] })
+    useAppStore.setState({ sidebarCollapsed: false, serviceHealth: null, errors: [], limits: null })
   })
 
   // toggleSidebar flips the boolean from false → true.

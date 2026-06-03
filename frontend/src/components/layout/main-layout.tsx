@@ -3,10 +3,12 @@ import { Sidebar } from './sidebar'
 import { HealthBanner } from './health-banner'
 import { useAppStore } from '../../stores/app-store'
 import { useHealth } from '../../hooks/use-health'
+import { useLimits } from '../../hooks/use-limits'
 
 export function MainLayout() {
-  // Start health polling on mount
+  // Start background polling on mount
   useHealth()
+  useLimits()
 
   const serviceHealth = useAppStore((state) => state.serviceHealth)
 

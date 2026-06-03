@@ -10,6 +10,7 @@ import {
 import { cn } from '../../lib/cn'
 import { Tooltip } from '../ui/tooltip'
 import { ConfirmDialog } from '../ui/confirm-dialog'
+import { LimitsWidget } from './limits-widget'
 
 import { useAppStore } from '../../stores/app-store'
 import { useAuth } from '../../auth/auth-context'
@@ -96,6 +97,9 @@ export function Sidebar() {
 
       {/* Health dots */}
       <ServiceHealthDots collapsed={collapsed} />
+
+      {/* Limits widget */}
+      <LimitsWidget collapsed={collapsed} />
 
       {/* User section */}
       <UserSection collapsed={collapsed} />

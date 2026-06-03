@@ -1,8 +1,9 @@
 /**
  * Subject: src/components/layout/sidebar.tsx — Sidebar
- * Scope:   Collapse toggle, navigation links, user info display, health dot rendering
+ * Scope:   Collapse toggle, navigation links, user info display, health dot rendering, limits widget
  * Out of scope:
  *   - useHealth behavior      → use-health.test.tsx
+ *   - useLimits behavior      → use-limits.test.ts
  *   - AuthProvider logic      → auth-context.test.tsx
  *   - Tooltip hover behavior  → tooltip.test.tsx
  * Setup: useAppStore, useAuth, and Tooltip are mocked. MemoryRouter provides router context.
@@ -43,6 +44,8 @@ function createMockStore(overrides = {}) {
     errors: [],
     addError: vi.fn(),
     removeError: vi.fn(),
+    limits: null,
+    setLimits: vi.fn(),
     ...overrides,
   }
 }
@@ -188,5 +191,76 @@ describe('Sidebar', () => {
 
     expect(container.querySelector('[data-tooltip="LLM: unavailable"]')).toBeInTheDocument()
     expect(container.querySelector('[data-tooltip="PostgreSQL: healthy"]')).toBeInTheDocument()
+  })
+
+  // The limits widget should render when the app store has limits and link to /settings/plan.
+  it('renders the limits widget with plan name and usage counts when limits are available', () => {
+    setUser({ id: '1', email: 'a@b.com', display_name: 'Alice' })
+    mockUseAppStore.mockImplementation((selector: (state: any) => any) =>
+      selector(
+        createMockStore({
+          limits: {
+            max_documents: 200,
+            max_knowledge_trees: 3,
+            current_documents: 47,
+            current_knowledge_trees: 2,
+            can_create_document: true,
+            can_create_tree: true,
+            plan: { slug: 'free', name: 'Free', description: 'Get started' },
+          },
+        })
+      )
+    )
+
+    renderWithProviders(<Sidebar />)
+
+    // Plan name appears in the widget header.
+    expect(screen.getByText('Free')).toBeInTheDocument()
+    // Usage counts (x / y) appear for both trees and documents.
+    expect(screen.getByText('2 / 3')).toBeInTheDocument()
+    expect(screen.getByText('47 / 200')).toBeInTheDocument()
+    // The widget is a NavLink to /settings/plan.
+    const widgetLink = screen.getByRole('link', { name: /free/i }).closest('a[href="/settings/plan"]')
+    expect(widgetLink).toBeInTheDocument()
+  })
+
+  // The limits widget should not render anything when limits are not yet available.
+  it('does not render the limits widget when limits are null', () => {
+    setUser({ id: '1', email: 'a@b.com', display_name: 'Alice' })
+    mockUseAppStore.mockImplementation((selector: (state: any) => any) =>
+      selector(createMockStore({ limits: null }))
+    )
+
+    renderWithProviders(<Sidebar />)
+
+    expect(screen.queryByText('2 / 3')).not.toBeInTheDocument()
+    expect(screen.queryByText('47 / 200')).not.toBeInTheDocument()
+  })
+
+  // The collapsed sidebar should expose the limits widget with a tooltip summarizing usage.
+  it('shows the limits widget tooltip when the sidebar is collapsed', () => {
+    setUser({ id: '1', email: 'a@b.com', display_name: 'Alice' })
+    mockUseAppStore.mockImplementation((selector: (state: any) => any) =>
+      selector(
+        createMockStore({
+          sidebarCollapsed: true,
+          limits: {
+            max_documents: 200,
+            max_knowledge_trees: 3,
+            current_documents: 47,
+            current_knowledge_trees: 2,
+            can_create_document: true,
+            can_create_tree: true,
+            plan: { slug: 'free', name: 'Free', description: 'Get started' },
+          },
+        })
+      )
+    )
+
+    const { container } = renderWithProviders(<Sidebar />)
+
+    expect(
+      container.querySelector('[data-tooltip="Trees 2/3 · Documents 47/200"]')
+    ).toBeInTheDocument()
   })
 })

@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { HealthOut } from '../types/api'
+import type { HealthOut, UserLimits } from '../types/api'
 
 export interface AppError {
   id: string
@@ -21,7 +21,11 @@ interface AppState {
   errors: AppError[]
   addError: (message: string, opts?: AddErrorOpts) => void
   removeError: (id: string) => void
+  limits: UserLimits | null
+  setLimits: (limits: UserLimits | null) => void
 }
+
+export const LIMITS_INVALIDATE_EVENT = 'limits:invalidate'
 
 export const useAppStore = create<AppState>((set) => ({
   sidebarCollapsed: false,
@@ -34,5 +38,9 @@ export const useAppStore = create<AppState>((set) => ({
       errors: [...state.errors, { id: crypto.randomUUID(), message, ...opts }],
     })),
   removeError: (id) =>
-    set((state) => ({ errors: state.errors.filter((e) => e.id !== id) })),
+    set((state) => ({
+      errors: state.errors.filter((e) => e.id !== id),
+    })),
+  limits: null,
+  setLimits: (limits) => set({ limits }),
 }))

@@ -5,9 +5,16 @@ import { Button } from '../../components/ui/button'
 import { Input } from '../../components/ui/input'
 import { Progress } from '../../components/ui/progress'
 import { useKnowledgeTreeStore } from '../../stores/knowledge-tree-store'
+import { useAppStore, LIMITS_INVALIDATE_EVENT } from '../../stores/app-store'
 import { client } from '../../services'
 import { cn } from '../../lib/cn'
 import type { DocumentPreviewOut, ChapterPreviewOut } from '../../types/api'
+
+const invalidateLimits = () => {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event(LIMITS_INVALIDATE_EVENT))
+  }
+}
 
 interface ImportTreeDialogProps {
   open: boolean
@@ -22,6 +29,7 @@ export function ImportTreeDialog({ open, onOpenChange, onSuccess }: ImportTreeDi
   const navigate = useNavigate()
   const fetchTrees = useKnowledgeTreeStore((s) => s.fetchTrees)
   const createTreeFromFile = useKnowledgeTreeStore((s) => s.createTreeFromFile)
+  const limits = useAppStore((s) => s.limits)
 
   const [step, setStep] = React.useState<DialogStep>('upload')
   const [file, setFile] = React.useState<File | null>(null)
@@ -127,6 +135,7 @@ export function ImportTreeDialog({ open, onOpenChange, onSuccess }: ImportTreeDi
               stopPolling()
               setState('done')
               await fetchTrees()
+              invalidateLimits()
               const treeId = (status.result as { tree_id?: string } | null)?.tree_id
               if (treeId) {
                 onSuccess(treeId)
@@ -202,6 +211,10 @@ export function ImportTreeDialog({ open, onOpenChange, onSuccess }: ImportTreeDi
             progressMsg={progressMsg}
             errorMsg={errorMsg}
             isRunning={isRunning}
+            currentDocuments={limits?.current_documents ?? null}
+            maxDocuments={limits?.max_documents ?? null}
+            canCreateTree={limits?.can_create_tree ?? null}
+            planName={limits?.plan?.name ?? null}
             onToggleChapter={(index) => {
               const next = new Set(selectedChapters)
               if (next.has(index)) next.delete(index)
@@ -377,6 +390,10 @@ interface SelectChaptersStepProps {
   progressMsg: string
   errorMsg: string
   isRunning: boolean
+  currentDocuments: number | null
+  maxDocuments: number | null
+  canCreateTree: boolean | null
+  planName: string | null
   onToggleChapter: (index: number) => void
   onToggleAll: () => void
   onToggleExpand: (index: number) => void
@@ -395,6 +412,10 @@ function SelectChaptersStep({
   progressMsg,
   errorMsg,
   isRunning,
+  currentDocuments,
+  maxDocuments,
+  canCreateTree,
+  planName,
   onToggleChapter,
   onToggleAll,
   onToggleExpand,
@@ -404,6 +425,33 @@ function SelectChaptersStep({
 }: SelectChaptersStepProps) {
   const selectedCount = selectedChapters.size
   const totalCount = preview?.chapters.length ?? 0
+
+  // Pre-flight projection of the import against the user's plan.
+  // Server is still authoritative; this is a UX hint only.
+  const hasQuotaInfo = currentDocuments !== null && maxDocuments !== null
+  const projectedDocs = (currentDocuments ?? 0) + selectedCount
+  const overLimit = hasQuotaInfo && projectedDocs > (maxDocuments as number)
+  const atTreeLimit = canCreateTree === false
+  const blockImport = atTreeLimit || overLimit
+  const remaining = hasQuotaInfo ? Math.max(0, (maxDocuments as number) - (currentDocuments as number)) : 0
+
+  let impactText: string | null = null
+  if (hasQuotaInfo) {
+    if (selectedCount === 0) {
+      impactText = planName
+        ? `You have ${remaining} of ${maxDocuments} documents remaining on the ${planName} plan.`
+        : `You have ${remaining} of ${maxDocuments} documents remaining.`
+    } else if (overLimit) {
+      impactText = `This import would exceed your limit (you have ${remaining} documents remaining).`
+    } else {
+      impactText = planName
+        ? `This will create 1 tree and ${selectedCount} document${selectedCount !== 1 ? 's' : ''}. You have ${remaining} of ${maxDocuments} documents remaining on the ${planName} plan.`
+        : `This will create 1 tree and ${selectedCount} document${selectedCount !== 1 ? 's' : ''}. You have ${remaining} of ${maxDocuments} documents remaining.`
+    }
+  }
+  if (atTreeLimit && !overLimit) {
+    impactText = "You've reached your knowledge tree limit. Delete a tree to import a new one."
+  }
 
   return (
     <div className="flex flex-col max-h-[85vh]">
@@ -476,6 +524,19 @@ function SelectChaptersStep({
 
       {/* Footer */}
       <div className="p-6 border-t border-surface-200 dark:border-surface-200 bg-surface-100 dark:bg-surface">
+        {/* Quota impact line */}
+        {impactText && (
+          <p
+            className={cn(
+              'text-xs mb-3',
+              blockImport ? 'text-error' : 'text-text-tertiary',
+            )}
+            aria-live="polite"
+          >
+            {impactText}
+          </p>
+        )}
+
         {/* Progress display during import */}
         {(state === 'importing' || state === 'polling') && (
           <div className="flex flex-col gap-2 mb-4">
@@ -506,7 +567,7 @@ function SelectChaptersStep({
               type="button"
               variant="primary"
               onClick={onImport}
-              disabled={isRunning || selectedCount === 0}
+              disabled={isRunning || selectedCount === 0 || blockImport}
             >
               {isRunning ? (
                 <>

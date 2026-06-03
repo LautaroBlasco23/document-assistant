@@ -20,6 +20,7 @@ import type {
   TestConnectionResult,
   AuthTokenResponse,
   UserProfile,
+  UserLimits,
 } from '../types/api'
 import type { ServiceClient } from './client.interface'
 import type { KnowledgeTree, KnowledgeChapter, KnowledgeDocument, ExamSession, CreateExamSessionPayload, StudySession, CreateStudySessionPayload } from '../types/knowledge-tree'
@@ -68,7 +69,7 @@ httpClient.interceptors.response.use(
       const data = error.response?.data
       const detail = data?.detail as { message?: string; resource?: string } | undefined
       const message = detail?.message || 'Plan limit exceeded'
-      useAppStore.getState().addError(message)
+      useAppStore.getState().addError(message, { link: '/settings/plan', linkText: 'View plan' })
       return Promise.reject(new Error(message))
     }
 
@@ -591,6 +592,12 @@ export class RealClient implements ServiceClient {
 
   async getMe(): Promise<UserProfile> {
     const res = await httpClient.get<UserProfile>('/auth/me')
+    return res.data
+  }
+
+  // Subscription
+  async getMyLimits(): Promise<UserLimits> {
+    const res = await httpClient.get<UserLimits>('/users/me/limits')
     return res.data
   }
 

@@ -23,6 +23,8 @@ import type {
   TestConnectionResult,
   AuthTokenResponse,
   UserProfile,
+  UserLimits,
+  PlanSummary,
 } from '../types/api'
 import type { ServiceClient } from './client.interface'
 
@@ -772,6 +774,29 @@ export class MockClient implements ServiceClient {
       display_name: 'Mock User',
       has_first_agent: false,
       created_at: new Date().toISOString(),
+    }
+  }
+
+  // Subscription
+  async getMyLimits(): Promise<UserLimits> {
+    await delay(80)
+    const plan: PlanSummary = {
+      slug: 'free',
+      name: 'Free',
+      description: 'Get started with basic document processing',
+    }
+    const max_documents = 200
+    const max_knowledge_trees = 3
+    const current_trees = this.trees.filter((t) => !this.deletedTreeIds.has(t.id)).length
+    const current_documents = this.documents.length
+    return {
+      max_documents,
+      max_knowledge_trees,
+      current_documents,
+      current_knowledge_trees: current_trees,
+      can_create_document: current_documents < max_documents,
+      can_create_tree: current_trees < max_knowledge_trees,
+      plan,
     }
   }
 

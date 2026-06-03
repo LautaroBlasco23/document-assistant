@@ -4,6 +4,7 @@ import { mapApiQuestionToExamQuestion } from '../types/knowledge-tree'
 import type { KnowledgeTreeQuestionType, FlashcardOut } from '../types/api'
 import { client } from '../services'
 import { useGenerationSettings } from './generation-settings'
+import { LIMITS_INVALIDATE_EVENT } from './app-store'
 
 // key: `${treeId}:${chapterNumber}`
 type QuestionChapterKey = string
@@ -92,6 +93,12 @@ function questionTaskKey(treeId: string, chapter: number, questionType: Knowledg
   return `${treeId}:${chapter}:${questionType}`
 }
 
+function invalidateLimits() {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event(LIMITS_INVALIDATE_EVENT))
+  }
+}
+
 export const useKnowledgeTreeStore = create<KnowledgeTreeState>((set, get) => ({
   trees: [],
   treesLoading: false,
@@ -123,6 +130,7 @@ export const useKnowledgeTreeStore = create<KnowledgeTreeState>((set, get) => ({
   createTree: async (title, description) => {
     const tree = await client.createKnowledgeTree(title, description)
     set((s) => ({ trees: [...s.trees, tree] }))
+    invalidateLimits()
     return tree
   },
 
@@ -135,6 +143,7 @@ export const useKnowledgeTreeStore = create<KnowledgeTreeState>((set, get) => ({
   deleteTree: async (id) => {
     await client.deleteKnowledgeTree(id)
     set((s) => ({ trees: s.trees.filter((t) => t.id !== id) }))
+    invalidateLimits()
   },
 
   fetchChapters: async (treeId) => {
@@ -219,6 +228,7 @@ export const useKnowledgeTreeStore = create<KnowledgeTreeState>((set, get) => ({
     const doc = await client.createKnowledgeDocument(treeId, chapterId, title, content, isMain)
     const key = docKey(treeId, chapter)
     set((s) => ({ documents: { ...s.documents, [key]: [...(s.documents[key] ?? []), doc] } }))
+    invalidateLimits()
     return doc
   },
 
@@ -245,6 +255,7 @@ export const useKnowledgeTreeStore = create<KnowledgeTreeState>((set, get) => ({
         [key]: (s.documents[key] ?? []).filter((d) => d.id !== id),
       },
     }))
+    invalidateLimits()
   },
 
   improveDocument: async (treeId, docId, _chapter, mode = 'text') => {

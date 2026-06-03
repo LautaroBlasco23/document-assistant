@@ -1,12 +1,13 @@
 /**
  * Subject: src/components/layout/main-layout.tsx — MainLayout
- * Scope:   Layout shell rendering (sidebar + outlet) and health-polling lifecycle
+ * Scope:   Layout shell rendering (sidebar + outlet) and background polling lifecycle
  * Out of scope:
  *   - Sidebar behavior          → sidebar.test.tsx
  *   - HealthBanner visibility   → health-banner.test.tsx
  *   - useHealth internals       → use-health.test.tsx
+ *   - useLimits internals       → use-limits.test.ts
  * Setup: Outlet is mocked to avoid react-router route-configuration boilerplate.
- *        useHealth, useAuth, and useAppStore are mocked to keep the test focused on MainLayout.
+ *        useHealth, useLimits, useAuth, and useAppStore are mocked to keep the test focused on MainLayout.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
@@ -21,6 +22,11 @@ vi.mock('@/stores/app-store', () => ({
 const mockUseHealth = vi.hoisted(() => vi.fn())
 vi.mock('@/hooks/use-health', () => ({
   useHealth: mockUseHealth,
+}))
+
+const mockUseLimits = vi.hoisted(() => vi.fn())
+vi.mock('@/hooks/use-limits', () => ({
+  useLimits: mockUseLimits,
 }))
 
 const mockUseAuth = vi.hoisted(() => vi.fn())
@@ -49,6 +55,8 @@ function createMockStore(overrides = {}) {
     errors: [],
     addError: vi.fn(),
     removeError: vi.fn(),
+    limits: null,
+    setLimits: vi.fn(),
     ...overrides,
   }
 }
@@ -67,6 +75,7 @@ describe('MainLayout', () => {
       logout: vi.fn(),
     })
     mockUseHealth.mockClear()
+    mockUseLimits.mockClear()
   })
 
   it('starts health polling on mount by calling useHealth', () => {
@@ -75,6 +84,13 @@ describe('MainLayout', () => {
     renderWithProviders(<MainLayout />)
 
     expect(mockUseHealth).toHaveBeenCalledTimes(1)
+  })
+
+  it('starts limits polling on mount by calling useLimits', () => {
+    // MainLayout also kicks off background subscription polling so the sidebar widget stays fresh.
+    renderWithProviders(<MainLayout />)
+
+    expect(mockUseLimits).toHaveBeenCalledTimes(1)
   })
 
   it('renders the sidebar and the outlet content area', () => {

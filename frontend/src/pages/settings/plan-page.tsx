@@ -1,39 +1,10 @@
-import { useEffect, useState } from 'react'
-
-interface UserLimits {
-  max_documents: number
-  max_knowledge_trees: number
-  current_documents: number
-  current_knowledge_trees: number
-  can_create_document: boolean
-  can_create_tree: boolean
-}
+import { useAppStore } from '../../stores/app-store'
+import type { UserLimits } from '../../types/api'
 
 export function PlanPage() {
-  const [limits, setLimits] = useState<UserLimits | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
+  const limits = useAppStore((state) => state.limits)
 
-  useEffect(() => {
-    const token = localStorage.getItem('auth_token')
-    fetch('/api/users/me/limits', {
-      headers: { Authorization: `Bearer ${token}` }
-    })
-      .then(async (res) => {
-        if (!res.ok) throw new Error('Failed to load limits')
-        return res.json()
-      })
-      .then((data) => {
-        setLimits(data)
-        setLoading(false)
-      })
-      .catch((err) => {
-        setError(err.message)
-        setLoading(false)
-      })
-  }, [])
-
-  if (loading) {
+  if (!limits) {
     return (
       <div className="p-6">
         <div className="animate-pulse space-y-4">
@@ -44,16 +15,19 @@ export function PlanPage() {
     )
   }
 
-  if (error || !limits) {
-    return (
-      <div className="p-6">
-        <div className="text-error">{error || 'Failed to load limits'}</div>
-      </div>
-    )
-  }
+  return <PlanContent limits={limits} />
+}
 
-  const treePercent = Math.min((limits.current_knowledge_trees / limits.max_knowledge_trees) * 100, 100)
-  const docPercent = Math.min((limits.current_documents / limits.max_documents) * 100, 100)
+function PlanContent({ limits }: { limits: UserLimits }) {
+  const treePercent = limits.max_knowledge_trees > 0
+    ? Math.min((limits.current_knowledge_trees / limits.max_knowledge_trees) * 100, 100)
+    : 0
+  const docPercent = limits.max_documents > 0
+    ? Math.min((limits.current_documents / limits.max_documents) * 100, 100)
+    : 0
+
+  const planName = limits.plan?.name ?? 'Free'
+  const planDescription = limits.plan?.description
 
   return (
     <div className="p-6 max-w-2xl">
@@ -108,9 +82,11 @@ export function PlanPage() {
 
         {/* Plan Info */}
         <div className="bg-primary-light dark:bg-primary/12 border border-primary/20 dark:border-primary/30 rounded-lg p-4">
-          <h4 className="font-medium text-primary mb-2">Free Plan</h4>
+          <h4 className="font-medium text-primary mb-2">{planName} Plan</h4>
           <p className="text-sm text-primary">
-            You're on the Free plan with {limits.max_knowledge_trees} knowledge trees and {limits.max_documents} documents.
+            {planDescription
+              ? `${planDescription} You have ${limits.max_knowledge_trees} knowledge trees and ${limits.max_documents} documents.`
+              : `You're on the ${planName} plan with ${limits.max_knowledge_trees} knowledge trees and ${limits.max_documents} documents.`}{' '}
             Contact your admin to upgrade to a higher plan.
           </p>
         </div>
