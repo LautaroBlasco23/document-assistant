@@ -4,119 +4,118 @@
 
 /* ─── Light theme (default) ───────────────────────────────────────────────── */
 :root {
-  /* ── Backgrounds ── */
-  --color-bg: #f4f7fb;
-  --color-bg-page: #f4f7fb;
-  --color-bg-card: #ffffff;
+  /* ── Backgrounds (warm linen, paper-like) ── */
+  --color-bg: #faf7f2;
+  --color-bg-page: #faf7f2;
+  --color-bg-card: #fefcf8;
   --color-bg-elevated: #ffffff;
-  --color-bg-inset: #e9edf3;
+  --color-bg-inset: #f0ebe3;
 
   /* ── Surface (legacy bg aliases) ── */
-  --color-surface: #ffffff;
-  --color-surface-card: #ffffff;
-  --color-surface-100: #f4f7fb;
-  --color-surface-200: #e9edf3;
+  --color-surface: #fefcf8;
+  --color-surface-card: #fefcf8;
+  --color-surface-100: #faf7f2;
+  --color-surface-200: #f0ebe3;
 
-  /* ── Text ── */
-  --color-text-primary: #1f2937;
-  --color-text-secondary: #4b5563;
-  /* tertiary raised from #9ca3af (≈3.3:1, fails AA) to #5e6a7d (≈5.1:1 on bg, ≈5.5:1 on card) */
-  --color-text-tertiary: #5e6a7d;
-  --color-text-disabled: #d1d5db;
+  /* ── Text (warm dark brown family) ── */
+  --color-text-primary: #2b1f17;
+  --color-text-secondary: #5a4a3e;
+  --color-text-tertiary: #8a7a6e;
+  --color-text-disabled: #c2b9b0;
   --color-text-inverse: #ffffff;
-  --color-text-link: #00a6fb;
+  --color-text-link: #9c5b3e;
 
-  /* ── Borders ── */
-  --color-border-default: #e5e7eb;
-  --color-border-strong: #d1d5db;
-  --color-border-focus: #00a6fb;
-  --color-border-input: rgba(0, 166, 251, 0.5);
-  --color-border-subtle: #f3f4f6;
+  /* ── Borders (warm) ── */
+  --color-border-default: #ebe3d8;
+  --color-border-strong: #d6c8b8;
+  --color-border-focus: #9c5b3e;
+  --color-border-input: rgba(156, 91, 62, 0.30);
+  --color-border-subtle: #f5efe6;
 
-  /* ── Primary ── */
-  --color-primary: #16324f;     /* was #0a2540 — lighter, more readable */
-  --color-primary-hover: #1f4263;
-  --color-primary-active: #0d2238;
-  --color-primary-light: #eaeef3;
-  --color-primary-border: #c1c9d5;
+  /* ── Primary (warm sienna / terracotta — the brand color) ── */
+  --color-primary: #9c5b3e;
+  --color-primary-hover: #b06a48;
+  --color-primary-active: #7d4830;
+  --color-primary-light: #f5ebe3;
+  --color-primary-border: #e6d1c2;
 
-  /* ── Secondary ── */
-  --color-secondary: #2e7d32;
-  --color-secondary-hover: #256b29;
-  --color-secondary-active: #1b5220;
-  --color-secondary-light: #edf7ee;
-  --color-secondary-border: #c8e6c9;
+  /* ── Secondary (forest green — kept as a distinct accent from primary) ── */
+  --color-secondary: #3d6b4a;
+  --color-secondary-hover: #34703f;
+  --color-secondary-active: #2a5a33;
+  --color-secondary-light: #e6efe5;
+  --color-secondary-border: #c1d4be;
 
-  /* ── Accent ── */
-  --color-accent: #3b82f6;     /* was #00a6fb — less saturated, calmer for reading */
-  --color-accent-hover: #2563eb;
-  --color-accent-active: #1d4ed8;
-  --color-accent-light: #e5f6ff;
-  --color-accent-border: #b3e5fc;
+  /* ── Accent (muted sage — supportive, not competing) ── */
+  --color-accent: #6f8a6e;
+  --color-accent-hover: #80997f;
+  --color-accent-active: #5a7459;
+  --color-accent-light: #ebf0e9;
+  --color-accent-border: #c8d4c4;
 
-  /* ── Status: Success ── */
-  --color-success-fg: #2e7d32;
-  --color-success-bg: #edf7ee;
-  --color-success-border: #c8e6c9;
+  /* ── Status: Success (same as mastered — forest green) ── */
+  --color-success-fg: #3d6b4a;
+  --color-success-bg: #e6efe5;
+  --color-success-border: #c1d4be;
 
-  /* ── Status: Warning ── */
-  --color-warning-fg: #d97706;
-  --color-warning-bg: #fffbeb;
-  --color-warning-border: #fde68a;
+  /* ── Status: Warning (same as review — warm honey) ── */
+  --color-warning-fg: #b88235;
+  --color-warning-bg: #faf0dc;
+  --color-warning-border: #ead4a8;
 
-  /* ── Status: Error ── */
-  --color-error-fg: #dc2626;
-  --color-error-bg: #fef2f2;
-  --color-error-border: #fecaca;
+  /* ── Status: Error (same as difficult — muted brick) ── */
+  --color-error-fg: #a05a3c;
+  --color-error-bg: #f7e8e0;
+  --color-error-border: #e8c4b3;
 
-  /* ── Status: Info ── */
-  --color-info-fg: #00a6fb;
-  --color-info-bg: #e5f6ff;
-  --color-info-border: #b3e5fc;
+  /* ── Status: Info (same as learning — soft teal) ── */
+  --color-info-fg: #4a7c7e;
+  --color-info-bg: #e1ecec;
+  --color-info-border: #b8d2d2;
 
-  /* ── Education: Mastered (chapter read, exam passed, answer correct) ── */
-  --color-mastered-fg:     #2e7d32;
-  --color-mastered-bg:     #e8f5e9;
-  --color-mastered-border: #c8e6c9;
+  /* ── Education: Mastered (forest green — chapter read, exam passed) ── */
+  --color-mastered-fg:     #3d6b4a;
+  --color-mastered-bg:     #e6efe5;
+  --color-mastered-border: #c1d4be;
 
-  /* ── Education: Learning (reserved — no current consumer) ── */
-  --color-learning-fg:     #1976d2;
-  --color-learning-bg:     #e3f2fd;
-  --color-learning-border: #bbdefb;
+  /* ── Education: Learning (soft teal — calm progress, reserved) ── */
+  --color-learning-fg:     #4a7c7e;
+  --color-learning-bg:     #e1ecec;
+  --color-learning-border: #b8d2d2;
 
-  /* ── Education: Review (mid score 50-79, "needs attention") ── */
-  --color-review-fg:     #d97706;
-  --color-review-bg:     #fff3e0;
-  --color-review-border: #ffe0b2;
+  /* ── Education: Review (warm honey — mid score 50-79) ── */
+  --color-review-fg:     #b88235;
+  --color-review-bg:     #faf0dc;
+  --color-review-border: #ead4a8;
 
-  /* ── Education: Difficult (exam <50, answer wrong, missed) ── */
-  --color-difficult-fg:     #dc2626;
-  --color-difficult-bg:     #fee2e2;
-  --color-difficult-border: #fecaca;
+  /* ── Education: Difficult (muted brick — exam <50, answer wrong) ── */
+  --color-difficult-fg:     #a05a3c;
+  --color-difficult-bg:     #f7e8e0;
+  --color-difficult-border: #e8c4b3;
 
-  /* ── AI visual language ── */
-  --color-ai:       #8b5cf6;   /* purple-500 */
-  --color-ai-bg:    #f5f3ff;   /* purple-50  */
-  --color-ai-border:#ddd6fe;   /* purple-200 */
-  --color-ai-fg:    #5b21b6;   /* purple-800 — AA on ai-bg */
+  /* ── AI visual language (muted plum — friendly, not techy purple) ── */
+  --color-ai:       #8b6f8e;
+  --color-ai-bg:    #f3edf3;
+  --color-ai-border:#d9c8d9;
+  --color-ai-fg:    #6b5270;
 
   /* ── Icons ── */
-  --color-icon-primary: #4b5563;
-  --color-icon-secondary: #9ca3af;
-  --color-icon-accent: #00a6fb;
-  --color-icon-success: #2e7d32;
-  --color-icon-warning: #d97706;
-  --color-icon-error: #dc2626;
+  --color-icon-primary: #5a4a3e;
+  --color-icon-secondary: #8a7a6e;
+  --color-icon-accent: #9c5b3e;
+  --color-icon-success: #3d6b4a;
+  --color-icon-warning: #b88235;
+  --color-icon-error: #a05a3c;
 
   /* ── Overlays ── */
-  --color-overlay-backdrop: rgba(10, 37, 64, 0.40);
-  --color-overlay-modal: rgba(10, 37, 64, 0.60);
+  --color-overlay-backdrop: rgba(45, 25, 15, 0.45);
+  --color-overlay-modal: rgba(45, 25, 15, 0.65);
 
-  /* ── Shadows ── */
-  --shadow-sm: 0 1px 2px rgba(10, 37, 64, 0.05);
-  --shadow-md: 0 4px 6px -1px rgba(10, 37, 64, 0.10);
-  --shadow-lg: 0 10px 15px -3px rgba(10, 37, 64, 0.10);
-  --shadow-focus: 0 0 0 3px rgba(0, 166, 251, 0.20);
+  /* ── Shadows (warm brown tint, desaturated) ── */
+  --shadow-sm: 0 1px 2px rgba(45, 25, 15, 0.06);
+  --shadow-md: 0 4px 6px -1px rgba(45, 25, 15, 0.10);
+  --shadow-lg: 0 10px 15px -3px rgba(45, 25, 15, 0.10);
+  --shadow-focus: 0 0 0 3px rgba(156, 91, 62, 0.18);
 
   /* ── Semantic spacing ── */
   --space-page:    2rem;
@@ -141,7 +140,7 @@
   --reader-width:             72ch;
   --reader-line-height:       1.8;
   --reader-paragraph-spacing: 1.25rem;
-  --reader-highlight:         #fff3a3;  /* warm yellow on light */
+  --reader-highlight:         #f5d77a;  /* muted warm honey on light */
 
   accent-color: var(--color-primary);
   caret-color: var(--color-primary);
@@ -155,109 +154,108 @@
 
 /* ─── Dark theme ──────────────────────────────────────────────────────────── */
 .dark {
-  /* ── Backgrounds ── */
-  --color-bg: #0a1e33;
-  --color-bg-page: #060f1c;
-  --color-bg-card: #12283d;
-  --color-bg-elevated: #1a3350;
-  --color-bg-inset: #0d2036;
+  /* ── Backgrounds (deep warm brown-black) ── */
+  --color-bg: #1a1612;
+  --color-bg-page: #14110d;
+  --color-bg-card: #221c17;
+  --color-bg-elevated: #2b241e;
+  --color-bg-inset: #0f0c09;
 
   /* ── Surface (legacy bg aliases) ── */
-  --color-surface: #12283d;
-  --color-surface-card: rgba(10, 30, 51, 0.82);
-  --color-surface-100: #162d47;
-  --color-surface-200: #1a3350;
+  --color-surface: #221c17;
+  --color-surface-card: rgba(26, 22, 18, 0.82);
+  --color-surface-100: #1a1612;
+  --color-surface-200: #2b241e;
 
-  /* ── Text ── */
-  --color-text-primary: #e2e8f0;
-  --color-text-secondary: #94a3b8;
-  /* tertiary raised from #64748b (≈4.3:1, fails AA on card) to #8b9bb0 (≈5.3:1 on card) */
-  --color-text-tertiary: #8b9bb0;
-  --color-text-disabled: #475569;
-  --color-text-inverse: #0a1e33;
-  --color-text-link: #00a6fb;
+  /* ── Text (warm cream family) ── */
+  --color-text-primary: #ece4d6;
+  --color-text-secondary: #b8ab9a;
+  --color-text-tertiary: #968878;
+  --color-text-disabled: #5a4e42;
+  --color-text-inverse: #1a1612;
+  --color-text-link: #d9986f;
 
-  /* ── Borders ── */
-  --color-border-default: rgba(100, 116, 139, 0.15);
-  --color-border-strong: rgba(100, 116, 139, 0.25);
-  --color-border-focus: #00a6fb;
-  --color-border-input: rgba(0, 166, 251, 0.4);
-  --color-border-subtle: rgba(100, 116, 139, 0.08);
+  /* ── Borders (warm) ── */
+  --color-border-default: rgba(84, 70, 55, 0.35);
+  --color-border-strong: rgba(84, 70, 55, 0.50);
+  --color-border-focus: #d9986f;
+  --color-border-input: rgba(217, 152, 111, 0.35);
+  --color-border-subtle: rgba(84, 70, 55, 0.12);
 
-  /* ── Primary (dark) ── */
-  --color-primary: #6da3f0;
-  --color-primary-hover: #5b9df0;
-  --color-primary-active: #3b82f6;
-  --color-primary-light: rgba(91, 157, 240, 0.12);
-  --color-primary-border: rgba(91, 157, 240, 0.25);
+  /* ── Primary (light sienna — warm contrast on dark bg) ── */
+  --color-primary: #d9986f;
+  --color-primary-hover: #e6a984;
+  --color-primary-active: #c88860;
+  --color-primary-light: rgba(217, 152, 111, 0.12);
+  --color-primary-border: rgba(217, 152, 111, 0.30);
 
-  /* ── Secondary (dark) ── */
-  --color-secondary: #4caf50;
-  --color-secondary-hover: #43a047;
-  --color-secondary-active: #388e3c;
-  --color-secondary-light: rgba(76, 175, 80, 0.10);
-  --color-secondary-border: rgba(76, 175, 80, 0.25);
+  /* ── Secondary (light forest green) ── */
+  --color-secondary: #7fa882;
+  --color-secondary-hover: #91b394;
+  --color-secondary-active: #6d9670;
+  --color-secondary-light: rgba(127, 168, 130, 0.12);
+  --color-secondary-border: rgba(127, 168, 130, 0.30);
 
-  /* ── Accent (dark) ── */
-  --color-accent: #60a5fa;
-  --color-accent-hover: #3b82f6;
-  --color-accent-active: #2563eb;
-  --color-accent-light: rgba(0, 166, 251, 0.10);
-  --color-accent-border: rgba(0, 166, 251, 0.25);
+  /* ── Accent (light sage) ── */
+  --color-accent: #a3b89e;
+  --color-accent-hover: #b5c7b1;
+  --color-accent-active: #92a98e;
+  --color-accent-light: rgba(163, 184, 158, 0.12);
+  --color-accent-border: rgba(163, 184, 158, 0.30);
 
   /* ── Status: Success ── */
-  --color-success-fg: #4caf50;
-  --color-success-bg: rgba(76, 175, 80, 0.10);
-  --color-success-border: rgba(76, 175, 80, 0.25);
+  --color-success-fg: #7fa882;
+  --color-success-bg: rgba(61, 107, 74, 0.18);
+  --color-success-border: rgba(127, 168, 130, 0.30);
 
   /* ── Status: Warning ── */
-  --color-warning-fg: #fbbf24;
-  --color-warning-bg: rgba(251, 191, 36, 0.10);
-  --color-warning-border: rgba(251, 191, 36, 0.25);
+  --color-warning-fg: #d4a85a;
+  --color-warning-bg: rgba(184, 130, 53, 0.15);
+  --color-warning-border: rgba(212, 168, 90, 0.30);
 
   /* ── Status: Error ── */
-  --color-error-fg: #f87171;
-  --color-error-bg: rgba(248, 113, 113, 0.10);
-  --color-error-border: rgba(248, 113, 113, 0.25);
+  --color-error-fg: #d99074;
+  --color-error-bg: rgba(160, 90, 60, 0.15);
+  --color-error-border: rgba(217, 144, 116, 0.30);
 
   /* ── Status: Info ── */
-  --color-info-fg: #00a6fb;
-  --color-info-bg: rgba(0, 166, 251, 0.10);
-  --color-info-border: rgba(0, 166, 251, 0.25);
+  --color-info-fg: #7eb4b6;
+  --color-info-bg: rgba(74, 124, 126, 0.18);
+  --color-info-border: rgba(126, 180, 182, 0.30);
 
-  /* ── Education: Mastered (dark — lighter green for AA on card surface) ── */
-  --color-mastered-fg:     #66bb6a;
-  --color-mastered-bg:     rgba(46, 125, 50, 0.15);
-  --color-mastered-border: rgba(46, 125, 50, 0.30);
+  /* ── Education: Mastered (light forest green) ── */
+  --color-mastered-fg:     #7fa882;
+  --color-mastered-bg:     rgba(61, 107, 74, 0.18);
+  --color-mastered-border: rgba(127, 168, 130, 0.30);
 
-  /* ── Education: Learning (dark) ── */
-  --color-learning-fg:     #64b5f6;
-  --color-learning-bg:     rgba(25, 118, 210, 0.15);
-  --color-learning-border: rgba(25, 118, 210, 0.30);
+  /* ── Education: Learning (light teal) ── */
+  --color-learning-fg:     #7eb4b6;
+  --color-learning-bg:     rgba(74, 124, 126, 0.18);
+  --color-learning-border: rgba(126, 180, 182, 0.30);
 
-  /* ── Education: Review (dark) ── */
-  --color-review-fg:     #fbbf24;
-  --color-review-bg:     rgba(251, 191, 36, 0.10);
-  --color-review-border: rgba(251, 191, 36, 0.25);
+  /* ── Education: Review (light honey) ── */
+  --color-review-fg:     #d4a85a;
+  --color-review-bg:     rgba(184, 130, 53, 0.15);
+  --color-review-border: rgba(212, 168, 90, 0.30);
 
-  /* ── Education: Difficult (dark) ── */
-  --color-difficult-fg:     #f87171;
-  --color-difficult-bg:     rgba(248, 113, 113, 0.10);
-  --color-difficult-border: rgba(248, 113, 113, 0.25);
+  /* ── Education: Difficult (light brick) ── */
+  --color-difficult-fg:     #d99074;
+  --color-difficult-bg:     rgba(160, 90, 60, 0.15);
+  --color-difficult-border: rgba(217, 144, 116, 0.30);
 
-  /* ── AI visual language (dark) ── */
-  --color-ai:       #a78bfa;   /* purple-400 — brighter on dark */
-  --color-ai-bg:    rgba(139, 92, 246, 0.12);
-  --color-ai-border:rgba(139, 92, 246, 0.30);
-  --color-ai-fg:    #c4b5fd;   /* purple-300 — AA on ai-bg */
+  /* ── AI visual language (light plum) ── */
+  --color-ai:       #c2a4c4;
+  --color-ai-bg:    rgba(139, 111, 142, 0.15);
+  --color-ai-border:rgba(194, 164, 196, 0.30);
+  --color-ai-fg:    #d9c0db;
 
   /* ── Icons ── */
-  --color-icon-primary: #94a3b8;
-  --color-icon-secondary: #64748b;
-  --color-icon-accent: #00a6fb;
-  --color-icon-success: #4caf50;
-  --color-icon-warning: #fbbf24;
-  --color-icon-error: #f87171;
+  --color-icon-primary: #b8ab9a;
+  --color-icon-secondary: #968878;
+  --color-icon-accent: #d9986f;
+  --color-icon-success: #7fa882;
+  --color-icon-warning: #d4a85a;
+  --color-icon-error: #d99074;
 
   /* ── Overlays ── */
   --color-overlay-backdrop: rgba(0, 0, 0, 0.60);
@@ -267,7 +265,7 @@
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.30);
   --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.40);
   --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.50);
-  --shadow-focus: 0 0 0 3px rgba(0, 166, 251, 0.30);
+  --shadow-focus: 0 0 0 3px rgba(217, 152, 111, 0.35);
 
   /* ── Semantic spacing (same as light) ── */
   --space-page:    2rem;
@@ -276,7 +274,7 @@
   --space-inline:  0.5rem;
 
   /* ── Reader surface (dark) ── */
-  --reader-highlight: rgba(250, 204, 21, 0.45);  /* dimmed amber, semi-transparent for dark mode contrast */
+  --reader-highlight: rgba(245, 215, 122, 0.40);  /* muted warm honey on dark */
 
   color-scheme: dark;
 }
