@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { ChevronDown, Check, Star, Zap, Sparkles } from 'lucide-react'
+import { ChevronDown, Check, Star, Zap, Sparkles, Search } from 'lucide-react'
 import { cn } from '../../lib/cn'
 import { useReducedMotion } from '../../hooks/use-reduced-motion'
 import type { ModelInfo } from '../../types/api'
@@ -103,9 +103,33 @@ interface ModelSelectProps {
 
 export function ModelSelect({ value, onChange, models, fallback, className }: ModelSelectProps) {
   const [open, setOpen] = React.useState(false)
+  const [searchQuery, setSearchQuery] = React.useState('')
   const containerRef = React.useRef<HTMLDivElement>(null)
+  const searchInputRef = React.useRef<HTMLInputElement>(null)
 
   const selectedModel = models.find((m) => m.id === value) ?? null
+
+  const filteredModels = React.useMemo(() => {
+    if (!searchQuery.trim()) return models
+    const q = searchQuery.toLowerCase()
+    return models.filter(
+      (m) =>
+        m.label.toLowerCase().includes(q) ||
+        m.id.toLowerCase().includes(q) ||
+        m.role?.toLowerCase().includes(q),
+    )
+  }, [models, searchQuery])
+
+  const handleOpen = React.useCallback(() => {
+    setOpen((v) => {
+      const next = !v
+      if (next) {
+        setSearchQuery('')
+        requestAnimationFrame(() => searchInputRef.current?.focus())
+      }
+      return next
+    })
+  }, [])
 
   React.useEffect(() => {
     if (!open) return
@@ -126,7 +150,7 @@ export function ModelSelect({ value, onChange, models, fallback, className }: Mo
     <div ref={containerRef} className={cn('relative', className)}>
       <button
         type="button"
-        onClick={() => setOpen((v) => !v)}
+        onClick={handleOpen}
         aria-haspopup="listbox"
         aria-expanded={open}
         className="w-full flex items-center justify-between gap-2 px-3 py-2 border border-ai-border rounded-md text-sm bg-surface dark:bg-surface-200 text-text-primary cursor-pointer hover:border-ai transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-bg"
@@ -146,9 +170,31 @@ export function ModelSelect({ value, onChange, models, fallback, className }: Mo
       </button>
 
       {open && (
-        <div className="absolute z-50 mt-1 w-full bg-surface dark:bg-surface-200 border border-ai-border rounded-md shadow-lg max-h-72 overflow-y-auto">
-          {models.length > 0 ? (
-            models.map((m) => {
+        <div className="absolute z-50 mt-1 w-full bg-surface dark:bg-surface-200 border border-ai-border rounded-md shadow-lg max-h-80 overflow-hidden flex flex-col">
+          {models.length > 0 && (
+            <div className="sticky top-0 px-3 py-2 border-b border-ai-border bg-surface dark:bg-surface-200 z-10">
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-text-tertiary pointer-events-none" />
+                <input
+                  ref={searchInputRef}
+                  type="text"
+                  placeholder="Search models..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Escape') {
+                      setOpen(false)
+                      setSearchQuery('')
+                    }
+                  }}
+                  className="w-full pl-7 pr-3 py-1.5 text-sm bg-surface-100 dark:bg-surface-100 border border-ai-border rounded-md text-text-primary placeholder:text-text-tertiary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+                />
+              </div>
+            </div>
+          )}
+          <div className="overflow-y-auto max-h-64">
+          {filteredModels.length > 0 ? (
+            filteredModels.map((m) => {
               const isSelected = m.id === value
               return (
                 <button
@@ -156,7 +202,7 @@ export function ModelSelect({ value, onChange, models, fallback, className }: Mo
                   type="button"
                   role="option"
                   aria-selected={isSelected}
-                  onClick={() => { onChange(m.id); setOpen(false) }}
+                  onClick={() => { onChange(m.id); setOpen(false); setSearchQuery('') }}
                   className={cn(
                     'relative w-full flex items-center gap-2 px-3 py-2.5 text-sm text-left overflow-hidden transition-colors',
                     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset',
@@ -177,10 +223,11 @@ export function ModelSelect({ value, onChange, models, fallback, className }: Mo
               )
             })
           ) : (
-            <div className="px-3 py-2 text-sm text-text-tertiary">
-              {fallback ?? value}
+            <div className="px-3 py-4 text-sm text-text-tertiary text-center">
+              {models.length > 0 ? 'No models match your search.' : (fallback ?? value)}
             </div>
           )}
+          </div>
         </div>
       )}
     </div>
