@@ -7,7 +7,7 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest'
-import { useReaderPreferences } from './reader-preferences'
+import { useReaderPreferences, load } from './reader-preferences'
 
 describe('useReaderPreferences', () => {
   beforeEach(() => {
@@ -55,21 +55,41 @@ describe('useReaderPreferences', () => {
     expect(prefs.contentWidth).toBe('full')
   })
 
-  it('loads from localStorage when present', () => {
-    const saved = { defaultShowLeft: false, defaultShowRight: true, contentWidth: 'wide' }
-    localStorage.setItem('docassist_reader_preferences', JSON.stringify(saved))
+  it('load returns parsed data when localStorage has all fields', () => {
+    localStorage.setItem('docassist_reader_preferences', JSON.stringify({
+      defaultShowLeft: false, defaultShowRight: true, contentWidth: 'wide',
+    }))
 
-    // Re-import to trigger load
-    // Note: Zustand stores are singletons, so we verify via the stored data
-    const stored = JSON.parse(localStorage.getItem('docassist_reader_preferences') || '{}')
-    expect(stored.defaultShowLeft).toBe(false)
+    const result = load()
+    expect(result.defaultShowLeft).toBe(false)
+    expect(result.defaultShowRight).toBe(true)
+    expect(result.contentWidth).toBe('wide')
   })
 
-  it('handles corrupt localStorage gracefully', () => {
-    localStorage.setItem('docassist_reader_preferences', 'not json')
+  it('load merges defaults when localStorage has partial data', () => {
+    // Only store defaultShowLeft — the rest should fall back to defaults.
+    localStorage.setItem('docassist_reader_preferences', JSON.stringify({
+      defaultShowLeft: false,
+    }))
 
-    // Should not throw — defaults are used
-    const prefs = useReaderPreferences.getState().preferences
-    expect(prefs).toBeDefined()
+    const result = load()
+    expect(result.defaultShowLeft).toBe(false)
+    expect(result.defaultShowRight).toBe(true)
+    expect(result.contentWidth).toBe('comfortable')
+  })
+
+  it('load returns full defaults when localStorage is empty', () => {
+    const result = load()
+    expect(result.defaultShowLeft).toBe(true)
+    expect(result.defaultShowRight).toBe(true)
+    expect(result.contentWidth).toBe('comfortable')
+  })
+
+  it('load returns full defaults on corrupt JSON', () => {
+    localStorage.setItem('docassist_reader_preferences', 'not json')
+    const result = load()
+    expect(result.defaultShowLeft).toBe(true)
+    expect(result.defaultShowRight).toBe(true)
+    expect(result.contentWidth).toBe('comfortable')
   })
 })
