@@ -9,6 +9,7 @@ import type {
   UpdateAgentRequest,
   TaskStatusOut,
   ActiveTasksOut,
+  TaskListOut,
   DocumentPreviewOut,
   KnowledgeTreeQuestionType,
   KnowledgeTreeQuestionOut,
@@ -60,7 +61,8 @@ httpClient.interceptors.response.use(
     // Handle 401 - Unauthorized (token expired or invalid)
     if (error.response?.status === 401) {
       localStorage.removeItem('auth_token')
-      window.location.href = '/login'
+      // Don't redirect here — let AuthProvider detect the invalid token
+      // and ProtectedRoute handle the redirect via React Router
       return Promise.reject(error)
     }
 
@@ -154,6 +156,18 @@ export class RealClient implements ServiceClient {
 
   async listActiveTasks(): Promise<ActiveTasksOut> {
     const res = await httpClient.get<ActiveTasksOut>('/tasks/active')
+    return res.data
+  }
+
+  async listRecentTasks(limit = 50, offset = 0, status?: string): Promise<TaskListOut> {
+    const params: Record<string, string | number> = { limit, offset }
+    if (status) params.status = status
+    const res = await httpClient.get<TaskListOut>('/tasks/recent', { params })
+    return res.data
+  }
+
+  async cancelTask(taskId: string): Promise<{ task_id: string; status: string }> {
+    const res = await httpClient.post<{ task_id: string; status: string }>(`/tasks/${taskId}/cancel`)
     return res.data
   }
 
