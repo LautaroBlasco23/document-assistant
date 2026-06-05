@@ -18,6 +18,7 @@ import { AgentCreationDialog } from './agent-creation-dialog'
 import { ModelSelect } from '../../components/ui/model-select'
 import { ProviderSelect } from '../../components/ui/provider-select'
 import { ApiKeysCard } from './api-keys-card'
+import { AiCallsTab } from './ai-calls-tab'
 
 const MAX_TOKENS_OPTIONS = [256, 512, 1024, 2048, 4096, 8192]
 
@@ -211,6 +212,9 @@ export function SettingsPage() {
 
         {/* API Keys */}
         <ApiKeysCard />
+
+        {/* AI Calls */}
+        <AiCallsTab />
 
         {/* Agents */}
         <Card

@@ -18,6 +18,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from api.auth import get_current_user
 from api.deps import get_services_dep
 from api.routers import tasks as tasks_router
 from api.tasks import Task, TaskRegistry
@@ -57,6 +58,7 @@ def test_client(mock_services):
     app = FastAPI()
     app.include_router(tasks_router.router, prefix="/api")
     app.dependency_overrides[get_services_dep] = lambda: mock_services
+    app.dependency_overrides[get_current_user] = _make_user
     return TestClient(app)
 
 
@@ -71,7 +73,7 @@ def test_list_active_tasks_returns_pending_and_running(test_client, mock_service
         "infrastructure.db.task_repository.TaskRepository"
     ) as mock_repo_cls:
         mock_repo = MagicMock()
-        mock_repo.list_active.return_value = [
+        mock_repo.list_active_for_user.return_value = [
             {
                 "task_id": "task-1",
                 "task_type": "ingest",
@@ -113,7 +115,7 @@ def test_list_active_tasks_empty_when_none_active(test_client, mock_services):
         "infrastructure.db.task_repository.TaskRepository"
     ) as mock_repo_cls:
         mock_repo = MagicMock()
-        mock_repo.list_active.return_value = []
+        mock_repo.list_active_for_user.return_value = []
         mock_repo_cls.return_value = mock_repo
 
         response = test_client.get("/api/tasks/active")
@@ -137,7 +139,7 @@ def test_get_task_pending_returns_status(test_client, mock_services):
         event.wait(timeout=2)
 
     task_id = mock_services.task_registry.submit(
-        _block, task_type="ingest", book_title="Test"
+        _block, task_type="ingest", book_title="Test", user_id=FIXED_UUID
     )
     response = test_client.get(f"/api/tasks/{task_id}")
 
@@ -160,7 +162,7 @@ def test_get_task_completed_returns_result(test_client, mock_services):
         event.set()
 
     task_id = mock_services.task_registry.submit(
-        _complete, task_type="ingest"
+        _complete, task_type="ingest", user_id=FIXED_UUID
     )
     event.wait(timeout=2)
 
@@ -185,6 +187,7 @@ def test_get_task_failed_returns_error(test_client, mock_services):
         task_type="ingest",
         status="failed",
         error="something went wrong",
+        user_id=FIXED_UUID,
     )
 
     response = test_client.get(f"/api/tasks/{task_id}")
@@ -197,7 +200,14 @@ def test_get_task_failed_returns_error(test_client, mock_services):
 
 def test_get_task_unknown_returns_404(test_client):
     """GET /api/tasks/{id} for a nonexistent task must return 404."""
-    response = test_client.get("/api/tasks/does-not-exist")
+    with patch(
+        "infrastructure.db.task_repository.TaskRepository"
+    ) as mock_repo_cls:
+        mock_repo = MagicMock()
+        mock_repo.get_for_user.return_value = None
+        mock_repo_cls.return_value = mock_repo
+
+        response = test_client.get("/api/tasks/does-not-exist")
 
     assert response.status_code == 404
     assert "not found" in response.json()["detail"].lower()

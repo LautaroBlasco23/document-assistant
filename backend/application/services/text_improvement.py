@@ -86,6 +86,7 @@ def improve_document_task(
     updated = services.kt_doc_store.save_improvement(doc_uid, improved)
 
     set_task_progress(task, 100, "Done")
+    task.result_excerpt = improved[:500]
     return {
         "id": str(updated.id),
         "tree_id": str(updated.tree_id),

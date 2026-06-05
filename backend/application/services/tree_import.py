@@ -219,6 +219,7 @@ def create_tree_from_file_task(
 
             elapsed = time.perf_counter() - t0
             set_task_progress(task, 100, "Done")
+            task.result_excerpt = f"Created tree with {chapter_count} chapters"
             logger.info(
                 "Created knowledge tree %s from %s in %.1fs (%d chapters, %d chunks)",
                 str(tree_uid),
@@ -315,6 +316,7 @@ def import_youtube_task(
                 services.kt_content_store.save_chunks(kt_chunks)
 
         set_task_progress(task, 100, "Done")
+        task.result_excerpt = f"Imported YouTube: {meta.title}"
         logger.info("Imported YouTube video %s as document %s", video_id, kt_doc.id)
         return {"doc_id": str(kt_doc.id), "title": meta.title}
     except Exception as exc:
@@ -717,6 +719,7 @@ def ingest_file_task(
 
             elapsed = time.perf_counter() - t0
             set_task_progress(task, 100, "Done")
+            task.result_excerpt = f"Ingested {filename} ({len(kt_chunks)} chunks)"
             logger.info(
                 "Ingested knowledge file %s in %.1fs (%d chunks)",
                 filename,

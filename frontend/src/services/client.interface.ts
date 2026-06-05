@@ -7,6 +7,7 @@ import type {
   UpdateAgentRequest,
   TaskStatusOut,
   ActiveTasksOut,
+  TaskListOut,
   DocumentPreviewOut,
   KnowledgeTreeQuestionType,
   KnowledgeTreeQuestionOut,
@@ -28,6 +29,8 @@ export interface ServiceClient {
   getModels(provider?: string): Promise<ModelsOut>
   getTaskStatus(taskId: string): Promise<TaskStatusOut>
   listActiveTasks(): Promise<ActiveTasksOut>
+  listRecentTasks(limit?: number, offset?: number, status?: string): Promise<TaskListOut>
+  cancelTask(taskId: string): Promise<{ task_id: string; status: string }>
 
   // Agents
   listAgents(): Promise<AgentOut[]>

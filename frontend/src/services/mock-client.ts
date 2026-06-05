@@ -25,6 +25,7 @@ import type {
   UserProfile,
   UserLimits,
   PlanSummary,
+  TaskListOut,
 } from '../types/api'
 import type { ServiceClient } from './client.interface'
 
@@ -162,6 +163,16 @@ export class MockClient implements ServiceClient {
   async listActiveTasks(): Promise<ActiveTasksOut> {
     await delay(100)
     return { tasks: [] }
+  }
+
+  async listRecentTasks(_limit = 50, _offset = 0, _status?: string): Promise<TaskListOut> {
+    await delay(100)
+    return { tasks: [], total: 0, has_more: false }
+  }
+
+  async cancelTask(taskId: string): Promise<{ task_id: string; status: string }> {
+    await delay(50)
+    return { task_id: taskId, status: 'cancelled' }
   }
 
   // Knowledge Trees

@@ -33,6 +33,7 @@ def generate_flashcard_task(
         set_task_progress(task, 70, "Saving flashcard...")
         services.kt_flashcard_store.save_flashcard(flashcard)
         set_task_progress(task, 100, "Done")
+        task.result_excerpt = "Flashcard generated from selection"
         return {"flashcard_id": str(flashcard.id)}
     except Exception as e:
         logger.error("Flashcard generation failed: %s", e)
@@ -100,6 +101,7 @@ def generate_flashcards_bulk_task(
             services.kt_flashcard_store.save_flashcard(card)
 
         set_task_progress(task, 100, "Done")
+        task.result_excerpt = f"Generated {len(flashcards)} flashcards"
         elapsed = time.perf_counter() - t0
         logger.info(
             "Generated %d flashcards for chapter %d in %.1fs",

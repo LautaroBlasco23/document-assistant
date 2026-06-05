@@ -113,6 +113,7 @@ def generate_questions_task(
             services.kt_question_store.save_questions(all_questions)
 
         set_task_progress(task, 100, "Done")
+        task.result_excerpt = f"Generated {len(all_questions)} questions"
         elapsed = time.perf_counter() - t0
         logger.info(
             "Generated questions for knowledge chapter %d in %.1fs: %s",

@@ -18,7 +18,7 @@ export interface TaskResponseOut {
 
 export interface TaskStatusOut {
   task_id: string
-  status: 'pending' | 'running' | 'completed' | 'failed' | 'rate_limited'
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'rate_limited' | 'cancelled'
   progress: string
   progress_pct?: number
   result?: Record<string, unknown>
@@ -30,7 +30,7 @@ export interface ActiveTaskOut {
   task_type: string
   doc_hash: string
   filename: string
-  status: 'pending' | 'running' | 'completed' | 'failed' | 'rate_limited'
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'rate_limited' | 'cancelled'
   progress: string
   progress_pct: number
   chapter: number
@@ -39,6 +39,28 @@ export interface ActiveTaskOut {
 
 export interface ActiveTasksOut {
   tasks: ActiveTaskOut[]
+}
+
+export interface TaskHistoryItem {
+  task_id: string
+  task_type: string
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'rate_limited' | 'cancelled'
+  progress: string
+  progress_pct: number
+  chapter: number
+  book_title: string
+  prompt: string
+  result_excerpt: string
+  error: string | null
+  created_at: string
+  started_at: string | null
+  finished_at: string | null
+}
+
+export interface TaskListOut {
+  tasks: TaskHistoryItem[]
+  total: number
+  has_more: boolean
 }
 
 export interface OllamaConfig {

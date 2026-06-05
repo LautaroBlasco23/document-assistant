@@ -255,6 +255,10 @@ async def import_tree_from_document(
         current_user.id,
         task_type="kt_create_from_file",
         filename=filename,
+        user_id=current_user.id,
+        prompt="Import tree from "
+        + filename
+        + (f" (chapters: {parsed_indices})" if parsed_indices else ""),
     )
     return {"task_id": task_id, "filename": filename}
 
@@ -295,6 +299,8 @@ async def import_youtube_document(
         chapter_number,
         services,
         task_type="kt_import_youtube",
+        user_id=current_user.id,
+        prompt=f"Import YouTube: {req.url}",
     )
     return {"task_id": task_id}
 
@@ -583,6 +589,8 @@ async def improve_document(
         top_p=req.top_p,
         max_tokens=req.max_tokens,
         task_type="kt_improve",
+        user_id=_user.id,
+        prompt=f"Improve document (mode={req.mode})",
     )
     return {"task_id": task_id}
 
@@ -709,6 +717,7 @@ async def get_document_thumbnail(tree_id: str, doc_id: str, services: ServicesDe
 async def ingest_document(
     tree_id: str,
     number: int,
+    current_user: CurrentUser,
     services: ServicesDep,
     file: UploadFile = File(...),
 ) -> dict:
@@ -738,6 +747,8 @@ async def ingest_document(
         filename,
         services,
         task_type="kt_ingest",
+        user_id=current_user.id,
+        prompt=f"Ingest {filename} into chapter {number}",
     )
     return {"task_id": task_id, "filename": filename}
 
@@ -804,6 +815,8 @@ async def generate_questions(
         agent_id,
         num_questions,
         task_type="kt_questions",
+        user_id=current_user.id,
+        prompt=f"Generate questions (chapter {number})",
     )
     return {"task_id": task_id, "task_type": "kt_questions"}
 
@@ -1102,7 +1115,11 @@ async def delete_flashcard(
 
 @router.post("/knowledge-trees/{tree_id}/chapters/{number}/flashcards", status_code=202)
 async def generate_flashcard(
-    tree_id: str, number: int, req: GenerateFlashcardRequest, services: ServicesDep
+    tree_id: str,
+    number: int,
+    req: GenerateFlashcardRequest,
+    current_user: CurrentUser,
+    services: ServicesDep,
 ) -> dict:
     uid, chapter = resolve_chapter(services, tree_id, number)
     task_id = services.task_registry.submit(
@@ -1113,6 +1130,8 @@ async def generate_flashcard(
         req.selected_text,
         services,
         task_type="kt_flashcard",
+        user_id=current_user.id,
+        prompt=f"Generate flashcard from selection (chapter {number})",
     )
     return {"task_id": task_id, "task_type": "kt_flashcard"}
 
@@ -1155,6 +1174,8 @@ async def generate_flashcards_bulk(
         model,
         agent_id,
         task_type="kt_flashcards_bulk",
+        user_id=current_user.id,
+        prompt=f"Bulk generate flashcards (chapter {number})",
     )
     return {"task_id": task_id, "task_type": "kt_flashcards_bulk"}
 

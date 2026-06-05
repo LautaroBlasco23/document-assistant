@@ -210,6 +210,15 @@ CREATE TABLE IF NOT EXISTS background_tasks (
 
 CREATE INDEX IF NOT EXISTS idx_background_tasks_status ON background_tasks(status);
 
+-- Idempotent: add user-scoped AI call tracking fields
+ALTER TABLE background_tasks ADD COLUMN IF NOT EXISTS user_id UUID;
+ALTER TABLE background_tasks ADD COLUMN IF NOT EXISTS prompt TEXT NOT NULL DEFAULT '';
+ALTER TABLE background_tasks ADD COLUMN IF NOT EXISTS result_excerpt TEXT NOT NULL DEFAULT '';
+ALTER TABLE background_tasks ADD COLUMN IF NOT EXISTS started_at TIMESTAMPTZ;
+ALTER TABLE background_tasks ADD COLUMN IF NOT EXISTS finished_at TIMESTAMPTZ;
+CREATE INDEX IF NOT EXISTS idx_background_tasks_user_created
+    ON background_tasks(user_id, created_at DESC);
+
 -- ============================================
 -- SEED DATA
 -- ============================================

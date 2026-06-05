@@ -1,6 +1,7 @@
 import { Outlet } from 'react-router-dom'
 import { Sidebar } from './sidebar'
 import { HealthBanner } from './health-banner'
+import { TaskIndicator } from './task-indicator'
 import { useAppStore } from '../../stores/app-store'
 import { useHealth } from '../../hooks/use-health'
 import { useLimits } from '../../hooks/use-limits'
@@ -23,6 +24,7 @@ export function MainLayout() {
           </div>
         </main>
       </div>
+      <TaskIndicator />
     </div>
   )
 }

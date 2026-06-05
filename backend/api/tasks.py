@@ -5,7 +5,9 @@ import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, Callable
+from uuid import UUID
 
 from core.exceptions import RateLimitError
 from infrastructure.llm.task_context import _current_task
@@ -26,11 +28,17 @@ class Task:
     filename: str = ""
     chapter: int = 0
     book_title: str = ""
-    status: str = "pending"  # pending | running | completed | failed | rate_limited
+    status: str = "pending"  # pending | running | completed | failed | rate_limited | cancelled
     progress: str = ""
     progress_pct: int = 0  # 0-100 numeric progress percentage
     result: Any = None
     error: str | None = None
+    # User-scoped AI call tracking
+    user_id: UUID | None = None
+    prompt: str = ""
+    result_excerpt: str = ""
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
 
 
 class TaskRegistry:
@@ -50,6 +58,8 @@ class TaskRegistry:
         filename: str = "",
         chapter: int = 0,
         book_title: str = "",
+        user_id: UUID | None = None,
+        prompt: str = "",
         **kwargs,
     ) -> str:
         """
@@ -65,6 +75,8 @@ class TaskRegistry:
             filename=filename,
             chapter=chapter,
             book_title=book_title,
+            user_id=user_id,
+            prompt=prompt,
         )
         self._tasks[task_id] = task
 
@@ -76,6 +88,8 @@ class TaskRegistry:
                 filename=filename,
                 chapter=chapter,
                 book_title=book_title,
+                user_id=user_id,
+                prompt=prompt,
             )
 
         logger.info("Task submitted: %s (%s)", task_id, fn.__name__)
@@ -85,6 +99,7 @@ class TaskRegistry:
             t0 = time.perf_counter()
             try:
                 task.status = "running"
+                task.started_at = datetime.now(timezone.utc)
                 self._persist(task)
                 logger.info("Task started: %s", task_id)
                 result = fn(task, *args, **kwargs)
@@ -92,12 +107,14 @@ class TaskRegistry:
                 if task.result is None:
                     task.result = result
                 task.status = "completed"
+                task.finished_at = datetime.now(timezone.utc)
                 self._persist(task)
                 logger.info("Task completed: %s (%.1fs)", task_id, elapsed)
             except RateLimitError as e:
                 elapsed = time.perf_counter() - t0
                 task.error = f"Rate limited by {e.provider} — retry after {int(e.retry_after)}s"
                 task.status = "rate_limited"
+                task.finished_at = datetime.now(timezone.utc)
                 task.result = {"retry_after": e.retry_after, "provider": e.provider}
                 self._persist(task)
                 logger.warning("Task %s rate-limited after %.1fs: %s", task_id, elapsed, e)
@@ -105,6 +122,7 @@ class TaskRegistry:
                 elapsed = time.perf_counter() - t0
                 task.error = str(e)
                 task.status = "failed"
+                task.finished_at = datetime.now(timezone.utc)
                 self._persist(task)
                 logger.exception("Task %s failed after %.1fs: %s", task_id, elapsed, e)
             finally:
@@ -122,6 +140,9 @@ class TaskRegistry:
                 progress_pct=task.progress_pct,
                 result=task.result if isinstance(task.result, dict) else None,
                 error=task.error,
+                result_excerpt=task.result_excerpt,
+                started_at=task.started_at,
+                finished_at=task.finished_at,
             )
 
     def get(self, task_id: str) -> Task | None:
@@ -131,6 +152,13 @@ class TaskRegistry:
     def list_active(self) -> list[Task]:
         """List all pending/running tasks (excludes terminal: completed, failed, rate_limited)."""
         return [t for t in self._tasks.values() if t.status in ("pending", "running")]
+
+    def list_active_for_user(self, user_id: UUID) -> list[Task]:
+        """List pending/running tasks for a specific user."""
+        return [
+            t for t in self._tasks.values()
+            if t.status in ("pending", "running") and t.user_id == user_id
+        ]
 
     def shutdown(self) -> None:
         """Shutdown executor, waiting for pending tasks."""
