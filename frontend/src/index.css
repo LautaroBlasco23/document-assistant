@@ -408,3 +408,18 @@ textarea,
     display: none !important;
   }
 }
+
+/* ─── Reader surface: em-relative type scale for font scaling ───────────────
+   Inside the reader, override the rem-based type-scale tokens to use em.
+   This lets the reader's font-size percentage cascade through Tailwind's
+   text-* classes (which reference var(--text-md), var(--text-2xl), etc.).
+   Outside .reader-surface the tokens remain rem-based (unchanged). */
+.reader-surface {
+  --text-xs:  0.75em;
+  --text-sm:  0.875em;
+  --text-md:  1em;
+  --text-lg:  1.125em;
+  --text-xl:  1.25em;
+  --text-2xl: 1.5em;
+  --text-3xl: 1.875em;
+}

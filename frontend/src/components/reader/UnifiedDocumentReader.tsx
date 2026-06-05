@@ -15,6 +15,7 @@ import { PdfPagesView, type PdfPagesViewHandle } from './PdfPagesView'
 import { TextPagesView, type TextPagesViewHandle } from './TextPagesView'
 import { ResizeHandle } from './ResizeHandle'
 import { FormatterMenu, type FormatMode } from './FormatterMenu'
+import { TextOptionsMenu } from './TextOptionsMenu'
 import { ImproveDialog } from './ImproveDialog'
 import { readerMarkdownComponents } from './markdownComponents'
 import { useGenerationSettings } from '../../stores/generation-settings'
@@ -120,6 +121,10 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose, mode = '
   const [showLeft, setShowLeft] = React.useState(() => useReaderPreferences.getState().preferences.defaultShowLeft)
   const [showRight, setShowRight] = React.useState(() => useReaderPreferences.getState().preferences.defaultShowRight)
   const [contentWidth, setContentWidth] = React.useState(() => useReaderPreferences.getState().preferences.contentWidth)
+  // Subscribe to fontScale and contentWidthPx from the global reading preferences store.
+  // These are changed by TextOptionsMenu and must propagate to the text renderers.
+  const fontScale = useReaderPreferences((s) => s.preferences.fontScale)
+  const contentWidthPx = useReaderPreferences((s) => s.preferences.contentWidthPx)
   const [isFullscreen, setIsFullscreen] = React.useState(!isPageMode)
   const [zoom, setZoomState] = React.useState<number>(() => loadDocZoom(treeId, doc.id))
   const setZoom = React.useCallback((next: number | ((prev: number) => number)) => {
@@ -294,6 +299,8 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose, mode = '
   const fileUrl = client.getDocumentFileUrl(treeId, doc.id)
 
   const contentWidthClass = contentWidth === 'full' ? '' : contentWidth === 'wide' ? 'max-w-5xl' : 'max-w-3xl'
+  const contentWidthStyle: React.CSSProperties | undefined =
+    contentWidthPx != null ? { maxWidth: contentWidthPx, marginLeft: 'auto', marginRight: 'auto' } : undefined
 
   // When this doc is a chapter-bound document, restrict sidebar and page range
   // to that chapter only. Source/main docs show the full book.
@@ -915,8 +922,8 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose, mode = '
             </span>
           )}
 
-          {/* Zoom controls */}
-          {(isTruePdf || isText || isContentOnly || isYouTube) && (
+          {/* Zoom controls — PDF only */}
+          {isTruePdf && (
             <div ref={zoomMenuRef} className="relative flex items-center gap-0.5 bg-surface dark:bg-surface-200 rounded-md shadow-sm border border-surface-200 dark:border-surface-200 px-1.5 py-0.5">
               <button
                 onClick={zoomOut}
@@ -981,6 +988,9 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose, mode = '
               )}
             </div>
           )}
+
+          {/* Text options — EPUB/TXT/content-only/YouTube */}
+          {(isText || isContentOnly || isYouTube) && <TextOptionsMenu />}
 
           {/* Read mode toggle */}
           {(isTruePdf || isText || isContentOnly || isYouTube) && (
@@ -1190,7 +1200,8 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose, mode = '
             key={readerKey}
             chapters={scopedChapters}
             chapterDocs={scopedChapterDocs}
-            zoom={zoom}
+            fontScale={fontScale}
+            contentWidthPx={contentWidthPx}
             mode={readMode}
             formatMode={formatMode}
             contentWidth={contentWidth}
@@ -1215,8 +1226,8 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose, mode = '
             onClick={hideContextMenu}
           >
             <div
-              className={cn('mx-auto py-8 px-6 text-text-secondary text-md', contentWidthClass)}
-              style={{ fontSize: `${Math.round(zoom * 100)}%` }}
+              className={cn('reader-surface mx-auto py-8 px-6 text-text-secondary text-md', contentWidthClass)}
+              style={{ ...contentWidthStyle, fontSize: `${Math.round(fontScale * 100)}%` }}
             >
               {isEditing ? (
                 <EditableTextPanel
@@ -1252,8 +1263,8 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose, mode = '
           >
             {effectiveDoc.content ? (
               <div
-                className={cn('mx-auto py-8 px-6 text-text-secondary text-md', contentWidthClass)}
-                style={{ fontSize: `${Math.round(zoom * 100)}%` }}
+                className={cn('reader-surface mx-auto py-8 px-6 text-text-secondary text-md', contentWidthClass)}
+                style={{ ...contentWidthStyle, fontSize: `${Math.round(fontScale * 100)}%` }}
               >
                 {isEditing ? (
                   <EditableTextPanel

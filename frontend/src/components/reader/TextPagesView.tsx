@@ -55,7 +55,8 @@ interface ChapterDoc {
 interface TextPagesViewProps {
   chapters: KnowledgeChapter[]
   chapterDocs: ChapterDoc[]
-  zoom?: number
+  fontScale?: number
+  contentWidthPx?: number | null
   mode?: 'scroll' | 'paged'
   formatMode?: FormatMode
   contentWidth?: ContentWidth
@@ -79,7 +80,8 @@ interface TextPagesViewProps {
 export function TextPagesView({
   chapters,
   chapterDocs,
-  zoom = 1,
+  fontScale = 1,
+  contentWidthPx = null,
   mode = 'scroll',
   formatMode = 'plain',
   contentWidth = 'comfortable',
@@ -228,8 +230,11 @@ export function TextPagesView({
     if (mode === 'paged') scrollContainerRef.current?.scrollTo({ top: 0 })
   }, [pagedChapter, mode])
 
-  const fontSize = `${Math.round(zoom * 100)}%`
-  const contentWidthClass = contentWidth === 'full' ? '' : contentWidth === 'wide' ? 'max-w-5xl' : 'max-w-reader'
+  const fontSize = `${Math.round(fontScale * 100)}%`
+  // When contentWidthPx is set, it overrides the categorical contentWidth class.
+  const contentWidthStyle: React.CSSProperties | undefined =
+    contentWidthPx != null ? { maxWidth: contentWidthPx, marginLeft: 'auto', marginRight: 'auto' } : undefined
+  const contentWidthClass = contentWidthPx != null ? '' : contentWidth === 'full' ? '' : contentWidth === 'wide' ? 'max-w-5xl' : 'max-w-reader'
 
   // --- Edit-mode surface: single editor for the active chapter ---
   if (isEditing) {
@@ -242,7 +247,7 @@ export function TextPagesView({
         className="flex-1 min-w-0 overflow-y-auto bg-surface-100 dark:bg-bg-inset"
         onClick={onClickAway}
       >
-        <div className={cn('mx-auto py-6 px-6', contentWidthClass)} style={{ fontSize }}>
+        <div className={cn('reader-surface mx-auto py-6 px-6', contentWidthClass)} style={{ ...contentWidthStyle, fontSize }}>
           {editDoc && (
             <>
               <h2 className="text-xl font-semibold text-text-primary mb-4 pb-2 border-b border-surface-200 dark:border-surface-200">
@@ -318,7 +323,7 @@ export function TextPagesView({
         </button>
 
         <div ref={scrollContainerRef} className="flex-1 overflow-y-auto">
-          <div className={cn('mx-auto py-8 px-6', contentWidthClass)} style={{ fontSize }}>
+          <div className={cn('reader-surface mx-auto py-8 px-6', contentWidthClass)} style={{ ...contentWidthStyle, fontSize }}>
             {chapter && (
               <>
                 <h2 className="font-reading text-2xl font-semibold text-text-primary mb-6">{markTextByPosition(chapter.title, highlights, chapter.number, true)}</h2>
@@ -353,7 +358,7 @@ export function TextPagesView({
       onContextMenu={onContextMenu}
       onClick={onClickAway}
     >
-      <div className={cn('mx-auto py-8 px-6 flex flex-col gap-12', contentWidthClass)} style={{ fontSize }}>
+      <div className={cn('reader-surface mx-auto py-8 px-6 flex flex-col gap-12', contentWidthClass)} style={{ ...contentWidthStyle, fontSize }}>
         {chapters.map((ch) => (
           <section
             key={ch.number}
