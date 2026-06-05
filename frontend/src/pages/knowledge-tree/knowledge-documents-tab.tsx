@@ -7,7 +7,7 @@ import { Badge } from '../../components/ui/badge'
 import { ConfirmDialog } from '../../components/ui/confirm-dialog'
 import { useKnowledgeTreeStore, docKey } from '../../stores/knowledge-tree-store'
 import { useAppStore, LIMITS_INVALIDATE_EVENT } from '../../stores/app-store'
-import { useTaskStore } from '../../stores/task-store'
+import { useTaskStore, selectActiveImproveTask, selectUnprocessedImproveTask } from '../../stores/task-store'
 import { client } from '../../services'
 
 const invalidateLimits = () => {
@@ -658,6 +658,7 @@ function DocumentCard({ doc, onEdit, onDelete, onRead, onImprove, onRevert, onUp
         entityId: doc.tree_id,
         chapter: doc.chapter_number ?? 0,
         entityTitle: `Improve: ${doc.title}`,
+        docId: doc.id,
       })
       setImproveTaskId(taskId)
       setImproveOpen(false)
@@ -693,6 +694,34 @@ function DocumentCard({ doc, onEdit, onDelete, onRead, onImprove, onRevert, onUp
       setImproveTaskId(null)
     }
   }, [improveTaskId, improveTaskEntry?.status, applyImproveResult, clearTask, addError, doc])
+
+  // ── Re-link improve task state after navigation ──────────────────────────────────
+  const activeImproveTask = useTaskStore(selectActiveImproveTask(doc.id))
+  const unprocessedImproveTask = useTaskStore(selectUnprocessedImproveTask(doc.id))
+
+  // Restore task ID for in-flight improves that started before navigation.
+  React.useEffect(() => {
+    if (activeImproveTask && !improveTaskId) {
+      setImproveTaskId(activeImproveTask.taskId)
+    }
+  }, [activeImproveTask?.taskId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Handle tasks that completed/failed while the component was unmounted.
+  React.useEffect(() => {
+    if (!unprocessedImproveTask) return
+    const task = unprocessedImproveTask
+    if (task.status === 'completed') {
+      if (task.result) {
+        applyImproveResult(doc.tree_id, doc.chapter_number, doc.id, task.result)
+      }
+      clearTask(task.taskId)
+      setImproveTaskId(null)
+    } else {
+      addError(task.error ?? 'Improvement failed')
+      clearTask(task.taskId)
+      setImproveTaskId(null)
+    }
+  }, [unprocessedImproveTask?.taskId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleConfirmRevert = async () => {
     setActing(true)
@@ -799,7 +828,7 @@ function DocumentCard({ doc, onEdit, onDelete, onRead, onImprove, onRevert, onUp
             variant="ghost"
             size="sm"
             onClick={(e) => { e.stopPropagation(); setRevertOpen(true); }}
-            disabled={!!improveTaskId}
+            disabled={!!improveTaskId || !!activeImproveTask}
             className="h-8 w-8 p-0 text-amber-500 hover:text-amber-600 dark:hover:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20 disabled:opacity-50 disabled:cursor-not-allowed"
             title="Revert improvement"
           >
@@ -810,7 +839,7 @@ function DocumentCard({ doc, onEdit, onDelete, onRead, onImprove, onRevert, onUp
             variant="ghost"
             size="sm"
             onClick={(e) => { e.stopPropagation(); setImproveOpen(true); }}
-            disabled={!!improveTaskId}
+            disabled={!!improveTaskId || !!activeImproveTask}
             className="h-8 w-8 p-0 text-text-tertiary hover:text-primary dark:hover:text-primary hover:bg-surface-100 dark:hover:bg-surface-100 disabled:opacity-50 disabled:cursor-not-allowed"
             title="Improve with AI"
           >

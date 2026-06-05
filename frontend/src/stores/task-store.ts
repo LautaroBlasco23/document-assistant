@@ -17,6 +17,8 @@ export interface GenerationTask {
   entityId: string
   chapter: number
   entityTitle: string
+  /** Optional: document ID for kt_improve tasks — used to re-link loading state on mount. */
+  docId?: string
   status: 'pending' | 'running' | 'completed' | 'failed' | 'rate_limited' | 'cancelled'
   progress: string | null
   progressPct: number | null
@@ -32,6 +34,7 @@ interface TaskState {
     entityId: string
     chapter: number
     entityTitle: string
+    docId?: string
   }) => void
   clearTask: (taskId: string) => void
   rehydrateFromBackend: () => Promise<void>
@@ -45,6 +48,7 @@ type PersistedTask = {
   entityId: string
   chapter: number
   entityTitle: string
+  docId?: string
 }
 
 function persistToSession(entry: PersistedTask) {
@@ -143,7 +147,7 @@ function _startSharedPoller() {
   }, 1500)
 }
 
-function _addTask(taskId: string, type: GenerationTaskType, entityId: string, chapter: number, entityTitle: string) {
+function _addTask(taskId: string, type: GenerationTaskType, entityId: string, chapter: number, entityTitle: string, docId?: string) {
   useTaskStore.setState((state) => {
     if (state.tasks[taskId]) return state
     return {
@@ -155,6 +159,7 @@ function _addTask(taskId: string, type: GenerationTaskType, entityId: string, ch
           entityId,
           chapter,
           entityTitle,
+          docId,
           status: 'pending',
           progress: null,
           progressPct: null,
@@ -164,16 +169,16 @@ function _addTask(taskId: string, type: GenerationTaskType, entityId: string, ch
       },
     }
   })
-  persistToSession({ taskId, type, entityId, chapter, entityTitle })
+  persistToSession({ taskId, type, entityId, chapter, entityTitle, docId })
   _startSharedPoller()
 }
 
 export const useTaskStore = create<TaskState>((set) => ({
   tasks: {},
 
-  submitTask: ({ taskId, type, entityId, chapter, entityTitle }) => {
+  submitTask: ({ taskId, type, entityId, chapter, entityTitle, docId }) => {
     if (useTaskStore.getState().tasks[taskId]) return
-    _addTask(taskId, type, entityId, chapter, entityTitle)
+    _addTask(taskId, type, entityId, chapter, entityTitle, docId)
   },
 
   clearTask: (taskId: string) => {
@@ -223,6 +228,48 @@ export const useTaskStore = create<TaskState>((set) => ({
 }))
 
 // Rehydration is handled by App.tsx useEffect — no module-level side effects here.
+
+// ── Selectors for re-linking improve tasks after navigation ────────────────────
+
+/** Find an active (pending/running) kt_improve task for a given document. */
+export function selectActiveImproveTask(docId: string | undefined) {
+  return (s: TaskState) => {
+    if (!docId) return null
+    for (const t of Object.values(s.tasks)) {
+      if (t.type === 'kt_improve' && t.docId === docId && (t.status === 'pending' || t.status === 'running')) {
+        return t
+      }
+    }
+    return null
+  }
+}
+
+/** Find a terminal kt_improve task for a given document that hasn't been processed yet. */
+export function selectUnprocessedImproveTask(docId: string | undefined) {
+  return (s: TaskState) => {
+    if (!docId) return null
+    const terminal: GenerationTask['status'][] = ['completed', 'failed', 'rate_limited', 'cancelled']
+    for (const t of Object.values(s.tasks)) {
+      if (t.type === 'kt_improve' && t.docId === docId && terminal.includes(t.status)) {
+        return t
+      }
+    }
+    return null
+  }
+}
+
+/** Check if there is any active improve task for a given document. */
+export function hasActiveImproveTask(docId: string | undefined) {
+  return (s: TaskState) => {
+    if (!docId) return false
+    for (const t of Object.values(s.tasks)) {
+      if (t.type === 'kt_improve' && t.docId === docId && (t.status === 'pending' || t.status === 'running')) {
+        return true
+      }
+    }
+    return false
+  }
+}
 
 // Testing utility: reset shared poller state between tests
 export function _resetTaskStoreForTesting() {

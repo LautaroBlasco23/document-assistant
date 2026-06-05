@@ -5,7 +5,7 @@ import ReactMarkdown from 'react-markdown'
 import { client } from '../../services'
 import { useKnowledgeTreeStore } from '../../stores/knowledge-tree-store'
 import { useAppStore } from '../../stores/app-store'
-import { useTaskStore } from '../../stores/task-store'
+import { useTaskStore, selectActiveImproveTask, selectUnprocessedImproveTask } from '../../stores/task-store'
 import { cn } from '../../lib/cn'
 import type { KnowledgeDocument, KnowledgeChapter } from '../../types/knowledge-tree'
 import { ChatPanel, type ChatPanelHandle } from './ChatPanel'
@@ -224,6 +224,7 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose, mode = '
   const { settings: genSettings } = useGenerationSettings()
   const addError = useAppStore((s) => s.addError)
   const improveDocument = useKnowledgeTreeStore((s) => s.improveDocument)
+  const applyImproveResult = useKnowledgeTreeStore((s) => s.applyImproveResult)
   const addHighlight = useHighlights((s) => s.add)
   const removeHighlight = useHighlights((s) => s.remove)
   const highlightDocIds = useHighlights((s) => s.highlightDocIds)
@@ -399,6 +400,7 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose, mode = '
             mode === 'formatting'
               ? `Improve formatting: ${resolvedDoc.title}`
               : `Improve text: ${resolvedDoc.title}`,
+          docId: resolvedDoc.id,
         })
         setImproveTaskId(taskId)
         handleFormatModeChange('markdown')
@@ -536,6 +538,41 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose, mode = '
       setImproveTaskId(null)
     }
   }, [improveTaskId, improveTaskEntry?.status, clearTask, addError])
+
+  // ── Re-link improve task state after navigation ──────────────────────────────────
+  // When the reader remounts (e.g. navigating back), these selectors find any
+  // active or completed improve task for the current doc in the task-store.
+  const activeImproveTask = useTaskStore(selectActiveImproveTask(resolvedDoc.id))
+  const unprocessedImproveTask = useTaskStore(selectUnprocessedImproveTask(resolvedDoc.id))
+
+  // Restore loading state for in-flight tasks that were started before navigation.
+  React.useEffect(() => {
+    if (activeImproveTask && !improveTaskId) {
+      setImproveTaskId(activeImproveTask.taskId)
+      setIsImproving(true)
+    }
+  }, [activeImproveTask?.taskId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Handle tasks that completed/failed while the component was unmounted.
+  React.useEffect(() => {
+    if (!unprocessedImproveTask) return
+    const task = unprocessedImproveTask
+    if (task.status === 'completed') {
+      if (task.result) {
+        const updatedDoc = task.result as unknown as KnowledgeDocument
+        applyImproveResult(treeId, resolvedDoc.chapter_number ?? null, resolvedDoc.id, task.result)
+        if (!isText) setCurrentDocOverride(updatedDoc)
+      }
+      clearTask(task.taskId)
+    } else {
+      const msg =
+        task.status === 'rate_limited'
+          ? `AI provider is rate-limiting. Please retry.`
+          : (task.error ?? 'Improvement failed')
+      addError(msg)
+      clearTask(task.taskId)
+    }
+  }, [unprocessedImproveTask?.taskId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const visiblePages = React.useMemo(() => {
     // Chapter-scoped PDFs are served as individually-extracted files (pages re-indexed
@@ -1040,7 +1077,7 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose, mode = '
               onEnterEdit={handleEnterEdit}
               onSave={handleSaveEdit}
               onCancel={handleCancelEdit}
-              canEdit={!isImproving}
+              canEdit={!isImproving && !activeImproveTask}
             />
           )}
         </div>
