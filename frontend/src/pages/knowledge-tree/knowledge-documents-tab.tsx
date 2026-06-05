@@ -66,20 +66,18 @@ export function KnowledgeDocumentsTab({
   chapters,
 }: KnowledgeDocumentsTabProps) {
   const navigate = useNavigate()
-  const {
-    documents: docsByKey,
-    documentsLoading,
-    fetchDocuments,
-    createDocument,
-    updateDocument,
-    deleteDocument,
-    improveDocument,
-    revertDocument,
-    ingestFileAsDocument,
-    importYouTubeDocument,
-    splitChapter,
-  } = useKnowledgeTreeStore()
   const addError = useAppStore((s) => s.addError)
+
+  // Actions — stable refs from the store
+  const fetchDocuments = useKnowledgeTreeStore((s) => s.fetchDocuments)
+  const createDocument = useKnowledgeTreeStore((s) => s.createDocument)
+  const updateDocument = useKnowledgeTreeStore((s) => s.updateDocument)
+  const deleteDocument = useKnowledgeTreeStore((s) => s.deleteDocument)
+  const improveDocument = useKnowledgeTreeStore((s) => s.improveDocument)
+  const revertDocument = useKnowledgeTreeStore((s) => s.revertDocument)
+  const ingestFileAsDocument = useKnowledgeTreeStore((s) => s.ingestFileAsDocument)
+  const importYouTubeDocument = useKnowledgeTreeStore((s) => s.importYouTubeDocument)
+  const splitChapter = useKnowledgeTreeStore((s) => s.splitChapter)
 
   const [editor, setEditor] = React.useState<DocumentEditorState | null>(null)
   const [saving, setSaving] = React.useState(false)
@@ -96,8 +94,8 @@ export function KnowledgeDocumentsTab({
   const multiFileInputRef = React.useRef<HTMLInputElement>(null)
 
   const key = docKey(treeId, selectedChapter)
-  const docs = docsByKey[key] ?? []
-  const loading = documentsLoading[key] ?? false
+  const docs = useKnowledgeTreeStore((s) => s.documents[key] ?? [])
+  const loading = useKnowledgeTreeStore((s) => s.documentsLoading[key] ?? false)
 
   const selectedChapterId = selectedChapter !== null
     ? chapters.find((c) => c.number === selectedChapter)?.id ?? null

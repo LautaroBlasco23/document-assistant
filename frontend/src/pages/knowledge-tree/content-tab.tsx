@@ -401,11 +401,16 @@ function FlashcardGenerator({ treeId, chapter, chapterTitle, flashcardCount, onF
   const [confirmDeleteAll, setConfirmDeleteAll] = React.useState(false)
   const handledRef = React.useRef<string | null>(null)
 
-  const store = useKnowledgeTreeStore()
   const submitTask = useTaskStore((s) => s.submitTask)
   const clearTask = useTaskStore((s) => s.clearTask)
   const addError = useAppStore((s) => s.addError)
   const taskEntry = useTaskEntry(taskId)
+  const fetchFlashcards = useKnowledgeTreeStore((s) => s.fetchFlashcards)
+  const generateFlashcards = useKnowledgeTreeStore((s) => s.generateFlashcards)
+  const deleteAllFlashcards = useKnowledgeTreeStore((s) => s.deleteAllFlashcards)
+  const deleteFlashcard = useKnowledgeTreeStore((s) => s.deleteFlashcard)
+  const chapterKey = `${treeId}:${chapter}`
+  const flashcards = useKnowledgeTreeStore((s) => s.flashcardsByChapter[chapterKey] ?? [])
 
   // On mount: resume any in-flight flashcard task for this chapter
   React.useEffect(() => {
@@ -433,7 +438,7 @@ function FlashcardGenerator({ treeId, chapter, chapterTitle, flashcardCount, onF
 
     if (taskEntry.status === 'completed') {
       handledRef.current = taskId
-      void store.fetchFlashcards(treeId, chapter).then(() => {
+      void fetchFlashcards(treeId, chapter).then(() => {
         onFlashcardsUpdated()
         setStatus('done')
         clearTask(taskId)
@@ -463,7 +468,7 @@ function FlashcardGenerator({ treeId, chapter, chapterTitle, flashcardCount, onF
   const handleGenerate = async () => {
     setStatus('loading')
     try {
-      const id = await store.generateFlashcards(treeId, chapter, numFlashcards)
+      const id = await generateFlashcards(treeId, chapter, numFlashcards)
       submitTask({
         taskId: id,
         type: 'kt_flashcards',
@@ -480,15 +485,13 @@ function FlashcardGenerator({ treeId, chapter, chapterTitle, flashcardCount, onF
   const handleDeleteAll = async () => {
     if (!confirmDeleteAll) { setConfirmDeleteAll(true); return }
     setConfirmDeleteAll(false)
-    await store.deleteAllFlashcards(treeId, chapter)
+    await deleteAllFlashcards(treeId, chapter)
   }
 
   const handleDeleteSingle = async (id: string) => {
-    await store.deleteFlashcard(treeId, chapter, id)
+    await deleteFlashcard(treeId, chapter, id)
   }
 
-  const chapterKey = `${treeId}:${chapter}`
-  const flashcards = store.flashcardsByChapter[chapterKey] ?? []
 
   return (
     <div className="rounded-lg border border-surface-200 dark:border-surface-200 bg-surface dark:bg-surface-200 overflow-hidden">
@@ -596,11 +599,14 @@ function QuestionGenerator({
   const [numQuestions, setNumQuestions] = React.useState<number | null>(null)
   const handledRef = React.useRef<string | null>(null)
 
-  const store = useKnowledgeTreeStore()
   const submitTask = useTaskStore((s) => s.submitTask)
   const clearTask = useTaskStore((s) => s.clearTask)
   const addError = useAppStore((s) => s.addError)
   const taskEntry = useTaskEntry(taskId)
+  const fetchQuestions = useKnowledgeTreeStore((s) => s.fetchQuestions)
+  const generateQuestions = useKnowledgeTreeStore((s) => s.generateQuestions)
+  const deleteQuestion = useKnowledgeTreeStore((s) => s.deleteQuestion)
+  const deleteAllQuestions = useKnowledgeTreeStore((s) => s.deleteAllQuestions)
 
   // On mount: resume any in-flight task for this chapter+type from the global store.
   // This covers the "navigated away while generating" case.
@@ -636,7 +642,7 @@ function QuestionGenerator({
 
     if (taskEntry.status === 'completed') {
       handledRef.current = taskId
-      void store.fetchQuestions(treeId, chapter).then(() => {
+      void fetchQuestions(treeId, chapter).then(() => {
         onQuestionsUpdated()
         setStatus('done')
         clearTask(taskId)
@@ -666,7 +672,7 @@ function QuestionGenerator({
   const handleGenerate = async () => {
     setStatus('loading')
     try {
-      const id = await store.generateQuestions(treeId, chapter, questionType, numQuestions)
+      const id = await generateQuestions(treeId, chapter, questionType, numQuestions)
       submitTask({
         taskId: id,
         type: 'kt_questions',
@@ -681,11 +687,11 @@ function QuestionGenerator({
   }
 
   const handleDelete = async (questionId: string) => {
-    await store.deleteQuestion(treeId, chapter, questionId)
+    await deleteQuestion(treeId, chapter, questionId)
   }
 
   const handleDeleteAll = async () => {
-    await store.deleteAllQuestions(treeId, chapter, questionType)
+    await deleteAllQuestions(treeId, chapter, questionType)
   }
 
   return (
@@ -741,7 +747,6 @@ export function ContentTab({ treeId, selectedChapter, chapters }: ContentTabProp
   const [agentDialogOpen, setAgentDialogOpen] = React.useState(false)
   const [editAgentDialogOpen, setEditAgentDialogOpen] = React.useState(false)
 
-  const store = useKnowledgeTreeStore()
   const { settings, setAgent } = useGenerationSettings()
   const { agents, loading: agentsLoading, refresh: refreshAgents } = useAgents()
   const { models, currentModel, loading: modelsLoading } = useModels({ recommendedFor: 'questions' })
@@ -762,22 +767,23 @@ export function ContentTab({ treeId, selectedChapter, chapters }: ContentTabProp
   }
 
   const chapterKey = selectedChapter !== null ? `${treeId}:${selectedChapter}` : null
-  const questionsByType = chapterKey ? (store.questionsByType[chapterKey] ?? {}) : {}
+  const questionsByType = useKnowledgeTreeStore((s) => chapterKey ? (s.questionsByType[chapterKey] ?? {}) : {})
+  const flashcards = useKnowledgeTreeStore((s) => chapterKey ? (s.flashcardsByChapter[chapterKey] ?? []) : [])
+  const fetchQuestions = useKnowledgeTreeStore((s) => s.fetchQuestions)
+  const fetchFlashcards = useKnowledgeTreeStore((s) => s.fetchFlashcards)
 
   const tfQuestions = (questionsByType['true_false'] ?? []) as TrueFalseQuestion[]
   const mcQuestions = (questionsByType['multiple_choice'] ?? []) as MultipleChoiceQuestion[]
   const matchingQuestions = (questionsByType['matching'] ?? []) as MatchingQuestion[]
   const cbQuestions = (questionsByType['checkbox'] ?? []) as CheckboxQuestion[]
 
-  const flashcards: FlashcardOut[] = chapterKey ? (store.flashcardsByChapter[chapterKey] ?? []) : []
-
   const currentChapter = chapters.find((c) => c.number === selectedChapter)
 
   // Load questions and flashcards when chapter is selected
   React.useEffect(() => {
     if (treeId && selectedChapter !== null) {
-      void store.fetchQuestions(treeId, selectedChapter)
-      void store.fetchFlashcards(treeId, selectedChapter)
+      void fetchQuestions(treeId, selectedChapter)
+      void fetchFlashcards(treeId, selectedChapter)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [treeId, selectedChapter])

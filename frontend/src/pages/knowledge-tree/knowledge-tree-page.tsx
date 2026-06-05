@@ -52,7 +52,11 @@ function SectionsSidebar({
   onChapterChange,
   onChaptersRefresh,
 }: SectionsSidebarProps) {
-  const { createChapter, updateChapter, deleteChapter, deleteChapters, markChapterRead } = useKnowledgeTreeStore()
+  const createChapter = useKnowledgeTreeStore((s) => s.createChapter)
+  const updateChapter = useKnowledgeTreeStore((s) => s.updateChapter)
+  const deleteChapter = useKnowledgeTreeStore((s) => s.deleteChapter)
+  const deleteChapters = useKnowledgeTreeStore((s) => s.deleteChapters)
+  const markChapterRead = useKnowledgeTreeStore((s) => s.markChapterRead)
 
   const [editingChapter, setEditingChapter] = React.useState<{ number: number; title: string } | null>(null)
   const [showNewChapter, setShowNewChapter] = React.useState(false)
@@ -386,7 +390,16 @@ export function KnowledgeTreePage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
   const addError = useAppStore((s) => s.addError)
-  const { trees, treesLoading, treesFetched, fetchTrees, chapters, fetchChapters } = useKnowledgeTreeStore()
+
+  // Store actions — stable refs
+  const fetchTrees = useKnowledgeTreeStore((s) => s.fetchTrees)
+  const fetchChapters = useKnowledgeTreeStore((s) => s.fetchChapters)
+
+  // Store data — reactive selectors
+  const trees = useKnowledgeTreeStore((s) => s.trees)
+  const treesLoading = useKnowledgeTreeStore((s) => s.treesLoading)
+  const treesFetched = useKnowledgeTreeStore((s) => s.treesFetched)
+  const chapters = useKnowledgeTreeStore((s) => s.chapters)
 
   // Chapter is URL-driven: derive from path param
   const selectedChapter = chapterParam ? parseInt(chapterParam, 10) : null

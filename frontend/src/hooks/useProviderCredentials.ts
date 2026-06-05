@@ -1,6 +1,7 @@
 import * as React from 'react'
 import { client } from '../services'
 import type { ProviderInfo, CredentialStatus } from '../types/api'
+import { useRefDataStore } from '../stores/reference-data-store'
 
 interface UseProvidersResult {
   providers: ProviderInfo[]
@@ -28,38 +29,35 @@ interface UseProviderCredentialsResult {
 }
 
 export function useProviderCredentials(): UseProviderCredentialsResult {
-  const useProviders = (): UseProvidersResult => {
-    const [providers, setProviders] = React.useState<ProviderInfo[]>([])
-    const [loading, setLoading] = React.useState(true)
+  // ─── Data hooks (read from shared store, trigger one-time fetch) ──────────
 
+  const useProviders = (): UseProvidersResult => {
     React.useEffect(() => {
-      client.listProviders()
-        .then(setProviders)
-        .catch(() => { /* ignore */ })
-        .finally(() => setLoading(false))
+      void useRefDataStore.getState().loadCredentials()
     }, [])
 
+    const providers = useRefDataStore((s) => s.providers)
+    const loading = useRefDataStore((s) => s.credentialsLoading)
     return { providers, loading }
   }
 
   const useCredentials = (): UseCredentialsResult => {
-    const [credentials, setCredentials] = React.useState<CredentialStatus[]>([])
-    const [loading, setLoading] = React.useState(true)
-
-    const refresh = React.useCallback(() => {
-      setLoading(true)
-      client.listCredentials()
-        .then(setCredentials)
-        .catch(() => { /* ignore */ })
-        .finally(() => setLoading(false))
+    React.useEffect(() => {
+      void useRefDataStore.getState().loadCredentials()
     }, [])
 
-    React.useEffect(() => {
-      refresh()
-    }, [refresh])
+    const credentials = useRefDataStore((s) => s.credentials)
+    const loading = useRefDataStore((s) => s.credentialsLoading)
+
+    const refresh = React.useCallback(() => {
+      useRefDataStore.setState({ credentialsLoaded: false })
+      void useRefDataStore.getState().loadCredentials()
+    }, [])
 
     return { credentials, loading, refresh }
   }
+
+  // ─── Mutation hooks (still factory-local, fresh state per call) ───────────
 
   const useSaveCredential = (): UseMutateResult<[string, string]> => {
     const [loading, setLoading] = React.useState(false)
@@ -70,6 +68,8 @@ export function useProviderCredentials(): UseProviderCredentialsResult {
       setError(null)
       try {
         await client.saveCredential(provider, key)
+        // Invalidate credentials cache so next load fetches fresh
+        useRefDataStore.setState({ credentialsLoaded: false })
       } catch (e) {
         setError(String(e))
       } finally {
@@ -89,6 +89,7 @@ export function useProviderCredentials(): UseProviderCredentialsResult {
       setError(null)
       try {
         await client.deleteCredential(provider)
+        useRefDataStore.setState({ credentialsLoaded: false })
       } catch (e) {
         setError(String(e))
       } finally {

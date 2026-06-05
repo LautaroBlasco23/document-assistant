@@ -32,7 +32,7 @@ vi.mock('@/services', () => ({
       provider: 'groq',
       current_model: 'llama-3.3-70b-versatile',
       models: [
-        { id: 'llama-3.3-70b-versatile', label: 'Llama 3.3 70B', role: 'smart' },
+        { id: 'llama-3.3-70b-versatile', label: 'Llama 3.3 70B', role: 'smart', quality_tier: 'high', recommended_for: ['questions', 'summary'] },
       ],
     }),
     listProviders: vi.fn().mockResolvedValue([

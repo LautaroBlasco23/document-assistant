@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, type ReactNode } from 'react'
+import { createContext, useContext, useState, useEffect, useMemo, type ReactNode } from 'react'
 import { client } from '../services'
 import type { UserProfile } from '../types/api'
 
@@ -63,8 +63,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (authToken) await fetchUser()
   }
 
+  const value = useMemo(
+    () => ({ user, token, isLoading, login, register, logout, refetchUser }),
+    [user, token, isLoading, login, register, logout, refetchUser],
+  )
+
   return (
-    <AuthContext.Provider value={{ user, token, isLoading, login, register, logout, refetchUser }}>
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   )

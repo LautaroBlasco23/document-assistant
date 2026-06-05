@@ -1,8 +1,6 @@
 import * as React from 'react'
-import { client } from '../services'
 import type { ModelInfo } from '../types/api'
-
-const TIER_ORDER: Record<string, number> = { high: 0, medium: 1, low: 2 }
+import { useRefDataStore } from '../stores/reference-data-store'
 
 interface UseModelsOptions {
   provider?: string
@@ -16,19 +14,6 @@ interface UseModelsResult {
   loading: boolean
 }
 
-function sortModels(models: ModelInfo[]): ModelInfo[] {
-  return [...models].sort((a, b) => {
-    const tierDiff = (TIER_ORDER[a.quality_tier] ?? 1) - (TIER_ORDER[b.quality_tier] ?? 1)
-    if (tierDiff !== 0) return tierDiff
-    return a.label.localeCompare(b.label)
-  })
-}
-
-function filterModels(models: ModelInfo[], recommendedFor?: string): ModelInfo[] {
-  if (!recommendedFor) return models
-  return models.filter((m) => m.recommended_for.includes(recommendedFor))
-}
-
 export function useModels(providerOrOptions?: string | UseModelsOptions): UseModelsResult {
   const providerFilter = typeof providerOrOptions === 'string'
     ? providerOrOptions
@@ -37,25 +22,22 @@ export function useModels(providerOrOptions?: string | UseModelsOptions): UseMod
     ? providerOrOptions.recommendedFor
     : undefined
 
-  const [models, setModels] = React.useState<ModelInfo[]>([])
-  const [provider, setProvider] = React.useState('')
-  const [currentModel, setCurrentModel] = React.useState('')
-  const [loading, setLoading] = React.useState(true)
-
+  // Load from shared store (idempotent — only fetches once per filter)
   React.useEffect(() => {
-    let cancelled = false
-    client.getModels(providerFilter).then((data) => {
-      if (cancelled) return
-      const filtered = filterModels(data.models, recommendedFor)
-      setModels(sortModels(filtered))
-      setProvider(data.provider)
-      setCurrentModel(data.current_model)
-      setLoading(false)
-    }).catch(() => {
-      if (!cancelled) setLoading(false)
-    })
-    return () => { cancelled = true }
-  }, [providerFilter, recommendedFor])
+    void useRefDataStore.getState().loadModels(providerFilter)
+  }, [providerFilter])
 
-  return { models, provider, currentModel, loading }
+  // Subscribe to store
+  const models = useRefDataStore((s) => s.models)
+  const provider = useRefDataStore((s) => s.modelsProvider)
+  const currentModel = useRefDataStore((s) => s.modelsCurrentModel)
+  const loading = useRefDataStore((s) => s.modelsLoading)
+
+  // Client-side filter (no re-fetch)
+  const filtered = React.useMemo(() => {
+    if (!recommendedFor) return models
+    return models.filter((m) => m.recommended_for.includes(recommendedFor))
+  }, [models, recommendedFor])
+
+  return { models: filtered, provider, currentModel, loading }
 }

@@ -7,10 +7,51 @@
  * Setup:   No API mocks needed — page reads from ThemeProvider and Zustand stores only.
  */
 
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { screen } from '@testing-library/react'
 import { SettingsPage } from './settings-page'
 import { renderWithProviders } from '@/test/utils'
+
+vi.mock('@/stores/reference-data-store', () => {
+  const store = {
+    models: [],
+    modelsProvider: '',
+    modelsCurrentModel: '',
+    modelsLoadedFilter: undefined,
+    modelsLoading: false,
+    agents: [],
+    agentsLoaded: false,
+    agentsLoading: false,
+    providers: [],
+    credentials: [],
+    credentialsLoaded: false,
+    credentialsLoading: false,
+    loadModels: vi.fn().mockResolvedValue(undefined),
+    loadAgents: vi.fn().mockResolvedValue(undefined),
+    loadCredentials: vi.fn().mockResolvedValue(undefined),
+    reset: vi.fn(),
+  }
+  const mockStore = vi.fn((selectorOrFn?: unknown) => {
+    if (typeof selectorOrFn === 'function') return selectorOrFn(store)
+    return store
+  })
+  mockStore.getState = vi.fn(() => store)
+  mockStore.setState = vi.fn()
+  return {
+    useRefDataStore: mockStore,
+    useRefData: vi.fn(() => ({
+      models: store.models,
+      modelsProvider: store.modelsProvider,
+      modelsCurrentModel: store.modelsCurrentModel,
+      modelsLoading: store.modelsLoading,
+      agents: store.agents,
+      agentsLoading: store.agentsLoading,
+      providers: store.providers,
+      credentials: store.credentials,
+      credentialsLoading: store.credentialsLoading,
+    })),
+  }
+})
 
 describe('SettingsPage', () => {
   // The page renders two main cards (Appearance, Agents) + plan link.
