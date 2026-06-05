@@ -21,15 +21,14 @@ vi.mock('@/services/index', () => ({
 }))
 
 import { client } from '@/services/index'
-import { useTaskStore } from './task-store'
+import { useTaskStore, _resetTaskStoreForTesting } from './task-store'
 
 const mockClient = vi.mocked(client, true)
 
 describe('useTaskStore', () => {
   beforeEach(() => {
     vi.useFakeTimers({ shouldAdvanceTime: true })
-    useTaskStore.setState({ tasks: {} })
-    sessionStorage.clear()
+    _resetTaskStoreForTesting()
     vi.clearAllMocks()
     mockClient.listActiveTasks.mockResolvedValue({ tasks: [] })
     mockClient.getTaskStatus.mockReset()

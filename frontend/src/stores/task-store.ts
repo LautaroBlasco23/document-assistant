@@ -1,9 +1,15 @@
 import { create } from 'zustand'
 import { client } from '../services'
 
-const pollingIntervals = new Map<string, ReturnType<typeof setInterval>>()
-
-export type GenerationTaskType = 'kt_questions' | 'kt_flashcards' | 'kt_ingest' | 'kt_create_from_file' | 'kt_improve'
+export type GenerationTaskType =
+  | 'kt_questions'
+  | 'kt_flashcards'
+  | 'kt_flashcards_bulk'
+  | 'kt_ingest'
+  | 'kt_create_from_file'
+  | 'kt_improve'
+  | 'kt_import_youtube'
+  | 'kt_flashcard'
 
 export interface GenerationTask {
   taskId: string
@@ -11,7 +17,7 @@ export interface GenerationTask {
   entityId: string
   chapter: number
   entityTitle: string
-  status: 'pending' | 'running' | 'completed' | 'failed' | 'rate_limited'
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'rate_limited' | 'cancelled'
   progress: string | null
   progressPct: number | null
   result: Record<string, unknown> | null
@@ -69,64 +75,72 @@ function removeFromSession(taskId: string) {
   }
 }
 
-function _startPolling(taskId: string) {
-  if (pollingIntervals.has(taskId)) return
+// Shared single poller — replaces per-task intervals
+let sharedPoller: ReturnType<typeof setInterval> | null = null
 
-  const interval = setInterval(async () => {
-    try {
-      const status = await client.getTaskStatus(taskId)
+function _startSharedPoller() {
+  if (sharedPoller) return
+  sharedPoller = setInterval(async () => {
+    const state = useTaskStore.getState()
+    const pendingTaskIds = Object.keys(state.tasks).filter(
+      (id) => state.tasks[id].status === 'pending' || state.tasks[id].status === 'running'
+    )
+    if (pendingTaskIds.length === 0) {
+      // Nothing to poll — stop
+      if (sharedPoller) {
+        clearInterval(sharedPoller)
+        sharedPoller = null
+      }
+      return
+    }
 
-      useTaskStore.setState((state) => {
-        const existing = state.tasks[taskId]
-        if (!existing) {
-          clearInterval(interval)
-          pollingIntervals.delete(taskId)
-          return state
-        }
-        const updated: GenerationTask = {
-          ...existing,
-          status: status.status as GenerationTask['status'],
-          progress: status.progress ?? null,
-          progressPct: status.progress_pct ?? null,
-          result: (status.result as Record<string, unknown> | null) ?? null,
-          error: status.error ?? null,
-        }
-        if (status.status === 'completed' || status.status === 'failed' || status.status === 'rate_limited') {
-          clearInterval(interval)
-          pollingIntervals.delete(taskId)
+    // Batch: poll each active task
+    for (const taskId of pendingTaskIds) {
+      try {
+        const status = await client.getTaskStatus(taskId)
+        useTaskStore.setState((s) => {
+          const existing = s.tasks[taskId]
+          if (!existing) return s
+          const updated: GenerationTask = {
+            ...existing,
+            status: status.status as GenerationTask['status'],
+            progress: status.progress ?? null,
+            progressPct: status.progress_pct ?? null,
+            result: (status.result as Record<string, unknown> | null) ?? null,
+            error: status.error ?? null,
+          }
+          if (status.status === 'completed' || status.status === 'failed' || status.status === 'rate_limited' || status.status === 'cancelled') {
+            removeFromSession(taskId)
+          }
+          return { tasks: { ...s.tasks, [taskId]: updated } }
+        })
+      } catch (err) {
+        const is404 = err instanceof Error && err.message.includes('404')
+        if (is404) {
+          useTaskStore.setState((s) => {
+            const updated: Record<string, GenerationTask> = {}
+            for (const key of Object.keys(s.tasks)) {
+              if (key !== taskId) updated[key] = s.tasks[key]
+            }
+            return { tasks: updated }
+          })
+          removeFromSession(taskId)
+        } else {
+          useTaskStore.setState((s) => {
+            const existing = s.tasks[taskId]
+            if (!existing) return s
+            return {
+              tasks: {
+                ...s.tasks,
+                [taskId]: { ...existing, status: 'failed', error: 'Lost connection to server' },
+              },
+            }
+          })
           removeFromSession(taskId)
         }
-        return { tasks: { ...state.tasks, [taskId]: updated } }
-      })
-    } catch (err) {
-      const is404 = err instanceof Error && err.message.includes('404')
-      clearInterval(interval)
-      pollingIntervals.delete(taskId)
-      removeFromSession(taskId)
-      if (is404) {
-        useTaskStore.setState((state) => {
-          const updated: Record<string, GenerationTask> = {}
-          for (const key of Object.keys(state.tasks)) {
-            if (key !== taskId) updated[key] = state.tasks[key]
-          }
-          return { tasks: updated }
-        })
-      } else {
-        useTaskStore.setState((state) => {
-          const existing = state.tasks[taskId]
-          if (!existing) return state
-          return {
-            tasks: {
-              ...state.tasks,
-              [taskId]: { ...existing, status: 'failed', error: 'Lost connection to server' },
-            },
-          }
-        })
       }
     }
   }, 1500)
-
-  pollingIntervals.set(taskId, interval)
 }
 
 function _addTask(taskId: string, type: GenerationTaskType, entityId: string, chapter: number, entityTitle: string) {
@@ -151,23 +165,18 @@ function _addTask(taskId: string, type: GenerationTaskType, entityId: string, ch
     }
   })
   persistToSession({ taskId, type, entityId, chapter, entityTitle })
-  _startPolling(taskId)
+  _startSharedPoller()
 }
 
 export const useTaskStore = create<TaskState>((set) => ({
   tasks: {},
 
   submitTask: ({ taskId, type, entityId, chapter, entityTitle }) => {
-    if (pollingIntervals.has(taskId)) return
+    if (useTaskStore.getState().tasks[taskId]) return
     _addTask(taskId, type, entityId, chapter, entityTitle)
   },
 
   clearTask: (taskId: string) => {
-    const interval = pollingIntervals.get(taskId)
-    if (interval !== undefined) {
-      clearInterval(interval)
-      pollingIntervals.delete(taskId)
-    }
     removeFromSession(taskId)
     set((state) => {
       const updated: Record<string, GenerationTask> = {}
@@ -176,38 +185,51 @@ export const useTaskStore = create<TaskState>((set) => ({
       }
       return { tasks: updated }
     })
+    // Stop shared poller if no active tasks remain
+    const remaining = Object.values(useTaskStore.getState().tasks)
+    if (!remaining.some((t) => t.status === 'pending' || t.status === 'running')) {
+      if (sharedPoller) {
+        clearInterval(sharedPoller)
+        sharedPoller = null
+      }
+    }
   },
 
   rehydrateFromBackend: async () => {
-    // Clear old legacy session storage key to avoid stale entries
     try {
       sessionStorage.removeItem('docassist_active_tasks')
     } catch {
       // ignore
     }
     try {
-      await client.listActiveTasks()
-      // KT tasks are transient; no rehydration needed from backend
+      const active = await client.listActiveTasks()
+      // Rehydrate any active tasks from the backend
+      for (const row of active.tasks) {
+        const state = useTaskStore.getState()
+        if (!state.tasks[row.task_id]) {
+          _addTask(
+            row.task_id,
+            row.task_type as GenerationTaskType,
+            row.doc_hash || row.filename || '',
+            row.chapter,
+            row.book_title || row.filename,
+          )
+        }
+      }
     } catch {
       // ignore network errors during rehydration
     }
   },
 }))
 
-function _rehydrateFromSession() {
-  try {
-    const raw = sessionStorage.getItem(SESSION_KEY)
-    if (!raw) return
-    const entries = JSON.parse(raw) as PersistedTask[]
-    for (const entry of entries) {
-      _addTask(entry.taskId, entry.type, entry.entityId, entry.chapter, entry.entityTitle)
-    }
-  } catch {
-    sessionStorage.removeItem(SESSION_KEY)
-  }
-}
+// Rehydration is handled by App.tsx useEffect — no module-level side effects here.
 
-// Rehydrate from backend; fallback to sessionStorage if backend is unreachable.
-useTaskStore.getState().rehydrateFromBackend().catch(() => {
-  _rehydrateFromSession()
-})
+// Testing utility: reset shared poller state between tests
+export function _resetTaskStoreForTesting() {
+  if (sharedPoller) {
+    clearInterval(sharedPoller)
+    sharedPoller = null
+  }
+  useTaskStore.setState({ tasks: {} })
+  sessionStorage.removeItem(SESSION_KEY)
+}
