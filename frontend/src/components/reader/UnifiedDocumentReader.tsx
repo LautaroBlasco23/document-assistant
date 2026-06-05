@@ -372,7 +372,7 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose, mode = '
   const [improveDialog, setImproveDialog] = React.useState<{
     open: boolean
     mode: 'text' | 'formatting'
-  }>({ open: false, mode: 'text' })
+  }>({ open: false, mode: 'formatting' })
 
   const handleOpenImproveDialog = React.useCallback((mode: 'text' | 'formatting') => {
     setImproveDialog({ open: true, mode })

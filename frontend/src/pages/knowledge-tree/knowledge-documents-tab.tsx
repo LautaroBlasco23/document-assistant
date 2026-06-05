@@ -849,7 +849,7 @@ function DocumentCard({ doc, onEdit, onDelete, onRead, onImprove, onRevert, onUp
       <ImproveDialog
         open={improveOpen}
         onOpenChange={(o) => { if (!acting) setImproveOpen(o) }}
-        mode="text"
+        mode="formatting"
         modeSelectable
         onConfirm={handleConfirmImprove}
         isImproving={acting}
