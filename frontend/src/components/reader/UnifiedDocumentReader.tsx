@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { useNavigate } from 'react-router-dom'
-import { X, Sparkles, PanelLeft, PanelRight, BookOpen, MessageCircleQuestion, Maximize, Minimize, ZoomIn, ZoomOut, AlignJustify, Highlighter, Trash2, Columns2, Copy, Search } from 'lucide-react'
+import { X, Sparkles, PanelLeft, PanelRight, BookOpen, MessageCircleQuestion, Maximize, Minimize, ZoomIn, ZoomOut, RotateCcw, ChevronDown, AlignJustify, Highlighter, Trash2, Columns2, Copy, Search } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import { client } from '../../services'
 import { useKnowledgeTreeStore } from '../../stores/knowledge-tree-store'
@@ -52,6 +52,37 @@ function loadLastPage(treeId: string, docId: string): number | undefined {
   return undefined
 }
 
+// ── Per-document zoom ─────────────────────────────────────────────────────────
+
+export const ZOOM_LEVELS = [0.75, 1, 1.25, 1.5, 1.75, 2] as const
+
+export function snapZoom(z: number, dir: 1 | -1): number {
+  const levels = ZOOM_LEVELS
+  if (dir === 1) {
+    return levels.find((l) => l > z + 1e-6) ?? levels[levels.length - 1]
+  }
+  return [...levels].reverse().find((l) => l < z - 1e-6) ?? levels[0]
+}
+
+function zoomKey(treeId: string, docId: string): string {
+  return `docassist_reader_zoom:${treeId}:${docId}`
+}
+
+export function loadDocZoom(treeId: string, docId: string): number {
+  try {
+    const raw = localStorage.getItem(zoomKey(treeId, docId))
+    if (raw) {
+      const n = parseFloat(raw)
+      if (Number.isFinite(n) && n >= 0.5 && n <= 2) return n
+    }
+  } catch { /* ignore */ }
+  return 1
+}
+
+export function saveDocZoom(treeId: string, docId: string, v: number) {
+  try { localStorage.setItem(zoomKey(treeId, docId), String(v)) } catch { /* ignore */ }
+}
+
 export function UnifiedDocumentReader({ doc, treeId, chapters, onClose, mode = 'modal', chapterNumber }: UnifiedDocumentReaderProps) {
   const navigate = useNavigate()
   const isPageMode = mode === 'page'
@@ -90,7 +121,15 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose, mode = '
   const [showRight, setShowRight] = React.useState(() => useReaderPreferences.getState().preferences.defaultShowRight)
   const [contentWidth, setContentWidth] = React.useState(() => useReaderPreferences.getState().preferences.contentWidth)
   const [isFullscreen, setIsFullscreen] = React.useState(!isPageMode)
-  const [zoom, setZoom] = React.useState(() => useReaderPreferences.getState().preferences.zoom)
+  const [zoom, setZoomState] = React.useState<number>(() => loadDocZoom(treeId, doc.id))
+  const setZoom = React.useCallback((next: number | ((prev: number) => number)) => {
+    setZoomState((prev) => {
+      const v = typeof next === 'function' ? next(prev) : next
+      const clamped = Math.max(0.5, Math.min(2, Number.isFinite(v) ? v : 1))
+      saveDocZoom(treeId, doc.id, clamped)
+      return clamped
+    })
+  }, [treeId, doc.id])
   const [contextMenu, setContextMenu] = React.useState<{
     x: number
     y: number
@@ -747,16 +786,23 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose, mode = '
     window.getSelection()?.removeAllRanges()
   }
 
-  const zoomIn = React.useCallback(() => setZoom((z) => {
-    const next = Math.min(2, +(z + 0.1).toFixed(1))
-    useReaderPreferences.getState().update({ zoom: next })
-    return next
-  }), [])
-  const zoomOut = React.useCallback(() => setZoom((z) => {
-    const next = Math.max(0.5, +(z - 0.1).toFixed(1))
-    useReaderPreferences.getState().update({ zoom: next })
-    return next
-  }), [])
+  const zoomIn = React.useCallback(() => setZoom((z) => snapZoom(z, 1)), [setZoom])
+  const zoomOut = React.useCallback(() => setZoom((z) => snapZoom(z, -1)), [setZoom])
+  const zoomReset = React.useCallback(() => setZoom(1), [setZoom])
+
+  const [zoomMenuOpen, setZoomMenuOpen] = React.useState(false)
+  const zoomMenuRef = React.useRef<HTMLDivElement>(null)
+
+  React.useEffect(() => {
+    if (!zoomMenuOpen) return
+    const handler = (e: MouseEvent) => {
+      if (zoomMenuRef.current && !zoomMenuRef.current.contains(e.target as Node)) {
+        setZoomMenuOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [zoomMenuOpen])
 
   const zoomInRef = React.useRef(zoomIn)
   zoomInRef.current = zoomIn
@@ -871,28 +917,68 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose, mode = '
 
           {/* Zoom controls */}
           {(isTruePdf || isText || isContentOnly || isYouTube) && (
-            <div className="flex items-center gap-0.5 bg-surface dark:bg-surface-200 rounded-md shadow-sm border border-surface-200 dark:border-surface-200 px-1.5 py-0.5">
+            <div ref={zoomMenuRef} className="relative flex items-center gap-0.5 bg-surface dark:bg-surface-200 rounded-md shadow-sm border border-surface-200 dark:border-surface-200 px-1.5 py-0.5">
               <button
                 onClick={zoomOut}
-                disabled={zoom <= 0.5}
+                disabled={zoom <= ZOOM_LEVELS[0]}
                 className="p-0.5 rounded text-text-tertiary hover:text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                 aria-label="Zoom out"
                 title="Zoom out"
               >
                 <ZoomOut className="h-3.5 w-3.5" />
               </button>
-              <span className="text-xs tabular-nums text-text-tertiary min-w-[3ch] text-center select-none">
+              <button
+                onClick={() => setZoomMenuOpen((o) => !o)}
+                className="flex items-center gap-0.5 px-1 rounded text-xs tabular-nums text-text-tertiary hover:text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100 transition-colors min-w-[3ch] text-center select-none"
+                aria-haspopup="menu"
+                aria-expanded={zoomMenuOpen}
+                title="Select zoom level"
+              >
                 {Math.round(zoom * 100)}%
-              </span>
+                <ChevronDown className={cn('h-3 w-3 transition-transform', zoomMenuOpen && 'rotate-180')} />
+              </button>
               <button
                 onClick={zoomIn}
-                disabled={zoom >= 2}
+                disabled={zoom >= ZOOM_LEVELS[ZOOM_LEVELS.length - 1]}
                 className="p-0.5 rounded text-text-tertiary hover:text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                 aria-label="Zoom in"
                 title="Zoom in"
               >
                 <ZoomIn className="h-3.5 w-3.5" />
               </button>
+              <button
+                onClick={zoomReset}
+                disabled={zoom === 1}
+                className="p-0.5 rounded text-text-tertiary hover:text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors ml-0.5"
+                aria-label="Reset zoom"
+                title="Reset zoom to 100%"
+              >
+                <RotateCcw className="h-3 w-3" />
+              </button>
+
+              {zoomMenuOpen && (
+                <div className="absolute right-0 top-full mt-1 z-[70] bg-surface dark:bg-surface-200 rounded-lg shadow-lg border border-surface-200 dark:border-surface-200 py-1 min-w-[100px]">
+                  <div className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-text-tertiary">
+                    Zoom
+                  </div>
+                  {ZOOM_LEVELS.map((level) => (
+                    <button
+                      key={level}
+                      onClick={() => { setZoom(level); setZoomMenuOpen(false) }}
+                      className={cn(
+                        'w-full flex items-center gap-2 px-3 py-1.5 text-sm transition-colors',
+                        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset',
+                        level === zoom
+                          ? 'text-primary bg-primary-light dark:bg-primary/12'
+                          : 'text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100'
+                      )}
+                    >
+                      {Math.round(level * 100)}%
+                      {level === zoom && <span className="ml-auto text-xs text-primary">✓</span>}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
