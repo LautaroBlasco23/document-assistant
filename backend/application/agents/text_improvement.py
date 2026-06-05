@@ -58,6 +58,7 @@ class TextImprovementAgent(BaseAgent):
         params: GenerationParams | None = None,
         agent_prompt: str | None = None,
         mode: str = "text",
+        max_retries: int = 2,
     ) -> str:
         """Rewrite text with improved style and Markdown formatting.
 
@@ -66,6 +67,7 @@ class TextImprovementAgent(BaseAgent):
             params: Optional generation parameters.
             agent_prompt: Optional user-defined agent prompt prepended to the system prompt.
             mode: "text" to rewrite content, "formatting" to only apply Markdown structure.
+            max_retries: Number of retries on transient failures (empty responses).
 
         Returns:
             The improved, Markdown-formatted text.
@@ -73,8 +75,24 @@ class TextImprovementAgent(BaseAgent):
         base = _SYSTEM_FORMATTING if mode == "formatting" else _SYSTEM
         system = (agent_prompt + "\n\n" + base) if agent_prompt else base
         preprocessed = preprocess_for_improvement(text)
-        try:
-            return self._call(system, preprocessed, params=params)
-        except Exception as e:
-            logger.error("Text improvement LLM call failed: %s", e)
-            raise
+        
+        last_error = None
+        for attempt in range(max_retries + 1):
+            try:
+                return self._call(system, preprocessed, params=params)
+            except ValueError as e:
+                # Retry on empty response errors (transient LLM issues)
+                if "empty response" in str(e).lower() and attempt < max_retries:
+                    logger.warning(
+                        "Text improvement attempt %d/%d failed: %s. Retrying...",
+                        attempt + 1, max_retries + 1, e
+                    )
+                    last_error = e
+                    continue
+                raise
+            except Exception as e:
+                logger.error("Text improvement LLM call failed: %s", e)
+                raise
+        
+        # Should not reach here, but just in case
+        raise last_error

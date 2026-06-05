@@ -69,6 +69,13 @@ def improve_document_task(
     agent = TextImprovementAgent(llm)
     improved = agent.improve(doc.content, params=params, agent_prompt=agent_prompt, mode=mode)
 
+    # Defensive check: ensure we got a valid string
+    if not improved or not isinstance(improved, str):
+        raise ValueError(
+            f"LLM returned invalid response (type: {type(improved).__name__}, "
+            f"value: {repr(improved)[:100]})"
+        )
+
     # Post-processing: clean up any residual markers the LLM missed
     improved = _clean_residual_markers(improved)
 

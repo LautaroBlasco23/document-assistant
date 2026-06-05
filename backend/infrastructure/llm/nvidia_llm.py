@@ -111,7 +111,29 @@ class NvidiaLLM(LLM):
         is_bg = _current_task.get() is not None
         max_retries = self._max_retries if is_bg else self._max_retries_chat
         resp = self._request(payload, max_retries_override=max_retries)
-        return resp.json()["choices"][0]["message"]["content"]
+        
+        response_json = resp.json()
+        message = response_json["choices"][0]["message"]
+        content = message.get("content")
+        
+        if content is None:
+            # Log full response structure for diagnostics
+            logger.error(
+                "Nvidia API returned null content for model '%s'. "
+                "Full message object: %s | Finish reason: %s",
+                self._model,
+                message,
+                response_json["choices"][0].get("finish_reason"),
+            )
+            # Check for reasoning_content (some models put text there)
+            content = message.get("reasoning_content", "")
+            if not content:
+                raise ValueError(
+                    f"LLM returned empty response (finish_reason: "
+                    f"{response_json['choices'][0].get('finish_reason')})"
+                )
+        
+        return content
 
     def _request(
         self, payload: dict, stream: bool = False, max_retries_override: int | None = None
