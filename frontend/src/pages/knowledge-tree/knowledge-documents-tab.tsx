@@ -279,33 +279,10 @@ export function KnowledgeDocumentsTab({
     }
   }
 
-  const isMain = selectedChapter === null
-  const mainDoc = isMain ? docs.find((d) => d.is_main) : undefined
-
-  const handleSaveMainDoc = async (newContent: string) => {
-    setSaving(true)
-    try {
-      if (mainDoc) {
-        await updateDocument(mainDoc.id, mainDoc.title, newContent, treeId, null)
-      } else {
-        await createDocument(treeId, null, 'Overview', newContent, true)
-      }
-    } finally {
-      setSaving(false)
-    }
-  }
-
   return (
     <div className="flex flex-col gap-3 min-w-0">
         {loading ? (
           <div className="text-sm text-text-tertiary mt-4">Loading documents...</div>
-        ) : isMain ? (
-          /* Tree-level: single main document (editable inline) */
-          <MainDocEditor
-            doc={mainDoc ?? null}
-            saving={saving}
-            onSave={handleSaveMainDoc}
-          />
         ) : (
           /* Chapter level: list of docs */
           <>
@@ -534,62 +511,6 @@ export function KnowledgeDocumentsTab({
      </div>
    )
  }
-
-// ─── Sub-components ───────────────────────────────────────────────────────────
-
-interface MainDocEditorProps {
-  doc: KnowledgeDocument | null
-  saving: boolean
-  onSave: (content: string) => Promise<void>
-}
-
-function MainDocEditor({ doc, saving, onSave }: MainDocEditorProps) {
-  const [content, setContent] = React.useState(doc?.content ?? '')
-  const [dirty, setDirty] = React.useState(false)
-
-  // Sync when doc changes
-  React.useEffect(() => {
-    setContent(doc?.content ?? '')
-    setDirty(false)
-  }, [doc?.id])
-
-  const handleChange = (val: string) => {
-    setContent(val)
-    setDirty(val !== (doc?.content ?? ''))
-  }
-
-  return (
-    <div className="flex flex-col gap-2">
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="text-sm font-semibold text-text-primary">Overview Document</h3>
-          <p className="text-xs text-text-tertiary">Describes the overall scope of this knowledge tree.</p>
-        </div>
-        {dirty && (
-          <Button
-            variant="primary"
-            size="sm"
-            onClick={() => void onSave(content)}
-            disabled={saving}
-          >
-            <Check className="h-3.5 w-3.5 mr-1" />
-            {saving ? 'Saving...' : 'Save'}
-          </Button>
-        )}
-      </div>
-      <textarea
-        className="w-full rounded-lg border border-surface-200 dark:border-surface-200 bg-surface-100 dark:bg-surface px-3 py-2.5 text-sm text-text-secondary placeholder-gray-400 dark:placeholder-slate-500 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary resize-none font-mono leading-relaxed"
-        rows={18}
-        placeholder="Write an overview of this knowledge tree. Describe the main topics, goals, and structure..."
-        value={content}
-        onChange={(e) => handleChange(e.target.value)}
-      />
-      <p className="text-xs text-text-tertiary">
-        This document describes the overall scope. The AI will use it to provide context when generating content for each chapter.
-      </p>
-    </div>
-  )
-}
 
 interface DocumentCardProps {
   doc: KnowledgeDocument

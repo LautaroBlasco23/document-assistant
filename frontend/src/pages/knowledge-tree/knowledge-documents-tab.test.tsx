@@ -107,14 +107,6 @@ describe('KnowledgeDocumentsTab', () => {
     vi.spyOn(window, 'confirm').mockReturnValue(true)
   })
 
-  // At the tree level (no chapter selected) the main document editor should be visible.
-  it('renders main doc editor when selectedChapter is null', () => {
-    renderTab({ treeId: 'tree-1', selectedChapter: null })
-
-    expect(screen.getByText('Overview Document')).toBeInTheDocument()
-    expect(screen.getByPlaceholderText(/write an overview/i)).toBeInTheDocument()
-  })
-
   // Chapter-level documents should render as cards with thumbnails when available.
   it('renders document cards with thumbnails', () => {
     const doc = {

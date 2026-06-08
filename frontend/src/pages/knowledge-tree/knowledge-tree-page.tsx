@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { useParams, Link, useSearchParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, TreePine, Layers, Pencil, Plus, FileText, BookMarked, Check, X, Trash2, FolderOpen, Download, BookOpenCheck } from 'lucide-react'
+import { ArrowLeft, TreePine, Layers, Pencil, Plus, FileText, Check, X, Trash2, FolderOpen, Download, BookOpenCheck } from 'lucide-react'
 import { cn } from '../../lib/cn'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../../components/ui/tabs'
 import { Badge } from '../../components/ui/badge'
@@ -166,19 +166,6 @@ function SectionsSidebar({
       >
         <FolderOpen className="h-3.5 w-3.5 shrink-0" />
         <span className="truncate">Documents</span>
-      </button>
-
-      {/* Tree-level (overview) */}
-      <button
-        onClick={() => onChapterChange(null)}
-        className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm text-left w-full transition-colors sidebar-border-blue ${
-          selectedChapter === null && !showAllDocuments
-            ? 'bg-primary-light dark:bg-primary/12 text-primary font-medium'
-            : 'text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100'
-        }`}
-      >
-        <BookMarked className="h-3.5 w-3.5 shrink-0" />
-        <span className="truncate">Overview</span>
       </button>
 
       {/* Divider */}
@@ -549,12 +536,6 @@ export function KnowledgeTreePage() {
               treeId={treeId}
               chapters={treeChapters}
               resumeDocId={resumeDocId}
-            />
-          ) : selectedChapter === null ? (
-            <KnowledgeDocumentsTab
-              treeId={treeId}
-              selectedChapter={null}
-              chapters={treeChapters}
             />
           ) : (
             <Tabs value={activeTab} onValueChange={(v) => handleTabChange(v as KnowledgeTreeTab)}>
