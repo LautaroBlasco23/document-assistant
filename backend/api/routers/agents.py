@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/agents", tags=["agents"])
 
-_KNOWN_PROVIDERS = frozenset({"groq", "openrouter", "huggingface", "nvidia", "gemini", "ollama"})
+_KNOWN_PROVIDERS = frozenset({"groq", "openrouter", "huggingface", "nvidia", "gemini", "ollama", "llamacpp"})
 
 
 class AgentOut(BaseModel):

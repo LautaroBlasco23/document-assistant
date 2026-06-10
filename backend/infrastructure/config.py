@@ -71,6 +71,13 @@ class GeminiConfig(BaseModel):
     requests_per_minute: int = 8  # Flash has hard 250 RPD cap
 
 
+class LlamaCppConfig(BaseModel):
+    base_url: str = "http://localhost:8080/v1"
+    model: str = ""
+    fast_model: str | None = None
+    timeout: int = 300
+
+
 class ChunkingConfig(BaseModel):
     max_tokens: int = 512
     overlap_tokens: int = 128
@@ -109,13 +116,14 @@ class AppConfig(BaseSettings):
     huggingface: HuggingFaceConfig = HuggingFaceConfig()
     nvidia: NvidiaConfig = NvidiaConfig()
     gemini: GeminiConfig = GeminiConfig()
+    llamacpp: LlamaCppConfig = LlamaCppConfig()
     chunking: ChunkingConfig = ChunkingConfig()
     postgres: PostgresConfig = PostgresConfig()
     exam: ExamConfig = ExamConfig()
     epub: EpubConfig = EpubConfig()
     auth: AuthConfig = AuthConfig()
     llm_provider: str = ""
-    # supported: ollama | groq | openrouter | huggingface | nvidia | gemini
+    # supported: ollama | groq | openrouter | huggingface | nvidia | gemini | llamacpp
     flashcard_model: str = "main"  # "main" | "fast"
 
     model_config = {
@@ -189,6 +197,7 @@ def save_config(config: AppConfig, config_path: Path | None = None) -> None:
     _prune_empty(data.get("huggingface", {}), "fast_model")
     _prune_empty(data.get("nvidia", {}), "fast_model")
     _prune_empty(data.get("gemini", {}), "fast_model")
+    _prune_empty(data.get("llamacpp", {}), "fast_model")
 
     with open(config_path, "w") as f:
         yaml.dump(data, f, default_flow_style=False)

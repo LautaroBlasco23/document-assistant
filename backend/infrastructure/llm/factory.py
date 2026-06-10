@@ -57,6 +57,12 @@ _PROVIDER_REGISTRY: dict[str, ProviderSpec] = {
         model_field="generation_model",
         display_name="Ollama",
     ),
+    "llamacpp": ProviderSpec(
+        llm_cls=lambda: _import_cls("infrastructure.llm.llamacpp_llm", "LlamaCppLLM"),
+        config_fn=lambda c: c.llamacpp,
+        key_fn=lambda c: "",
+        display_name="llama.cpp",
+    ),
 }
 
 
@@ -87,7 +93,7 @@ def _build_config_with_overrides(
     updates: dict = {}
     if model is not None:
         updates[spec.model_field] = model
-    if api_key is not None:
+    if api_key:
         updates["api_key"] = api_key
     if updates:
         provider_config = provider_config.model_copy(update=updates)
@@ -103,7 +109,7 @@ def _create(
     """Core creation logic: validate key, build config, instantiate LLM."""
     spec = _resolve_provider(provider)
     key = api_key or spec.key_fn(config)
-    if not key and provider != "ollama":
+    if not key and provider not in ("ollama", "llamacpp"):
         raise ValueError(
             f"{spec.display_name} API key required. "
             f"Set DOCASSIST_{provider.upper()}__API_KEY environment variable."
@@ -121,7 +127,7 @@ def create_llm(config: AppConfig) -> LLM:
         raise ValueError(
             "No LLM provider configured. "
             "Set DOCASSIST_LLM_PROVIDER "
-            "(e.g. groq, openrouter, ollama, huggingface, nvidia, gemini)."
+            "(e.g. groq, openrouter, ollama, huggingface, nvidia, gemini, llamacpp)."
         )
     return _create(config.llm_provider, config)
 
@@ -144,7 +150,7 @@ def create_llm_with_model(config: AppConfig, model_name: str) -> LLM:
         raise ValueError(
             "No LLM provider configured. "
             "Set DOCASSIST_LLM_PROVIDER "
-            "(e.g. groq, openrouter, ollama, huggingface, nvidia, gemini)."
+            "(e.g. groq, openrouter, ollama, huggingface, nvidia, gemini, llamacpp)."
         )
     return _create(config.llm_provider, config, model=model_name)
 

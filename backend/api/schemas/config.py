@@ -70,6 +70,15 @@ class ChunkingConfigOut(BaseModel):
     overlap_tokens: int
 
 
+class LlamaCppConfigOut(BaseModel):
+    """llama.cpp server configuration."""
+
+    base_url: str
+    model: str
+    fast_model: str | None = None
+    timeout: int
+
+
 class ConfigOut(BaseModel):
     """Full application configuration."""
 
@@ -80,6 +89,7 @@ class ConfigOut(BaseModel):
     ollama: OllamaConfigOut
     openrouter: OpenRouterConfigOut
     huggingface: HuggingFaceConfigOut
+    llamacpp: LlamaCppConfigOut
     chunking: ChunkingConfigOut
 
 
@@ -93,4 +103,5 @@ class ConfigUpdate(BaseModel):
     ollama: OllamaConfigOut | None = None
     openrouter: OpenRouterConfigOut | None = None
     huggingface: HuggingFaceConfigOut | None = None
+    llamacpp: LlamaCppConfigOut | None = None
     chunking: ChunkingConfigOut | None = None

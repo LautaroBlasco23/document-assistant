@@ -13,8 +13,8 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-_KNOWN_PROVIDERS = frozenset({"groq", "openrouter", "huggingface", "nvidia", "gemini", "ollama"})
-_ALL_PROVIDERS = ["groq", "openrouter", "huggingface", "nvidia", "gemini", "ollama"]
+_KNOWN_PROVIDERS = frozenset({"groq", "openrouter", "huggingface", "nvidia", "gemini", "ollama", "llamacpp"})
+_ALL_PROVIDERS = ["groq", "openrouter", "huggingface", "nvidia", "gemini", "ollama", "llamacpp"]
 
 
 # ---------------------------------------------------------------------------
@@ -98,6 +98,8 @@ async def save_credential(
         raise HTTPException(status_code=422, detail=f"Unknown provider: {provider}")
     if provider == "ollama":
         raise HTTPException(status_code=400, detail="Ollama does not use API keys")
+    if provider == "llamacpp":
+        raise HTTPException(status_code=400, detail="llama.cpp does not use API keys")
 
     encrypted = services.encryption.encrypt(req.api_key)
     last4 = req.api_key[-4:] if len(req.api_key) >= 4 else ""

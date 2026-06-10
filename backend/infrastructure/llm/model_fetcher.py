@@ -333,3 +333,50 @@ def fetch_gemini_models(
         return stale[1]
 
     return fallback or []
+
+
+# ---------------------------------------------------------------------------
+# llama.cpp server model fetching — local, no auth
+# ---------------------------------------------------------------------------
+
+def _fetch_llamacpp_live(base_url: str) -> list[dict]:
+    """Fetch available models from a running llama-server via GET /models."""
+    url = f"{base_url.rstrip('/')}/models"
+    resp = requests.get(url, timeout=5)
+    resp.raise_for_status()
+    data = resp.json().get("data", [])
+    if not isinstance(data, list):
+        logger.warning("llama.cpp /models returned unexpected format: %s", type(data))
+        return []
+
+    models: list[dict] = []
+    for entry in data:
+        mid = entry.get("id", "")
+        if not mid or not isinstance(mid, str):
+            continue
+        models.append({"id": mid, "label": mid, "role": None})
+    return models
+
+
+def fetch_llamacpp_models(
+    api_key: str, base_url: str, fallback: list[dict] | None = None
+) -> list[dict]:
+    """Return llama-server models (cached 1 h), falling back to *fallback* on failure."""
+    cached = _cache_get("llamacpp")
+    if cached is not None:
+        return cached
+
+    try:
+        live = _fetch_llamacpp_live(base_url)
+        if live:
+            _cache_set("llamacpp", live)
+            return live
+    except Exception:
+        logger.warning("Failed to fetch live llama.cpp models", exc_info=True)
+
+    stale = _model_cache.get("llamacpp")
+    if stale is not None:
+        logger.info("Using stale llama.cpp model cache")
+        return stale[1]
+
+    return fallback or []

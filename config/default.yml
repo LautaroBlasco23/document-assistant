@@ -56,6 +56,12 @@ gemini:
   max_retries_chat: 1
   requests_per_minute: 8  # Flash has hard 250 RPD cap; Flash-Lite 1000 RPD
 
+llamacpp:
+  base_url: "http://localhost:8080/v1"
+  model: ""  # set via DOCASSIST_LLAMACPP__MODEL
+  fast_model: ""  # set via DOCASSIST_LLAMACPP__FAST_MODEL
+  timeout: 300
+
 chunking:
   max_tokens: 512
   overlap_tokens: 128

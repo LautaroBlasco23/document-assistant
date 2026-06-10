@@ -133,6 +133,35 @@ def test_provider_huggingface_always_ok():
 
 
 # ---------------------------------------------------------------------------
+# llama.cpp provider
+# ---------------------------------------------------------------------------
+
+
+def test_provider_llamacpp_success():
+    """llamacpp connection test must return (True, None, model_count) on success."""
+    with patch("application.services.provider_service.fetch_llamacpp_models") as mock_fetch:
+        mock_fetch.return_value = [{"id": "local-model"}]
+
+        ok, error, count = test_provider("llamacpp", "", _make_config())
+
+        assert ok is True
+        assert error is None
+        assert count == 1
+
+
+def test_provider_llamacpp_failure():
+    """llamacpp connection test must return (False, error, None) when server is unreachable."""
+    with patch("application.services.provider_service.fetch_llamacpp_models") as mock_fetch:
+        mock_fetch.side_effect = ConnectionError("Connection refused")
+
+        ok, error, count = test_provider("llamacpp", "", _make_config())
+
+        assert ok is False
+        assert "Connection refused" in error
+        assert count is None
+
+
+# ---------------------------------------------------------------------------
 # Unknown provider
 # ---------------------------------------------------------------------------
 

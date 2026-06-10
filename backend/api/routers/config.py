@@ -12,6 +12,7 @@ from api.schemas.config import (
     GeminiConfigOut,
     GroqConfigOut,
     HuggingFaceConfigOut,
+    LlamaCppConfigOut,
     NvidiaConfigOut,
     OllamaConfigOut,
     OpenRouterConfigOut,
@@ -19,6 +20,7 @@ from api.schemas.config import (
 from infrastructure.llm.model_fetcher import (
     fetch_gemini_models,
     fetch_groq_models,
+    fetch_llamacpp_models,
     fetch_nvidia_models,
     fetch_openrouter_models,
 )
@@ -58,6 +60,7 @@ _FALLBACK_MODELS: dict[str, list[dict]] = {
         {"id": "gemini-2.5-flash-lite", "label": "Gemini 2.5 Flash-Lite (1000 RPD)"},
         {"id": "gemini-2.0-flash", "label": "Gemini 2.0 Flash"},
     ],
+    "llamacpp": [],
 }
 
 # Model capability metadata — maps model ID patterns to quality tier and recommendations.
@@ -133,6 +136,7 @@ _PROVIDERS: list[ProviderInfo] = [
         key_required=True, key_format_hint="AIza...",
     ),
     ProviderInfo(slug="ollama", label="Ollama (local)", key_required=False, key_format_hint=""),
+    ProviderInfo(slug="llamacpp", label="llama.cpp (local)", key_required=False, key_format_hint=""),
 ]
 
 
@@ -190,6 +194,12 @@ async def get_config(services: ServicesDep) -> ConfigOut:
             timeout=config.huggingface.timeout,
             max_retries=config.huggingface.max_retries,
             wait_for_model=config.huggingface.wait_for_model,
+        ),
+        llamacpp=LlamaCppConfigOut(
+            base_url=config.llamacpp.base_url,
+            model=config.llamacpp.model,
+            fast_model=config.llamacpp.fast_model,
+            timeout=config.llamacpp.timeout,
         ),
         chunking=ChunkingConfigOut(
             max_tokens=config.chunking.max_tokens,
@@ -253,6 +263,14 @@ async def get_models(services: ServicesDep, provider: str | None = None) -> Mode
             config.gemini.api_key,
             config.gemini.base_url,
             fallback=_FALLBACK_MODELS["gemini"],
+        )
+    elif active_provider == "llamacpp":
+        current = config.llamacpp.model
+        fast = config.llamacpp.fast_model
+        models = fetch_llamacpp_models(
+            "",
+            config.llamacpp.base_url,
+            fallback=_FALLBACK_MODELS["llamacpp"],
         )
     else:  # ollama
         current = config.ollama.generation_model

@@ -4,6 +4,7 @@ from infrastructure.config import AppConfig
 from infrastructure.llm.model_fetcher import (
     fetch_gemini_models,
     fetch_groq_models,
+    fetch_llamacpp_models,
     fetch_nvidia_models,
     fetch_openrouter_models,
 )
@@ -24,6 +25,8 @@ def test_provider(
             models = fetch_gemini_models(api_key, config.gemini.base_url)
         elif provider == "huggingface":
             return True, None, None
+        elif provider == "llamacpp":
+            models = fetch_llamacpp_models("", config.llamacpp.base_url)
         else:
             return False, f"Provider '{provider}' does not support connection testing", None
         return True, None, len(models)

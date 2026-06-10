@@ -9,7 +9,7 @@ from infrastructure.llm.factory import create_llm_for_agent
 
 logger = logging.getLogger(__name__)
 
-_KNOWN_PROVIDERS = frozenset({"groq", "openrouter", "huggingface", "nvidia", "gemini", "ollama"})
+_KNOWN_PROVIDERS = frozenset({"groq", "openrouter", "huggingface", "nvidia", "gemini", "ollama", "llamacpp"})
 
 
 def resolve_llm_for_agent(
@@ -62,11 +62,11 @@ def _resolve_api_key(user_id: UUID, provider: str, services) -> str:
     Look up the API key for (user_id, provider).
 
     Priority:
-    1. Ollama: no key needed → return ""
+    1. Keyless providers (ollama, llamacpp): no key needed → return ""
     2. Per-user encrypted credential from DB
     3. Raise ProviderNotConfigured (keys must be supplied by users)
     """
-    if provider == "ollama":
+    if provider in ("ollama", "llamacpp"):
         return ""
 
     encrypted = services.llm_credential_store.get_encrypted_key(user_id, provider)
