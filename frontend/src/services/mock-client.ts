@@ -738,6 +738,7 @@ export class MockClient implements ServiceClient {
     return [
       { slug: 'groq', label: 'Groq', key_required: true, models_endpoint: null, key_format_hint: 'gsk_...' },
       { slug: 'ollama', label: 'Ollama', key_required: false, models_endpoint: 'http://localhost:11434', key_format_hint: '' },
+      { slug: 'llamacpp', label: 'llama.cpp (local)', key_required: false, models_endpoint: 'http://localhost:8080/v1', key_format_hint: '' },
     ]
   }
 
