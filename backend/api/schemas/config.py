@@ -77,6 +77,10 @@ class LlamaCppConfigOut(BaseModel):
     model: str
     fast_model: str | None = None
     timeout: int
+    connect_timeout: int = 10
+    max_retries: int = 3
+    max_retries_chat: int = 1
+    streaming: bool = True
 
 
 class ConfigOut(BaseModel):

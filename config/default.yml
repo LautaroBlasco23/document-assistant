@@ -61,6 +61,10 @@ llamacpp:
   model: ""  # set via DOCASSIST_LLAMACPP__MODEL
   fast_model: ""  # set via DOCASSIST_LLAMACPP__FAST_MODEL
   timeout: 300
+  connect_timeout: 10
+  max_retries: 3
+  max_retries_chat: 1
+  streaming: true
 
 chunking:
   max_tokens: 512

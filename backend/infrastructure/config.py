@@ -76,6 +76,10 @@ class LlamaCppConfig(BaseModel):
     model: str = ""
     fast_model: str | None = None
     timeout: int = 300
+    connect_timeout: int = 10  # connection establishment timeout (seconds)
+    max_retries: int = 3  # retries for ReadTimeout, ConnectionError, 5xx
+    max_retries_chat: int = 1  # fail-fast for synchronous calls
+    streaming: bool = True  # use streaming for progress tracking
 
 
 class ChunkingConfig(BaseModel):

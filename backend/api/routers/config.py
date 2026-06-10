@@ -136,7 +136,10 @@ _PROVIDERS: list[ProviderInfo] = [
         key_required=True, key_format_hint="AIza...",
     ),
     ProviderInfo(slug="ollama", label="Ollama (local)", key_required=False, key_format_hint=""),
-    ProviderInfo(slug="llamacpp", label="llama.cpp (local)", key_required=False, key_format_hint=""),
+    ProviderInfo(
+        slug="llamacpp", label="llama.cpp (local)",
+        key_required=False, key_format_hint="",
+    ),
 ]
 
 
@@ -200,6 +203,10 @@ async def get_config(services: ServicesDep) -> ConfigOut:
             model=config.llamacpp.model,
             fast_model=config.llamacpp.fast_model,
             timeout=config.llamacpp.timeout,
+            connect_timeout=config.llamacpp.connect_timeout,
+            max_retries=config.llamacpp.max_retries,
+            max_retries_chat=config.llamacpp.max_retries_chat,
+            streaming=config.llamacpp.streaming,
         ),
         chunking=ChunkingConfigOut(
             max_tokens=config.chunking.max_tokens,
