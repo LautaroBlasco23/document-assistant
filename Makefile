@@ -1,4 +1,4 @@
-.PHONY: dev dev-backend mock app-logs app-ps dev-kill clean prune help env-check dev-deps infra-deps tools jwt-secret encryption-key
+.PHONY: dev dev-backend mock app-logs app-ps dev-kill clean prune help env-check dev-deps infra-deps tools jwt-secret encryption-key llm-up llm-down llm-logs
 
 DOCKER_COMPOSE := docker compose
 BACKEND_DIR := backend
@@ -22,6 +22,11 @@ help:
 	@echo "  \033[1;32mMaintenance\033[0m"
 	@echo "    make clean                          Remove volumes, cache, generated output"
 	@echo "    make prune                          Remove orphaned documents"
+	@echo ""
+	@echo "  \033[1;32mLocal LLM (llama.cpp + Vulkan)\033[0m"
+	@echo "    make llm-up                         Start local LLM servers (downloads models on first run)"
+	@echo "    make llm-down                       Stop local LLM servers"
+	@echo "    make llm-logs                       Tail local LLM server logs"
 	@echo ""
 	@echo "  \033[1;32mHelp\033[0m"
 	@echo "    make encryption-key                 Generate a Fernet encryption key for .env"
@@ -90,3 +95,14 @@ prune:
 	@echo "Pruning orphaned documents (no Qdrant data)..."
 	@set -a; [ -f .env ] && . ./.env; set +a; \
 	cd $(BACKEND_DIR) && uv run python -m cli.main prune
+
+llm-up:
+	@echo "Starting local LLM servers (llama.cpp + Vulkan)..."
+	docker compose -f docker-compose.llm.yml up -d
+
+llm-down:
+	@echo "Stopping local LLM servers..."
+	docker compose -f docker-compose.llm.yml down
+
+llm-logs:
+	docker compose -f docker-compose.llm.yml logs -f

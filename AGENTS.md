@@ -68,6 +68,10 @@ make clean
 # Remove orphaned documents
 make prune
 
+# Local LLM infrastructure (llama.cpp + Vulkan GPU)
+docker compose -f docker-compose.llm.yml up -d    # start local LLM servers (downloads models on first run)
+docker compose -f docker-compose.llm.yml down      # stop local LLM servers
+
 # Backend + frontend on host, PostgreSQL in Docker (manual alternative to make start)
 docker compose up -d postgres
 cd backend && uv sync
@@ -114,6 +118,7 @@ cd frontend && npm run type-check # TypeScript only
 - **Config mount**: `backend/Dockerfile` copies `config/` to `/config/` inside the image. `infrastructure/config.py` resolves the project root as three levels up from that file, so it finds `/config/default.yml` in the container.
 - **Docker env vars**: `make start` calls `scripts/setupEnv.sh` which syncs `POSTGRES_PASSWORD` into `DOCASSIST_POSTGRES__PASSWORD` so the host-backend uses the same credential as the container.
 - **Ports**: backend runs on port 8090 (configurable via `BACKEND_PORT`), frontend on port 3500 (configurable via `FRONTEND_PORT`). No nginx reverse proxy — frontend served via `vite preview`.
+- **Local LLM (docker-compose.llm.yml)**: Separate compose file for llama.cpp servers. Requires Vulkan drivers on host (`/dev/dri`). First run downloads ~6GB of GGUF models to `models/`. Backend reaches containers via shared network: `http://llamacpp-qwen:8080` (main) and `http://llamacpp-gemma:8081` (fast). Start with `make llm-up` or `docker compose -f docker-compose.llm.yml up -d`.
 
 ## Frontend dev server
 

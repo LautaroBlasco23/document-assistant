@@ -1,0 +1,109 @@
+# Local LLM infrastructure — llama.cpp servers with Vulkan GPU passthrough.
+# Run alongside the main docker-compose.yml (shares its network).
+#
+# Usage:
+#   docker compose -f docker-compose.llm.yml up -d
+#   docker compose -f docker-compose.llm.yml down
+#
+# First run downloads ~6GB of GGUF models (idempotent — skips if files exist).
+# Requires Vulkan drivers on host (mesa-vulkan-drivers or AMD rocm packages).
+
+name: knowledge-trees-llm
+
+services:
+
+  model-downloader:
+    image: curlimages/curl:latest
+    container_name: docassist_llm_downloader
+    restart: "no"
+    environment:
+      - QWEN_URL=${QWEN_URL:-https://huggingface.co/unsloth/Qwen3-8B-GGUF/resolve/main/Qwen3-8B-Q4_K_M.gguf}
+      - GEMMA_URL=${GEMMA_URL:-https://huggingface.co/bartowski/google_gemma-3-4b-it-GGUF/resolve/main/google_gemma-3-4b-it-Q4_K_M.gguf}
+    volumes:
+      - ./models:/models
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -e
+        echo "--- Model downloader ---"
+
+        if [ -f /models/Qwen3-8B-Q4_K_M.gguf ] && [ -s /models/Qwen3-8B-Q4_K_M.gguf ]; then
+          echo "Qwen3-8B already exists, skipping download."
+        else
+          echo "Downloading Qwen3-8B-Q4_K_M.gguf..."
+          curl -L --progress-bar -o /models/Qwen3-8B-Q4_K_M.gguf "$$QWEN_URL"
+          echo "Qwen3-8B download complete."
+        fi
+
+        if [ -f /models/google_gemma-3-4b-it-Q4_K_M.gguf ] && [ -s /models/google_gemma-3-4b-it-Q4_K_M.gguf ]; then
+          echo "Gemma 3 4B already exists, skipping download."
+        else
+          echo "Downloading google_gemma-3-4b-it-Q4_K_M.gguf..."
+          curl -L --progress-bar -o /models/google_gemma-3-4b-it-Q4_K_M.gguf "$$GEMMA_URL"
+          echo "Gemma 3 4B download complete."
+        fi
+
+        echo "--- All models ready ---"
+    networks:
+      - docassist_app_network
+
+  llamacpp-qwen:
+    image: ghcr.io/ggerganov/llama.cpp:server-vulkan
+    container_name: docassist_llm_qwen
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    command: >
+      -m /models/Qwen3-8B-Q4_K_M.gguf
+      --host 0.0.0.0
+      --port 8080
+      --ctx-size 8192
+    volumes:
+      - ./models:/models:ro
+    devices:
+      - /dev/dri:/dev/dri
+      # - /dev/kfd:/dev/kfd  # AMD GPU only — uncomment for AMD
+    depends_on:
+      model-downloader:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    networks:
+      - docassist_app_network
+
+  llamacpp-gemma:
+    image: ghcr.io/ggerganov/llama.cpp:server-vulkan
+    container_name: docassist_llm_gemma
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+    command: >
+      -m /models/google_gemma-3-4b-it-Q4_K_M.gguf
+      --host 0.0.0.0
+      --port 8081
+      --ctx-size 8192
+    volumes:
+      - ./models:/models:ro
+    devices:
+      - /dev/dri:/dev/dri
+      # - /dev/kfd:/dev/kfd  # AMD GPU only — uncomment for AMD
+    depends_on:
+      model-downloader:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    networks:
+      - docassist_app_network
+
+networks:
+  docassist_app_network:
+    external: true
+    name: knowledge-trees-app_docassist_app_network
