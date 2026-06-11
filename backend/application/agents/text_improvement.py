@@ -59,6 +59,7 @@ class TextImprovementAgent(BaseAgent):
         agent_prompt: str | None = None,
         mode: str = "text",
         max_retries: int = 2,
+        context: str | None = None,
     ) -> str:
         """Rewrite text with improved style and Markdown formatting.
 
@@ -68,14 +69,25 @@ class TextImprovementAgent(BaseAgent):
             agent_prompt: Optional user-defined agent prompt prepended to the system prompt.
             mode: "text" to rewrite content, "formatting" to only apply Markdown structure.
             max_retries: Number of retries on transient failures (empty responses).
+            context: Optional overlap context from a previous chunk (for chunked processing).
 
         Returns:
             The improved, Markdown-formatted text.
         """
         base = _SYSTEM_FORMATTING if mode == "formatting" else _SYSTEM
+
+        # Add context continuation instruction if this is a continuation chunk
+        if context:
+            base = (
+                "CONTINUATION INSTRUCTION: The text below continues from a previous section. "
+                f"Previous context (for reference only, do NOT repeat):\n---\n{context}\n---\n\n"
+                "Continue improving the text naturally from where it left off. "
+                "Do not repeat or rephrase the context above.\n\n" + base
+            )
+
         system = (agent_prompt + "\n\n" + base) if agent_prompt else base
         preprocessed = preprocess_for_improvement(text)
-        
+
         last_error = None
         for attempt in range(max_retries + 1):
             try:
@@ -93,6 +105,6 @@ class TextImprovementAgent(BaseAgent):
             except Exception as e:
                 logger.error("Text improvement LLM call failed: %s", e)
                 raise
-        
+
         # Should not reach here, but just in case
         raise last_error

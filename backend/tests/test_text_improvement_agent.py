@@ -194,6 +194,9 @@ def _make_services(doc=None):
     services.kt_doc_store.get_document.return_value = doc or _make_doc()
     updated = _make_doc(content="# Improved\n\nContent.", original_content="Original content.")
     services.kt_doc_store.save_improvement.return_value = updated
+    # Provide real config values for chunking
+    services.config.chunking.improve_max_tokens = 2000
+    services.config.chunking.improve_overlap_tokens = 256
     return services
 
 

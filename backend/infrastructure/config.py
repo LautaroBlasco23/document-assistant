@@ -85,6 +85,10 @@ class LlamaCppConfig(BaseModel):
 class ChunkingConfig(BaseModel):
     max_tokens: int = 512
     overlap_tokens: int = 128
+    # Thresholds for text improvement chunking (conservative for Groq's 6K TPM limit)
+    # Total tokens (input + output + system prompt) must stay under 6000.
+    improve_max_tokens: int = 2000  # Input cap per chunk
+    improve_overlap_tokens: int = 256
 
 
 class PostgresConfig(BaseModel):

@@ -180,7 +180,8 @@ class GroqLLM(LLM):
 
             if resp.status_code == 429:
                 retry_after = resp.headers.get("Retry-After")
-                wait = float(retry_after) if retry_after is not None else 2.0 * (2**attempt)
+                # Wait at least 60s to ensure rate limit window resets
+                wait = max(float(retry_after) if retry_after is not None else 60.0, 60.0)
                 last_retry_after = wait
                 logger.warning(
                     "Groq HTTP 429 on attempt %d/%d, retrying in %.1fs",
