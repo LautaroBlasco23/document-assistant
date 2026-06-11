@@ -3,6 +3,7 @@ import { Eye, EyeOff, Loader2, CheckCircle2, XCircle, Key } from 'lucide-react'
 import { Card } from '../../components/ui/card'
 import { Button } from '../../components/ui/button'
 import { useProviderCredentials } from '../../hooks/useProviderCredentials'
+import { useReaderPreferences } from '../../stores/reader-preferences'
 import { cn } from '../../lib/cn'
 
 const GEMINI_WARNING = 'Gemini Flash has a 250 request/day cap; Flash-Lite allows 1000. Avoid Flash for bulk generation.'
@@ -206,6 +207,7 @@ export function ApiKeysCard() {
   const { execute: saveCred, loading: saving } = useSaveCredential()
   const { execute: delCred, loading: deleting } = useDeleteCredential()
   const { execute: testConn, loading: testing } = useTestConnection()
+  const { preferences } = useReaderPreferences()
 
   const [activeProvider, setActiveProvider] = React.useState<string | null>(null)
   const [rowError, setRowError] = React.useState<string | null>(null)
@@ -220,6 +222,10 @@ export function ApiKeysCard() {
 
   const getError = (provider: string) => (activeProvider === provider ? rowError : null)
 
+  const visibleProviders = preferences.showLocalProviders
+    ? providers
+    : providers.filter((p) => p.key_required)
+
   return (
     <Card
       title="API Keys"
@@ -232,7 +238,7 @@ export function ApiKeysCard() {
         </div>
       ) : (
         <div>
-          {providers.map((p) => {
+          {visibleProviders.map((p) => {
             const cred = credMap.get(p.slug)
             return (
               <ProviderRow

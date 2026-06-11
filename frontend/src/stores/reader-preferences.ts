@@ -22,6 +22,8 @@ interface ReaderPreferences {
   fontScale: number
   /** Custom content max-width override in px. null = use categorical contentWidth. */
   contentWidthPx: number | null
+  /** When false, hides local LLM providers (Ollama, llama.cpp) from provider dropdowns. */
+  showLocalProviders: boolean
 }
 
 const DEFAULTS: ReaderPreferences = {
@@ -30,6 +32,7 @@ const DEFAULTS: ReaderPreferences = {
   contentWidth: 'comfortable',
   fontScale: DEFAULT_FONT_SCALE,
   contentWidthPx: DEFAULT_CONTENT_WIDTH_PX,
+  showLocalProviders: true,
 }
 
 /** Clamp fontScale to valid range, falling back to 1 if NaN. */

@@ -20,6 +20,8 @@ interface AgentCreationDialogProps {
   editAgent?: AgentOut | null
   onClose?: () => void
   credentials?: CredentialStatus[]
+  /** When false, hides local LLM providers. Defaults to true. */
+  showLocalProviders?: boolean
 }
 
 const MAX_TOKENS_OPTIONS = [256, 512, 1024, 2048, 4096, 8192]
@@ -53,6 +55,7 @@ export function AgentCreationDialog({
   editAgent,
   onClose,
   credentials,
+  showLocalProviders = true,
 }: AgentCreationDialogProps) {
   const isEdit = !!editAgent
   const [provider, setProvider] = React.useState('')
@@ -179,6 +182,7 @@ export function AgentCreationDialog({
                   setModel('')
                 }}
                 credentials={resolvedCredentials}
+                showLocalProviders={showLocalProviders}
               />
             </div>
 

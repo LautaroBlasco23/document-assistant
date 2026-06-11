@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { Link } from 'react-router-dom'
-import { CreditCard, Bot, Plus, Trash2, Star, Info } from 'lucide-react'
+import { CreditCard, Bot, Plus, Trash2, Star, Info, Cpu } from 'lucide-react'
 import { Card } from '../../components/ui/card'
 import { Badge } from '../../components/ui/badge'
 import { Button } from '../../components/ui/button'
@@ -195,6 +195,22 @@ export function SettingsPage() {
           </div>
         </Card>
 
+        {/* LLM Providers */}
+        <Card
+          title="LLM Providers"
+          actions={<Cpu className="h-4 w-4 text-text-tertiary" />}
+        >
+          <label className="flex items-center justify-between">
+            <span className="text-sm text-text-secondary">Show local LLM providers (Ollama, llama.cpp)</span>
+            <input
+              type="checkbox"
+              checked={preferences.showLocalProviders}
+              onChange={(e) => update({ showLocalProviders: e.target.checked })}
+              className="h-4 w-4 rounded border-surface-200 text-primary focus:ring-primary"
+            />
+          </label>
+        </Card>
+
         {/* Plan & Limits */}
         <Link
           to="/settings/plan"
@@ -304,6 +320,7 @@ export function SettingsPage() {
                       setSelectedProviderForModels(v)
                     }}
                     credentials={credentials}
+                    showLocalProviders={preferences.showLocalProviders}
                   />
                 </div>
 
@@ -450,6 +467,7 @@ export function SettingsPage() {
           currentModel={currentModel}
           onCreated={(id) => { refreshAgents(); setAgent(id) }}
           credentials={credentials}
+          showLocalProviders={preferences.showLocalProviders}
         />
       </div>
     </div>

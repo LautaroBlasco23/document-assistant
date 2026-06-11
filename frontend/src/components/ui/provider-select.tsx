@@ -8,10 +8,12 @@ interface ProviderSelectProps {
   value: string
   onChange: (value: string) => void
   credentials?: CredentialStatus[]
+  /** When false, hides local LLM providers (Ollama, llama.cpp). Defaults to true. */
+  showLocalProviders?: boolean
   className?: string
 }
 
-export function ProviderSelect({ value, onChange, credentials, className }: ProviderSelectProps) {
+export function ProviderSelect({ value, onChange, credentials, showLocalProviders = true, className }: ProviderSelectProps) {
   const [open, setOpen] = React.useState(false)
   const containerRef = React.useRef<HTMLDivElement>(null)
   const { useProviders } = useProviderCredentials()
@@ -41,7 +43,7 @@ export function ProviderSelect({ value, onChange, credentials, className }: Prov
   const selectedProvider = providers.find((p) => p.slug === value)
 
   const displayed = providers.filter((p) => {
-    if (p.key_required) return true
+    if (!showLocalProviders && !p.key_required) return false
     return true
   })
 
