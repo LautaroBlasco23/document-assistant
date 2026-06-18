@@ -43,6 +43,7 @@ services:
       start_period: 10s
 
   backend:
+    image: lautaroblasco1998/knowledge-tree-backend:latest
     build:
       context: .
       dockerfile: backend/Dockerfile
@@ -80,6 +81,7 @@ services:
       - docassist_app_network
 
   frontend:
+    image: lautaroblasco1998/knowledge-tree-frontend:latest
     build:
       context: ./frontend
       dockerfile: Dockerfile
