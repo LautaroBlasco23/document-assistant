@@ -148,7 +148,7 @@ def _extract_markdown(root: etree._Element) -> str:
         if tag == f"{{{_XHTML}}}p":
             text = _inline(el).strip()
             if text:
-                lines.append(text + "\n")
+                lines.append(text + "\n\n")
             return
 
         # Headings
@@ -157,7 +157,7 @@ def _extract_markdown(root: etree._Element) -> str:
             level = int(local[1])
             text = _inline(el).strip()
             if text:
-                lines.append(f"{'#' * level} {text}\n")
+                lines.append(f"{'#' * level} {text}\n\n")
             return
 
         # Blockquote
@@ -165,14 +165,14 @@ def _extract_markdown(root: etree._Element) -> str:
             text = _inline(el).strip()
             for line in text.split("\n"):
                 lines.append(f"> {line}")
-            lines.append("\n")
+            lines.append("\n\n")
             return
 
         # Unordered list
         if tag == f"{{{_XHTML}}}ul":
             for child in el:
                 _walk(child, depth, False, 1)
-            lines.append("\n")
+            lines.append("\n\n")
             return
 
         # Ordered list
@@ -181,7 +181,7 @@ def _extract_markdown(root: etree._Element) -> str:
             for child in el:
                 _walk(child, depth, True, i)
                 i += 1
-            lines.append("\n")
+            lines.append("\n\n")
             return
 
         # List item
@@ -201,7 +201,7 @@ def _extract_markdown(root: etree._Element) -> str:
 
         # Horizontal rule
         if tag == f"{{{_XHTML}}}hr":
-            lines.append("---\n")
+            lines.append("---\n\n")
             return
 
         # Table structure — recurse through container tags, emit pipe rows
@@ -211,6 +211,8 @@ def _extract_markdown(root: etree._Element) -> str:
         ):
             for child in el:
                 _walk(child, depth, ordered, idx)
+            if tag == f"{{{_XHTML}}}table":
+                lines.append("\n")
             return
 
         if tag == f"{{{_XHTML}}}tr":
@@ -225,7 +227,7 @@ def _extract_markdown(root: etree._Element) -> str:
         # Fallback for unknown block-level elements: emit inline text
         text = _inline(el).strip()
         if text:
-            lines.append(text + "\n")
+            lines.append(text + "\n\n")
 
     _walk(root)
     result = "".join(lines)
