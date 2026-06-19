@@ -224,6 +224,8 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose, mode = '
   const { settings: genSettings } = useGenerationSettings()
   const addError = useAppStore((s) => s.addError)
   const improveDocument = useKnowledgeTreeStore((s) => s.improveDocument)
+  const optimizeDocument = useKnowledgeTreeStore((s) => s.optimizeDocument)
+  const addDocumentForChapter = useKnowledgeTreeStore((s) => s.addDocumentForChapter)
   const applyImproveResult = useKnowledgeTreeStore((s) => s.applyImproveResult)
   const addHighlight = useHighlights((s) => s.add)
   const removeHighlight = useHighlights((s) => s.remove)
@@ -234,8 +236,10 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose, mode = '
   const createDocument = useKnowledgeTreeStore((s) => s.createDocument)
   const updateDocument = useKnowledgeTreeStore((s) => s.updateDocument)
   const revertDocument = useKnowledgeTreeStore((s) => s.revertDocument)
+  const fetchDocuments = useKnowledgeTreeStore((s) => s.fetchDocuments)
   const [isImproving, setIsImproving] = React.useState(false)
   const [improveTaskId, setImproveTaskId] = React.useState<string | null>(null)
+  const [optimizeTaskId, setOptimizeTaskId] = React.useState<string | null>(null)
   const submitTask = useTaskStore((s) => s.submitTask)
   const clearTask = useTaskStore((s) => s.clearTask)
 
@@ -372,23 +376,29 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose, mode = '
 
   const [improveDialog, setImproveDialog] = React.useState<{
     open: boolean
-    mode: 'text' | 'formatting'
-  }>({ open: false, mode: 'formatting' })
+  }>({ open: false })
+  const [optimizeDialog, setOptimizeDialog] = React.useState<{
+    open: boolean
+  }>({ open: false })
 
-  const handleOpenImproveDialog = React.useCallback((mode: 'text' | 'formatting') => {
-    setImproveDialog({ open: true, mode })
+  const handleOpenImproveDialog = React.useCallback(() => {
+    setImproveDialog({ open: true })
+  }, [])
+
+  const handleOpenOptimizeDialog = React.useCallback(() => {
+    setOptimizeDialog({ open: true })
   }, [])
 
   const handleRunImprove = React.useCallback(
-    async (mode: 'text' | 'formatting', agentId: string) => {
+    async (agentId: string) => {
       setIsImproving(true)
-      setImproveDialog({ open: false, mode })
+      setImproveDialog({ open: false })
       try {
         const taskId = await improveDocument(
           treeId,
           resolvedDoc.id,
           resolvedDoc.chapter_number ?? null,
-          mode,
+          'formatting',
           agentId,
         )
         submitTask({
@@ -396,18 +406,14 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose, mode = '
           type: 'kt_improve',
           entityId: treeId,
           chapter: resolvedDoc.chapter_number ?? 0,
-          entityTitle:
-            mode === 'formatting'
-              ? `Improve formatting: ${resolvedDoc.title}`
-              : `Improve text: ${resolvedDoc.title}`,
+          entityTitle: `Improve formatting: ${resolvedDoc.title}`,
           docId: resolvedDoc.id,
         })
         setImproveTaskId(taskId)
         handleFormatModeChange('markdown')
       } catch (e) {
         addError(
-          (e as Error).message ||
-            `Failed to ${mode === 'formatting' ? 'improve formatting' : 'improve text'}. Please try again.`,
+          (e as Error).message || 'Failed to improve formatting. Please try again.',
         )
         setIsImproving(false)
       }
@@ -420,6 +426,44 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose, mode = '
       improveDocument,
       submitTask,
       handleFormatModeChange,
+      addError,
+    ],
+  )
+
+  const handleRunOptimize = React.useCallback(
+    async (agentId: string) => {
+      setIsImproving(true)
+      setOptimizeDialog({ open: false })
+      try {
+        const taskId = await optimizeDocument(
+          treeId,
+          resolvedDoc.id,
+          resolvedDoc.chapter_number ?? null,
+          agentId,
+        )
+        submitTask({
+          taskId,
+          type: 'kt_improve',
+          entityId: treeId,
+          chapter: resolvedDoc.chapter_number ?? 0,
+          entityTitle: `Create optimized document for: ${resolvedDoc.title}`,
+          docId: resolvedDoc.id,
+        })
+        setOptimizeTaskId(taskId)
+      } catch (e) {
+        addError(
+          (e as Error).message || 'Failed to optimize document. Please try again.',
+        )
+        setIsImproving(false)
+      }
+    },
+    [
+      treeId,
+      resolvedDoc.id,
+      resolvedDoc.chapter_number,
+      resolvedDoc.title,
+      optimizeDocument,
+      submitTask,
       addError,
     ],
   )
@@ -538,6 +582,38 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose, mode = '
       setImproveTaskId(null)
     }
   }, [improveTaskId, improveTaskEntry?.status, clearTask, addError])
+
+  const optimizeTaskEntry = useTaskStore((s) => (optimizeTaskId ? (s.tasks[optimizeTaskId] ?? null) : null))
+
+  React.useEffect(() => {
+    if (!optimizeTaskId || !optimizeTaskEntry) return
+    if (optimizeTaskEntry.status === 'completed') {
+      if (optimizeTaskEntry.result) {
+        const newDoc = optimizeTaskEntry.result as unknown as KnowledgeDocument
+        // Add the new document to the store (it's a separate doc, not a replacement)
+        addDocumentForChapter(treeId, newDoc.chapter_number ?? null, newDoc)
+        addError('Optimized document created successfully.')
+      }
+      setIsImproving(false)
+      clearTask(optimizeTaskId)
+      setOptimizeTaskId(null)
+    } else if (optimizeTaskEntry.status === 'failed') {
+      addError(optimizeTaskEntry.error ?? 'Optimization failed')
+      setIsImproving(false)
+      clearTask(optimizeTaskId)
+      setOptimizeTaskId(null)
+    } else if (optimizeTaskEntry.status === 'rate_limited') {
+      const retryAfter = (optimizeTaskEntry.result as { retry_after?: number } | null)?.retry_after
+      addError(
+        retryAfter
+          ? `AI provider is rate-limiting. Please retry in ${Math.ceil(retryAfter)}s.`
+          : (optimizeTaskEntry.error ?? 'Rate limited by AI provider.')
+      )
+      setIsImproving(false)
+      clearTask(optimizeTaskId)
+      setOptimizeTaskId(null)
+    }
+  }, [optimizeTaskId, optimizeTaskEntry?.status, clearTask, addError, addDocumentForChapter, treeId])
 
   // ── Re-link improve task state after navigation ──────────────────────────────────
   // When the reader remounts (e.g. navigating back), these selectors find any
@@ -1068,8 +1144,8 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose, mode = '
               isImproved={resolvedDoc.original_content !== null}
               isImproving={isImproving}
               onModeChange={handleFormatModeChange}
-              onRequestImproveText={() => handleOpenImproveDialog('text')}
-              onRequestImproveFormatting={() => handleOpenImproveDialog('formatting')}
+              onRequestImproveFormatting={handleOpenImproveDialog}
+              onRequestOptimize={handleOpenOptimizeDialog}
               onRevert={handleRevert}
               isEditing={isEditing}
               isSaving={isSaving}
@@ -1494,9 +1570,16 @@ export function UnifiedDocumentReader({ doc, treeId, chapters, onClose, mode = '
       <ImproveDialog
         open={improveDialog.open}
         onOpenChange={(open) => setImproveDialog((prev) => ({ ...prev, open }))}
-        mode={improveDialog.mode}
         onConfirm={handleRunImprove}
         isImproving={isImproving}
+      />
+      <ImproveDialog
+        open={optimizeDialog.open}
+        onOpenChange={(open) => setOptimizeDialog((prev) => ({ ...prev, open }))}
+        onConfirm={handleRunOptimize}
+        isImproving={isImproving}
+        title="Create optimized document"
+        description="Choose the agent that will create an optimized study document with a summary and suggested questions."
       />
     </>
   )

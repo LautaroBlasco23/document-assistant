@@ -54,9 +54,11 @@ interface KnowledgeTreeState {
   createDocument: (treeId: string, chapter: number | null, title: string, content: string, isMain?: boolean) => Promise<KnowledgeDocument>
   updateDocument: (id: string, title: string, content: string, treeId: string, chapter: number | null, fileType?: string | null, originalContent?: string | null) => Promise<KnowledgeDocument>
   deleteDocument: (id: string, treeId: string, chapter: number | null) => Promise<void>
-  improveDocument: (treeId: string, docId: string, chapter: number | null, mode?: 'text' | 'formatting', agentId?: string) => Promise<string>
+  improveDocument: (treeId: string, docId: string, chapter: number | null, mode?: 'formatting', agentId?: string) => Promise<string>
+  optimizeDocument: (treeId: string, docId: string, chapter: number | null, agentId?: string) => Promise<string>
   revertDocument: (treeId: string, docId: string, chapter: number | null) => Promise<KnowledgeDocument>
   applyImproveResult: (treeId: string, chapter: number | null, docId: string, result: Record<string, unknown>) => void
+  addDocumentForChapter: (treeId: string, chapter: number | null, doc: KnowledgeDocument) => void
   splitChapter: (treeId: string, chapterNumber: number, chapters: { page_start: number; page_end: number; title?: string | null }[]) => Promise<{ chapters: KnowledgeChapter[] }>
   ingestFileAsDocument: (treeId: string, chapter: number, file: File) => Promise<{ task_id: string }>
   importYouTubeDocument: (treeId: string, url: string, chapterId?: string | null) => Promise<{ task_id: string }>
@@ -258,10 +260,28 @@ export const useKnowledgeTreeStore = create<KnowledgeTreeState>((set, get) => ({
     invalidateLimits()
   },
 
-  improveDocument: async (treeId, docId, _chapter, mode = 'text', agentId?: string) => {
+  improveDocument: async (treeId, docId, _chapter, mode = 'formatting', agentId?: string) => {
     const effectiveAgentId = agentId ?? useGenerationSettings.getState().settings.agent_id
     const { task_id } = await client.improveKnowledgeDocument(treeId, docId, effectiveAgentId, mode)
     return task_id
+  },
+
+  optimizeDocument: async (treeId, docId, _chapter, agentId?: string) => {
+    const effectiveAgentId = agentId ?? useGenerationSettings.getState().settings.agent_id
+    const { task_id } = await client.optimizeKnowledgeDocument(treeId, docId, effectiveAgentId)
+    return task_id
+  },
+
+  addDocumentForChapter: (treeId, chapter, doc) => {
+    const key = docKey(treeId, chapter)
+    const allKey = `${treeId}:all`
+    set((s) => ({
+      documents: {
+        ...s.documents,
+        [key]: [...(s.documents[key] ?? []), doc],
+        [allKey]: [...(s.documents[allKey] ?? []), doc],
+      },
+    }))
   },
 
   applyImproveResult: (treeId, chapter, docId, result) => {

@@ -90,6 +90,11 @@ class ChunkingConfig(BaseModel):
     improve_max_tokens: int = 2000  # Input cap per chunk
     improve_overlap_tokens: int = 256
 
+    # Thresholds for document optimize chunking (higher since optimize aggregates content
+    # and modern models support 32K+ context windows)
+    optimize_max_tokens: int = 6000    # Input cap per chunk
+    optimize_overlap_tokens: int = 512
+
 
 class PostgresConfig(BaseModel):
     host: str = "localhost"

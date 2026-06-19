@@ -12,20 +12,21 @@ import { AgentCreationDialog } from '../../pages/settings/agent-creation-dialog'
 export interface ImproveDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  mode: 'text' | 'formatting'
-  /** When true, the user can toggle between "text" and "formatting" inside the dialog. */
-  modeSelectable?: boolean
-  onConfirm: (mode: 'text' | 'formatting', agentId: string) => void
+  onConfirm: (agentId: string) => void
   isImproving: boolean
+  /** Override the dialog title (default: "Improve formatting") */
+  title?: string
+  /** Override the dialog description (default: about fixing Markdown formatting) */
+  description?: string
 }
 
 export function ImproveDialog({
   open,
   onOpenChange,
-  mode,
-  modeSelectable = false,
   onConfirm,
   isImproving,
+  title = 'Improve formatting',
+  description = 'Choose the agent that will fix Markdown formatting in this text.',
 }: ImproveDialogProps) {
   const { agents, loading: agentsLoading, refresh: refreshAgents } = useAgents()
   const { settings, setAgent: persistAgent } = useGenerationSettings()
@@ -34,13 +35,11 @@ export function ImproveDialog({
   const { credentials } = useCredentials()
 
   const [selectedAgentId, setSelectedAgentId] = React.useState('')
-  const [selectedMode, setSelectedMode] = React.useState(mode)
   const [agentDialogOpen, setAgentDialogOpen] = React.useState(false)
 
-  // Sync selectedMode with prop when dialog opens
+  // Sync selectedAgentId with default when dialog opens
   React.useEffect(() => {
     if (!open) return
-    setSelectedMode(mode)
     const defaultAgent = agents.find((a) => a.is_default)
     const initial =
       (settings.agent_id && agents.find((a) => a.id === settings.agent_id)?.id) ??
@@ -65,12 +64,10 @@ export function ImproveDialog({
     setSelectedAgentId(value)
   }
 
-  const effectiveMode = modeSelectable ? selectedMode : mode
-
   const handleRun = () => {
     if (!selectedAgentId) return
     persistAgent(selectedAgentId)
-    onConfirm(effectiveMode, selectedAgentId)
+    onConfirm(selectedAgentId)
   }
 
   return (
@@ -92,62 +89,21 @@ export function ImproveDialog({
             className="fixed z-50 left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md bg-surface dark:bg-surface-200 rounded-lg shadow-lg p-6 animate-fade-in"
           >
             <RadixDialog.Title className="text-lg font-semibold text-text-primary mb-1">
-              Improve document
+              {title}
             </RadixDialog.Title>
             <RadixDialog.Description className="text-sm text-text-secondary mb-5">
-              Choose the agent that will{' '}
-              {effectiveMode === 'formatting' ? 'reformat' : 'improve'} this text.
+              {description}
             </RadixDialog.Description>
 
-            {/* Mode selector / badge */}
+            {/* Mode badge (formatting only) */}
             <div className="mb-4">
               <span className="text-xs font-semibold uppercase tracking-wide text-text-tertiary block mb-1.5">
                 Mode
               </span>
-              {modeSelectable ? (
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setSelectedMode('formatting')}
-                    disabled={isImproving}
-                    className={cn(
-                      'flex items-center gap-1.5 px-3 py-2 rounded-md text-xs font-medium border transition-colors flex-1',
-                      effectiveMode === 'formatting'
-                        ? 'bg-ai/10 text-ai border-ai/30'
-                        : 'bg-surface dark:bg-surface-200 border-surface-200 dark:border-surface-200 text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100',
-                    )}
-                  >
-                    <Sparkles className="h-3.5 w-3.5" />
-                    Improve formatting
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedMode('text')}
-                    disabled={isImproving}
-                    className={cn(
-                      'flex items-center gap-1.5 px-3 py-2 rounded-md text-xs font-medium border transition-colors flex-1',
-                      effectiveMode === 'text'
-                        ? 'bg-primary-light dark:bg-primary/12 text-primary border-primary/30'
-                        : 'bg-surface dark:bg-surface-200 border-surface-200 dark:border-surface-200 text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100',
-                    )}
-                  >
-                    <Sparkles className="h-3.5 w-3.5" />
-                    Improve text
-                  </button>
-                </div>
-              ) : (
-                <span
-                  className={cn(
-                    'inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium',
-                    mode === 'formatting'
-                      ? 'bg-ai/10 text-ai'
-                      : 'bg-primary-light dark:bg-primary/12 text-primary',
-                  )}
-                >
-                  <Sparkles className="h-3 w-3" />
-                  {mode === 'formatting' ? 'Improve formatting' : 'Improve text'}
-                </span>
-              )}
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium bg-ai/10 text-ai">
+                <Sparkles className="h-3 w-3" />
+                Improve formatting
+              </span>
             </div>
 
             {/* Agent selector */}

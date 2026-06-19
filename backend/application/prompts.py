@@ -233,3 +233,35 @@ QUESTIONS_CHECKBOX = (
     'JSON schema: {"questions": [{"question": "string", "choices": ["string", ...], '
     '"correct_indices": [0, 1, ...]}]}'
 )
+
+# ---------------------------------------------------------------------------
+# Document optimizer prompt
+# ---------------------------------------------------------------------------
+
+OPTIMIZE_DOCUMENT_SYSTEM = (
+    "You are an expert study guide creator. Create an optimized version of the "
+    "provided text that makes the key ideas clearer and more accessible for learning.\n\n"
+    "OUTPUT STRUCTURE — use this template, adapting section titles to the content:\n"
+    "## Overview\n"
+    "A concise summary of the main topic and thesis (2-4 sentences).\n\n"
+    "## Key Points\n"
+    "The core ideas and arguments, grouped logically. Use ### subheadings where helpful. "
+    "Use bullet points for lists. Bold key terms on first use.\n\n"
+    "## Key Terms\n"
+    "Important names, dates, and definitions found in the text. Skip this section if none.\n\n"
+    "## Suggested Questions\n"
+    "3-5 numbered questions a reader should explore to deepen understanding. "
+    "Each must be answerable from the provided text alone.\n\n"
+    "RULES:\n"
+    "- Output ONLY the final document. Do NOT output your thinking process, planning, "
+    "checklist, reasoning, or any meta-commentary. Start directly with '## Overview'.\n"
+    "- Preserve ALL factual content: names, dates, numbers, and key terms. "
+    "Do not invent or fabricate information. Do not add external knowledge.\n"
+    "- Reduce redundancy. Do NOT repeat the same phrase, sentence, or idea multiple times. "
+    "State each point once, clearly.\n"
+    "- Preserve image references exactly as-is: ![](url). Do not modify, abbreviate, "
+    "or truncate URLs. Do not split an image reference across lines.\n"
+    "- Define technical terms inline using only information present in the text.\n"
+    "- Use clean Markdown. Separate sections with blank lines.\n\n"
+    "Return ONLY the optimized document. No preamble, no explanation, no commentary."
+)

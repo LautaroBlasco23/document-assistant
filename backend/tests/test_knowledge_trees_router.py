@@ -392,7 +392,7 @@ def test_improve_document_submits_task(test_client, mock_services):
 
 
 def test_improve_document_formatting_mode_submits_task(test_client, mock_services):
-    """Improve with mode='formatting' must pass mode to the background task."""
+    """Improve with mode='formatting' must submit task without passing mode."""
     with patch("application.services.text_improvement.improve_document_task"):
         mock_services.task_registry.submit.return_value = "test-task-id-456"
 
@@ -402,9 +402,13 @@ def test_improve_document_formatting_mode_submits_task(test_client, mock_service
         )
 
     assert response.status_code == 202
+    mock_services.task_registry.submit.assert_called_once()
+    call_kwargs = mock_services.task_registry.submit.call_args.kwargs
+    assert call_kwargs["task_type"] == "kt_improve"
+    # mode is NOT passed as a positional arg anymore; verify by checking args count
     call_args = mock_services.task_registry.submit.call_args
-    # mode is the 4th positional arg (after fn, doc_uid, uid)
-    assert call_args.args[3] == "formatting"
+    # Positional args: fn, doc_uid, tree_id, services, user_id (5 positional args)
+    assert len(call_args.args) == 5
 
 
 def test_improve_document_invalid_agent_id_returns_422(test_client, mock_services):

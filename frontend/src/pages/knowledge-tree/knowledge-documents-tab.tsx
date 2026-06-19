@@ -517,7 +517,7 @@ interface DocumentCardProps {
   onEdit: () => void
   onDelete: () => void
   onRead: (doc: KnowledgeDocument) => void
-  onImprove: (mode: 'text' | 'formatting', agentId?: string) => Promise<string>
+  onImprove: (mode: 'formatting', agentId?: string) => Promise<string>
   onRevert: () => Promise<KnowledgeDocument>
   onUpdateFileType: (fileType: string) => void
 }
@@ -567,10 +567,10 @@ function DocumentCard({ doc, onEdit, onDelete, onRead, onImprove, onRevert, onUp
 
   const isImproved = doc.original_content !== null
 
-  const handleConfirmImprove = async (mode: 'text' | 'formatting', agentId: string) => {
+  const handleConfirmImprove = async (agentId: string) => {
     setActing(true)
     try {
-      const taskId = await onImprove(mode, agentId)
+      const taskId = await onImprove('formatting', agentId)
       submitTask({
         taskId,
         type: 'kt_improve',
@@ -793,12 +793,10 @@ function DocumentCard({ doc, onEdit, onDelete, onRead, onImprove, onRevert, onUp
         onConfirm={() => void handleConfirmDelete()}
       />
 
-      {/* Improve modal — agent selection + mode toggle */}
+      {/* Improve modal */}
       <ImproveDialog
         open={improveOpen}
         onOpenChange={(o) => { if (!acting) setImproveOpen(o) }}
-        mode="formatting"
-        modeSelectable
         onConfirm={handleConfirmImprove}
         isImproving={acting}
       />

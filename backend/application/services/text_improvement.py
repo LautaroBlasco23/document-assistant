@@ -102,7 +102,6 @@ def improve_document_task(
     task: Task,
     doc_uid: UUID,
     tree_id: UUID,
-    mode: str,
     services: Services,
     user_id: UUID,
     agent_id: UUID | None = None,
@@ -141,7 +140,7 @@ def improve_document_task(
         max_tokens=max(dynamic_max, max_tokens) if max_tokens else dynamic_max,
     )
 
-    label = "Improving document..." if mode == "text" else "Reformatting document..."
+    label = "Reformatting document..."
     set_task_progress(task, 20, label)
 
     agent = TextImprovementAgent(llm)
@@ -184,7 +183,6 @@ def improve_document_task(
                 chunk["text"],
                 params=chunk_params,
                 agent_prompt=agent_prompt,
-                mode=mode,
                 context=chunk["context"],
             )
             improved_parts.append(improved_chunk)
@@ -197,7 +195,7 @@ def improve_document_task(
         )
     else:
         # Single-call path for small documents
-        improved = agent.improve(doc.content, params=params, agent_prompt=agent_prompt, mode=mode)
+        improved = agent.improve(doc.content, params=params, agent_prompt=agent_prompt)
 
     # Defensive check: ensure we got a valid string
     if not improved or not isinstance(improved, str):

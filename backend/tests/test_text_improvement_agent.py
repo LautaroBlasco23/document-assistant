@@ -38,15 +38,6 @@ def test_improve_passes_text_to_llm():
     assert "Original document content." in user_msg
 
 
-def test_improve_uses_system_prompt():
-    """improve() must pass a system prompt with book/text-type instructions."""
-    agent, mock_llm = _make_agent()
-    agent.improve("Some text.")
-    system_msg = mock_llm.chat.call_args.args[0]
-    assert "STRUCTURAL MARKERS" in system_msg or "__HEADING__" in system_msg
-    assert "books" in system_msg.lower() or "writing assistant" in system_msg.lower()
-
-
 def test_improve_passes_generation_params():
     """improve() must forward GenerationParams to the LLM call."""
     agent, mock_llm = _make_agent()
@@ -81,46 +72,23 @@ def test_improve_preserves_multiline_output():
     assert agent.improve("Raw text.") == expected
 
 
-def test_improve_formatting_uses_formatting_prompt():
-    """improve(mode='formatting') must use the formatting-specific system prompt."""
-    agent, mock_llm = _make_agent()
-    agent.improve("Some text.", mode="formatting")
-    system_msg = mock_llm.chat.call_args.args[0]
-    assert "formatter" in system_msg.lower()
-    assert "__HEADING__" in system_msg or "STRUCTURAL MARKERS" in system_msg
-
-
-def test_improve_formatting_returns_llm_output():
-    """improve(mode='formatting') must return whatever the LLM produces."""
-    agent, _ = _make_agent("## Formatted\n\nClean text.")
-    result = agent.improve("Raw text.", mode="formatting")
-    assert result == "## Formatted\n\nClean text."
-
-
-def test_improve_text_uses_text_prompt():
-    """improve(mode='text') must use the text improvement system prompt."""
-    agent, mock_llm = _make_agent()
-    agent.improve("Some text.", mode="text")
-    system_msg = mock_llm.chat.call_args.args[0]
-    assert "writing assistant" in system_msg.lower()
-    assert "TEXT TYPE RULES" in system_msg
-
-
-def test_improve_default_mode_is_text():
-    """improve() without mode must use the text improvement prompt."""
+def test_improve_uses_formatting_prompt():
+    """improve() must use the formatting system prompt by default."""
     agent, mock_llm = _make_agent()
     agent.improve("Some text.")
     system_msg = mock_llm.chat.call_args.args[0]
-    assert "writing assistant" in system_msg.lower()
+    assert "Markdown formatting validator" in system_msg
+    assert "__HEADING__" in system_msg or "STRUCTURAL MARKERS" in system_msg
+    assert "DO NOT" in system_msg
 
 
 def test_improve_formatting_with_agent_prompt():
-    """improve(mode='formatting') must prepend agent_prompt to the formatting prompt."""
+    """improve() must prepend agent_prompt to the formatting prompt."""
     agent, mock_llm = _make_agent()
-    agent.improve("Some text.", agent_prompt="Custom instructions.", mode="formatting")
+    agent.improve("Some text.", agent_prompt="Custom instructions.")
     system_msg = mock_llm.chat.call_args.args[0]
     assert system_msg.startswith("Custom instructions.")
-    assert "formatter" in system_msg.lower()
+    assert "Markdown formatting" in system_msg
 
 
 def test_improve_preprocesses_input():
@@ -137,10 +105,10 @@ def test_improve_preprocesses_input():
 
 
 def test_improve_formatting_preprocesses_input():
-    """improve(mode='formatting') must also preprocess input."""
+    """improve() must preprocess input for formatting."""
     agent, mock_llm = _make_agent("## Result")
     text = "Chapter One\n\nSome text.\n\nChapter One\n\nMore text."
-    agent.improve(text, mode="formatting")
+    agent.improve(text)
     _, user_msg = mock_llm.chat.call_args.args[:2]
     assert "__HEADING__Chapter One__END_HEADING__" in user_msg
     assert user_msg.count("Chapter One") == 1
@@ -216,7 +184,7 @@ def test_improve_document_task_returns_document_dict():
             mock_agent_cls.return_value = mock_agent
 
             result = improve_document_task(
-                task, doc.id, tree_id, "text", services, uuid4(),
+                task, doc.id, tree_id, services, uuid4(),
             )
 
     assert isinstance(result, dict)
@@ -225,8 +193,8 @@ def test_improve_document_task_returns_document_dict():
     assert result["title"] == "Test Doc"
 
 
-def test_improve_document_task_passes_mode():
-    """improve_document_task must pass mode to the agent."""
+def test_improve_document_task_uses_formatting_prompt():
+    """improve_document_task must use the formatting system prompt."""
     task = _make_task()
     doc = _make_doc()
     tree_id = doc.tree_id
@@ -241,11 +209,10 @@ def test_improve_document_task_passes_mode():
             mock_agent_cls.return_value = mock_agent
 
             improve_document_task(
-                task, doc.id, tree_id, "formatting", services, uuid4(),
+                task, doc.id, tree_id, services, uuid4(),
             )
 
-    call_kwargs = mock_agent.improve.call_args.kwargs
-    assert call_kwargs["mode"] == "formatting"
+    mock_agent.improve.assert_called_once()
 
 
 def test_improve_document_task_saves_improvement():
@@ -264,7 +231,7 @@ def test_improve_document_task_saves_improvement():
             mock_agent_cls.return_value = mock_agent
 
             improve_document_task(
-                task, doc.id, tree_id, "text", services, uuid4(),
+                task, doc.id, tree_id, services, uuid4(),
             )
 
     services.kt_doc_store.save_improvement.assert_called_once_with(doc.id, "# Improved")

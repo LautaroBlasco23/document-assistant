@@ -545,7 +545,15 @@ class ImproveDocumentRequest(BaseModel):
     max_tokens: int | None = None
     agent_id: str | None = None
     model: str | None = None
-    mode: str = "text"  # "text" | "formatting"
+    mode: str = "formatting"  # only "formatting" — "text" was replaced by /optimize
+
+
+class OptimizeDocumentRequest(BaseModel):
+    temperature: float | None = None
+    top_p: float | None = None
+    max_tokens: int | None = None
+    agent_id: str | None = None
+    model: str | None = None
 
 
 @router.post(
@@ -559,7 +567,17 @@ async def improve_document(
     _user: CurrentUser,
     services: ServicesDep,
 ) -> dict:
-    """Submit background task to improve document text or formatting."""
+    """Submit background task to fix Markdown formatting (formatting mode only).
+
+    For content optimization (summarize + suggested questions), use /optimize instead.
+    """
+    if req.mode == "text":
+        raise HTTPException(
+            status_code=422,
+            detail="'text' mode has been replaced by /optimize. "
+            "Use POST .../optimize to create an optimized study document.",
+        )
+
     uid = parse_uuid(tree_id, "tree_id")
     doc_uid = parse_uuid(doc_id, "doc_id")
 
@@ -580,7 +598,6 @@ async def improve_document(
         improve_document_task,
         doc_uid,
         uid,
-        req.mode,
         services,
         _user.id,
         agent_id=agent_uid,
@@ -590,7 +607,57 @@ async def improve_document(
         max_tokens=req.max_tokens,
         task_type="kt_improve",
         user_id=_user.id,
-        prompt=f"Improve document (mode={req.mode})",
+        prompt="Improve document (formatting mode)",
+    )
+    return {"task_id": task_id}
+
+
+@router.post(
+    "/knowledge-trees/{tree_id}/documents/{doc_id}/optimize",
+    status_code=202,
+)
+async def optimize_document(
+    tree_id: str,
+    doc_id: str,
+    req: OptimizeDocumentRequest,
+    _user: CurrentUser,
+    services: ServicesDep,
+) -> dict:
+    """Submit background task to create an optimized study document.
+
+    Creates a new document (in the same chapter) with a summarized, reorganized
+    version of the source content plus suggested questions at the end.
+    """
+    uid = parse_uuid(tree_id, "tree_id")
+    doc_uid = parse_uuid(doc_id, "doc_id")
+
+    agent_uid = None
+    if req.agent_id:
+        try:
+            agent_uid = UUID(req.agent_id)
+        except ValueError:
+            raise HTTPException(status_code=422, detail="Invalid agent_id")
+    elif not req.model:
+        default = services.agent_store.get_default(_user.id)
+        if default is not None:
+            agent_uid = default.id
+
+    from application.services.document_optimizer import optimize_document_task
+
+    task_id = services.task_registry.submit(
+        optimize_document_task,
+        doc_uid,
+        uid,
+        services,
+        _user.id,
+        agent_id=agent_uid,
+        model_override=req.model,
+        temperature=req.temperature,
+        top_p=req.top_p,
+        max_tokens=req.max_tokens,
+        task_type="kt_improve",
+        user_id=_user.id,
+        prompt="Create optimized document",
     )
     return {"task_id": task_id}
 

@@ -274,10 +274,18 @@ export class RealClient implements ServiceClient {
     await httpClient.delete(`/knowledge-trees/${treeId}/documents/${id}`)
   }
 
-  async improveKnowledgeDocument(treeId: string, docId: string, agentId?: string, mode: 'text' | 'formatting' = 'text'): Promise<{ task_id: string }> {
+  async improveKnowledgeDocument(treeId: string, docId: string, agentId?: string, mode: 'formatting' = 'formatting'): Promise<{ task_id: string }> {
     const res = await httpClient.post<{ task_id: string }>(
       `/knowledge-trees/${treeId}/documents/${docId}/improve`,
       { agent_id: agentId ?? null, mode }
+    )
+    return res.data
+  }
+
+  async optimizeKnowledgeDocument(treeId: string, docId: string, agentId?: string): Promise<{ task_id: string }> {
+    const res = await httpClient.post<{ task_id: string }>(
+      `/knowledge-trees/${treeId}/documents/${docId}/optimize`,
+      { agent_id: agentId ?? null }
     )
     return res.data
   }

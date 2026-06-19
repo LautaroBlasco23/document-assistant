@@ -56,7 +56,6 @@ const secondAgent = {
 const baseProps = {
   open: true,
   onOpenChange: mockOnOpenChange,
-  mode: 'text' as const,
   onConfirm: mockOnConfirm,
   isImproving: false,
 }
@@ -101,23 +100,15 @@ beforeEach(() => {
 describe('ImproveDialog', () => {
   it('renders when open', () => {
     render(<ImproveDialog {...baseProps} />)
-    expect(screen.getByRole('heading', { name: 'Improve document' })).toBeInTheDocument()
-    expect(screen.getByText('Improve text')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Improve formatting' })).toBeInTheDocument()
+    // Both the dialog title and the mode badge show "Improve formatting"
+    const matches = screen.getAllByText('Improve formatting')
+    expect(matches.length).toBeGreaterThanOrEqual(1)
   })
 
   it('does not render when closed', () => {
     const { container } = render(<ImproveDialog {...baseProps} open={false} />)
     expect(container.querySelector('[role="dialog"]')).not.toBeInTheDocument()
-  })
-
-  it('renders the "Improve formatting" badge when mode is formatting', () => {
-    render(<ImproveDialog {...baseProps} mode="formatting" />)
-    expect(screen.getByText('Improve formatting')).toBeInTheDocument()
-  })
-
-  it('shows the description text for formatting mode', () => {
-    render(<ImproveDialog {...baseProps} mode="formatting" />)
-    expect(screen.getByText(/reformat this text/)).toBeInTheDocument()
   })
 
   it('shows the agent select with agent options', () => {
@@ -149,12 +140,12 @@ describe('ImproveDialog', () => {
     expect(screen.getByRole('button', { name: /run/i })).not.toBeDisabled()
   })
 
-  it('calls onConfirm with mode and selected agent id when Run is clicked', async () => {
+  it('calls onConfirm with selected agent id when Run is clicked', async () => {
     const user = userEvent.setup()
     render(<ImproveDialog {...baseProps} />)
     await user.click(screen.getByRole('button', { name: /run/i }))
     expect(mockSetAgent).toHaveBeenCalledWith('agent-1')
-    expect(mockOnConfirm).toHaveBeenCalledWith('text', 'agent-1')
+    expect(mockOnConfirm).toHaveBeenCalledWith('agent-1')
   })
 
   it('calls onOpenChange(false) when Cancel is clicked', async () => {
@@ -196,33 +187,13 @@ describe('ImproveDialog', () => {
     expect(screen.getByRole('button', { name: /cancel/i })).toBeDisabled()
   })
 
-  describe('modeSelectable', () => {
-    it('shows toggle buttons when modeSelectable is true', () => {
-      render(<ImproveDialog {...baseProps} modeSelectable />)
-      expect(screen.getByRole('button', { name: /improve formatting/i })).toBeInTheDocument()
-      expect(screen.getByRole('button', { name: /improve text/i })).toBeInTheDocument()
-    })
+  it('renders custom title when provided', () => {
+    render(<ImproveDialog {...baseProps} title="Create optimized document" />)
+    expect(screen.getByRole('heading', { name: 'Create optimized document' })).toBeInTheDocument()
+  })
 
-    it('does not show toggle buttons when modeSelectable is false', () => {
-      render(<ImproveDialog {...baseProps} />)
-      // Only the static badge is shown, not interactive buttons
-      expect(screen.queryByRole('button', { name: /improve formatting/i })).not.toBeInTheDocument()
-    })
-
-    it('calls onConfirm with the toggled mode when Run is clicked', async () => {
-      const user = userEvent.setup()
-      render(<ImproveDialog {...baseProps} mode="formatting" modeSelectable />)
-      // Click "Improve text" to switch mode
-      await user.click(screen.getByRole('button', { name: /improve text/i }))
-      await user.click(screen.getByRole('button', { name: /run/i }))
-      expect(mockOnConfirm).toHaveBeenCalledWith('text', 'agent-1')
-    })
-
-    it('calls onConfirm with the initial mode when no toggle is clicked', async () => {
-      const user = userEvent.setup()
-      render(<ImproveDialog {...baseProps} mode="formatting" modeSelectable />)
-      await user.click(screen.getByRole('button', { name: /run/i }))
-      expect(mockOnConfirm).toHaveBeenCalledWith('formatting', 'agent-1')
-    })
+  it('renders custom description when provided', () => {
+    render(<ImproveDialog {...baseProps} description="Custom description text." />)
+    expect(screen.getByText('Custom description text.')).toBeInTheDocument()
   })
 })
