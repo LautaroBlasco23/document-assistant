@@ -146,10 +146,7 @@ def create_tree_from_file_task(
 
                 chunks = splitter.split(single_chapter_doc)
 
-                if chunks:
-                    full_text = "\n\n".join(c.text for c in chunks)
-                else:
-                    full_text = "\n\n".join(p.text for p in chapter.pages)
+                full_text = "\n\n".join(p.text for p in chapter.pages)
 
                 ch_page_start = chapter.pages[0].number if chapter.pages else None
                 ch_page_end = chapter.pages[-1].number if chapter.pages else None
@@ -660,7 +657,12 @@ def ingest_file_task(
 
             set_task_progress(task, 40, "Chunking document...")
 
-            full_text = "\n\n".join(c.text for c in chunks)
+            # Use original page text, not chunk-assembled text
+            all_pages = []
+            for ch in doc.chapters:
+                for p in ch.pages:
+                    all_pages.append(p.text)
+            full_text = "\n\n".join(all_pages)
 
             if not full_text.strip():
                 raise ValueError(

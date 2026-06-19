@@ -12,8 +12,8 @@ Setup:   Mocked Services, Task, file loaders, and stores.
 
 import tempfile
 from pathlib import Path
-from unittest.mock import MagicMock, patch, mock_open
-from uuid import UUID, uuid4
+from unittest.mock import MagicMock, patch
+from uuid import uuid4
 
 import pytest
 
@@ -362,7 +362,7 @@ def test_ingest_file_task_returns_doc_id_title_and_chunks():
     chunk = SplitterChunk(text="Some content", token_count=10)
 
     with patch("application.services.tree_import._parse_and_chunk") as mock_parse:
-        mock_doc = _make_document()
+        mock_doc = _make_document(chapters=[_make_chapter(pages=[_make_page(text="Some content")])])
         mock_parse.return_value = (mock_doc, [chunk], "hash123", {})
 
         with patch("application.services.tree_import.PROJECT_ROOT", Path(tempfile.gettempdir())):
@@ -388,7 +388,8 @@ def test_ingest_file_task_raises_when_no_text():
     chunk = SplitterChunk(text="   ", token_count=0)  # Whitespace only
 
     with patch("application.services.tree_import._parse_and_chunk") as mock_parse:
-        mock_doc = _make_document()
+        # Document with empty/missing pages — text extraction fails
+        mock_doc = _make_document(chapters=[_make_chapter(pages=[_make_page(text="")])])
         mock_parse.return_value = (mock_doc, [chunk], "hash123", {})
 
         with patch("application.services.tree_import.PROJECT_ROOT", Path(tempfile.gettempdir())):
@@ -415,7 +416,10 @@ def test_ingest_file_task_saves_chunks():
     ]
 
     with patch("application.services.tree_import._parse_and_chunk") as mock_parse:
-        mock_doc = _make_document()
+        mock_doc = _make_document(chapters=[_make_chapter(pages=[
+            _make_page(text="Content 1"),
+            _make_page(text="Content 2"),
+        ])])
         mock_parse.return_value = (mock_doc, chunks, "hash123", {})
 
         with patch("application.services.tree_import.PROJECT_ROOT", Path(tempfile.gettempdir())):
