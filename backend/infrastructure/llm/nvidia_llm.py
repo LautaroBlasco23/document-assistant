@@ -111,11 +111,11 @@ class NvidiaLLM(LLM):
         is_bg = _current_task.get() is not None
         max_retries = self._max_retries if is_bg else self._max_retries_chat
         resp = self._request(payload, max_retries_override=max_retries)
-        
+
         response_json = resp.json()
         message = response_json["choices"][0]["message"]
         content = message.get("content")
-        
+
         if content is None:
             # Log full response structure for diagnostics
             logger.error(
@@ -132,7 +132,7 @@ class NvidiaLLM(LLM):
                     f"LLM returned empty response (finish_reason: "
                     f"{response_json['choices'][0].get('finish_reason')})"
                 )
-        
+
         return content
 
     def _request(

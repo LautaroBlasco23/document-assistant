@@ -10,11 +10,10 @@ Out of scope:
 Setup:   Mocked model fetcher functions.
 """
 
-from unittest.mock import MagicMock, patch
-
-from infrastructure.config import AppConfig
+from unittest.mock import patch
 
 from application.services.provider_service import test_provider
+from infrastructure.config import AppConfig
 
 # ---------------------------------------------------------------------------
 # Helpers

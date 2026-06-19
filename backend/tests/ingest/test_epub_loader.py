@@ -10,7 +10,6 @@ import pytest
 from ebooklib import epub
 from lxml import etree
 
-from core.model.document import ImageRef
 from infrastructure.config import EpubConfig
 from infrastructure.ingest.epub_loader import (
     ChapterPreview,

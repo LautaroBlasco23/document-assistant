@@ -9,7 +9,6 @@ Out of scope:
 Setup:   Real tiktoken encoder (deterministic for given input).
 """
 
-import pytest
 
 from application.agents._tokens import count_tokens, truncate_tokens
 

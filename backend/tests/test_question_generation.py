@@ -11,7 +11,7 @@ Out of scope:
 Setup:   Mocked Services, Task, LLM resolver, and agent.
 """
 
-from unittest.mock import MagicMock, patch, call
+from unittest.mock import MagicMock, patch
 from uuid import UUID, uuid4
 
 import pytest
@@ -195,7 +195,6 @@ def test_generate_questions_task_updates_progress():
             )
 
             # Check that set_task_progress was called
-            from api.tasks import set_task_progress
             # Progress updates are done via the task mock
             assert task.progress_pct == 100
             assert task.progress == "Done"

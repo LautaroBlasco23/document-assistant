@@ -14,7 +14,6 @@ import logging
 import time
 from unittest.mock import MagicMock, patch
 
-import pytest
 from fastapi.testclient import TestClient
 
 from core.exceptions import ProviderNotConfigured, RateLimitError
@@ -125,10 +124,10 @@ def test_cors_env_override():
     with patch.dict("os.environ", {"ALLOWED_ORIGINS": "https://myapp.example.com"}):
         # Need to reload the module to pick up the new env var
         import importlib
+
         import api.main
         importlib.reload(api.main)
 
-        from api.main import create_app
 
         app, patches = _make_app()
         try:
@@ -373,8 +372,9 @@ def test_lifespan_calls_init_and_shutdown():
         mock_init = patch("api.main.init_services").start()
         mock_shutdown = patch("api.main.shutdown_services").start()
 
-        from api.main import lifespan
         import asyncio
+
+        from api.main import lifespan
 
         async def _test():
             async with lifespan(app):
