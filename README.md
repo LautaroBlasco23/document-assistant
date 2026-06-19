@@ -1,8 +1,19 @@
 # Document Assistant
 
+> **⚠️ Project discontinued.** Development stopped because free-tier LLMs (Groq, Ollama, etc.) cannot reliably format and process large chapters, and the PDF extraction quality is insufficient for production use. The codebase is functional for small documents but not ready for real-world use. See [Project Status](#project-status) for details.
+
 A knowledge tree platform for structured learning from documents. Import PDFs and EPUBs as knowledge trees, then generate summaries, flashcards, and exam questions to master the content.
 
 Uses Docker (PostgreSQL), Groq API for LLM inference (or Ollama locally), and a Vite web SPA backed by a FastAPI server.
+
+## Project Status
+
+**This project is not finished.** Development was halted due to two blockers:
+
+1. **LLM output quality** — Free-tier models (Groq, local Ollama) fail to produce clean, well-structured output when processing large chapters. Summaries, flashcards, and questions degrade significantly with longer input.
+2. **PDF extraction** — The PDF reader doesn't handle complex layouts, multi-column text, or scanned documents well enough for reliable ingestion.
+
+The architecture and code are sound, but these upstream limitations make the end-to-end experience unreliable. A paid LLM API with a larger context window and better instruction following, combined with a more robust PDF parser, would be needed to continue.
 
 ## Features
 
